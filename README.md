@@ -1,4 +1,4 @@
-# Systems Research Group - Virtual Internet
+# Systems Research Group - Elegant Virtual Internet Simulation (Elvis)
 
 ## Planning document
 
