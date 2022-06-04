@@ -1,1 +1,0 @@
-/Users/stan/Teaching/srg-elvis/sim/target/debug/libsim.rlib: /Users/stan/Teaching/srg-elvis/sim/src/core/message.rs /Users/stan/Teaching/srg-elvis/sim/src/core/mod.rs /Users/stan/Teaching/srg-elvis/sim/src/core/protocol.rs /Users/stan/Teaching/srg-elvis/sim/src/core/tests/mod.rs /Users/stan/Teaching/srg-elvis/sim/src/lib.rs /Users/stan/Teaching/srg-elvis/sim/src/utils/mod.rs
