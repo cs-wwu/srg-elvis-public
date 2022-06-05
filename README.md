@@ -1,14 +1,14 @@
-# Systems Research Group - Elegant Virtual Internet Simulation (Elvis)
+# Systems Research Group - *Elegant Virtual Internet Simulation (Elvis)*
 
 ## Planning document
 
 [https://docs.google.com/document/d/1HnhrICXHJyRhc0CUmUgXLJbSlxZfF9wzzvsMujmxk2A/edit](https://docs.google.com/document/d/1HnhrICXHJyRhc0CUmUgXLJbSlxZfF9wzzvsMujmxk2A/edit)
 
 ## Project Structure
-The Elvis simulator itself is in the root level in the folder `sim`.
+The *Elvis* simulator itself is in the root level in the folder `sim`.
 
 ## Elvis Coding Conventions
-Elvis is written primarily in Rust. These coding conventions apply to Rust code.
+*Elvis* is written primarily in Rust. These coding conventions apply to Rust code.
 
 ### Indentation
 Standard indentation for Rust code shall be **4 spaces**.
