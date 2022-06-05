@@ -40,6 +40,7 @@ Even if your code runs without errors and all your tests pass, always still run 
 maintain high quality code style.
 
 ### Tests
-Practice Test Driven Development. All code checked into main should have a high coverage
+Practice [Test Driven Development](https://en.wikipedia.org/wiki/Test-driven_development). 
+All code checked into main should have a high coverage
 for [unit tests](https://en.wikipedia.org/wiki/Unit_testing). Try not to check in code
 that has no unit tests.
