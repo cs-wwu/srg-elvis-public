@@ -49,3 +49,6 @@ In a research project, true TDD is sometimes difficult because we are exploring 
 To that end, it's ok to start with writing code. However, you should quickly follow up 
 on your code with unit tests. Try and get as much coverage as possible, particularly
 to public methods that you expose.
+
+# Contact
+*Elvis* administrators are [See-Mong Tan](mailto:see-mong.tan@wwu.edu) and [Tim Harding](mailto:hardint4@wwu.edu).
