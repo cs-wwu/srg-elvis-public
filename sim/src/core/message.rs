@@ -48,7 +48,7 @@ impl Message {
     ///
     /// # Arguments
     ///
-    /// * `data` - A Bytes reference that holds the data
+    /// * `data` - A Buf reference that holds the data
     ///
     /// # Returns
     ///
