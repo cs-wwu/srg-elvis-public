@@ -5,7 +5,6 @@ use std::ops::{Range, RangeFull};
 /// The struct holds a ref counted data pointer into the heap.
 /// It also holds a start index, and a length
 #[derive(Debug)]
-#[derive(Clone)]
 pub struct Buf {
     data: Rc<Vec<u8>>,        // The actual data
     start: usize,             // The starting index
@@ -27,19 +26,6 @@ impl Buf {
             data: Rc::new(bytes.to_vec()),
             start: 0,
             length: bytes.len()
-        }
-    }
-
-    /// Clone the buf. This clones the underlying ref counted buffer
-    ///
-    /// # Returns
-    ///
-    /// The new Buf that points to the same underlying ref counted data
-    pub fn clone(&self) -> Buf {
-        Buf {
-            data: Rc::clone(&self.data),
-            start: self.start,
-            length: self.length
         }
     }
 
@@ -67,6 +53,26 @@ impl Buf {
     /// Return the length in bytes of this Buf
     pub fn len(&self) -> usize {
         self.length
+    }
+
+    /// Return true if the Buf is empty
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+}
+
+impl std::clone::Clone for Buf {
+    /// Clone the buf. This clones the underlying ref counted buffer
+    ///
+    /// # Returns
+    ///
+    /// The new Buf that points to the same underlying ref counted data
+    fn clone(&self) -> Buf {
+        Buf {
+            data: Rc::clone(&self.data),
+            start: self.start,
+            length: self.length
+        }
     }
 }
 
@@ -102,7 +108,7 @@ impl std::ops::Index<Range<usize>> for Buf {
      /// # Returns
      ///
      /// A reference to the array of data
-     fn index<'a>(&'a self, r: Range<usize>) -> &Self::Output {
+     fn index(&self, r: Range<usize>) -> &Self::Output {
          assert!(self.start + self.length < r.start);
          assert!(self.start + self.length < r.end);
          &self.data[self.start + r.start .. self.start + r.end]
@@ -122,7 +128,7 @@ impl std::ops::Index<RangeFull> for Buf {
      /// # Returns
      ///
      /// A reference to the array of data
-     fn index<'a>(&'a self, _r: RangeFull) -> &Self::Output {
+     fn index(&self, _r: RangeFull) -> &Self::Output {
          &self.data[self.start .. self.start + self.length]
      }
 }

@@ -38,6 +38,11 @@ impl Message {
         result
     }
 
+    /// Return true if this message is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Push the data of Bytes onto this message. The data is logically prepended
     /// to the front of the message. This is a zero copy operation.
     ///
@@ -86,7 +91,7 @@ impl Message {
 
     /// Return a reference to the constituent vector of chunk of bytes that make up
     /// this Message. The lifetime of the reference is bound to the lifetime of this Message.
-    pub fn chunks<'a>(&'a self) -> &'a Vec<Buf> {
+    pub fn chunks(&self) -> &Vec<Buf> {
         &self.chunks
     }
 
@@ -104,5 +109,11 @@ impl Message {
         // TODO(seemong): Finish implementing the read
         // Open issue -- should we add an stream interface that advances the read pointer?
         0
+    }
+}
+
+impl Default for Message {
+    fn default() -> Self {
+        Self::new()
     }
 }
