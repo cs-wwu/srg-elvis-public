@@ -1,3 +1,5 @@
+#[cfg(test)]
+
 use crate::core::Buf;
 
 // Test buf creation
