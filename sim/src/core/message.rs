@@ -1,24 +1,23 @@
-use bytes::Bytes;
+use crate::core::Buf;
 
 /// A Message is an immutable set of bytes that are stored in one or more
 /// contiguous blocks of memory.  A Message is created with Message::new.
 /// The body and headers are pushed on to the message, creating a new immutable
 /// message each time.
 /// ```
-/// use sim::core::Message;
-/// use bytes::Bytes;
+/// use sim::core::{Buf, Message};
 ///
 /// let mut message = Message::new();
-/// let body = Bytes::from("Body Data");
+/// let body = Buf::new(b"Body Data");
 /// message = message.push(&body);
-/// let header = Bytes::from("Header");
+/// let header = Buf::new(b"Header");
 /// message = message.push(&header)
 /// ```
 /// The underlying iumplementation uses reference counted Bytes in a vector of Bytes.
 /// Pushing data onto a message is a zero-copy operation of the underlying data.
 #[derive(Debug)]
 pub struct Message {
-    chunks: Vec<Bytes>,
+    chunks: Vec<Buf>,
 }
 
 impl Message {
@@ -49,9 +48,9 @@ impl Message {
     /// # Returns
     ///
     /// A new Message object with the header prepended. The original Message is unchanged
-    pub fn push(&self, data: &Bytes) -> Message {
+    pub fn push(&self, data: &Buf) -> Message {
         let mut copy = self.chunks.clone();
-        copy.insert(0, data.slice(0..));
+        copy.insert(0, data.clone());
         Message {
             chunks: copy
         }
@@ -76,7 +75,7 @@ impl Message {
                 remaining -= copy[0].len();
                 copy.remove(0);
             } else {
-                copy[0] = copy[0].slice(remaining..);
+                copy[0] = copy[0].slice(remaining, copy[0].len());
                 break;
             }
         }
@@ -87,7 +86,7 @@ impl Message {
 
     /// Return a reference to the constituent vector of chunk of bytes that make up
     /// this Message. The lifetime of the reference is bound to the lifetime of this Message.
-    pub fn chunks<'a>(&'a self) -> &'a Vec<Bytes> {
+    pub fn chunks<'a>(&'a self) -> &'a Vec<Buf> {
         &self.chunks
     }
 

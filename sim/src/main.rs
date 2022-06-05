@@ -1,16 +1,23 @@
-use sim::core::Message;
+use sim::core::{Buf, Message};
 use sim::utils::print_type_of;
-use bytes::Bytes;
 
 
 fn main() {
     println!("Elvis v{}", env!("CARGO_PKG_VERSION"));
 
-    let data1 = "Hello World";
-    let bytes1 = Bytes::from(data1);
-    let mut message = Message::new();
-    message = message.push(&bytes1);
-
+    let message = Message::new();
     print_type_of(&message);
-    println!("{:?}", &message);
+
+    let data1 = b"Body";
+    let bytes = Buf::new(data1);
+    let message = message.push(&bytes);
+
+    let data2 = b"Header";
+    let bytes = Buf::new(data2);
+    let message = message.push(&bytes);
+
+    let chunks = message.chunks();
+    assert_eq!(2, chunks.len());
+    assert_eq!(data2, &chunks[0][..]);
+    assert_eq!(data1, &chunks[1][..]);
 }

@@ -1,5 +1,5 @@
-use crate::core::Message;
-use bytes::Bytes;
+#[cfg(test)]
+use crate::core::{Buf, Message};
 
 // Test message creation
 #[test]
@@ -13,12 +13,12 @@ fn test_message_create() {
 fn test_message_push() {
     let message = Message::new();
 
-    let data1 = "Hello";
-    let bytes = Bytes::from(data1);
+    let data1 = b"Hello";
+    let bytes = Buf::new(data1);
     let message = message.push(&bytes);
 
-    let data2 = " World";
-    let bytes = Bytes::from(data2);
+    let data2 = b" World";
+    let bytes = Buf::new(data2);
     let message = message.push(&bytes);
 
     assert_eq!(data1.len() + data2.len(), message.len());
@@ -29,8 +29,8 @@ fn test_message_push() {
 fn test_message_pop() {
     let message = Message::new();
 
-    let data = "Hello World";
-    let bytes = Bytes::from(data);
+    let data = b"Hello World";
+    let bytes = Buf::new(data);
     let message = message.push(&bytes);
 
     let size = 3;
@@ -44,16 +44,16 @@ fn test_message_pop() {
 fn test_message_chunks() {
     let message = Message::new();
 
-    let data1 = "Body";
-    let bytes = Bytes::from(data1);
+    let data1 = b"Body";
+    let bytes = Buf::new(data1);
     let message = message.push(&bytes);
 
-    let data2 = "Header";
-    let bytes = Bytes::from(data2);
+    let data2 = b"Header";
+    let bytes = Buf::new(data2);
     let message = message.push(&bytes);
 
     let chunks = message.chunks();
     assert_eq!(2, chunks.len());
-    assert_eq!(data2, &chunks[0]);
-    assert_eq!(data1, &chunks[1]);
+    assert_eq!(data2, &chunks[0][..]);
+    assert_eq!(data1, &chunks[1][..]);
 }
