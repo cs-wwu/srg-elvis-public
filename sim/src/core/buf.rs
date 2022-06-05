@@ -75,9 +75,17 @@ impl std::ops::Index<usize> for Buf {
     type Output = u8;
 
     /// Return the byte value at index i for the buf
-    fn index(&self, i: usize) -> &Self::Output {
-        assert!(i < self.length);
-        &self.data[self.start + i]
+    ///
+    /// # Arguments
+    ///
+    /// * `idx` - The index of the value to get, displaced from self.start
+    ///
+    /// # Returns
+    ///
+    /// The byte value at index idx.
+    fn index(&self, idx: usize) -> &Self::Output {
+        assert!(idx < self.length);
+        &self.data[self.start + idx]
     }
 }
 
