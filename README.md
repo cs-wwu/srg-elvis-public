@@ -44,3 +44,8 @@ Practice [Test Driven Development](https://en.wikipedia.org/wiki/Test-driven_dev
 All code checked into main should have a high coverage
 for [unit tests](https://en.wikipedia.org/wiki/Unit_testing). Try not to check in code
 that has no unit tests.
+
+In a research project, true TDD is sometimes difficult because we are exploring new spaces.
+To that end, it's ok to start with writing code. However, you should quickly follow up 
+on your code with unit tests. Try and get as much coverage as possible, particularly
+to public methods that you expose.
