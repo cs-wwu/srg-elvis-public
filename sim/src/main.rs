@@ -1,5 +1,4 @@
-use sim::core::Message;
-use sim::utils::print_type_of;
+use elvis::{core::Message, utils::print_type_of};
 
 fn main() {
     println!("Elvis v{}", env!("CARGO_PKG_VERSION"));

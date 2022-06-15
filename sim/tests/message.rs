@@ -1,4 +1,4 @@
-use sim::core::Message;
+use elvis::core::Message;
 
 #[test]
 fn multi_slice() {

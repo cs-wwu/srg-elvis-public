@@ -13,7 +13,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use sim::core::Message;
+    /// # use elvis::core::Message;
     /// let message = Message::new(b"Body");
     /// ```
     pub fn new(body: impl Into<Chunk>) -> Self {
@@ -27,7 +27,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use sim::core::{Message, Chunk};
+    /// # use elvis::core::{Message, Chunk};
     /// let message = Message::new(b"Body").with_header(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
@@ -44,7 +44,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use sim::core::{Message, Chunk};
+    /// # use elvis::core::{Message, Chunk};
     /// let message = Message::new(b"Body").with_header(b"Header").slice(3, 8);
     /// let expected = b"derBo";
     /// assert!(message.iter().eq(expected.iter().cloned()));
@@ -64,7 +64,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use sim::core::Message;
+    /// # use elvis::core::Message;
     /// let message = Message::new(b"Body").with_header(b"Header1").with_header(b"Header2");
     /// let message = message.pop().unwrap();
     /// let expected = b"Header1Body";
@@ -91,7 +91,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use sim::core::{Message, Chunk};
+    /// # use elvis::core::{Message, Chunk};
     /// let message = Message::new(b"Body").with_header(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
