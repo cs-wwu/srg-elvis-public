@@ -133,6 +133,7 @@ struct MessageBytes {
 }
 
 impl MessageBytes {
+    /// Returns a new message bytes iterator.
     pub fn new(stack: Rc<WrappedMessage>) -> Self {
         Self {
             stack: Some(stack),
@@ -194,22 +195,28 @@ impl Iterator for MessageBytes {
     }
 }
 
+/// A piece of a [Message](crate::core::Message), either a message body or a
+/// header.
 #[derive(Debug)]
 pub struct Chunk(Rc<Vec<u8>>);
 
 impl Chunk {
+    /// Returns a new chunk containing the given bytes.
     pub fn new(data: Vec<u8>) -> Self {
         Self(Rc::new(data))
     }
 
+    /// Returns an iterator over the bytes in the chunk.
     pub fn iter(&self) -> impl Iterator<Item = u8> {
         ChunkBytes::new(self.clone())
     }
 
+    /// Returns the underlying bytes as slice.
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
     }
 
+    /// Returns the number of bytes in the chunk.
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -235,7 +242,7 @@ impl From<&[u8]> for Chunk {
 
 impl<const N: usize> From<&[u8; N]> for Chunk {
     fn from(array: &[u8; N]) -> Self {
-        Self(Rc::new(array.to_vec()))
+        From::from(array.as_slice())
     }
 }
 
