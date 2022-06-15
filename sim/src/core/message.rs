@@ -168,7 +168,7 @@ impl Iterator for MessageBytes {
                                 Some(byte)
                             }
                             None => {
-                                self.i -= chunk.len();
+                                self.i -= chunk.as_slice().len();
                                 self.stack = Some(message.clone());
                                 self.next()
                             }
@@ -207,11 +207,6 @@ impl Chunk {
     /// Returns the underlying bytes as slice.
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
-    }
-
-    /// Returns the number of bytes in the chunk.
-    pub fn len(&self) -> usize {
-        self.0.len()
     }
 }
 
