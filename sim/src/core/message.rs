@@ -204,11 +204,6 @@ impl Chunk {
         Self(Rc::new(data))
     }
 
-    /// Returns an iterator over the bytes in the chunk.
-    pub fn iter(&self) -> impl Iterator<Item = u8> {
-        ChunkBytes::new(self.clone())
-    }
-
     /// Returns the underlying bytes as slice.
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
@@ -241,30 +236,5 @@ impl From<&[u8]> for Chunk {
 impl<const N: usize> From<&[u8; N]> for Chunk {
     fn from(array: &[u8; N]) -> Self {
         From::from(array.as_slice())
-    }
-}
-
-/// An iterator over the bytes of a [Chunk](crate::core::Chunk).
-struct ChunkBytes {
-    /// The chunk to iterate over
-    chunk: Chunk,
-    /// The current index into the chunk
-    i: usize,
-}
-
-impl ChunkBytes {
-    /// Returns a new iterator for the chunk.
-    pub fn new(chunk: Chunk) -> Self {
-        Self { chunk, i: 0 }
-    }
-}
-
-impl Iterator for ChunkBytes {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let i = self.i;
-        self.i += 1;
-        self.chunk.0.get(i).cloned()
     }
 }
