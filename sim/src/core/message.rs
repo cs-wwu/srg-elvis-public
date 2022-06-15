@@ -13,17 +13,13 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use sim::core::{Message, Chunk};
-    /// let message = Message::new(Chunk::from_slice(&[1, 2, 3]));
+    /// # use sim::core::Message;
+    /// let message = Message::new(b"Body");
     /// ```
-    pub fn new(body: Chunk) -> Self {
+    pub fn new(body: impl Into<Chunk>) -> Self {
         Self {
-            stack: Rc::new(WrappedMessage::Body(body)),
+            stack: Rc::new(WrappedMessage::Body(body.into())),
         }
-    }
-
-    pub fn from_slice(slice: &[u8]) -> Self {
-        Self::new(slice.into())
     }
 
     /// Creates a new message with the given header prepended.
@@ -32,51 +28,23 @@ impl Message {
     ///
     /// ```
     /// # use sim::core::{Message, Chunk};
-    /// let message = Message::from_slice(&[4, 5, 6]);
-    /// let message = message.push(Chunk::from_slice(&[1, 2, 3]));
-    /// let expected = &[1u8, 2, 3, 4, 5, 6];
-    /// for (actual, &expected) in message.iter_bytes().zip(expected.iter()) {
-    ///     assert_eq!(actual, expected);
-    /// }
+    /// let message = Message::new(b"Body").with_header(b"Header");
+    /// let expected = b"HeaderBody";
+    /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
-    pub fn push(&self, header: Chunk) -> Self {
+    pub fn with_header(&self, header: impl Into<Chunk>) -> Self {
         Self {
-            stack: Rc::new(WrappedMessage::Header(header, self.stack.clone())),
+            stack: Rc::new(WrappedMessage::Header(header.into(), self.stack.clone())),
         }
     }
 
-    pub fn push_slice(&self, header: &[u8]) -> Self {
-        self.push(header.into())
-    }
-
-    /// Create a message from a list of chunks. The slice should have outermost
-    /// headers first and the body last.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use sim::core::Message;
-    /// let slices = &[
-    ///     &[1u8, 2, 3][..],
-    ///     &[4, 5, 6][..],
-    /// ];
-    /// let message = Message::from_slices(slices).unwrap();
-    /// let body = message.pop().unwrap();
-    /// for (actual, &expected) in body.iter_bytes().zip(slices[1].iter()) {
-    ///     assert_eq!(actual, expected);
-    /// }
-    /// ```
-    pub fn from_slices(chunks: &[&[u8]]) -> Option<Self> {
-        let mut iter = chunks.iter().rev();
-        match iter.next() {
-            Some(&first_chunk) => {
-                let mut message = Self::new(first_chunk.into());
-                for &chunk in iter {
-                    message = message.push(chunk.into());
-                }
-                Some(message)
-            }
-            None => None,
+    pub fn slice(&self, start: usize, end: usize) -> Self {
+        Self {
+            stack: Rc::new(WrappedMessage::Slice {
+                start,
+                end,
+                message: self.stack.clone(),
+            }),
         }
     }
 
@@ -86,17 +54,10 @@ impl Message {
     ///
     /// ```
     /// # use sim::core::Message;
-    /// let slices = &[
-    ///     &[1u8, 2, 3][..],
-    ///     &[4, 5, 6][..],
-    ///     &[7, 8, 9][..],
-    /// ];
-    /// let message = Message::from_slices(slices).unwrap();
-    /// let body = message.pop().unwrap();
-    /// let expected = &[4u8, 5, 6, 7, 8, 9][..];
-    /// for (actual, &expected) in body.iter_bytes().zip(slices[1..].iter().flat_map(|slice| slice.iter())) {
-    ///     assert_eq!(actual, expected);
-    /// }
+    /// let message = Message::new(b"Body").with_header(b"Header1").with_header(b"Header2");
+    /// let message = message.pop().unwrap();
+    /// let expected = b"Header1Body";
+    /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
     pub fn pop(&self) -> Option<Message> {
         match self.stack.as_ref() {
@@ -104,6 +65,13 @@ impl Message {
                 stack: message.clone(),
             }),
             WrappedMessage::Body(_) => None,
+            WrappedMessage::Slice {
+                start,
+                end,
+                message,
+            } => Some(Self {
+                stack: message.clone(),
+            }),
         }
     }
 
@@ -112,99 +80,105 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use sim::core::Message;
-    /// let slices = &[
-    ///     &[1u8, 2, 3][..],
-    ///     &[4, 5, 6][..],
-    /// ];
-    /// let message = Message::from_slices(slices).unwrap();
-    /// let expected = &[1u8, 2, 3, 4, 5, 6];
-    /// for (actual, &expected) in message.iter_bytes().zip(expected.iter()) {
-    ///     assert_eq!(actual, expected);
-    /// }
+    /// # use sim::core::{Message, Chunk};
+    /// let message = Message::new(b"Body").with_header(b"Header");
+    /// let expected = b"HeaderBody";
+    /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
-    pub fn iter_bytes(&self) -> impl Iterator<Item = u8> {
-        self.iter_chunks().flat_map(|chunk| chunk.iter())
+    pub fn iter(&self) -> impl Iterator<Item = u8> {
+        MessageBytes::new(self.stack.clone())
     }
+}
 
-    /// Returns an iterator over the chunks of the message. Chunks can be body
-    /// content or headers.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use sim::core::Message;
-    /// let slices = &[
-    ///     &[1u8, 2, 3][..],
-    ///     &[4, 5, 6][..],
-    /// ];
-    /// let message = Message::from_slices(slices).unwrap();
-    /// for (chunk, &slice) in message.iter_chunks().zip(slices.iter()) {
-    ///     assert_eq!(chunk.as_slice(), slice);
-    /// }
-    /// ```
-    pub fn iter_chunks(&self) -> impl Iterator<Item = Chunk> {
-        MessageChunks::new(self.stack.clone())
-    }
-
-    pub fn len(&self) -> usize {
-        self.iter_bytes().count()
+impl Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.iter() {
+            write!(f, "{:x} ", byte)?;
+        }
+        Ok(())
     }
 }
 
 /// A cons list of message parts.
 #[derive(Debug, Clone)]
 enum WrappedMessage {
+    Slice {
+        start: usize,
+        end: usize,
+        message: Rc<WrappedMessage>,
+    },
     Header(Chunk, Rc<WrappedMessage>),
     Body(Chunk),
 }
 
-impl WrappedMessage {
-    /// Returns the outermost chunk of the message.
-    pub fn get_outer(&self) -> &Chunk {
-        match self {
-            WrappedMessage::Header(chunk, _) => chunk,
-            WrappedMessage::Body(chunk) => chunk,
+struct MessageBytes {
+    /// Tracks the current message part
+    stack: Option<Rc<WrappedMessage>>,
+    /// Tracks the index into the current chunk
+    i: usize,
+    /// The byte to end on
+    end: usize,
+}
+
+impl MessageBytes {
+    pub fn new(stack: Rc<WrappedMessage>) -> Self {
+        Self {
+            stack: Some(stack),
+            i: 0,
+            end: usize::MAX,
         }
     }
 }
 
-/// An iterator over message chunks.
-pub struct MessageChunks {
-    stack: Option<Rc<WrappedMessage>>,
-}
-
-impl MessageChunks {
-    /// Creates a new iterator.
-    fn new(stack: Rc<WrappedMessage>) -> Self {
-        Self { stack: Some(stack) }
-    }
-}
-
-impl Iterator for MessageChunks {
-    type Item = Chunk;
+impl Iterator for MessageBytes {
+    type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.stack.clone() {
-            Some(stack) => {
-                let out = stack.get_outer();
-                self.stack = match stack.as_ref() {
-                    WrappedMessage::Header(_, wrapped) => Some(wrapped.clone()),
-                    WrappedMessage::Body(_) => None,
-                };
-                Some(out.clone())
-            }
+        match &self.stack {
+            Some(stack) => match stack.as_ref() {
+                WrappedMessage::Slice {
+                    start,
+                    end,
+                    message,
+                } => {
+                    self.i += start;
+                    self.end = match self.end {
+                        usize::MAX => *end,
+                        _ => self.end + *end,
+                    };
+                    self.stack = Some(message.clone());
+                    self.next()
+                }
+                WrappedMessage::Header(chunk, message) => {
+                    if self.i < self.end {
+                        match chunk.as_slice().get(self.i) {
+                            Some(&byte) => {
+                                self.i += 1;
+                                Some(byte)
+                            }
+                            None => {
+                                self.i -= chunk.len();
+                                self.end -= chunk.len();
+                                self.stack = Some(message.clone());
+                                self.next()
+                            }
+                        }
+                    } else {
+                        None
+                    }
+                }
+                WrappedMessage::Body(chunk) => {
+                    if self.i < self.end {
+                        let out = chunk.as_slice().get(self.i).cloned();
+                        self.i += 1;
+                        out
+                    } else {
+                        None
+                    }
+                }
+            },
             None => None,
         }
-    }
-}
-
-impl Display for Message {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.iter_bytes() {
-            write!(f, "{:x} ", byte)?;
-        }
-        Ok(())
     }
 }
 
@@ -227,6 +201,10 @@ impl Chunk {
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl Clone for Chunk {
@@ -235,9 +213,21 @@ impl Clone for Chunk {
     }
 }
 
+impl From<Vec<u8>> for Chunk {
+    fn from(vector: Vec<u8>) -> Self {
+        Self(Rc::new(vector))
+    }
+}
+
 impl From<&[u8]> for Chunk {
     fn from(slice: &[u8]) -> Self {
         Self(Rc::new(slice.to_vec()))
+    }
+}
+
+impl<const N: usize> From<&[u8; N]> for Chunk {
+    fn from(array: &[u8; N]) -> Self {
+        Self(Rc::new(array.to_vec()))
     }
 }
 
