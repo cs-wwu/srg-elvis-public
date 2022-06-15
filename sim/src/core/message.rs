@@ -38,6 +38,17 @@ impl Message {
         }
     }
 
+    /// Creates a slice of the message from `start` to `end`. `start` is
+    /// inclusive, `end` is exclusive.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use sim::core::{Message, Chunk};
+    /// let message = Message::new(b"Body").with_header(b"Header").slice(3, 8);
+    /// let expected = b"derBo";
+    /// assert!(message.iter().eq(expected.iter().cloned()));
+    /// ```
     pub fn slice(&self, start: usize, end: usize) -> Self {
         Self {
             stack: Rc::new(WrappedMessage::Slice {
@@ -66,8 +77,8 @@ impl Message {
             }),
             WrappedMessage::Body(_) => None,
             WrappedMessage::Slice {
-                start,
-                end,
+                start: _,
+                end: _,
                 message,
             } => Some(Self {
                 stack: message.clone(),
@@ -111,6 +122,7 @@ enum WrappedMessage {
     Body(Chunk),
 }
 
+/// An iterator over the bytes of a message
 struct MessageBytes {
     /// Tracks the current message part
     stack: Option<Rc<WrappedMessage>>,
@@ -190,10 +202,6 @@ impl Chunk {
         Self(Rc::new(data))
     }
 
-    pub fn from_slice(slice: &[u8]) -> Self {
-        Self::new(slice.to_vec())
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = u8> {
         ChunkBytes::new(self.clone())
     }
@@ -231,12 +239,16 @@ impl<const N: usize> From<&[u8; N]> for Chunk {
     }
 }
 
+/// An iterator over the bytes of a [Chunk](crate::core::Chunk).
 struct ChunkBytes {
+    /// The chunk to iterate over
     chunk: Chunk,
+    /// The current index into the chunk
     i: usize,
 }
 
 impl ChunkBytes {
+    /// Returns a new iterator for the chunk.
     pub fn new(chunk: Chunk) -> Self {
         Self { chunk, i: 0 }
     }
