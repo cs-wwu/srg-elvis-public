@@ -9,3 +9,13 @@ fn multi_slice() {
     let expected = b"rB";
     assert!(message.iter().eq(expected.iter().cloned()));
 }
+
+#[test]
+fn mixed_operations() {
+    let message = Message::new(b"Hello, world")
+        .slice(0, 5)
+        .with_header(b"Header")
+        .slice(3, 8);
+    let expected = b"derHe";
+    assert!(message.iter().eq(expected.iter().cloned()));
+}
