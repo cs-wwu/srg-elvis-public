@@ -53,7 +53,7 @@ impl Message {
         Self {
             stack: Rc::new(WrappedMessage::Slice {
                 start,
-                end,
+                length: end - start,
                 message: self.stack.clone(),
             }),
         }
@@ -78,7 +78,7 @@ impl Message {
             WrappedMessage::Body(_) => None,
             WrappedMessage::Slice {
                 start: _,
-                end: _,
+                length: _,
                 message,
             } => Some(Self {
                 stack: message.clone(),
@@ -115,7 +115,7 @@ impl Display for Message {
 enum WrappedMessage {
     Slice {
         start: usize,
-        end: usize,
+        length: usize,
         message: Rc<WrappedMessage>,
     },
     Header(Chunk, Rc<WrappedMessage>),
@@ -128,8 +128,8 @@ struct MessageBytes {
     stack: Option<Rc<WrappedMessage>>,
     /// Tracks the index into the current chunk
     i: usize,
-    /// The byte to end on
-    end: usize,
+    /// The length of the slice
+    length: usize,
 }
 
 impl MessageBytes {
@@ -138,7 +138,7 @@ impl MessageBytes {
         Self {
             stack: Some(stack),
             i: 0,
-            end: usize::MAX,
+            length: usize::MAX,
         }
     }
 }
@@ -151,27 +151,24 @@ impl Iterator for MessageBytes {
             Some(stack) => match stack.as_ref() {
                 WrappedMessage::Slice {
                     start,
-                    end,
+                    length,
                     message,
                 } => {
                     self.i += start;
-                    self.end = match self.end {
-                        usize::MAX => *end,
-                        _ => self.end + *end,
-                    };
+                    self.length = self.length.min(*length);
                     self.stack = Some(message.clone());
                     self.next()
                 }
                 WrappedMessage::Header(chunk, message) => {
-                    if self.i < self.end {
+                    if self.length > 0 {
                         match chunk.as_slice().get(self.i) {
                             Some(&byte) => {
                                 self.i += 1;
+                                self.length -= 1;
                                 Some(byte)
                             }
                             None => {
                                 self.i -= chunk.len();
-                                self.end -= chunk.len();
                                 self.stack = Some(message.clone());
                                 self.next()
                             }
@@ -181,9 +178,10 @@ impl Iterator for MessageBytes {
                     }
                 }
                 WrappedMessage::Body(chunk) => {
-                    if self.i < self.end {
+                    if self.length > 0 {
                         let out = chunk.as_slice().get(self.i).cloned();
                         self.i += 1;
+                        self.length -= 1;
                         out
                     } else {
                         None
@@ -268,5 +266,20 @@ impl Iterator for ChunkBytes {
         let i = self.i;
         self.i += 1;
         self.chunk.0.get(i).cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::core::Message;
+
+    #[test]
+    fn multi_slice() {
+        let message = Message::new(b"Body")
+            .with_header(b"Header")
+            .slice(3, 8)
+            .slice(2, 4);
+        let expected = b"rB";
+        assert!(message.iter().eq(expected.iter().cloned()));
     }
 }
