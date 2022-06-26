@@ -97,6 +97,7 @@ impl Display for Message {
     }
 }
 
+/// A generalization of Rust's range types for use with message slicing.
 pub enum SliceRange {
     Range(Range<usize>),
     RangeFrom(RangeFrom<usize>),
@@ -107,6 +108,7 @@ pub enum SliceRange {
 }
 
 impl SliceRange {
+    /// Returns the inclusive lower bound of the range.
     pub fn start(&self) -> usize {
         match self {
             SliceRange::RangeFull(_) | SliceRange::RangeTo(_) | SliceRange::RangeToInclusive(_) => {
@@ -118,6 +120,7 @@ impl SliceRange {
         }
     }
 
+    /// Returns the exclusive upper bound of the range.
     pub fn end(&self) -> usize {
         match self {
             SliceRange::RangeFrom(_) | SliceRange::RangeFull(_) => usize::MAX,
