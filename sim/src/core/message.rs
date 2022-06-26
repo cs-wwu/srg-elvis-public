@@ -1,6 +1,13 @@
-use std::{fmt::Display, rc::Rc};
+use std::{
+    fmt::Display,
+    ops::{Index, Range},
+    rc::Rc,
+};
 
-/// A message with headers.
+// Todo: Add support for appending messages
+// Todo: Remove pop support
+// Todo: Use indexing for slices
+
 #[derive(Debug, Clone)]
 pub struct Message {
     /// A message with headers
@@ -39,49 +46,29 @@ impl Message {
     }
 
     /// Creates a slice of the message from `start` to `end`. `start` is
-    /// inclusive, `end` is exclusive.
+    /// inclusive, `end` is exclusive. Using `None` for the start or the end
+    /// creates an open-ended slice.
     ///
     /// # Examples
     ///
     /// ```
     /// # use elvis::core::{Message, Chunk};
-    /// let message = Message::new(b"Body").with_header(b"Header").slice(3, 8);
-    /// let expected = b"derBo";
-    /// assert!(message.iter().eq(expected.iter().cloned()));
+    /// let message = Message::new(b"Body").with_header(b"Header");
+    /// let sliced = message.slice(3, 8);
+    /// assert!(sliced.iter().eq(b"derBo".iter().cloned()));
+    /// let sliced = message.slice(None, 8);
+    /// assert!(sliced.iter().eq(b"HeaderBo".iter().cloned()));
+    /// let sliced = message.slice(3, None);
+    /// assert!(sliced.iter().eq(b"derBody".iter().cloned()));
     /// ```
-    pub fn slice(&self, start: usize, end: usize) -> Self {
+    pub fn slice(&self, start: impl Into<Option<usize>>, end: impl Into<Option<usize>>) -> Self {
+        let start = start.into().unwrap_or(0);
+        let end = end.into().unwrap_or(usize::MAX);
         Self {
             stack: Rc::new(WrappedMessage::Slice {
                 start,
                 length: end - start,
                 message: self.stack.clone(),
-            }),
-        }
-    }
-
-    /// Returns the outmost header from the message and the remainder.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use elvis::core::Message;
-    /// let message = Message::new(b"Body").with_header(b"Header1").with_header(b"Header2");
-    /// let message = message.pop().unwrap();
-    /// let expected = b"Header1Body";
-    /// assert!(message.iter().eq(expected.iter().cloned()));
-    /// ```
-    pub fn pop(&self) -> Option<Message> {
-        match self.stack.as_ref() {
-            WrappedMessage::Header(_, message) => Some(Self {
-                stack: message.clone(),
-            }),
-            WrappedMessage::Body(_) => None,
-            WrappedMessage::Slice {
-                start: _,
-                length: _,
-                message,
-            } => Some(Self {
-                stack: message.clone(),
             }),
         }
     }

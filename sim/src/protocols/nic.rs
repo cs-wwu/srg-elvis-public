@@ -1,5 +1,11 @@
-use crate::core::{Message, Mtu, ParticipantSet, Protocol, ProtocolId, Session, SessionId};
-use std::{error::Error, collections::HashMap};
+use crate::core::{
+    DemuxId, Message, Mtu, NetworkLayer, NetworkLayerError, Protocol, ProtocolId, Session,
+};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    error::Error,
+    rc::{Rc, Weak},
+};
 use thiserror::Error as ThisError;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
@@ -11,65 +17,129 @@ use thiserror::Error as ThisError;
 pub struct Nic {
     network_index: usize,
     mtu: Mtu,
-    session: Option<SessionId>,
+    bindings: HashMap<ProtocolId, Weak<dyn Protocol>>,
+    sessions: HashMap<ProtocolId, Rc<dyn Session>>,
 }
 
 impl Nic {
+    pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Link, 0);
+
     pub fn new(mtu: Mtu, network_index: usize) -> Self {
         Self {
             mtu,
             network_index,
+            bindings: Default::default(),
+            sessions: Default::default(),
         }
     }
 }
 
 impl Protocol for Nic {
     fn id(&self) -> ProtocolId {
-        0
+        Self::ID
     }
 
     fn open_active(
         &mut self,
-        invoker: ProtocolId,
-        participants: ParticipantSet,
-    ) -> Option<Box<dyn Session>> {
-        todo!()
+        invoker: Rc<dyn Protocol>,
+        _identifier: DemuxId,
+    ) -> Result<Weak<dyn Session>, Box<dyn Error>> {
+        match self.sessions.entry(invoker.id()) {
+            Entry::Occupied(entry) => Ok(Rc::downgrade(entry.get())),
+            Entry::Vacant(entry) => {
+                let session = Rc::new(NicSession::new(Rc::downgrade(&invoker)));
+                let reference = Rc::downgrade(&session);
+                entry.insert(session);
+                Ok(reference)
+            }
+        }
     }
 
     fn open_passive(
         &mut self,
-        invoker: ProtocolId,
-        participants: ParticipantSet,
-    ) -> Option<Box<dyn Session>> {
-        // There should be no lower protocols that would call this on Nic
-        None
+        _invoker: Rc<dyn Protocol>,
+        _identifier: DemuxId,
+    ) -> Result<Weak<dyn Session>, Box<dyn Error>> {
+        Err(Box::new(NicError::PassiveOpen))
     }
 
-    fn add_demux_binding(&mut self, invoker: ProtocolId, participants: ParticipantSet) {
-        todo!()
+    fn add_demux_binding(
+        &mut self,
+        invoker: Rc<dyn Protocol>,
+        _identifier: DemuxId,
+    ) -> Result<(), Box<dyn Error>> {
+        let id = invoker.id();
+        match self.bindings.entry(id) {
+            Entry::Occupied(_) => Err(Box::new(NicError::BindingExists(id))),
+            Entry::Vacant(entry) => {
+                entry.insert(Rc::downgrade(&invoker));
+                Ok(())
+            }
+        }
     }
 
-    fn demux(&self, message: Message) -> Result<SessionId, Box<dyn Error>> {
-        let header_bytes = take_header(message).ok_or(NicError::HeaderLength)?;
-        let protocol = ProtocolId::from_be_bytes(header_bytes);
+    fn demux(&self, message: Message) -> Result<Weak<dyn Session>, Box<dyn Error>> {
+        let header = take_header(&message).ok_or(NicError::HeaderLength)?;
+        let protocol: ProtocolId = header.try_into()?;
+        let session = self.sessions.get(&protocol).ok_or(NicError::Demux)?;
+        Ok(Rc::downgrade(&session))
     }
 }
 
-fn take_header(message: Message) -> Option<[u8; 4]> {
-    let iter = message.iter();
-    Some([iter.next()?, iter.next()?, iter.next()?, iter.next()?])
+fn take_header(message: &Message) -> Option<[u8; 2]> {
+    let mut iter = message.iter();
+    Some([iter.next()?, iter.next()?])
 }
 
+#[derive(Clone)]
 pub struct NicSession {
-    mapping: HashMap<ProtocolId, SessionId>,
+    demuxer: Weak<dyn Protocol>,
+}
+
+impl NicSession {
+    pub fn new(demuxer: Weak<dyn Protocol>) -> Self {
+        Self { demuxer }
+    }
 }
 
 impl Session for NicSession {
+    fn protocol(&self) -> ProtocolId {
+        Nic::ID
+    }
 
+    fn demuxer(&self) -> Weak<dyn Protocol> {
+        self.demuxer.clone()
+    }
+
+    fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
+        todo!()
+    }
+
+    fn recv(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
+        // let demuxer = self.demuxer.upgrade().ok_or(NicError::MissingDemuxer)?;
+        // let message = message.slice(2, )
+        // demuxer.demux(message)
+        // Ok(())
+        todo!()
+    }
+
+    fn awake(&mut self) {
+        // No-op
+    }
 }
 
 #[derive(Debug, ThisError)]
 pub enum NicError {
-    #[error("Expected four bytes for the NIC header")]
+    #[error("Expected two bytes for the NIC header")]
     HeaderLength,
+    #[error("The NIC header did not represent a valid protocol ID")]
+    InvalidProtocolId(#[from] NetworkLayerError),
+    #[error("Unexpected passive open on NIC")]
+    PassiveOpen,
+    #[error("Attempt to create an existing demux binding: {0:?}")]
+    BindingExists(ProtocolId),
+    #[error("Could not find a matching session for the NIC header")]
+    Demux,
+    #[error("Failed to get a handle to a NIC session demuxer")]
+    MissingDemuxer,
 }

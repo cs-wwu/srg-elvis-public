@@ -1,8 +1,83 @@
 use crate::core::Message;
-use std::{collections::HashSet, error::Error};
+use std::{
+    collections::HashSet,
+    error::Error,
+    rc::{Rc, Weak},
+};
+use thiserror::Error as ThisError;
 
-pub type ProtocolId = u32;
-pub type SessionId = u32;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ProtocolId {
+    layer: NetworkLayer,
+    identifier: u8,
+}
+
+impl ProtocolId {
+    pub const fn new(layer: NetworkLayer, identifier: u8) -> Self {
+        Self { layer, identifier }
+    }
+}
+
+impl From<ProtocolId> for [u8; 2] {
+    fn from(id: ProtocolId) -> Self {
+        [id.layer as u8, id.identifier]
+    }
+}
+
+impl From<ProtocolId> for u16 {
+    fn from(id: ProtocolId) -> Self {
+        let bytes: [u8; 2] = id.into();
+        Self::from_be_bytes(bytes)
+    }
+}
+
+impl TryFrom<[u8; 2]> for ProtocolId {
+    type Error = NetworkLayerError;
+
+    fn try_from(value: [u8; 2]) -> Result<Self, Self::Error> {
+        Ok(Self {
+            layer: value[0].try_into()?,
+            identifier: value[1],
+        })
+    }
+}
+
+impl TryFrom<u16> for ProtocolId {
+    type Error = NetworkLayerError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        value.to_be_bytes().try_into()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum NetworkLayer {
+    Link,
+    Network,
+    Transport,
+    Application,
+}
+
+impl TryFrom<u8> for NetworkLayer {
+    type Error = NetworkLayerError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(NetworkLayer::Link),
+            1 => Ok(NetworkLayer::Network),
+            2 => Ok(NetworkLayer::Transport),
+            3 => Ok(NetworkLayer::Application),
+            _ => Err(NetworkLayerError::FromByte(value)),
+        }
+    }
+}
+
+#[derive(Debug, ThisError)]
+pub enum NetworkLayerError {
+    #[error("Unable to create a network layer from the byte {0}")]
+    FromByte(u8),
+}
 
 /// Protocols are stackable objects that function as network processing
 /// elements. Protocols have Protocols stacked above them and Protocols stacked
@@ -38,8 +113,8 @@ pub trait Protocol {
     ///
     /// * `invoker` is the higher-level protocol that requested to open the
     ///   session.
-    /// * `participants` is an identifier for the session. For example, one
-    ///   might open a session on a UDP protocol with the participant set
+    /// * `identifier` is an identifier for the session. For example, one might
+    ///   open a session on a UDP protocol with the participant set
     ///   {source_address, source_port, destination_address, destination_port}.
     ///   The UDP protocol would then save a mapping of this participant set to
     ///   the created session, allowing it to demux messages to the right
@@ -49,9 +124,9 @@ pub trait Protocol {
     ///   destination_address} as the participant set.
     fn open_active(
         &mut self,
-        invoker: ProtocolId,
-        participants: ParticipantSet,
-    ) -> Option<Box<dyn Session>>;
+        invoker: Rc<dyn Protocol>,
+        identifier: DemuxId,
+    ) -> Result<Weak<dyn Session>, Box<dyn Error>>;
 
     /// Called by a lower-level protocol to open a session with a higher-level
     /// protocol when it does not recognize an incoming message as corresponding
@@ -63,14 +138,14 @@ pub trait Protocol {
     /// * `invoker` is the protocol that requested to open a session. For
     ///   example, IP would be an invoker when it requests to open a new session
     ///   on UDP.
-    /// * `participants` is an identifier for the session. For example, IP would
+    /// * `identifier` is an identifier for the session. For example, IP would
     ///   open a session with the participant set {source_address,
     ///   destination_address}.
     fn open_passive(
         &mut self,
-        invoker: ProtocolId,
-        participants: ParticipantSet,
-    ) -> Option<Box<dyn Session>>;
+        invoker: Rc<dyn Protocol>,
+        identifier: DemuxId,
+    ) -> Result<Weak<dyn Session>, Box<dyn Error>>;
 
     /// Allows a high-level protocol to request that messages for which there is
     /// no existing session be sent to it.
@@ -78,50 +153,62 @@ pub trait Protocol {
     /// # Arguments
     ///
     /// * `invoker` The protocol requesting to receive messages.
-    /// * `participants` is the an identifier for the session. For example, both
+    /// * `identifier` is the an identifier for the session. For example, both
     ///   TCP and UDP may want to have IP packets demuxed to them. TCP would ask
     ///   IP to add a demux binding to itself for {protocol_id: 6} while UDP
     ///   would ask to be bound to {protocol_id: 17}. Later, when IP receives a
     ///   packet with an unknown {source_address, destination_address} pair, it
     ///   can use the protocol field of the IP header to determine which
     ///   protocol should receive the message. It will then use `open_passive`
-    ///   to create a new session with the corresponding protocol.
-    fn add_demux_binding(&mut self, invoker: ProtocolId, participants: ParticipantSet);
+    ///   to create a new session with the corresponding protocol. As another
+    ///   example, suppose that a user program wants to listen for unknown TCP
+    ///   connections. It can request that the TCP protocol add a demux binding
+    ///   for {local_port}. When TCP receives a message on that port, it will
+    ///   passively open a session with the user program and the user program
+    ///   will see that as a new connection.
+    fn add_demux_binding(
+        &mut self,
+        invoker: Rc<dyn Protocol>,
+        identifier: DemuxId,
+    ) -> Result<(), Box<dyn Error>>;
 
     /// Identifies the session that a message belongs to.
-    fn demux(&self, message: Message) -> Result<SessionId, Box<dyn Error>>;
+    fn demux(&self, message: Message) -> Result<Weak<dyn Session>, Box<dyn Error>>;
 }
 
 /// A Session holds state for a particular connection. A Session "belongs"
 /// to a Protocol.
 pub trait Session {
-    /// Returns the Protocol that this Session belongs to
+    /// Returns the ID of the associated protocol
     fn protocol(&self) -> ProtocolId;
 
+    // Returns the parent protocol used to demux messages upward
+    fn demuxer(&self) -> Weak<dyn Protocol>;
+
     /// Invoked from a Protocol to send a Message.
-    fn send(&self, message: Message, context: SessionContext) -> Result<(), Box<dyn Error>>;
+    fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>>;
 
     /// Invoked from a Protocol or Session object below for Message receipt.
-    fn recv(&self, message: Message, context: SessionContext)
-        -> Result<ProtocolId, Box<dyn Error>>;
+    fn recv(&mut self, message: Message) -> Result<(), Box<dyn Error>>;
 
     /// Invoked to allow the session to do some work it needs to do. For
     /// example, a TCP session may not be actively receiving or sending a
     /// message. However, it needs an opportunity to be woken up to advertise
     /// window sizes, retransmit data, poll a zero-sized window, or whatever
     /// else it may need to do.
-    fn awake(&self, context: SessionContext);
+    fn awake(&mut self);
 }
 
-pub struct SessionContext {}
+pub type DemuxId = HashSet<(Participant, Primitive)>;
 
-impl SessionContext {
-    pub fn send(&mut self, session_id: SessionId, message: Message) {
-        todo!()
-    }
+pub enum Participant {
+    SourceAddress,
+    DestinationAddress,
+    SourcePort,
+    DestinationPort,
+    Protocol(ProtocolId),
+    Other(&'static str),
 }
-
-pub type ParticipantSet = HashSet<(&'static str, Primitive)>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Primitive {

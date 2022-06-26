@@ -42,6 +42,7 @@ impl Network {
         }
     }
 
+    // Todo: Allow only taking individual messages as a speed control mechanism
     pub fn take_queue(&mut self, address: Mac) -> Vec<Message> {
         match self.pending.entry(address) {
             Entry::Occupied(entry) => entry.remove(),
