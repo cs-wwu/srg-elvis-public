@@ -1,8 +1,8 @@
-use std::collections::HashSet;
-
 use crate::core::Message;
+use std::{collections::HashSet, error::Error};
 
-pub type ProtocolId = u32;
+pub type ProtocolId = usize;
+pub type SessionId = usize;
 
 /// Protocols are stackable objects that function as network processing
 /// elements. Protocols have Protocols stacked above them and Protocols stacked
@@ -49,7 +49,7 @@ pub trait Protocol {
 
     fn add_capability(&mut self, invoker: &dyn Protocol, participants: ParticipantSet);
 
-    fn demux(&self, message: Message) -> dyn Session;
+    fn demux(&self, message: Message) -> Result<SessionId, Box<dyn Error>>;
 }
 
 /// A Session holds state for a particular connection. A Session "belongs"
@@ -63,14 +63,14 @@ pub trait Session {
     /// # Arguments
     ///
     /// * `message` - The Message to send.
-    fn send(&self, message: Message) -> Result<(), Box<dyn std::error::Error>>;
+    fn send(&self, message: Message) -> Result<(), Box<dyn Error>>;
 
     /// Invoked from a Protocol or Session object below for Message receipt.
     ///
     /// # Arguments
     ///
     /// * `message` - The Message to receive.
-    fn recv(&self, message: Message) -> Result<(), Box<dyn std::error::Error>>;
+    fn recv(&self, message: Message) -> Result<ProtocolId, Box<dyn Error>>;
 }
 
 pub type ParticipantSet = HashSet<(&'static str, Primitive)>;

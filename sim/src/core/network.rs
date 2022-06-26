@@ -2,23 +2,32 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use super::Message;
 
+pub type Mtu = u32;
+pub type Mac = usize;
+
 type Pending = HashMap<usize, Vec<Message>>;
 
 #[derive(Debug, Clone)]
 pub struct Network {
-    connected: Vec<usize>,
+    mtu: Mtu,
+    connected: Vec<Mac>,
     pending: Pending,
 }
 
 impl Network {
-    pub fn new(connected: Vec<usize>) -> Self {
+    pub fn new(connected: Vec<Mac>, mtu: Mtu) -> Self {
         Self {
             connected,
             pending: Default::default(),
+            mtu,
         }
     }
 
-    pub fn connected_machines(&self) -> &[usize] {
+    pub fn mtu(&self) -> Mtu {
+        self.mtu
+    }
+
+    pub fn connected_machines(&self) -> &[Mac] {
         &self.connected
     }
 
@@ -33,7 +42,7 @@ impl Network {
         }
     }
 
-    pub fn take_queue(&mut self, address: usize) -> Vec<Message> {
+    pub fn take_queue(&mut self, address: Mac) -> Vec<Message> {
         match self.pending.entry(address) {
             Entry::Occupied(entry) => entry.remove(),
             Entry::Vacant(_) => vec![],
@@ -41,7 +50,7 @@ impl Network {
     }
 }
 
-fn send_to_mac(mac: usize, pending: &mut Pending, message: Message) {
+fn send_to_mac(mac: Mac, pending: &mut Pending, message: Message) {
     match pending.entry(mac) {
         Entry::Occupied(mut entry) => {
             entry.get_mut().push(message);
@@ -54,6 +63,6 @@ fn send_to_mac(mac: usize, pending: &mut Pending, message: Message) {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PhysicalAddress {
-    Mac(usize),
+    Mac(Mac),
     Broadcast,
 }

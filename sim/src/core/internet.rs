@@ -1,4 +1,4 @@
-use super::{Machine, Network};
+use super::{Mac, Machine, Message, Network};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub struct Internet {
@@ -45,9 +45,10 @@ impl Internet {
 
     pub fn run(&mut self) {
         loop {
-            for (i, machine) in self.machines.iter_mut().enumerate() {
+            for (mac, machine) in self.machines.iter_mut().enumerate() {
                 let mut context = MachineContext {
-                    networks_for_machine: self.networks_for_machine[&i].clone(),
+                    mac,
+                    networks_for_machine: self.networks_for_machine[&mac].clone(),
                     networks: self.networks.clone(),
                 };
                 machine.awake(&mut context);
@@ -57,6 +58,7 @@ impl Internet {
 }
 
 pub struct MachineContext {
+    mac: Mac,
     /// Contains a mapping from a machine index to network indices
     networks_for_machine: Rc<Vec<usize>>,
     networks: Rc<Vec<Rc<RefCell<Network>>>>,
@@ -69,6 +71,21 @@ impl MachineContext {
             networks_for_machine: self.networks_for_machine.clone(),
             networks: self.networks.clone(),
         }
+    }
+
+    pub fn pending(&self) -> Vec<Message> {
+        let mut networks = self.networks();
+        let mut messages = if let Some(network) = networks.next() {
+            network.borrow_mut().take_queue(self.mac)
+        } else {
+            vec![]
+        };
+
+        for network in networks {
+            messages.append(&mut network.borrow_mut().take_queue(self.mac));
+        }
+
+        messages
     }
 }
 
