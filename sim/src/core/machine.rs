@@ -45,33 +45,40 @@ impl Machine {
     }
 
     pub fn awake(&mut self, context: &mut MachineContext) {
-        for message in context.pending() {
-            let mut responder = self.protocols.first();
-            while let Some(connections) = responder {
-                match connections.protocol.demux(message.clone()) {
-                    Ok(session_id) => {
-                        let protocol_id = match self
-                            .sessions
-                            .get(&session_id)
-                            .expect("No session for session id")
-                            .session
-                            .recv(message.clone())
-                        {
-                            Ok(protocol_id) => Some(protocol_id),
-                            Err(err) => {
-                                eprintln!("{}", err);
-                                None
-                            }
-                        };
+        self.receive_pending(context);
+    }
 
-                        if let Some(protocol_id) = protocol_id {
-                            responder = self.protocols.get(protocol_id);
-                        }
-                    }
-                    Err(e) => eprintln!("{}", e),
-                }
-            }
-        }
+    fn receive_pending(&mut self, context: &mut MachineContext) {
+        // for message in context.pending() {
+        //     let mut responder = self.protocols.first();
+        //     while let Some(connections) = responder {
+        //         match connections.protocol.demux(message.clone()) {
+        //             Ok(session_id) => {
+        //                 let protocol_id = match self
+        //                     .sessions
+        //                     .get(&session_id)
+        //                     .expect("No session for session ID")
+        //                     .session
+        //                     .recv(message.clone())
+        //                 {
+        //                     Ok(protocol_id) => Some(protocol_id),
+        //                     Err(err) => {
+        //                         eprintln!("{}", err);
+        //                         None
+        //                     }
+        //                 };
+
+        //                 if let Some(protocol_id) = protocol_id {
+        //                     responder = self.protocols.get(protocol_id);
+        //                 } else {
+        //                     eprintln!("No protocol for protocol ID")
+        //                 }
+        //             }
+        //             Err(e) => eprintln!("{}", e),
+        //         }
+        //     }
+        // }
+        todo!()
     }
 }
 

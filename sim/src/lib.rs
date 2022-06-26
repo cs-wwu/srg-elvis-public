@@ -18,5 +18,4 @@
 /// The `send` method on a Session sends data to successive protocol layers below.
 pub mod core;
 
-/// Utility functions
-pub mod utils;
+pub mod protocols;
