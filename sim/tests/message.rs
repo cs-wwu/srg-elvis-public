@@ -4,8 +4,8 @@ use elvis::core::Message;
 fn multi_slice() {
     let message = Message::new(b"Body")
         .with_header(b"Header")
-        .slice(3, 8)
-        .slice(2, 4);
+        .slice(3..8)
+        .slice(2..4);
     let expected = b"rB";
     assert!(message.iter().eq(expected.iter().cloned()));
 }
@@ -13,9 +13,9 @@ fn multi_slice() {
 #[test]
 fn mixed_operations() {
     let message = Message::new(b"Hello, world")
-        .slice(0, 5)
+        .slice(0..5)
         .with_header(b"Header")
-        .slice(3, 8);
+        .slice(3..8);
     let expected = b"derHe";
     assert!(message.iter().eq(expected.iter().cloned()));
 }

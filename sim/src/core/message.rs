@@ -1,6 +1,6 @@
 use std::{
     fmt::Display,
-    ops::{Index, Range},
+    ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},
     rc::Rc,
 };
 
@@ -45,25 +45,25 @@ impl Message {
         }
     }
 
-    /// Creates a slice of the message from `start` to `end`. `start` is
-    /// inclusive, `end` is exclusive. Using `None` for the start or the end
-    /// creates an open-ended slice.
+    /// Creates a slice of the message for the given range. All Rust range types
+    /// defined in std::ops are supported.
     ///
     /// # Examples
     ///
     /// ```
     /// # use elvis::core::{Message, Chunk};
     /// let message = Message::new(b"Body").with_header(b"Header");
-    /// let sliced = message.slice(3, 8);
+    /// let sliced = message.slice(3..8);
     /// assert!(sliced.iter().eq(b"derBo".iter().cloned()));
-    /// let sliced = message.slice(None, 8);
+    /// let sliced = message.slice(..8);
     /// assert!(sliced.iter().eq(b"HeaderBo".iter().cloned()));
-    /// let sliced = message.slice(3, None);
+    /// let sliced = message.slice(3..);
     /// assert!(sliced.iter().eq(b"derBody".iter().cloned()));
     /// ```
-    pub fn slice(&self, start: impl Into<Option<usize>>, end: impl Into<Option<usize>>) -> Self {
-        let start = start.into().unwrap_or(0);
-        let end = end.into().unwrap_or(usize::MAX);
+    pub fn slice(&self, range: impl Into<SliceRange>) -> Self {
+        let range = range.into();
+        let start = range.start();
+        let end = range.end();
         Self {
             stack: Rc::new(WrappedMessage::Slice {
                 start,
@@ -94,6 +94,74 @@ impl Display for Message {
             write!(f, "{:x} ", byte)?;
         }
         Ok(())
+    }
+}
+
+pub enum SliceRange {
+    Range(Range<usize>),
+    RangeFrom(RangeFrom<usize>),
+    RangeFull(RangeFull),
+    RangeInclusive(RangeInclusive<usize>),
+    RangeTo(RangeTo<usize>),
+    RangeToInclusive(RangeToInclusive<usize>),
+}
+
+impl SliceRange {
+    pub fn start(&self) -> usize {
+        match self {
+            SliceRange::RangeFull(_) | SliceRange::RangeTo(_) | SliceRange::RangeToInclusive(_) => {
+                0
+            }
+            SliceRange::Range(range) => range.start,
+            SliceRange::RangeFrom(range) => range.start,
+            SliceRange::RangeInclusive(range) => *range.start(),
+        }
+    }
+
+    pub fn end(&self) -> usize {
+        match self {
+            SliceRange::RangeFrom(_) | SliceRange::RangeFull(_) => usize::MAX,
+            SliceRange::Range(range) => range.end,
+            SliceRange::RangeTo(range) => range.end,
+            SliceRange::RangeToInclusive(range) => range.end + 1,
+            SliceRange::RangeInclusive(range) => range.end() + 1,
+        }
+    }
+}
+
+impl From<Range<usize>> for SliceRange {
+    fn from(range: Range<usize>) -> Self {
+        Self::Range(range)
+    }
+}
+
+impl From<RangeFrom<usize>> for SliceRange {
+    fn from(range: RangeFrom<usize>) -> Self {
+        Self::RangeFrom(range)
+    }
+}
+
+impl From<RangeFull> for SliceRange {
+    fn from(range: RangeFull) -> Self {
+        Self::RangeFull(range)
+    }
+}
+
+impl From<RangeInclusive<usize>> for SliceRange {
+    fn from(range: RangeInclusive<usize>) -> Self {
+        Self::RangeInclusive(range)
+    }
+}
+
+impl From<RangeTo<usize>> for SliceRange {
+    fn from(range: RangeTo<usize>) -> Self {
+        Self::RangeTo(range)
+    }
+}
+
+impl From<RangeToInclusive<usize>> for SliceRange {
+    fn from(range: RangeToInclusive<usize>) -> Self {
+        Self::RangeToInclusive(range)
     }
 }
 
