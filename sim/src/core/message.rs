@@ -5,8 +5,6 @@ use std::{
 };
 
 // Todo: Add support for appending messages
-// Todo: Remove pop support
-// Todo: Use indexing for slices
 
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -110,24 +108,24 @@ pub enum SliceRange {
 impl SliceRange {
     /// Returns the inclusive lower bound of the range.
     pub fn start(&self) -> usize {
+        use SliceRange::*;
         match self {
-            SliceRange::RangeFull(_) | SliceRange::RangeTo(_) | SliceRange::RangeToInclusive(_) => {
-                0
-            }
-            SliceRange::Range(range) => range.start,
-            SliceRange::RangeFrom(range) => range.start,
-            SliceRange::RangeInclusive(range) => *range.start(),
+            RangeFull(_) | RangeTo(_) | RangeToInclusive(_) => 0,
+            Range(range) => range.start,
+            RangeFrom(range) => range.start,
+            RangeInclusive(range) => *range.start(),
         }
     }
 
     /// Returns the exclusive upper bound of the range.
     pub fn end(&self) -> usize {
+        use SliceRange::*;
         match self {
-            SliceRange::RangeFrom(_) | SliceRange::RangeFull(_) => usize::MAX,
-            SliceRange::Range(range) => range.end,
-            SliceRange::RangeTo(range) => range.end,
-            SliceRange::RangeToInclusive(range) => range.end + 1,
-            SliceRange::RangeInclusive(range) => range.end() + 1,
+            RangeFrom(_) | RangeFull(_) => usize::MAX,
+            Range(range) => range.end,
+            RangeTo(range) => range.end,
+            RangeToInclusive(range) => range.end + 1,
+            RangeInclusive(range) => range.end() + 1,
         }
     }
 }
