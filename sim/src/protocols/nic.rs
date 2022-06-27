@@ -24,8 +24,26 @@ pub struct Nic {
 }
 
 impl Nic {
+    /// The unique identifier for this protocol
     pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Link, 0);
 
+    /// Creates a new network interface card.
+    ///
+    /// # Arguments
+    ///
+    /// * `mtu` is the minimum transmission unit of the connected network. It is
+    ///   the number of bytes in the largest frame the network supports.
+    /// * `network_index` is the index of the network this NIC attaches to. When
+    ///   using the neighbors iterator on
+    ///   [AwakeContext](elvis::core::AwakeContext), the network index refers to
+    ///   the nth element of the iterator.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elvis::protocols::Nic;
+    /// let _nic = Nic::new(1500, 0);
+    /// ```
     pub fn new(mtu: Mtu, network_index: usize) -> Self {
         Self {
             mtu,
