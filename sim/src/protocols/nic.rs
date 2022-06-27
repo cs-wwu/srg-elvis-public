@@ -192,3 +192,16 @@ pub enum NicError {
     #[error("{0}")]
     Other(Box<dyn Error>),
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::core::Protocol;
+
+    use super::Nic;
+
+    #[test]
+    fn nic_id() {
+        let nic = Nic::new(1500, 0);
+        assert_eq!(nic.id(), Nic::ID);
+    }
+}
