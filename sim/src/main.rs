@@ -1,4 +1,4 @@
-use elvis::{core::Message};
+use elvis::core::Message;
 
 fn main() {
     println!("Elvis v{}", env!("CARGO_PKG_VERSION"));

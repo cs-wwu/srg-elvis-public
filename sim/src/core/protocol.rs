@@ -110,10 +110,6 @@ pub trait Protocol {
     /// Returns a unique identifier for the protocol.
     fn id(&self) -> ProtocolId;
 
-    /// Called when a Machine is starting up to give protocols a chance to
-    /// request handles to whichever protocols they depend on.
-    fn prepare(&mut self, context: &mut PrepareContext);
-
     /// Called by a high-level protocol to open a new session.
     ///
     /// # Arguments
@@ -190,6 +186,22 @@ pub trait Protocol {
     fn awake(&mut self, context: &mut AwakeContext) -> Result<ControlFlow, Box<dyn Error>>;
 }
 
+/// A Session holds state for a particular connection. A Session "belongs"
+/// to a Protocol.
+pub trait Session {
+    // Returns the parent protocol used to demux messages upward
+    fn demuxer(&self) -> Weak<RefCell<dyn Protocol>>;
+
+    /// Invoked from a Protocol to send a Message.
+    fn send(&mut self, message: Message, context: &mut AwakeContext) -> Result<(), Box<dyn Error>>;
+
+    /// Invoked from a Protocol or Session object below for Message receipt.
+    fn recv(&mut self, message: Message) -> Result<(), Box<dyn Error>>;
+
+    /// See [awake](elvis::core::Protocol::awake)
+    fn awake(&mut self, context: &mut AwakeContext) -> Result<ControlFlow, Box<dyn Error>>;
+}
+
 pub enum ControlFlow {
     Continue,
     EndSimulation,
@@ -207,39 +219,6 @@ impl<'a> AwakeContext<'a> {
     pub fn networks(&self) -> impl Iterator<Item = Rc<RefCell<Network>>> {
         self.inner.networks()
     }
-}
-
-pub struct PrepareContext<'a> {
-    protocols: &'a Vec<Rc<RefCell<dyn Protocol>>>,
-}
-
-impl<'a> PrepareContext<'a> {
-    pub fn new(protocols: &'a Vec<Rc<RefCell<dyn Protocol>>>) -> Self {
-        Self { protocols }
-    }
-
-    pub fn get_protocol(&self, id: ProtocolId) -> Option<Weak<RefCell<dyn Protocol>>> {
-        self.protocols
-            .iter()
-            .find(|protocol| protocol.borrow().id() == id)
-            .map(|protocol| Rc::downgrade(protocol))
-    }
-}
-
-/// A Session holds state for a particular connection. A Session "belongs"
-/// to a Protocol.
-pub trait Session {
-    // Returns the parent protocol used to demux messages upward
-    fn demuxer(&self) -> Weak<RefCell<dyn Protocol>>;
-
-    /// Invoked from a Protocol to send a Message.
-    fn send(&mut self, message: Message, context: &mut AwakeContext) -> Result<(), Box<dyn Error>>;
-
-    /// Invoked from a Protocol or Session object below for Message receipt.
-    fn recv(&mut self, message: Message) -> Result<(), Box<dyn Error>>;
-
-    /// See [awake](elvis::core::Protocol::awake)
-    fn awake(&mut self, context: &mut AwakeContext) -> Result<ControlFlow, Box<dyn Error>>;
 }
 
 pub type DemuxId = HashSet<(Participant, Primitive)>;

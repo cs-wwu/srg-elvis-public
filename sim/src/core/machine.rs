@@ -1,4 +1,4 @@
-use super::{MachineContext, PrepareContext, Protocol, AwakeContext};
+use super::{AwakeContext, MachineContext, Protocol};
 use std::{cell::RefCell, error::Error, rc::Rc};
 use thiserror::Error as ThisError;
 
@@ -14,10 +14,6 @@ pub struct Machine {
 
 impl Machine {
     pub fn new(protocols: Vec<Rc<RefCell<dyn Protocol>>>) -> Self {
-        let mut context = PrepareContext::new(&protocols);
-        for program in protocols.iter() {
-            program.borrow_mut().prepare(&mut context);
-        }
         Self { protocols }
     }
 

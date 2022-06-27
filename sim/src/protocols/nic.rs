@@ -1,6 +1,6 @@
 use crate::core::{
     AwakeContext, ControlFlow, DemuxId, Message, Mtu, NetworkLayer, NetworkLayerError,
-    PhysicalAddress, PrepareContext, Protocol, ProtocolId, Session,
+    PhysicalAddress, Protocol, ProtocolId, Session,
 };
 use std::{
     cell::RefCell,
@@ -39,12 +39,6 @@ impl Nic {
 impl Protocol for Nic {
     fn id(&self) -> ProtocolId {
         Self::ID
-    }
-
-    // Todo: Alternatively, all protocols should just be constructed with handles to
-    // whichever protocols they need.
-    fn prepare(&mut self, _context: &mut PrepareContext) {
-        // No dependencies to add
     }
 
     fn open_active(
@@ -96,7 +90,10 @@ impl Protocol for Nic {
     fn demux(&self, message: Message) -> Result<Weak<RefCell<dyn Session>>, Box<dyn Error>> {
         let header = take_header(&message).ok_or(NicError::HeaderLength)?;
         let protocol: ProtocolId = header.try_into()?;
-        let session = self.sessions.get(&protocol).ok_or(NicError::NoSessionForHeader)?;
+        let session = self
+            .sessions
+            .get(&protocol)
+            .ok_or(NicError::NoSessionForHeader)?;
         Ok(Rc::downgrade(&session))
     }
 
