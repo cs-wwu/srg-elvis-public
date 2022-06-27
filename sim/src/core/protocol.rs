@@ -1,10 +1,13 @@
 use crate::core::Message;
 use std::{
+    cell::RefCell,
     collections::HashSet,
     error::Error,
     rc::{Rc, Weak},
 };
 use thiserror::Error as ThisError;
+
+use super::{MachineContext, Network};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProtocolId {
@@ -107,6 +110,10 @@ pub trait Protocol {
     /// Returns a unique identifier for the protocol.
     fn id(&self) -> ProtocolId;
 
+    /// Called when a Machine is starting up to give protocols a chance to
+    /// request handles to whichever protocols they depend on.
+    fn prepare(&mut self, context: &mut PrepareContext);
+
     /// Called by a high-level protocol to open a new session.
     ///
     /// # Arguments
@@ -124,9 +131,9 @@ pub trait Protocol {
     ///   destination_address} as the participant set.
     fn open_active(
         &mut self,
-        invoker: Rc<dyn Protocol>,
+        invoker: Weak<RefCell<dyn Protocol>>,
         identifier: DemuxId,
-    ) -> Result<Weak<dyn Session>, Box<dyn Error>>;
+    ) -> Result<Weak<RefCell<dyn Session>>, Box<dyn Error>>;
 
     /// Called by a lower-level protocol to open a session with a higher-level
     /// protocol when it does not recognize an incoming message as corresponding
@@ -143,9 +150,9 @@ pub trait Protocol {
     ///   destination_address}.
     fn open_passive(
         &mut self,
-        invoker: Rc<dyn Protocol>,
+        invoker: Weak<RefCell<dyn Protocol>>,
         identifier: DemuxId,
-    ) -> Result<Weak<dyn Session>, Box<dyn Error>>;
+    ) -> Result<Weak<RefCell<dyn Session>>, Box<dyn Error>>;
 
     /// Allows a high-level protocol to request that messages for which there is
     /// no existing session be sent to it.
@@ -168,35 +175,71 @@ pub trait Protocol {
     ///   will see that as a new connection.
     fn add_demux_binding(
         &mut self,
-        invoker: Rc<dyn Protocol>,
+        invoker: Weak<RefCell<dyn Protocol>>,
         identifier: DemuxId,
     ) -> Result<(), Box<dyn Error>>;
 
     /// Identifies the session that a message belongs to.
-    fn demux(&self, message: Message) -> Result<Weak<dyn Session>, Box<dyn Error>>;
+    fn demux(&self, message: Message) -> Result<Weak<RefCell<dyn Session>>, Box<dyn Error>>;
+
+    /// Invoked to allow the protocol to do some work it needs to do. For
+    /// example, a TCP session may not be actively receiving or sending a
+    /// message. However, it needs an opportunity to be woken up to advertise
+    /// window sizes, retransmit data, poll a zero-sized window, or whatever
+    /// else it may need to do.
+    fn awake(&mut self, context: &mut AwakeContext) -> Result<ControlFlow, Box<dyn Error>>;
+}
+
+pub enum ControlFlow {
+    Continue,
+    EndSimulation,
+}
+
+pub struct AwakeContext<'a> {
+    inner: &'a mut MachineContext,
+}
+
+impl<'a> AwakeContext<'a> {
+    pub fn new(inner: &'a mut MachineContext) -> Self {
+        Self { inner }
+    }
+
+    pub fn networks(&self) -> impl Iterator<Item = Rc<RefCell<Network>>> {
+        self.inner.networks()
+    }
+}
+
+pub struct PrepareContext<'a> {
+    protocols: &'a Vec<Rc<RefCell<dyn Protocol>>>,
+}
+
+impl<'a> PrepareContext<'a> {
+    pub fn new(protocols: &'a Vec<Rc<RefCell<dyn Protocol>>>) -> Self {
+        Self { protocols }
+    }
+
+    pub fn get_protocol(&self, id: ProtocolId) -> Option<Weak<RefCell<dyn Protocol>>> {
+        self.protocols
+            .iter()
+            .find(|protocol| protocol.borrow().id() == id)
+            .map(|protocol| Rc::downgrade(protocol))
+    }
 }
 
 /// A Session holds state for a particular connection. A Session "belongs"
 /// to a Protocol.
 pub trait Session {
-    /// Returns the ID of the associated protocol
-    fn protocol(&self) -> ProtocolId;
-
     // Returns the parent protocol used to demux messages upward
-    fn demuxer(&self) -> Weak<dyn Protocol>;
+    fn demuxer(&self) -> Weak<RefCell<dyn Protocol>>;
 
     /// Invoked from a Protocol to send a Message.
-    fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>>;
+    fn send(&mut self, message: Message, context: &mut AwakeContext) -> Result<(), Box<dyn Error>>;
 
     /// Invoked from a Protocol or Session object below for Message receipt.
     fn recv(&mut self, message: Message) -> Result<(), Box<dyn Error>>;
 
-    /// Invoked to allow the session to do some work it needs to do. For
-    /// example, a TCP session may not be actively receiving or sending a
-    /// message. However, it needs an opportunity to be woken up to advertise
-    /// window sizes, retransmit data, poll a zero-sized window, or whatever
-    /// else it may need to do.
-    fn awake(&mut self);
+    /// See [awake](elvis::core::Protocol::awake)
+    fn awake(&mut self, context: &mut AwakeContext) -> Result<ControlFlow, Box<dyn Error>>;
 }
 
 pub type DemuxId = HashSet<(Participant, Primitive)>;
