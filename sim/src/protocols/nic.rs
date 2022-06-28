@@ -195,13 +195,21 @@ pub enum NicError {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::Protocol;
-
     use super::Nic;
+    use crate::core::{DemuxId, Protocol};
+    use std::{cell::RefCell, error::Error, rc::Rc};
 
     #[test]
     fn nic_id() {
         let nic = Nic::new(1500, 0);
         assert_eq!(nic.id(), Nic::ID);
+    }
+
+    #[test]
+    fn nic_open_active() -> Result<(), Box<dyn Error>> {
+        let mut nic1 = Nic::new(1500, 0);
+        let nic2: Rc<RefCell<dyn Protocol>> = Rc::new(RefCell::new(Nic::new(1500, 0)));
+        nic1.open_active(Rc::downgrade(&nic2), DemuxId::default())?;
+        Ok(())
     }
 }

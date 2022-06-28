@@ -2,6 +2,8 @@ use super::{AwakeContext, MachineContext, Protocol};
 use std::{cell::RefCell, error::Error, rc::Rc};
 use thiserror::Error as ThisError;
 
+// Todo: Take network as a protocol that lives at the bottom of the protocol stack
+
 pub struct Machine {
     /// The first protocol should be the first to receive messages
     protocols: Vec<Rc<RefCell<dyn Protocol>>>,

@@ -221,9 +221,9 @@ impl<'a> AwakeContext<'a> {
     }
 }
 
-pub type DemuxId = HashSet<(Participant, Primitive)>;
+pub type DemuxId = HashSet<(DemuxKey, Primitive)>;
 
-pub enum Participant {
+pub enum DemuxKey {
     SourceAddress,
     DestinationAddress,
     SourcePort,
