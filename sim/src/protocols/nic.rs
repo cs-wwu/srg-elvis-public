@@ -212,4 +212,12 @@ mod tests {
         nic1.open_active(Rc::downgrade(&nic2), DemuxId::default())?;
         Ok(())
     }
+
+    #[test]
+    #[should_panic]
+    fn nic_open_passive() {
+        let mut nic1 = Nic::new(1500, 0);
+        let nic2: Rc<RefCell<dyn Protocol>> = Rc::new(RefCell::new(Nic::new(1500, 0)));
+        nic1.open_passive(Rc::downgrade(&nic2), DemuxId::default()).unwrap();
+    }
 }
