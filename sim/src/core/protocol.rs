@@ -133,7 +133,7 @@ pub trait Protocol {
     ///   destination_address} as the participant set.
     fn open_active(
         &mut self,
-        requester: ArcSession,
+        requester: ArcProtocol,
         identifier: Control,
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>>;

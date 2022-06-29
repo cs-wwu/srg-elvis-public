@@ -26,23 +26,6 @@ impl Nic {
     /// The unique identifier for this protocol
     pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Link, 0);
 
-    /// Creates a new network interface card.
-    ///
-    /// # Arguments
-    ///
-    /// * `mtu` is the minimum transmission unit of the connected network. It is
-    ///   the number of bytes in the largest frame the network supports.
-    /// * `network_index` is the index of the network this NIC attaches to. When
-    ///   using the neighbors iterator on
-    ///   [AwakeContext](elvis::core::AwakeContext), the network index refers to
-    ///   the nth element of the iterator.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use elvis::protocols::Nic;
-    /// let _nic = Nic::new(1500, 0);
-    /// ```
     pub fn new(network_mtus: Vec<Mtu>) -> Self {
         Self {
             network_mtus,
@@ -69,7 +52,7 @@ impl Protocol for Nic {
 
     fn open_active(
         &mut self,
-        requester: ArcSession,
+        requester: ArcProtocol,
         identifier: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
@@ -80,7 +63,7 @@ impl Protocol for Nic {
             Primitive::U8(index) => *index,
             _ => Err(NicError::IdentifierMissingNetworkIndex)?,
         };
-        let protocol = requester.read().unwrap().protocol();
+        let protocol = requester.read().unwrap().id();
         match self.sessions.entry(protocol) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
@@ -144,14 +127,14 @@ fn take_header(message: &Message) -> Option<[u8; 2]> {
 pub struct NicSession {
     network_index: u8,
     outgoing: Vec<Message>,
-    upstream: ArcSession,
+    requester: ArcProtocol,
 }
 
 impl NicSession {
-    fn new(upstream: ArcSession, network_index: u8) -> Self {
+    fn new(upstream: ArcProtocol, network_index: u8) -> Self {
         Self {
             network_index,
-            upstream,
+            requester: upstream,
             outgoing: vec![],
         }
     }
@@ -171,7 +154,7 @@ impl Session for NicSession {
     }
 
     fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
-        let header: [u8; 2] = self.upstream.read().unwrap().protocol().into();
+        let header: [u8; 2] = self.requester.read().unwrap().id().into();
         let message = message.with_header(&header);
         self.outgoing.push(message);
         Ok(())

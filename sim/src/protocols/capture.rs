@@ -37,7 +37,7 @@ impl Protocol for Capture {
 
     fn open_active(
         &mut self,
-        _requester: ArcSession,
+        _requester: ArcProtocol,
         _identifier: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
