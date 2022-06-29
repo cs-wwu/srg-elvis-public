@@ -1,12 +1,12 @@
 use crate::core::{
-    AwakeContext, ControlFlow, DemuxId, Message, Mtu, NetworkLayer, NetworkLayerError,
-    PhysicalAddress, Protocol, ProtocolId, Session,
+    ArcProtocol, ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer,
+    NetworkLayerError, Primitive, Protocol, ProtocolContext, ProtocolId, Session,
 };
 use std::{
-    cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     error::Error,
-    rc::{Rc, Weak},
+    mem,
+    sync::{Arc, RwLock},
 };
 use thiserror::Error as ThisError;
 
@@ -17,10 +17,9 @@ use thiserror::Error as ThisError;
 /// adding only a u32 that specifies the `ProtocolId` of the protocol that
 /// should receive the message.
 pub struct Nic {
-    network_index: usize,
-    mtu: Mtu,
-    bindings: HashMap<ProtocolId, Weak<RefCell<dyn Protocol>>>,
-    sessions: HashMap<ProtocolId, Rc<RefCell<dyn Session>>>,
+    network_mtus: Vec<Mtu>,
+    bindings: HashMap<ProtocolId, ArcProtocol>,
+    sessions: HashMap<ProtocolId, Arc<RwLock<NicSession>>>,
 }
 
 impl Nic {
@@ -44,13 +43,22 @@ impl Nic {
     /// use elvis::protocols::Nic;
     /// let _nic = Nic::new(1500, 0);
     /// ```
-    pub fn new(mtu: Mtu, network_index: usize) -> Self {
+    pub fn new(network_mtus: Vec<Mtu>) -> Self {
         Self {
-            mtu,
-            network_index,
+            network_mtus,
             bindings: Default::default(),
             sessions: Default::default(),
         }
+    }
+
+    pub fn messages(&mut self) -> Vec<(u8, Vec<Message>)> {
+        self.sessions
+            .values()
+            .map(|session| {
+                let mut session = session.write().unwrap();
+                (session.network_index(), session.outgoing())
+            })
+            .collect()
     }
 }
 
@@ -61,63 +69,67 @@ impl Protocol for Nic {
 
     fn open_active(
         &mut self,
-        invoker: Weak<RefCell<dyn Protocol>>,
-        _identifier: DemuxId,
-    ) -> Result<Weak<RefCell<dyn Session>>, Box<dyn Error>> {
-        match self
-            .sessions
-            .entry((*invoker.upgrade().unwrap()).borrow().id())
+        requester: ArcSession,
+        identifier: Control,
+        _context: ProtocolContext,
+    ) -> Result<ArcSession, Box<dyn Error>> {
+        let network_index = match identifier
+            .get(&ControlKey::NetworkIndex)
+            .ok_or(NicError::IdentifierMissingNetworkIndex)?
         {
-            Entry::Occupied(entry) => Ok(Rc::downgrade(entry.get())),
+            Primitive::U8(index) => *index,
+            _ => Err(NicError::IdentifierMissingNetworkIndex)?,
+        };
+        let protocol = requester.read().unwrap().protocol();
+        match self.sessions.entry(protocol) {
+            Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let session = Rc::new(RefCell::new(NicSession::new(
-                    invoker,
-                    self.mtu,
-                    self.network_index,
-                )));
-                let reference = Rc::downgrade(&session);
-                entry.insert(session);
-                Ok(reference)
+                let session = Arc::new(RwLock::new(NicSession::new(requester, network_index)));
+                entry.insert(session.clone());
+                Ok(session)
             }
         }
     }
 
     fn open_passive(
         &mut self,
-        _invoker: Weak<RefCell<dyn Protocol>>,
-        _identifier: DemuxId,
-    ) -> Result<Weak<RefCell<dyn Session>>, Box<dyn Error>> {
+        _invoker: ArcSession,
+        _identifier: Control,
+        _context: ProtocolContext,
+    ) -> Result<ArcSession, Box<dyn Error>> {
         Err(Box::new(NicError::PassiveOpen))
     }
 
     fn add_demux_binding(
         &mut self,
-        invoker: Weak<RefCell<dyn Protocol>>,
-        _identifier: DemuxId,
+        requester: ArcProtocol,
+        _identifier: Control,
+        _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let id = (*invoker.upgrade().unwrap()).borrow().id();
+        let id = requester.read().unwrap().id();
         match self.bindings.entry(id) {
             Entry::Occupied(_) => Err(Box::new(NicError::BindingExists(id))),
             Entry::Vacant(entry) => {
-                entry.insert(invoker.clone());
+                entry.insert(requester.clone());
                 Ok(())
             }
         }
     }
 
-    fn demux(&self, message: Message) -> Result<Weak<RefCell<dyn Session>>, Box<dyn Error>> {
+    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         let header = take_header(&message).ok_or(NicError::HeaderLength)?;
         let protocol: ProtocolId = header.try_into()?;
         let session = self
             .sessions
             .get(&protocol)
             .ok_or(NicError::NoSessionForHeader)?;
-        Ok(Rc::downgrade(&session))
+        session.write().unwrap().recv(message, context)?;
+        Ok(())
     }
 
-    fn awake(&mut self, context: &mut AwakeContext) -> Result<ControlFlow, Box<dyn Error>> {
+    fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         for session in self.sessions.values_mut() {
-            session.borrow_mut().awake(context)?;
+            session.write().unwrap().awake(context.clone())?;
         }
         Ok(ControlFlow::Continue)
     }
@@ -130,46 +142,47 @@ fn take_header(message: &Message) -> Option<[u8; 2]> {
 
 #[derive(Clone)]
 pub struct NicSession {
-    // Todo: Provide an API for accessing this value
-    mtu: Mtu,
-    network_index: usize,
-    demuxer: Weak<RefCell<dyn Protocol>>,
+    network_index: u8,
+    outgoing: Vec<Message>,
+    upstream: ArcSession,
 }
 
 impl NicSession {
-    pub fn new(demuxer: Weak<RefCell<dyn Protocol>>, mtu: Mtu, network_index: usize) -> Self {
+    fn new(upstream: ArcSession, network_index: u8) -> Self {
         Self {
-            demuxer,
-            mtu,
             network_index,
+            upstream,
+            outgoing: vec![],
         }
+    }
+
+    pub fn network_index(&self) -> u8 {
+        self.network_index
+    }
+
+    pub fn outgoing(&mut self) -> Vec<Message> {
+        mem::take(&mut self.outgoing)
     }
 }
 
 impl Session for NicSession {
-    fn demuxer(&self) -> Weak<RefCell<dyn Protocol>> {
-        self.demuxer.clone()
+    fn protocol(&self) -> ProtocolId {
+        Nic::ID
     }
 
-    fn send(&mut self, message: Message, context: &mut AwakeContext) -> Result<(), Box<dyn Error>> {
-        context
-            .networks()
-            .nth(self.network_index)
-            .ok_or(Box::new(NicError::NetworkIndex(self.network_index)))?
-            .borrow_mut()
-            .send(PhysicalAddress::Broadcast, message);
+    fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
+        let header: [u8; 2] = self.upstream.read().unwrap().protocol().into();
+        let message = message.with_header(&header);
+        self.outgoing.push(message);
         Ok(())
     }
 
-    fn recv(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
-        let demuxer = self.demuxer.upgrade().ok_or(NicError::MissingDemuxer)?;
-        let message = message.slice(2..);
-        demuxer.borrow_mut().demux(message)?;
-        Ok(())
+    fn recv(&mut self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        Err(Box::new(NicError::Recv))
     }
 
-    fn awake(&mut self, _context: &mut AwakeContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(ControlFlow::Continue)
+    fn awake(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
 
@@ -185,39 +198,12 @@ pub enum NicError {
     BindingExists(ProtocolId),
     #[error("Could not find a matching session for the NIC header")]
     NoSessionForHeader,
-    #[error("Failed to get a handle to a NIC session demuxer")]
-    MissingDemuxer,
+    #[error("Missing a network index for creating session")]
+    IdentifierMissingNetworkIndex,
     #[error("The network index does not exist: {0}")]
-    NetworkIndex(usize),
+    NetworkIndex(u8),
+    #[error("New messages on a NIC should go directly to the protocol, not the session")]
+    Recv,
     #[error("{0}")]
     Other(Box<dyn Error>),
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Nic;
-    use crate::core::{DemuxId, Protocol};
-    use std::{cell::RefCell, error::Error, rc::Rc};
-
-    #[test]
-    fn nic_id() {
-        let nic = Nic::new(1500, 0);
-        assert_eq!(nic.id(), Nic::ID);
-    }
-
-    #[test]
-    fn nic_open_active() -> Result<(), Box<dyn Error>> {
-        let mut nic1 = Nic::new(1500, 0);
-        let nic2: Rc<RefCell<dyn Protocol>> = Rc::new(RefCell::new(Nic::new(1500, 0)));
-        nic1.open_active(Rc::downgrade(&nic2), DemuxId::default())?;
-        Ok(())
-    }
-
-    #[test]
-    #[should_panic]
-    fn nic_open_passive() {
-        let mut nic1 = Nic::new(1500, 0);
-        let nic2: Rc<RefCell<dyn Protocol>> = Rc::new(RefCell::new(Nic::new(1500, 0)));
-        nic1.open_passive(Rc::downgrade(&nic2), DemuxId::default()).unwrap();
-    }
 }

@@ -1,12 +1,17 @@
-use super::{AwakeContext, MachineContext, Protocol};
-use std::{cell::RefCell, error::Error, rc::Rc};
+use crate::protocols::Nic;
+
+use super::{ArcProtocol, MachineContext, ProtocolContext, ProtocolId};
+use std::{collections::HashMap, error::Error, sync::Arc};
 use thiserror::Error as ThisError;
 
-// Todo: Take network as a protocol that lives at the bottom of the protocol stack
+// Todo: Take network as a protocol that lives at the bottom of the protocol
+// stack
+
+pub type ProtocolMap = Arc<HashMap<ProtocolId, ArcProtocol>>;
 
 pub struct Machine {
     /// The first protocol should be the first to receive messages
-    protocols: Vec<Rc<RefCell<dyn Protocol>>>,
+    protocols: ProtocolMap,
 }
 
 // Todo: We need a way to make sure that the first protocol is a Nic. It would
@@ -15,19 +20,34 @@ pub struct Machine {
 // initialization time.
 
 impl Machine {
-    pub fn new(protocols: Vec<Rc<RefCell<dyn Protocol>>>) -> Self {
-        Self { protocols }
+    pub fn new(protocols: impl Iterator<Item = ArcProtocol>) -> Self {
+        // Todo: Guarantee that there are no duplicate protocols
+        // Todo: Guarantee that the NIC is in there
+        let protocols: HashMap<_, _> = protocols
+            .map(|protocol| {
+                let id = protocol.read().unwrap().id();
+                (id, protocol)
+            })
+            .collect();
+        Self {
+            protocols: Arc::new(protocols),
+        }
     }
 
     pub fn awake(&mut self, context: &mut MachineContext) -> Result<(), MachineError> {
-        let first = self.protocols.first().ok_or(MachineError::NoProtocols)?;
+        let nic = self
+            .protocols
+            .get(&Nic::ID)
+            .ok_or(MachineError::MissingNic)?;
+        let protocol_context = ProtocolContext::new(self.protocols.clone());
         for message in context.pending() {
-            first.borrow_mut().demux(message)?;
+            nic.read()
+                .unwrap()
+                .demux(message, protocol_context.clone())?;
         }
 
-        let mut awake_context = AwakeContext::new(context);
-        for protocol in self.protocols.iter() {
-            protocol.borrow_mut().awake(&mut awake_context)?;
+        for protocol in self.protocols.values() {
+            protocol.write().unwrap().awake(protocol_context.clone())?;
         }
 
         Ok(())
@@ -36,8 +56,8 @@ impl Machine {
 
 #[derive(Debug, ThisError)]
 pub enum MachineError {
-    #[error("Should have at least one protocol per machine")]
-    NoProtocols,
+    #[error("The NIC protocol is missing")]
+    MissingNic,
     #[error("{0}")]
     Other(#[from] Box<dyn Error>),
 }
