@@ -1,5 +1,5 @@
 use elvis::{
-    core::{Control, ControlKey, Protocol, ProtocolContext},
+    core::{Control, ControlKey, Protocol, ProtocolContext, Message},
     protocols::{Capture, Nic},
 };
 use std::{
@@ -48,25 +48,34 @@ fn open_active() -> Result<(), Box<dyn Error>> {
         capture,
         context,
     } = setup();
-    nic.write()
+    let session = nic.write()
         .unwrap()
         .open_active(capture, nic_control(), context)?;
+    let message = Message::new("Hello!");
+    session.write().unwrap().send(message)?;
+    let delivery = nic.write().unwrap().outgoing();
+    assert_eq!(delivery.len(), 1);
+    let delivery = delivery.into_iter().next().unwrap();
+    assert_eq!(delivery.0, 0);
+    assert_eq!(delivery.1.len(), 1);
+    let delivery = delivery.1.into_iter().next().unwrap();
+    assert_eq!(delivery, Message::new("\x04\x00Hello!"));
     Ok(())
 }
 
-#[test]
-fn open_passive() -> Result<(), Box<dyn Error>> {
-    let Setup {
-        nic,
-        capture,
-        context,
-    } = setup();
-    capture
-        .write()
-        .unwrap()
-        .open_passive(nic, Control::default(), context)?;
-    Ok(())
-}
+// #[test]
+// fn open_passive() -> Result<(), Box<dyn Error>> {
+//     let Setup {
+//         nic,
+//         capture,
+//         context,
+//     } = setup();
+//     capture
+//         .write()
+//         .unwrap()
+//         .open_passive(nic, Control::default(), context)?;
+//     Ok(())
+// }
 
 // #[test]
 // fn demux() -> Result<(), Box<dyn Error>> {

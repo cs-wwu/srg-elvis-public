@@ -95,6 +95,14 @@ impl Display for Message {
     }
 }
 
+impl PartialEq for Message {
+    fn eq(&self, other: &Self) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+
+impl Eq for Message {}
+
 /// A generalization of Rust's range types for use with message slicing.
 pub enum SliceRange {
     Range(Range<usize>),
@@ -287,5 +295,11 @@ impl From<&[u8]> for Chunk {
 impl<const N: usize> From<&[u8; N]> for Chunk {
     fn from(array: &[u8; N]) -> Self {
         From::from(array.as_slice())
+    }
+}
+
+impl From<&str> for Chunk {
+    fn from(string: &str) -> Self {
+        string.as_bytes().into()
     }
 }
