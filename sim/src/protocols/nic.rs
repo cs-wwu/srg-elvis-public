@@ -1,6 +1,6 @@
 use crate::core::{
     ArcProtocol, ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer,
-    NetworkLayerError, Primitive, Protocol, ProtocolContext, ProtocolId, Session,
+    NetworkLayerError, Primitive, PrimitiveError, Protocol, ProtocolContext, ProtocolId, Session,
 };
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -9,6 +9,20 @@ use std::{
     sync::{Arc, RwLock},
 };
 use thiserror::Error as ThisError;
+
+type NetworkIndex = u8;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct SessionId {
+    upstream: ProtocolId,
+    network: NetworkIndex,
+}
+
+impl SessionId {
+    pub fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
+        Self { upstream, network }
+    }
+}
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 /// This should be the first responder to messages coming in off the network. It
@@ -19,7 +33,7 @@ use thiserror::Error as ThisError;
 pub struct Nic {
     network_mtus: Vec<Mtu>,
     bindings: HashMap<ProtocolId, ArcProtocol>,
-    sessions: HashMap<ProtocolId, Arc<RwLock<NicSession>>>,
+    sessions: HashMap<SessionId, Arc<RwLock<NicSession>>>,
 }
 
 impl Nic {
@@ -34,14 +48,30 @@ impl Nic {
         }
     }
 
-    pub fn messages(&mut self) -> Vec<(u8, Vec<Message>)> {
+    pub fn outgoing(&mut self) -> Vec<(NetworkIndex, Vec<Message>)> {
         self.sessions
             .values()
             .map(|session| {
                 let mut session = session.write().unwrap();
-                (session.network_index(), session.outgoing())
+                (session.network(), session.outgoing())
             })
             .collect()
+    }
+
+    pub fn accept_incoming(
+        &mut self,
+        message: Message,
+        _network: NetworkIndex,
+        context: ProtocolContext,
+    ) -> Result<(), NicError> {
+        let header = take_header(&message).ok_or(NicError::HeaderLength)?;
+        let protocol_id: ProtocolId = header.try_into()?;
+        let protocol = context
+            .protocol(protocol_id)
+            .ok_or(NicError::ProtocolNotFound)?;
+        let protocol = protocol.read().unwrap();
+        protocol.demux(message, context)?;
+        Ok(())
     }
 }
 
@@ -56,18 +86,19 @@ impl Protocol for Nic {
         identifier: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
-        let network_index = match identifier
+        let network = match identifier
             .get(&ControlKey::NetworkIndex)
-            .ok_or(NicError::IdentifierMissingNetworkIndex)?
+            .ok_or(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?
         {
             Primitive::U8(index) => *index,
-            _ => Err(NicError::IdentifierMissingNetworkIndex)?,
+            _ => Err(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?,
         };
         let protocol = requester.read().unwrap().id();
-        match self.sessions.entry(protocol) {
+        let session_id = SessionId::new(protocol, network);
+        match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let session = Arc::new(RwLock::new(NicSession::new(requester, network_index)));
+                let session = Arc::new(RwLock::new(NicSession::new(requester, network)));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -76,7 +107,7 @@ impl Protocol for Nic {
 
     fn open_passive(
         &mut self,
-        _invoker: ArcSession,
+        _invoker: ArcProtocol,
         _identifier: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
@@ -99,15 +130,12 @@ impl Protocol for Nic {
         }
     }
 
-    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        let header = take_header(&message).ok_or(NicError::HeaderLength)?;
-        let protocol: ProtocolId = header.try_into()?;
-        let session = self
-            .sessions
-            .get(&protocol)
-            .ok_or(NicError::NoSessionForHeader)?;
-        session.write().unwrap().recv(message, context)?;
-        Ok(())
+    fn demux(&self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        // We use accept_incoming instead of demux because there are no protocols under
+        // this one that would ask Nic to demux a message and because, semantically,
+        // demux chooses one of its own sessions to respond to the message. We want Nic
+        // to immediatly forward incoming messages to a higher-up protocol.
+        Err(Box::new(NicError::Demux))
     }
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
@@ -115,6 +143,24 @@ impl Protocol for Nic {
             session.write().unwrap().awake(context.clone())?;
         }
         Ok(ControlFlow::Continue)
+    }
+
+    fn get_session(&self, identifier: &Control) -> Result<ArcSession, Box<dyn Error>> {
+        let network_index = identifier
+            .get(&ControlKey::NetworkIndex)
+            .ok_or(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?
+            .to_u8()?;
+        let protocol_id: ProtocolId = identifier
+            .get(&ControlKey::ProtocolId)
+            .ok_or(NicError::IdentifierMissingKey(ControlKey::ProtocolId))?
+            .to_u16()?
+            .try_into()?;
+        let session_id = SessionId::new(protocol_id, network_index);
+        Ok(self
+            .sessions
+            .get(&session_id)
+            .ok_or(NicError::SessionNotFound)?
+            .clone())
     }
 }
 
@@ -125,22 +171,22 @@ fn take_header(message: &Message) -> Option<[u8; 2]> {
 
 #[derive(Clone)]
 pub struct NicSession {
-    network_index: u8,
+    network: NetworkIndex,
     outgoing: Vec<Message>,
     requester: ArcProtocol,
 }
 
 impl NicSession {
-    fn new(upstream: ArcProtocol, network_index: u8) -> Self {
+    fn new(upstream: ArcProtocol, network: NetworkIndex) -> Self {
         Self {
-            network_index,
+            network,
             requester: upstream,
             outgoing: vec![],
         }
     }
 
-    pub fn network_index(&self) -> u8 {
-        self.network_index
+    pub fn network(&self) -> NetworkIndex {
+        self.network
     }
 
     pub fn outgoing(&mut self) -> Vec<Message> {
@@ -171,6 +217,8 @@ impl Session for NicSession {
 
 #[derive(Debug, ThisError)]
 pub enum NicError {
+    #[error("Could not find a protocol for the protocol ID given")]
+    ProtocolNotFound,
     #[error("Expected two bytes for the NIC header")]
     HeaderLength,
     #[error("The NIC header did not represent a valid protocol ID")]
@@ -179,14 +227,18 @@ pub enum NicError {
     PassiveOpen,
     #[error("Attempt to create an existing demux binding: {0:?}")]
     BindingExists(ProtocolId),
-    #[error("Could not find a matching session for the NIC header")]
-    NoSessionForHeader,
-    #[error("Missing a network index for creating session")]
-    IdentifierMissingNetworkIndex,
+    #[error("Could not find a matching session")]
+    SessionNotFound,
+    #[error("An identifier is missing a required key")]
+    IdentifierMissingKey(ControlKey),
     #[error("The network index does not exist: {0}")]
-    NetworkIndex(u8),
+    NetworkIndex(NetworkIndex),
     #[error("New messages on a NIC should go directly to the protocol, not the session")]
     Recv,
+    #[error("Cannot demux on a NIC because the incoming method should be used instead")]
+    Demux,
     #[error("{0}")]
-    Other(Box<dyn Error>),
+    Other(#[from] Box<dyn Error>),
+    #[error("{0}")]
+    Primitive(#[from] PrimitiveError),
 }

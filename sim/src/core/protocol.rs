@@ -153,7 +153,7 @@ pub trait Protocol {
     ///   destination_address}.
     fn open_passive(
         &mut self,
-        requester: ArcSession,
+        requester: ArcProtocol,
         identifier: Control,
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>>;
@@ -193,6 +193,8 @@ pub trait Protocol {
     /// window sizes, retransmit data, poll a zero-sized window, or whatever
     /// else it may need to do.
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
+
+    fn get_session(&self, identifier: &Control) -> Result<ArcSession, Box<dyn Error>>;
 }
 
 /// A Session holds state for a particular connection. A Session "belongs"
@@ -214,16 +216,45 @@ pub trait Session {
 #[derive(Clone)]
 pub struct ProtocolContext {
     protocols: ProtocolMap,
+    info: Control,
 }
 
 impl ProtocolContext {
     pub fn new(protocols: ProtocolMap) -> Self {
-        Self { protocols }
+        Self {
+            protocols,
+            info: Control::default(),
+        }
     }
 
     pub fn protocol(&self, id: ProtocolId) -> Option<ArcProtocol> {
         self.protocols.get(&id).cloned()
     }
+
+    pub fn info(&mut self) -> &mut Control {
+        &mut self.info
+    }
+
+    pub fn session(
+        &self,
+        protocol: ProtocolId,
+        identifier: Control,
+    ) -> Result<ArcSession, Box<dyn Error>> {
+        let protocol = self
+            .protocols
+            .get(&protocol)
+            .ok_or(ProtocolContextError::NoSuchProtocol)?;
+        let session = protocol.read().unwrap().get_session(&identifier)?;
+        Ok(session)
+    }
+}
+
+#[derive(Debug, ThisError)]
+pub enum ProtocolContextError {
+    #[error("Could not find the given protocol")]
+    NoSuchProtocol,
+    #[error("{0}")]
+    Other(#[from] Box<dyn Error>),
 }
 
 pub enum ControlFlow {
@@ -239,8 +270,8 @@ pub enum ControlKey {
     DestinationAddress,
     SourcePort,
     DestinationPort,
-    Protocol(ProtocolId),
     NetworkIndex,
+    ProtocolId,
     Other(&'static str),
 }
 
@@ -256,6 +287,82 @@ pub enum Primitive {
     I32(i32),
     I64(i64),
     I128(i128),
+}
+
+impl Primitive {
+    pub fn to_u8(self) -> Result<u8, PrimitiveError> {
+        match self {
+            Self::U8(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+
+    pub fn to_u16(self) -> Result<u16, PrimitiveError> {
+        match self {
+            Self::U16(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+
+    pub fn to_u32(self) -> Result<u32, PrimitiveError> {
+        match self {
+            Self::U32(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+
+    pub fn to_u64(self) -> Result<u64, PrimitiveError> {
+        match self {
+            Self::U64(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+    pub fn to_u128(self) -> Result<u128, PrimitiveError> {
+        match self {
+            Self::U128(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+
+    pub fn to_i8(self) -> Result<i8, PrimitiveError> {
+        match self {
+            Self::I8(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+
+    pub fn to_i16(self) -> Result<i16, PrimitiveError> {
+        match self {
+            Self::I16(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+
+    pub fn to_i32(self) -> Result<i32, PrimitiveError> {
+        match self {
+            Self::I32(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+
+    pub fn to_i64(self) -> Result<i64, PrimitiveError> {
+        match self {
+            Self::I64(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+    pub fn to_i128(self) -> Result<i128, PrimitiveError> {
+        match self {
+            Self::I128(value) => Ok(value),
+            _ => Err(PrimitiveError::WrongPrimitiveKind),
+        }
+    }
+}
+
+#[derive(Debug, ThisError)]
+pub enum PrimitiveError {
+    #[error("Tried to unwrap into the wrong primitive type")]
+    WrongPrimitiveKind,
 }
 
 impl From<u8> for Primitive {

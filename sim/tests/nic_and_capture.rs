@@ -1,5 +1,5 @@
 use elvis::{
-    core::{ArcProtocol, Control, ControlKey, Protocol, ProtocolContext},
+    core::{Control, ControlKey, Protocol, ProtocolContext},
     protocols::{Capture, Nic},
 };
 use std::{
@@ -10,33 +10,21 @@ use std::{
 
 // Todo: Use a Capture as the other protocol, not a NIC
 
-fn control() -> Control {
+fn nic_control() -> Control {
     let mut control = Control::default();
     control.insert(ControlKey::NetworkIndex, 0u8.into());
     control
 }
 
-fn nic() -> Nic {
-    Nic::new(vec![1500])
+struct Setup {
+    pub nic: Arc<RwLock<Nic>>,
+    pub capture: Arc<RwLock<Capture>>,
+    pub context: ProtocolContext,
 }
 
-fn shared_nic() -> ArcProtocol {
-    Arc::new(RwLock::new(nic()))
-}
-
-fn shared_capture() -> ArcProtocol {
-    Arc::new(RwLock::new(Capture::new()))
-}
-
-#[test]
-fn id() {
-    assert_eq!(nic().id(), Nic::ID);
-}
-
-#[test]
-fn open_active() -> Result<(), Box<dyn Error>> {
-    let nic = shared_nic();
-    let capture = shared_capture();
+fn setup() -> Setup {
+    let nic = Arc::new(RwLock::new(Nic::new(vec![1500])));
+    let capture = Arc::new(RwLock::new(Capture::new()));
     let protocols: [Arc<RwLock<dyn Protocol>>; 2] = [nic.clone(), capture.clone()];
     let protocols: HashMap<_, _> = protocols
         .into_iter()
@@ -46,19 +34,39 @@ fn open_active() -> Result<(), Box<dyn Error>> {
         })
         .collect();
     let context = ProtocolContext::new(Arc::new(protocols));
+    Setup {
+        nic,
+        capture,
+        context,
+    }
+}
+
+#[test]
+fn open_active() -> Result<(), Box<dyn Error>> {
+    let Setup {
+        nic,
+        capture,
+        context,
+    } = setup();
     nic.write()
         .unwrap()
-        .open_active(capture, control(), context)?;
+        .open_active(capture, nic_control(), context)?;
     Ok(())
 }
 
-// #[test]
-// #[should_panic]
-// fn open_passive() {
-//     let mut nic1 = nic();
-//     let nic2 = shared_nic();
-//     nic1.open_passive(nic2, control()).unwrap();
-// }
+#[test]
+fn open_passive() -> Result<(), Box<dyn Error>> {
+    let Setup {
+        nic,
+        capture,
+        context,
+    } = setup();
+    capture
+        .write()
+        .unwrap()
+        .open_passive(nic, Control::default(), context)?;
+    Ok(())
+}
 
 // #[test]
 // fn demux() -> Result<(), Box<dyn Error>> {

@@ -11,7 +11,7 @@ use thiserror::Error as ThisError;
 
 #[derive(Default)]
 pub struct Capture {
-    sessions: Vec<Arc<RwLock<CaptureSession>>>,
+    session: Option<Arc<RwLock<CaptureSession>>>,
 }
 
 impl Capture {
@@ -22,11 +22,10 @@ impl Capture {
     }
 
     pub fn messages(&mut self) -> Vec<Message> {
-        let mut messages = vec![];
-        for session in self.sessions.iter() {
-            messages.append(&mut session.write().unwrap().messages());
+        match &self.session {
+            Some(session) => session.write().unwrap().messages(),
+            None => vec![],
         }
-        messages
     }
 }
 
@@ -46,13 +45,19 @@ impl Protocol for Capture {
 
     fn open_passive(
         &mut self,
-        requester: ArcSession,
-        _identifier: Control,
-        _context: ProtocolContext,
+        requester: ArcProtocol,
+        identifier: Control,
+        context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
-        let session = Arc::new(RwLock::new(CaptureSession::new(requester)));
-        self.sessions.push(session.clone());
-        Ok(session)
+        let requester = context.session(requester.read().unwrap().id(), identifier)?;
+        Ok(match &self.session {
+            Some(session) => session.clone(),
+            None => {
+                let session = Arc::new(RwLock::new(CaptureSession::new(requester)));
+                self.session = Some(session.clone());
+                session
+            }
+        })
     }
 
     fn add_demux_binding(
@@ -69,10 +74,18 @@ impl Protocol for Capture {
     }
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        for session in self.sessions.iter_mut() {
+        if let Some(session) = &self.session {
             session.write().unwrap().awake(context.clone())?;
         }
         Ok(ControlFlow::Continue)
+    }
+
+    fn get_session(&self, _identifier: &Control) -> Result<ArcSession, Box<dyn Error>> {
+        Ok(self
+            .session
+            .as_ref()
+            .ok_or(CaptureError::NoSession)?
+            .clone())
     }
 }
 
@@ -115,6 +128,8 @@ impl Session for CaptureSession {
 
 #[derive(Debug, ThisError)]
 pub enum CaptureError {
+    #[error("There is not an active capture session")]
+    NoSession,
     #[error("Attempted an active open on a capture protocol")]
     OpenActive,
     #[error("Attempted a demux binding on a capture protocol")]
