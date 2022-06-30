@@ -45,7 +45,7 @@ impl Internet {
     }
 
     pub fn run(&mut self) -> Result<(), InternetError> {
-        loop {
+        'outer: loop {
             for (mac, machine) in self.machines.iter_mut().enumerate() {
                 let mut context = MachineContext {
                     mac,
@@ -54,10 +54,11 @@ impl Internet {
                 };
                 match machine.awake(&mut context)? {
                     ControlFlow::Continue => {}
-                    ControlFlow::EndSimulation => break,
+                    ControlFlow::EndSimulation => break 'outer,
                 }
             }
         }
+        Ok(())
     }
 }
 
