@@ -133,16 +133,6 @@ impl Protocol for Nic {
         }
         Ok(ControlFlow::Continue)
     }
-
-    fn get_session(&self, identifier: &Control) -> Result<ArcSession, Box<dyn Error>> {
-        let session_id =
-            SessionId::new(get_protocol_id(identifier)?, get_network_index(identifier)?);
-        Ok(self
-            .sessions
-            .get(&session_id)
-            .ok_or(NicError::SessionNotFound)?
-            .clone())
-    }
 }
 
 fn get_protocol_id(control: &Control) -> Result<ProtocolId, NicError> {

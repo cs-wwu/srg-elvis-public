@@ -74,10 +74,6 @@ impl Protocol for Capture {
             Ok(ControlFlow::EndSimulation)
         }
     }
-
-    fn get_session(&self, _identifier: &Control) -> Result<ArcSession, Box<dyn Error>> {
-        Ok(self.session.clone())
-    }
 }
 
 pub struct CaptureSession {

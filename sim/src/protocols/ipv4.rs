@@ -31,9 +31,9 @@ impl Protocol for Ipv4 {
         mut participants: Control,
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
-        let key = Identifier::from_identifier(&participants)?;
+        let key = Identifier::from_control(&participants)?;
         match self.sessions.entry(key) {
-            Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.source, key.destination))?,
+            Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.locol, key.remote))?,
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
                 participants.insert(ControlKey::NetworkIndex, 0.into());
@@ -51,11 +51,36 @@ impl Protocol for Ipv4 {
 
     fn open_passive(
         &mut self,
-        _downstream: ArcSession,
-        _participants: Control,
-        _context: ProtocolContext,
+        downstream: ArcSession,
+        participants: Control,
+        context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
-        todo!()
+        // Todo: Is the downstream protocol going to give us the source and destination
+        // protocols? If they just got a new message, they aren't going to know that
+        // information until the message gets to us to demux or recv.
+        let source = get_source(&participants)?;
+        let destination = get_destination(&participants)?;
+        let identifier = Identifier::new(destination, source);
+        let upstream = *self
+            .listen_bindings
+            .get(&destination)
+            .ok_or(Ipv4Error::MissingListenBinding(destination))?;
+        let session = match self.sessions.entry(identifier) {
+            Entry::Occupied(entry) => entry.get().clone(),
+            Entry::Vacant(entry) => {
+                let session = Arc::new(RwLock::new(Ipv4Session::new(
+                    downstream, upstream, identifier,
+                )));
+                entry.insert(session.clone());
+                session
+            }
+        };
+        context.protocol(upstream)?.read().unwrap().open_passive(
+            session.clone(),
+            participants,
+            context,
+        );
+        Ok(session)
     }
 
     fn listen(
@@ -80,15 +105,6 @@ impl Protocol for Ipv4 {
 
     fn awake(&mut self, _context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         Ok(ControlFlow::Continue)
-    }
-
-    fn get_session(&self, identifier: &Control) -> Result<ArcSession, Box<dyn Error>> {
-        let key = Identifier::from_identifier(identifier)?;
-        Ok(self
-            .sessions
-            .get(&key)
-            .ok_or(Ipv4Error::MissingSession(key.source, key.destination))?
-            .clone())
     }
 }
 
@@ -131,8 +147,8 @@ impl Session for Ipv4Session {
             length as u16,
             30,
             ip_number,
-            self.identifier.source.to_be_bytes(),
-            self.identifier.destination.to_be_bytes(),
+            self.identifier.locol.to_be_bytes(),
+            self.identifier.remote.to_be_bytes(),
         );
         header.header_checksum = header.calc_header_checksum()?;
 
@@ -184,6 +200,8 @@ impl Session for Ipv4Session {
 
 #[derive(Debug, ThisError)]
 pub enum Ipv4Error {
+    #[error("Could not find a listen binding for the local address: {0}")]
+    MissingListenBinding(u32),
     #[error("The identifier for a demux binding was missing a source address")]
     MissingSourceAddress,
     #[error("The identifier for a demux binding was missing a destination address")]
@@ -202,19 +220,19 @@ pub enum Ipv4Error {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Identifier {
-    pub source: u32,
-    pub destination: u32,
+    pub locol: u32,
+    pub remote: u32,
 }
 
 impl Identifier {
-    pub fn new(source: u32, destination: u32) -> Self {
+    pub fn new(locol: u32, destination: u32) -> Self {
         Self {
-            source,
-            destination,
+            locol,
+            remote: destination,
         }
     }
 
-    pub fn from_identifier(control: &Control) -> Result<Self, Ipv4Error> {
+    pub fn from_control(control: &Control) -> Result<Self, Ipv4Error> {
         Ok(Self::new(get_source(control)?, get_destination(control)?))
     }
 }

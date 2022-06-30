@@ -202,8 +202,6 @@ pub trait Protocol {
     /// window sizes, retransmit data, poll a zero-sized window, or whatever
     /// else it may need to do.
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
-
-    fn get_session(&self, identifier: &Control) -> Result<ArcSession, Box<dyn Error>>;
 }
 
 /// A Session holds state for a particular connection. A Session "belongs"
@@ -214,6 +212,17 @@ pub trait Session {
 
     /// Invoked from a Protocol to send a Message.
     fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+
+    // Todo: We probably want demux to have already parsed the header and then pass
+    // it on to the session. One of the things the x-kernel paper mentions is that
+    // we want to touch the header as few times as possible for best performance. At
+    // the moment, we require that the demux and recv methods each parse the header
+    // separately, which is evidently inefficient. Without being able to make
+    // Session generic, this does raise the question of what type would be
+    // appropriate for passing structured header information from one method to
+    // another. Do we possibly just attach information to the context? I'm not sure
+    // just how efficient getting values from a HashMap is compared to just parsing
+    // the header again. It's not entirely clear what to do here.
 
     /// Invoked from a Protocol or Session object below for Message receipt.
     fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
