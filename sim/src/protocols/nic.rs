@@ -1,6 +1,6 @@
 use crate::core::{
-    ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer,
-    NetworkLayerError, Primitive, PrimitiveError, Protocol, ProtocolContext, ProtocolId, Session,
+    ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer, NetworkLayerError,
+    Primitive, PrimitiveError, Protocol, ProtocolContext, ProtocolId, Session,
 };
 use std::{
     collections::{hash_map::Entry, HashMap},

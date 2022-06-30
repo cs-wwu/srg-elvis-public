@@ -24,6 +24,10 @@ impl ProtocolId {
     pub const fn new(layer: NetworkLayer, identifier: u8) -> Self {
         Self { layer, identifier }
     }
+
+    pub fn to_bytes(self) -> [u8; 2] {
+        <[u8; 2]>::from(self)
+    }
 }
 
 impl From<ProtocolId> for [u8; 2] {
