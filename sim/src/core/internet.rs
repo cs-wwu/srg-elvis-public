@@ -1,4 +1,4 @@
-use super::{Mac, Machine, MachineError, Message, Network};
+use super::{ControlFlow, Mac, Machine, MachineError, Message, Network};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use thiserror::Error as ThisError;
 
@@ -52,7 +52,10 @@ impl Internet {
                     networks_for_machine: self.networks_for_machine[&mac].clone(),
                     networks: self.networks.clone(),
                 };
-                machine.awake(&mut context)?;
+                match machine.awake(&mut context)? {
+                    ControlFlow::Continue => {}
+                    ControlFlow::EndSimulation => break,
+                }
             }
         }
     }

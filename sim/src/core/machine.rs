@@ -1,11 +1,8 @@
 use crate::protocols::Nic;
 
-use super::{ArcProtocol, MachineContext, ProtocolContext, ProtocolId};
+use super::{ArcProtocol, ControlFlow, MachineContext, ProtocolContext, ProtocolId};
 use std::{collections::HashMap, error::Error, sync::Arc};
 use thiserror::Error as ThisError;
-
-// Todo: Take network as a protocol that lives at the bottom of the protocol
-// stack
 
 pub type ProtocolMap = Arc<HashMap<ProtocolId, ArcProtocol>>;
 
@@ -13,11 +10,6 @@ pub struct Machine {
     /// The first protocol should be the first to receive messages
     protocols: ProtocolMap,
 }
-
-// Todo: We need a way to make sure that the first protocol is a Nic. It would
-// be ideal if the user just passed in the list of user programs they want to
-// run and we handle the creation of the protocols they request at
-// initialization time.
 
 impl Machine {
     pub fn new(protocols: impl Iterator<Item = ArcProtocol>) -> Self {
@@ -34,7 +26,7 @@ impl Machine {
         }
     }
 
-    pub fn awake(&mut self, context: &mut MachineContext) -> Result<(), MachineError> {
+    pub fn awake(&mut self, context: &mut MachineContext) -> Result<ControlFlow, MachineError> {
         let nic = self
             .protocols
             .get(&Nic::ID)
@@ -46,11 +38,15 @@ impl Machine {
                 .demux(message, protocol_context.clone())?;
         }
 
+        let mut control_flow = ControlFlow::Continue;
         for protocol in self.protocols.values() {
-            protocol.write().unwrap().awake(protocol_context.clone())?;
+            match protocol.write().unwrap().awake(protocol_context.clone())? {
+                ControlFlow::Continue => {}
+                ControlFlow::EndSimulation => control_flow = ControlFlow::EndSimulation,
+            }
         }
 
-        Ok(())
+        Ok(control_flow)
     }
 }
 

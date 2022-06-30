@@ -65,7 +65,14 @@ impl Protocol for Capture {
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         self.session.write().unwrap().awake(context)?;
-        Ok(ControlFlow::Continue)
+        // Todo: If Control is going to a useful debugging tool, we probably want a more
+        // robust choice of whether to end the simulation than just asking whether we
+        // have received any messages.
+        if self.session.read().unwrap().received.is_empty() {
+            Ok(ControlFlow::Continue)
+        } else {
+            Ok(ControlFlow::EndSimulation)
+        }
     }
 
     fn get_session(&self, _identifier: &Control) -> Result<ArcSession, Box<dyn Error>> {
