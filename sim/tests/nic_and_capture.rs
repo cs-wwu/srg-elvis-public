@@ -8,19 +8,19 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-fn nic_control() -> Control {
+pub fn nic_control() -> Control {
     let mut control = Control::default();
     control.insert(ControlKey::NetworkIndex, 0u8.into());
     control
 }
 
-struct Setup {
+pub struct Setup {
     pub nic: Arc<RwLock<Nic>>,
     pub capture: Arc<RwLock<Capture>>,
     pub context: ProtocolContext,
 }
 
-fn setup() -> Setup {
+pub fn setup() -> Setup {
     let mut nic = Nic::new(vec![1500]);
     let nic_session = nic
         .open_active(Capture::ID, nic_control(), ProtocolContext::default())
