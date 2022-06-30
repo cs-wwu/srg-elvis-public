@@ -1,5 +1,5 @@
 use crate::core::{
-    ArcProtocol, ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer,
+    ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer,
     NetworkLayerError, Primitive, PrimitiveError, Protocol, ProtocolContext, ProtocolId, Session,
 };
 use std::{
@@ -32,7 +32,6 @@ impl SessionId {
 /// should receive the message.
 pub struct Nic {
     network_mtus: Vec<Mtu>,
-    bindings: HashMap<ProtocolId, ArcProtocol>,
     sessions: HashMap<SessionId, Arc<RwLock<NicSession>>>,
 }
 
@@ -43,7 +42,6 @@ impl Nic {
     pub fn new(network_mtus: Vec<Mtu>) -> Self {
         Self {
             network_mtus,
-            bindings: Default::default(),
             sessions: Default::default(),
         }
     }
@@ -59,10 +57,10 @@ impl Nic {
     }
 
     pub fn accept_incoming(
-        &mut self,
+        &self,
         message: Message,
-        _network: NetworkIndex,
-        context: ProtocolContext,
+        network: NetworkIndex,
+        mut context: ProtocolContext,
     ) -> Result<(), NicError> {
         let header = take_header(&message).ok_or(NicError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
@@ -70,6 +68,9 @@ impl Nic {
             .protocol(protocol_id)
             .ok_or(NicError::ProtocolNotFound)?;
         let protocol = protocol.read().unwrap();
+        context
+            .info()
+            .insert(ControlKey::NetworkIndex, network.into());
         protocol.demux(message, context)?;
         Ok(())
     }
@@ -82,7 +83,7 @@ impl Protocol for Nic {
 
     fn open_active(
         &mut self,
-        requester: ArcProtocol,
+        requester: ProtocolId,
         identifier: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
@@ -93,8 +94,7 @@ impl Protocol for Nic {
             Primitive::U8(index) => *index,
             _ => Err(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?,
         };
-        let protocol = requester.read().unwrap().id();
-        let session_id = SessionId::new(protocol, network);
+        let session_id = SessionId::new(requester, network);
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
@@ -107,7 +107,7 @@ impl Protocol for Nic {
 
     fn open_passive(
         &mut self,
-        _invoker: ArcProtocol,
+        _invoker: ProtocolId,
         _identifier: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
@@ -116,18 +116,12 @@ impl Protocol for Nic {
 
     fn add_demux_binding(
         &mut self,
-        requester: ArcProtocol,
+        _requester: ProtocolId,
         _identifier: Control,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let id = requester.read().unwrap().id();
-        match self.bindings.entry(id) {
-            Entry::Occupied(_) => Err(Box::new(NicError::BindingExists(id))),
-            Entry::Vacant(entry) => {
-                entry.insert(requester.clone());
-                Ok(())
-            }
-        }
+        // This is a no-op because nobody can call open_passive on us anyway
+        Ok(())
     }
 
     fn demux(&self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
@@ -173,14 +167,14 @@ fn take_header(message: &Message) -> Option<[u8; 2]> {
 pub struct NicSession {
     network: NetworkIndex,
     outgoing: Vec<Message>,
-    requester: ArcProtocol,
+    upstream: ProtocolId,
 }
 
 impl NicSession {
-    fn new(upstream: ArcProtocol, network: NetworkIndex) -> Self {
+    fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
         Self {
+            upstream,
             network,
-            requester: upstream,
             outgoing: vec![],
         }
     }
@@ -199,8 +193,8 @@ impl Session for NicSession {
         Nic::ID
     }
 
-    fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
-        let header: [u8; 2] = self.requester.read().unwrap().id().into();
+    fn send(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        let header: [u8; 2] = self.upstream.into();
         let message = message.with_header(&header);
         self.outgoing.push(message);
         Ok(())

@@ -77,6 +77,7 @@ impl TryFrom<u8> for NetworkLayer {
             1 => Ok(NetworkLayer::Network),
             2 => Ok(NetworkLayer::Transport),
             3 => Ok(NetworkLayer::Application),
+            4 => Ok(NetworkLayer::User),
             _ => Err(NetworkLayerError::FromByte(value)),
         }
     }
@@ -113,6 +114,10 @@ pub enum NetworkLayerError {
 /// object below. The Protocol object is expected to demux the message to the
 /// right Session, and invoke the Sessions's `send` method.
 pub trait Protocol {
+    // Todo: We need methods that allow other protocols to query info about a
+    // protocol and its sessions. For example, a TCP or an IP protocol will want a
+    // method to learn about a Nic's MTU.
+
     /// Returns a unique identifier for the protocol.
     fn id(&self) -> ProtocolId;
 
@@ -133,7 +138,7 @@ pub trait Protocol {
     ///   destination_address} as the participant set.
     fn open_active(
         &mut self,
-        requester: ArcProtocol,
+        requester: ProtocolId,
         identifier: Control,
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>>;
@@ -153,7 +158,7 @@ pub trait Protocol {
     ///   destination_address}.
     fn open_passive(
         &mut self,
-        requester: ArcProtocol,
+        requester: ProtocolId,
         identifier: Control,
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>>;
@@ -179,7 +184,7 @@ pub trait Protocol {
     ///   will see that as a new connection.
     fn add_demux_binding(
         &mut self,
-        requester: ArcProtocol,
+        requester: ProtocolId,
         identifier: Control,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
@@ -204,7 +209,7 @@ pub trait Session {
     fn protocol(&self) -> ProtocolId;
 
     /// Invoked from a Protocol to send a Message.
-    fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>>;
+    fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 
     /// Invoked from a Protocol or Session object below for Message receipt.
     fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
@@ -213,7 +218,7 @@ pub trait Session {
     fn awake(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ProtocolContext {
     protocols: ProtocolMap,
     info: Control,

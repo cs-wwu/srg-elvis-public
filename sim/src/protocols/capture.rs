@@ -1,6 +1,6 @@
 use crate::core::{
-    ArcProtocol, ArcSession, Control, ControlFlow, Message, NetworkLayer, Protocol,
-    ProtocolContext, ProtocolId, Session,
+    ArcSession, Control, ControlFlow, Message, NetworkLayer, Protocol, ProtocolContext, ProtocolId,
+    Session,
 };
 use std::{
     error::Error,
@@ -9,23 +9,21 @@ use std::{
 };
 use thiserror::Error as ThisError;
 
-#[derive(Default)]
 pub struct Capture {
-    session: Option<Arc<RwLock<CaptureSession>>>,
+    session: Arc<RwLock<CaptureSession>>,
 }
 
 impl Capture {
     pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::User, 0);
 
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(downstream: ArcSession) -> Self {
+        Self {
+            session: Arc::new(RwLock::new(CaptureSession::new(downstream))),
+        }
     }
 
     pub fn messages(&mut self) -> Vec<Message> {
-        match &self.session {
-            Some(session) => session.write().unwrap().messages(),
-            None => vec![],
-        }
+        self.session.write().unwrap().messages()
     }
 }
 
@@ -36,7 +34,7 @@ impl Protocol for Capture {
 
     fn open_active(
         &mut self,
-        _requester: ArcProtocol,
+        _requester: ProtocolId,
         _identifier: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
@@ -45,47 +43,33 @@ impl Protocol for Capture {
 
     fn open_passive(
         &mut self,
-        requester: ArcProtocol,
-        identifier: Control,
-        context: ProtocolContext,
+        _requester: ProtocolId,
+        _identifier: Control,
+        _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
-        let requester = context.session(requester.read().unwrap().id(), identifier)?;
-        Ok(match &self.session {
-            Some(session) => session.clone(),
-            None => {
-                let session = Arc::new(RwLock::new(CaptureSession::new(requester)));
-                self.session = Some(session.clone());
-                session
-            }
-        })
+        Ok(self.session.clone())
     }
 
     fn add_demux_binding(
         &mut self,
-        _requester: ArcProtocol,
+        _requester: ProtocolId,
         _identifier: Control,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Err(Box::new(CaptureError::DemuxBinding))
     }
 
-    fn demux(&self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        Err(Box::new(CaptureError::Demux))
+    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        self.session.write().unwrap().recv(message, context)
     }
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        if let Some(session) = &self.session {
-            session.write().unwrap().awake(context.clone())?;
-        }
+        self.session.write().unwrap().awake(context.clone())?;
         Ok(ControlFlow::Continue)
     }
 
     fn get_session(&self, _identifier: &Control) -> Result<ArcSession, Box<dyn Error>> {
-        Ok(self
-            .session
-            .as_ref()
-            .ok_or(CaptureError::NoSession)?
-            .clone())
+        Ok(self.session.clone())
     }
 }
 
@@ -98,7 +82,7 @@ impl CaptureSession {
     fn new(downstream: ArcSession) -> Self {
         Self {
             downstream,
-            received: vec![],
+            received: Default::default(),
         }
     }
 
@@ -112,8 +96,8 @@ impl Session for CaptureSession {
         Capture::ID
     }
 
-    fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
-        self.downstream.write().unwrap().send(message)
+    fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        self.downstream.write().unwrap().send(message, context)
     }
 
     fn recv(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {

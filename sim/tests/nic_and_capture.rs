@@ -1,5 +1,5 @@
 use elvis::{
-    core::{Control, ControlKey, Protocol, ProtocolContext, Message},
+    core::{Control, ControlKey, Message, Protocol, ProtocolContext},
     protocols::{Capture, Nic},
 };
 use std::{
@@ -23,8 +23,12 @@ struct Setup {
 }
 
 fn setup() -> Setup {
-    let nic = Arc::new(RwLock::new(Nic::new(vec![1500])));
-    let capture = Arc::new(RwLock::new(Capture::new()));
+    let mut nic = Nic::new(vec![1500]);
+    let nic_session = nic
+        .open_active(Capture::ID, nic_control(), ProtocolContext::default())
+        .unwrap();
+    let nic = Arc::new(RwLock::new(nic));
+    let capture = Arc::new(RwLock::new(Capture::new(nic_session)));
     let protocols: [Arc<RwLock<dyn Protocol>>; 2] = [nic.clone(), capture.clone()];
     let protocols: HashMap<_, _> = protocols
         .into_iter()
@@ -43,16 +47,13 @@ fn setup() -> Setup {
 
 #[test]
 fn open_active() -> Result<(), Box<dyn Error>> {
-    let Setup {
-        nic,
-        capture,
-        context,
-    } = setup();
-    let session = nic.write()
+    let Setup { nic, context, .. } = setup();
+    let session = nic
+        .write()
         .unwrap()
-        .open_active(capture, nic_control(), context)?;
+        .open_active(Capture::ID, nic_control(), context.clone())?;
     let message = Message::new("Hello!");
-    session.write().unwrap().send(message)?;
+    session.write().unwrap().send(message, context)?;
     let delivery = nic.write().unwrap().outgoing();
     assert_eq!(delivery.len(), 1);
     let delivery = delivery.into_iter().next().unwrap();
@@ -63,28 +64,22 @@ fn open_active() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// #[test]
-// fn open_passive() -> Result<(), Box<dyn Error>> {
-//     let Setup {
-//         nic,
-//         capture,
-//         context,
-//     } = setup();
-//     capture
-//         .write()
-//         .unwrap()
-//         .open_passive(nic, Control::default(), context)?;
-//     Ok(())
-// }
-
-// #[test]
-// fn demux() -> Result<(), Box<dyn Error>> {
-//     let mut nic1 = nic();
-//     let nic2 = shared_nic();
-//     nic1.add_demux_binding(nic2, control())?;
-//     let header: [u8; 2] = Nic::ID.into();
-//     let message = Message::new(&header);
-//     let context = ProtocolContext::new(ProtocolMap::default());
-//     nic1.demux(message, context)?;
-//     Ok(())
-// }
+#[test]
+fn nic_receive() -> Result<(), Box<dyn Error>> {
+    let Setup {
+        nic,
+        capture,
+        context,
+    } = setup();
+    nic.write()
+        .unwrap()
+        .add_demux_binding(Capture::ID, Control::default(), context.clone())?;
+    let header: [u8; 2] = Capture::ID.into();
+    let message = Message::new("Hello!").with_header(&header);
+    nic.read().unwrap().accept_incoming(message, 0, context)?;
+    let messages = capture.write().unwrap().messages();
+    assert_eq!(messages.len(), 1);
+    let message = messages.into_iter().next().unwrap();
+    assert_eq!(message, Message::new("Hello!"));
+    Ok(())
+}
