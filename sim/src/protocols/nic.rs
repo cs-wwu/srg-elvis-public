@@ -71,6 +71,7 @@ impl Nic {
         context
             .info()
             .insert(ControlKey::NetworkIndex, network.into());
+        let message = message.slice(2..);
         protocol.demux(message, context)?;
         Ok(())
     }
