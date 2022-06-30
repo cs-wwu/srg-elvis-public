@@ -64,7 +64,7 @@ impl Protocol for Capture {
     }
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        self.session.write().unwrap().awake(context.clone())?;
+        self.session.write().unwrap().awake(context)?;
         Ok(ControlFlow::Continue)
     }
 

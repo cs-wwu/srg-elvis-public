@@ -8,8 +8,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-// Todo: Use a Capture as the other protocol, not a NIC
-
 fn nic_control() -> Control {
     let mut control = Control::default();
     control.insert(ControlKey::NetworkIndex, 0u8.into());
