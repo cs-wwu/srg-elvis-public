@@ -34,8 +34,8 @@ impl Protocol for Capture {
 
     fn open_active(
         &mut self,
-        _requester: ProtocolId,
-        _identifier: Control,
+        _upstream: ProtocolId,
+        _participants: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
         Err(Box::new(CaptureError::OpenActive))
@@ -43,17 +43,17 @@ impl Protocol for Capture {
 
     fn open_passive(
         &mut self,
-        _requester: ProtocolId,
-        _identifier: Control,
+        _downstream: ProtocolId,
+        _participants: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
         Ok(self.session.clone())
     }
 
-    fn add_demux_binding(
+    fn listen(
         &mut self,
-        _requester: ProtocolId,
-        _identifier: Control,
+        _upstream: ProtocolId,
+        _participants: Control,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Err(Box::new(CaptureError::DemuxBinding))

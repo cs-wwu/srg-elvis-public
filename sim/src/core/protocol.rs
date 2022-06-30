@@ -15,9 +15,9 @@ pub type WeakSession = Weak<RwLock<dyn Session>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProtocolId {
-    layer: NetworkLayer,
+    pub layer: NetworkLayer,
     // Todo: If there are many user programs, this should probably be a larger primitive
-    identifier: u8,
+    pub identifier: u8,
 }
 
 impl ProtocolId {
@@ -142,8 +142,8 @@ pub trait Protocol {
     ///   destination_address} as the participant set.
     fn open_active(
         &mut self,
-        requester: ProtocolId,
-        identifier: Control,
+        upstream: ProtocolId,
+        participants: Control,
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>>;
 
@@ -162,8 +162,8 @@ pub trait Protocol {
     ///   destination_address}.
     fn open_passive(
         &mut self,
-        requester: ProtocolId,
-        identifier: Control,
+        downstream: ProtocolId,
+        participants: Control,
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>>;
 
@@ -186,10 +186,10 @@ pub trait Protocol {
     ///   for {local_port}. When TCP receives a message on that port, it will
     ///   passively open a session with the user program and the user program
     ///   will see that as a new connection.
-    fn add_demux_binding(
+    fn listen(
         &mut self,
-        requester: ProtocolId,
-        identifier: Control,
+        upstream: ProtocolId,
+        participants: Control,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
@@ -236,8 +236,11 @@ impl ProtocolContext {
         }
     }
 
-    pub fn protocol(&self, id: ProtocolId) -> Option<ArcProtocol> {
-        self.protocols.get(&id).cloned()
+    pub fn protocol(&self, id: ProtocolId) -> Result<ArcProtocol, ProtocolContextError> {
+        self.protocols
+            .get(&id)
+            .cloned()
+            .ok_or(ProtocolContextError::NoSuchProtocol)
     }
 
     pub fn info(&mut self) -> &mut Control {

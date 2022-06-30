@@ -1,6 +1,6 @@
 use crate::core::{
     ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer, NetworkLayerError,
-    Primitive, PrimitiveError, Protocol, ProtocolContext, ProtocolId, Session,
+    Primitive, PrimitiveError, Protocol, ProtocolContext, ProtocolId, Session, ProtocolContextError,
 };
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -65,8 +65,7 @@ impl Nic {
         let header = take_header(&message).ok_or(NicError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
         let protocol = context
-            .protocol(protocol_id)
-            .ok_or(NicError::ProtocolNotFound)?;
+            .protocol(protocol_id)?;
         let protocol = protocol.read().unwrap();
         context
             .info()
@@ -84,22 +83,16 @@ impl Protocol for Nic {
 
     fn open_active(
         &mut self,
-        requester: ProtocolId,
-        identifier: Control,
+        upstream: ProtocolId,
+        participants: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
-        let network = match identifier
-            .get(&ControlKey::NetworkIndex)
-            .ok_or(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?
-        {
-            Primitive::U8(index) => *index,
-            _ => Err(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?,
-        };
-        let session_id = SessionId::new(requester, network);
+        let network = get_network_index(&participants)?;
+        let session_id = SessionId::new(upstream, network);
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let session = Arc::new(RwLock::new(NicSession::new(requester, network)));
+                let session = Arc::new(RwLock::new(NicSession::new(upstream, network)));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -108,17 +101,17 @@ impl Protocol for Nic {
 
     fn open_passive(
         &mut self,
-        _invoker: ProtocolId,
-        _identifier: Control,
+        _downstream: ProtocolId,
+        _participants: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
         Err(Box::new(NicError::PassiveOpen))
     }
 
-    fn add_demux_binding(
+    fn listen(
         &mut self,
-        _requester: ProtocolId,
-        _identifier: Control,
+        _upstream: ProtocolId,
+        _participants: Control,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // This is a no-op because nobody can call open_passive on us anyway
@@ -141,22 +134,30 @@ impl Protocol for Nic {
     }
 
     fn get_session(&self, identifier: &Control) -> Result<ArcSession, Box<dyn Error>> {
-        let network_index = identifier
-            .get(&ControlKey::NetworkIndex)
-            .ok_or(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?
-            .to_u8()?;
-        let protocol_id: ProtocolId = identifier
-            .get(&ControlKey::ProtocolId)
-            .ok_or(NicError::IdentifierMissingKey(ControlKey::ProtocolId))?
-            .to_u16()?
-            .try_into()?;
-        let session_id = SessionId::new(protocol_id, network_index);
+        let session_id =
+            SessionId::new(get_protocol_id(identifier)?, get_network_index(identifier)?);
         Ok(self
             .sessions
             .get(&session_id)
             .ok_or(NicError::SessionNotFound)?
             .clone())
     }
+}
+
+fn get_protocol_id(control: &Control) -> Result<ProtocolId, NicError> {
+    let protocol_id: ProtocolId = control
+        .get(&ControlKey::ProtocolId)
+        .ok_or(NicError::IdentifierMissingKey(ControlKey::ProtocolId))?
+        .to_u16()?
+        .try_into()?;
+    Ok(protocol_id)
+}
+
+fn get_network_index(control: &Control) -> Result<u8, NicError> {
+    Ok(control
+        .get(&ControlKey::NetworkIndex)
+        .ok_or(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?
+        .to_u8()?)
 }
 
 fn take_header(message: &Message) -> Option<[u8; 2]> {
@@ -212,8 +213,6 @@ impl Session for NicSession {
 
 #[derive(Debug, ThisError)]
 pub enum NicError {
-    #[error("Could not find a protocol for the protocol ID given")]
-    ProtocolNotFound,
     #[error("Expected two bytes for the NIC header")]
     HeaderLength,
     #[error("The NIC header did not represent a valid protocol ID")]
@@ -236,4 +235,6 @@ pub enum NicError {
     Other(#[from] Box<dyn Error>),
     #[error("{0}")]
     Primitive(#[from] PrimitiveError),
+    #[error("{0}")]
+    ProtocolContext(#[from] ProtocolContextError)
 }

@@ -71,7 +71,7 @@ fn nic_receive() -> Result<(), Box<dyn Error>> {
     } = setup();
     nic.write()
         .unwrap()
-        .add_demux_binding(Capture::ID, Control::default(), context.clone())?;
+        .listen(Capture::ID, Control::default(), context.clone())?;
     let header: [u8; 2] = Capture::ID.into();
     let message = Message::new("Hello!").with_header(&header);
     nic.read().unwrap().accept_incoming(message, 0, context)?;
