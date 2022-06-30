@@ -43,7 +43,7 @@ impl Protocol for Capture {
 
     fn open_passive(
         &mut self,
-        _downstream: ProtocolId,
+        _downstream: ArcSession,
         _participants: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {

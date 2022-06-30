@@ -1,7 +1,7 @@
 mod capture;
-mod nic;
 mod ipv4;
+mod nic;
 
 pub use capture::*;
-pub use nic::*;
 pub use ipv4::*;
+pub use nic::*;

@@ -162,7 +162,7 @@ pub trait Protocol {
     ///   destination_address}.
     fn open_passive(
         &mut self,
-        downstream: ProtocolId,
+        downstream: ArcSession,
         participants: Control,
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>>;

@@ -1,3 +1,4 @@
+use super::Nic;
 use crate::core::{
     ArcSession, Control, ControlFlow, ControlKey, Message, NetworkLayer, PrimitiveError, Protocol,
     ProtocolContext, ProtocolId, Session,
@@ -9,7 +10,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 use thiserror::Error as ThisError;
-use super::Nic;
 
 pub struct Ipv4 {
     listen_bindings: HashMap<u32, ProtocolId>,
@@ -37,11 +37,11 @@ impl Protocol for Ipv4 {
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
                 participants.insert(ControlKey::NetworkIndex, 0.into());
-                let nic_session = context
-                    .protocol(Nic::ID)?
-                    .write()
-                    .unwrap()
-                    .open_active(Self::ID, participants, context)?;
+                let nic_session = context.protocol(Nic::ID)?.write().unwrap().open_active(
+                    Self::ID,
+                    participants,
+                    context,
+                )?;
                 let session = Arc::new(RwLock::new(Ipv4Session::new(nic_session, upstream, key)));
                 entry.insert(session.clone());
                 Ok(session)
@@ -51,9 +51,9 @@ impl Protocol for Ipv4 {
 
     fn open_passive(
         &mut self,
-        downstream: ProtocolId,
-        participants: Control,
-        context: ProtocolContext,
+        _downstream: ArcSession,
+        _participants: Control,
+        _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
         todo!()
     }
@@ -74,11 +74,11 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn demux(&self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         todo!()
     }
 
-    fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
+    fn awake(&mut self, _context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         Ok(ControlFlow::Continue)
     }
 
@@ -173,7 +173,7 @@ impl Session for Ipv4Session {
             .protocol(self.upstream)?
             .read()
             .unwrap()
-            .demux(message, context);
+            .demux(message, context)?;
         Ok(())
     }
 
@@ -228,7 +228,7 @@ fn get_source(control: &Control) -> Result<u32, Ipv4Error> {
 
 fn get_destination(control: &Control) -> Result<u32, Ipv4Error> {
     Ok(control
-        .get(&&ControlKey::DestinationAddress)
+        .get(&ControlKey::DestinationAddress)
         .ok_or(Ipv4Error::MissingDestinationAddress)?
         .to_u32()?)
 }

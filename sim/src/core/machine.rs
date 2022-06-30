@@ -45,7 +45,8 @@ impl Machine {
 
         let mut control_flow = ControlFlow::Continue;
         for protocol in self.protocols.values() {
-            match protocol.write().unwrap().awake(protocol_context.clone())? {
+            let flow = protocol.write().unwrap().awake(protocol_context.clone())?;
+            match flow {
                 ControlFlow::Continue => {}
                 ControlFlow::EndSimulation => control_flow = ControlFlow::EndSimulation,
             }

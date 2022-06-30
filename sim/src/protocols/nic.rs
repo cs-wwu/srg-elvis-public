@@ -1,6 +1,6 @@
 use crate::core::{
     ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer, NetworkLayerError,
-    Primitive, PrimitiveError, Protocol, ProtocolContext, ProtocolId, Session, ProtocolContextError,
+    PrimitiveError, Protocol, ProtocolContext, ProtocolContextError, ProtocolId, Session,
 };
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -31,7 +31,8 @@ impl SessionId {
 /// adding only a u32 that specifies the `ProtocolId` of the protocol that
 /// should receive the message.
 pub struct Nic {
-    network_mtus: Vec<Mtu>,
+    // Todo: Add an interface for accessing the MTUs
+    // network_mtus: Vec<Mtu>,
     sessions: HashMap<SessionId, Arc<RwLock<NicSession>>>,
 }
 
@@ -39,9 +40,10 @@ impl Nic {
     /// The unique identifier for this protocol
     pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Link, 0);
 
-    pub fn new(network_mtus: Vec<Mtu>) -> Self {
+    // Todo: We're going to want to use this parameter to initialize network_mtus on
+    // the struct when we get around to it
+    pub fn new(_network_mtus: Vec<Mtu>) -> Self {
         Self {
-            network_mtus,
             sessions: Default::default(),
         }
     }
@@ -64,8 +66,7 @@ impl Nic {
     ) -> Result<(), NicError> {
         let header = take_header(&message).ok_or(NicError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
-        let protocol = context
-            .protocol(protocol_id)?;
+        let protocol = context.protocol(protocol_id)?;
         let protocol = protocol.read().unwrap();
         context
             .info()
@@ -101,7 +102,7 @@ impl Protocol for Nic {
 
     fn open_passive(
         &mut self,
-        _downstream: ProtocolId,
+        _downstream: ArcSession,
         _participants: Control,
         _context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
@@ -236,5 +237,5 @@ pub enum NicError {
     #[error("{0}")]
     Primitive(#[from] PrimitiveError),
     #[error("{0}")]
-    ProtocolContext(#[from] ProtocolContextError)
+    ProtocolContext(#[from] ProtocolContextError),
 }
