@@ -3,7 +3,7 @@ use crate::core::{
     ArcSession, Control, ControlFlow, ControlKey, Message, NetworkLayer, PrimitiveError, Protocol,
     ProtocolContext, ProtocolId, Session,
 };
-use etherparse::{IpNumber, Ipv4Header, Ipv4HeaderSlice};
+use etherparse::{IpNumber, Ipv4Header, Ipv4HeaderSlice, ReadError};
 use std::{
     collections::{hash_map::Entry, HashMap},
     error::Error,
@@ -99,8 +99,42 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn demux(&self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        todo!()
+    fn demux(
+        &self,
+        message: Message,
+        downstream: ArcSession,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
+        let header: Vec<_> = message.iter().take(20).collect();
+        let header = Ipv4HeaderSlice::from_slice(&header)?;
+        let source = u32::from_be_bytes(header.source());
+        let destination = u32::from_be_bytes(header.destination());
+        let identifier = Identifier::new(destination, source);
+        let info = context.info();
+        info.insert(ControlKey::LocalAddress, destination.into());
+        info.insert(ControlKey::RemoteAddress, source.into());
+        match self.sessions.entry(identifier) {
+            Entry::Occupied(entry) => {
+                entry.get().write().unwrap().recv(message, context);
+            }
+            Entry::Vacant(entry) => {
+                match self.listen_bindings.get(&destination) {
+                    Some(&binding) => {
+                        // Todo: We want to be zero-copy, but right now it requires copying to
+                        // forward the list of participants. Is there any way around this?
+                        let session = context.protocol(binding)?.write().unwrap().open_passive(
+                            downstream,
+                            info.clone(),
+                            context,
+                        )?;
+                        entry.insert(session.clone());
+                        session.write().unwrap().recv(message, context)?;
+                    }
+                    None => Err(Ipv4Error::MissingListenBinding(destination))?,
+                }
+            }
+        }
+        Ok(())
     }
 
     fn awake(&mut self, _context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {

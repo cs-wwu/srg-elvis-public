@@ -194,7 +194,12 @@ pub trait Protocol {
     ) -> Result<(), Box<dyn Error>>;
 
     /// Identifies the session that a message belongs to.
-    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn demux(
+        &self,
+        message: Message,
+        downstream: ArcSession,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>>;
 
     /// Invoked to allow the protocol to do some work it needs to do. For
     /// example, a TCP session may not be actively receiving or sending a
@@ -287,8 +292,8 @@ pub type Control = HashMap<ControlKey, Primitive>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ControlKey {
-    SourceAddress,
-    DestinationAddress,
+    LocalAddress,
+    RemoteAddress,
     SourcePort,
     DestinationPort,
     NetworkIndex,
