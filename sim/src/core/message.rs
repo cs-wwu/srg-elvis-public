@@ -92,7 +92,7 @@ impl Message {
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
-    pub fn iter(&self) -> impl Iterator<Item = u8> {
+    pub fn iter(&self) -> MessageBytes {
         MessageBytes::new(self.stack.clone())
     }
 }
@@ -198,7 +198,7 @@ enum WrappedMessage {
 }
 
 /// An iterator over the bytes of a message
-struct MessageBytes {
+pub struct MessageBytes {
     /// Tracks the current message part
     stack: Option<Rc<WrappedMessage>>,
     /// Tracks the index into the current chunk
@@ -208,8 +208,7 @@ struct MessageBytes {
 }
 
 impl MessageBytes {
-    /// Returns a new message bytes iterator.
-    pub fn new(stack: Rc<WrappedMessage>) -> Self {
+    fn new(stack: Rc<WrappedMessage>) -> Self {
         Self {
             stack: Some(stack),
             i: 0,
