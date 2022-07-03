@@ -72,7 +72,16 @@ impl Nic {
             .info()
             .insert(ControlKey::NetworkIndex, network.into());
         let message = message.slice(2..);
-        protocol.demux(message, context)?;
+        let session_id = SessionId::new(protocol_id, network);
+        let session = match self.sessions.entry(session_id) {
+            Entry::Occupied(entry) => entry.get().clone(),
+            Entry::Vacant(entry) => {
+                let session = Arc::new(RwLock::new(NicSession::new(protocol_id, network)));
+                entry.insert(session.clone());
+                session
+            }
+        };
+        protocol.demux(message, session, context)?;
         Ok(())
     }
 }
@@ -119,7 +128,12 @@ impl Protocol for Nic {
         Ok(())
     }
 
-    fn demux(&self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn demux(
+        &self,
+        _message: Message,
+        _downstream: ArcSession,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no protocols under
         // this one that would ask Nic to demux a message and because, semantically,
         // demux chooses one of its own sessions to respond to the message. We want Nic
@@ -129,7 +143,10 @@ impl Protocol for Nic {
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         for session in self.sessions.values_mut() {
-            session.write().unwrap().awake(context.clone())?;
+            session
+                .write()
+                .unwrap()
+                .awake(session.clone(), context.clone())?;
         }
         Ok(ControlFlow::Continue)
     }
@@ -186,18 +203,32 @@ impl Session for NicSession {
         Nic::ID
     }
 
-    fn send(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn send(
+        &mut self,
+        self_handle: ArcSession,
+        message: Message,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         let header: [u8; 2] = self.upstream.into();
         let message = message.with_header(&header);
         self.outgoing.push(message);
         Ok(())
     }
 
-    fn recv(&mut self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn recv(
+        &mut self,
+        self_handle: ArcSession,
+        _message: Message,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         Err(Box::new(NicError::Recv))
     }
 
-    fn awake(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn awake(
+        &mut self,
+        self_handle: ArcSession,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

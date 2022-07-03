@@ -216,7 +216,12 @@ pub trait Session {
     fn protocol(&self) -> ProtocolId;
 
     /// Invoked from a Protocol to send a Message.
-    fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn send(
+        &mut self,
+        self_handle: ArcSession,
+        message: Message,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>>;
 
     // Todo: We probably want demux to have already parsed the header and then pass
     // it on to the session. One of the things the x-kernel paper mentions is that
@@ -230,13 +235,22 @@ pub trait Session {
     // the header again. It's not entirely clear what to do here.
 
     /// Invoked from a Protocol or Session object below for Message receipt.
-    fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn recv(
+        &mut self,
+        self_handle: ArcSession,
+        message: Message,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>>;
 
     /// See [awake](elvis::core::Protocol::awake)
-    fn awake(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn awake(
+        &mut self,
+        self_handle: ArcSession,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>>;
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ProtocolContext {
     protocols: ProtocolMap,
     info: Control,
@@ -259,19 +273,6 @@ impl ProtocolContext {
 
     pub fn info(&mut self) -> &mut Control {
         &mut self.info
-    }
-
-    pub fn session(
-        &self,
-        protocol: ProtocolId,
-        identifier: Control,
-    ) -> Result<ArcSession, Box<dyn Error>> {
-        let protocol = self
-            .protocols
-            .get(&protocol)
-            .ok_or(ProtocolContextError::NoSuchProtocol)?;
-        let session = protocol.read().unwrap().get_session(&identifier)?;
-        Ok(session)
     }
 }
 

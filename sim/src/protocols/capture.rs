@@ -59,12 +59,20 @@ impl Protocol for Capture {
         Err(Box::new(CaptureError::DemuxBinding))
     }
 
-    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        self.session.write().unwrap().recv(message, context)
+    fn demux(
+        &self,
+        message: Message,
+        _downstream: ArcSession,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
+        self.session
+            .write()
+            .unwrap()
+            .recv(self.session, message, context)
     }
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        self.session.write().unwrap().awake(context)?;
+        self.session.write().unwrap().awake(self.session, context)?;
         // Todo: If Control is going to a useful debugging tool, we probably want a more
         // robust choice of whether to end the simulation than just asking whether we
         // have received any messages.
@@ -99,16 +107,33 @@ impl Session for CaptureSession {
         Capture::ID
     }
 
-    fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        self.downstream.write().unwrap().send(message, context)
+    fn send(
+        &mut self,
+        _self_handle: ArcSession,
+        message: Message,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
+        self.downstream
+            .write()
+            .unwrap()
+            .send(self.downstream, message, context)
     }
 
-    fn recv(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn recv(
+        &mut self,
+        _self_handle: ArcSession,
+        message: Message,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         self.received.push(message);
         Ok(())
     }
 
-    fn awake(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn awake(
+        &mut self,
+        _self_handle: ArcSession,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }
