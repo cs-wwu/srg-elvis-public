@@ -51,7 +51,10 @@ fn open_active() -> Result<(), Box<dyn Error>> {
         .unwrap()
         .open_active(Capture::ID, nic_control(), context.clone())?;
     let message = Message::new("Hello!");
-    session.write().unwrap().send(message, context)?;
+    session
+        .write()
+        .unwrap()
+        .send(session.clone(), message, context)?;
     let delivery = nic.write().unwrap().outgoing();
     assert_eq!(delivery.len(), 1);
     let delivery = delivery.into_iter().next().unwrap();
@@ -74,7 +77,7 @@ fn nic_receive() -> Result<(), Box<dyn Error>> {
         .listen(Capture::ID, Control::default(), context.clone())?;
     let header: [u8; 2] = Capture::ID.into();
     let message = Message::new("Hello!").with_header(&header);
-    nic.read().unwrap().accept_incoming(message, 0, context)?;
+    nic.write().unwrap().accept_incoming(message, 0, context)?;
     let messages = capture.write().unwrap().messages();
     assert_eq!(messages.len(), 1);
     let message = messages.into_iter().next().unwrap();
