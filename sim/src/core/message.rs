@@ -22,8 +22,12 @@ impl Message {
     /// let message = Message::new(b"Body");
     /// ```
     pub fn new(body: impl Into<Chunk>) -> Self {
+        Self::new_inner(body.into())
+    }
+
+    fn new_inner(body: Chunk) -> Self {
         Self {
-            stack: Rc::new(WrappedMessage::Body(body.into())),
+            stack: Rc::new(WrappedMessage::Body(body)),
         }
     }
 
@@ -38,8 +42,12 @@ impl Message {
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
     pub fn with_header(&self, header: impl Into<Chunk>) -> Self {
+        self.with_header_inner(header.into())
+    }
+
+    fn with_header_inner(&self, header: Chunk) -> Self {
         Self {
-            stack: Rc::new(WrappedMessage::Header(header.into(), self.stack.clone())),
+            stack: Rc::new(WrappedMessage::Header(header, self.stack.clone())),
         }
     }
 
@@ -59,7 +67,10 @@ impl Message {
     /// assert!(sliced.iter().eq(b"derBody".iter().cloned()));
     /// ```
     pub fn slice(&self, range: impl Into<SliceRange>) -> Self {
-        let range = range.into();
+        self.slice_inner(range.into())
+    }
+
+    fn slice_inner(&self, range: SliceRange) -> Self {
         let start = range.start();
         let end = range.end();
         Self {
