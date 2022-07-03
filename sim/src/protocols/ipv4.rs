@@ -1,4 +1,4 @@
-use super::Nic;
+use super::Tap;
 use crate::core::{
     ArcSession, Control, ControlFlow, ControlKey, Message, NetworkLayer, PrimitiveError, Protocol,
     ProtocolContext, ProtocolId, Session,
@@ -41,12 +41,12 @@ impl Protocol for Ipv4 {
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
                 participants.insert(ControlKey::NetworkIndex, 0);
-                let nic_session = context.protocol(Nic::ID)?.write().unwrap().open_active(
+                let tap_session = context.protocol(Tap::ID)?.write().unwrap().open_active(
                     Self::ID,
                     participants,
                     context,
                 )?;
-                let session = Arc::new(RwLock::new(Ipv4Session::new(nic_session, upstream, key)));
+                let session = Arc::new(RwLock::new(Ipv4Session::new(tap_session, upstream, key)));
                 entry.insert(session.clone());
                 Ok(session)
             }

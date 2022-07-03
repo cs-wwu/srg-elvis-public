@@ -1,7 +1,7 @@
 mod ipv4;
-mod nic;
+mod tap;
 mod user_process;
 
 pub use ipv4::*;
-pub use nic::*;
+pub use tap::*;
 pub use user_process::*;

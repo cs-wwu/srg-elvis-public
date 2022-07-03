@@ -2,12 +2,12 @@ use elvis::{
     core::{ArcProtocol, Internet, InternetError, Machine, Message, Network, PhysicalAddress}, protocols::UserProcess,
 };
 
-mod nic_and_capture;
+mod tap_and_capture;
 
 fn machine() -> Machine {
-    let nic_and_capture::Setup { nic, capture, .. } = nic_and_capture::setup();
+    let tap_and_capture::Setup { tap, capture, .. } = tap_and_capture::setup();
     let capture: ArcProtocol = capture;
-    Machine::new(nic, std::iter::once(capture))
+    Machine::new(tap, std::iter::once(capture))
 }
 
 #[test]

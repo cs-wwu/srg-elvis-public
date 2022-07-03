@@ -1,4 +1,4 @@
-use crate::protocols::{Nic, NicError};
+use crate::protocols::{Tap, TapError};
 
 use super::{ArcProtocol, ControlFlow, MachineContext, ProtocolContext, ProtocolId};
 use std::{
@@ -12,23 +12,23 @@ pub type ProtocolMap = Arc<HashMap<ProtocolId, ArcProtocol>>;
 
 pub struct Machine {
     protocols: ProtocolMap,
-    nic: Arc<RwLock<Nic>>,
+    tap: Arc<RwLock<Tap>>,
 }
 
 impl Machine {
-    pub fn new(nic: Arc<RwLock<Nic>>, protocols: impl Iterator<Item = ArcProtocol>) -> Self {
+    pub fn new(tap: Arc<RwLock<Tap>>, protocols: impl Iterator<Item = ArcProtocol>) -> Self {
         // Todo: Guarantee that there are no duplicate protocols
-        // Todo: Guarantee that the NIC is in there
-        let nic_abstract: ArcProtocol = nic.clone();
+        // Todo: Guarantee that the tap is in there
+        let tap_abstract: ArcProtocol = tap.clone();
         let protocols: HashMap<_, _> = protocols
-            .chain(std::iter::once(nic_abstract))
+            .chain(std::iter::once(tap_abstract))
             .map(|protocol| {
                 let id = protocol.read().unwrap().id();
                 (id, protocol)
             })
             .collect();
         Self {
-            nic,
+            tap,
             protocols: Arc::new(protocols),
         }
     }
@@ -36,7 +36,7 @@ impl Machine {
     pub fn awake(&mut self, context: &mut MachineContext) -> Result<ControlFlow, MachineError> {
         let protocol_context = ProtocolContext::new(self.protocols.clone());
         for message in context.pending() {
-            self.nic
+            self.tap
                 .write()
                 .unwrap()
                 // Todo: We want to get the network number from pending()
@@ -58,10 +58,10 @@ impl Machine {
 
 #[derive(Debug, ThisError)]
 pub enum MachineError {
-    #[error("The NIC protocol is missing")]
-    MissingNic,
+    #[error("The Tap protocol is missing")]
+    MissingTap,
     #[error("{0}")]
-    Nic(#[from] NicError),
+    Tap(#[from] TapError),
     #[error("{0}")]
     Other(#[from] Box<dyn Error>),
 }

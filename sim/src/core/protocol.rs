@@ -39,7 +39,7 @@ pub type WeakSession = Weak<RwLock<dyn Session>>;
 pub trait Protocol {
     // Todo: We need methods that allow other protocols to query info about a
     // protocol and its sessions. For example, a TCP or an IP protocol will want a
-    // method to learn about a Nic's MTU.
+    // method to learn about a Tap's MTU.
 
     /// Returns a unique identifier for the protocol.
     fn id(&self) -> ProtocolId;

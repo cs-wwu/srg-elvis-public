@@ -1,6 +1,6 @@
 use elvis::{
     core::{Control, ControlFlow, ControlKey, Message, Protocol, ProtocolContext},
-    protocols::{Application, Nic, UserProcess},
+    protocols::{Application, Tap, UserProcess},
 };
 use std::{
     collections::HashMap,
@@ -34,25 +34,25 @@ impl Application for Capture {
     }
 }
 
-pub fn nic_control() -> Control {
+pub fn tap_control() -> Control {
     let mut control = Control::default();
     control.insert(ControlKey::NetworkIndex, 0u8);
     control
 }
 pub struct Setup {
-    pub nic: Arc<RwLock<Nic>>,
+    pub tap: Arc<RwLock<Tap>>,
     pub capture: Arc<RwLock<UserProcess>>,
     pub context: ProtocolContext,
 }
 
 pub fn setup() -> Setup {
-    let mut nic = Nic::new(vec![1500]);
-    let nic_session = nic
-        .open_active(UserProcess::ID, nic_control(), ProtocolContext::default())
+    let mut tap = Tap::new(vec![1500]);
+    let tap_session = tap
+        .open_active(UserProcess::ID, tap_control(), ProtocolContext::default())
         .unwrap();
-    let nic = Arc::new(RwLock::new(nic));
+    let tap = Arc::new(RwLock::new(tap));
     let capture = Arc::new(RwLock::new(UserProcess::new(Box::new(Capture::new()))));
-    let protocols: [Arc<RwLock<dyn Protocol>>; 2] = [nic.clone(), capture.clone()];
+    let protocols: [Arc<RwLock<dyn Protocol>>; 2] = [tap.clone(), capture.clone()];
     let protocols: HashMap<_, _> = protocols
         .into_iter()
         .map(|protocol| {
@@ -62,7 +62,7 @@ pub fn setup() -> Setup {
         .collect();
     let context = ProtocolContext::new(Arc::new(protocols));
     Setup {
-        nic,
+        tap,
         capture,
         context,
     }
@@ -70,17 +70,17 @@ pub fn setup() -> Setup {
 
 #[test]
 fn open_active() -> Result<(), Box<dyn Error>> {
-    let Setup { nic, context, .. } = setup();
+    let Setup { tap, context, .. } = setup();
     let session =
-        nic.write()
+        tap.write()
             .unwrap()
-            .open_active(UserProcess::ID, nic_control(), context.clone())?;
+            .open_active(UserProcess::ID, tap_control(), context.clone())?;
     let message = Message::new("Hello!");
     session
         .write()
         .unwrap()
         .send(session.clone(), message, context)?;
-    let delivery = nic.write().unwrap().outgoing();
+    let delivery = tap.write().unwrap().outgoing();
     assert_eq!(delivery.len(), 1);
     let delivery = delivery.into_iter().next().unwrap();
     assert_eq!(delivery.0, 0);
@@ -91,18 +91,18 @@ fn open_active() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn nic_receive() -> Result<(), Box<dyn Error>> {
+fn tap_receive() -> Result<(), Box<dyn Error>> {
     let Setup {
-        nic,
+        tap,
         capture: _,
         context,
     } = setup();
-    nic.write()
+    tap.write()
         .unwrap()
         .listen(UserProcess::ID, Control::default(), context.clone())?;
     let header: [u8; 2] = UserProcess::ID.into();
     let message = Message::new("Hello!").with_header(&header);
-    nic.write().unwrap().accept_incoming(message, 0, context)?;
+    tap.write().unwrap().accept_incoming(message, 0, context)?;
     // Todo: Add back the check that the right message came in.
     Ok(())
 }

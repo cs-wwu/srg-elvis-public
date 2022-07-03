@@ -24,21 +24,19 @@ impl SessionId {
     }
 }
 
-// Todo: Rename Nic to Tap, for heaven's sake
-
 /// Represents something akin to an Ethernet tap or a network interface card.
 /// This should be the first responder to messages coming in off the network. It
 /// is simply there to specify which protocol should respond to a raw message
 /// coming off the network, for example IPv4 or IPv6. The header is very simple,
 /// adding only a u32 that specifies the `ProtocolId` of the protocol that
 /// should receive the message.
-pub struct Nic {
+pub struct Tap {
     // Todo: Add an interface for accessing the MTUs
     // network_mtus: Vec<Mtu>,
-    sessions: HashMap<SessionId, Arc<RwLock<NicSession>>>,
+    sessions: HashMap<SessionId, Arc<RwLock<TapSession>>>,
 }
 
-impl Nic {
+impl Tap {
     /// The unique identifier for this protocol
     pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Link, 0);
 
@@ -65,8 +63,8 @@ impl Nic {
         message: Message,
         network: NetworkIndex,
         mut context: ProtocolContext,
-    ) -> Result<(), NicError> {
-        let header = take_header(&message).ok_or(NicError::HeaderLength)?;
+    ) -> Result<(), TapError> {
+        let header = take_header(&message).ok_or(TapError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
         let protocol = context.protocol(protocol_id)?;
         let mut protocol = protocol.write().unwrap();
@@ -78,7 +76,7 @@ impl Nic {
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
-                let session = Arc::new(RwLock::new(NicSession::new(protocol_id, network)));
+                let session = Arc::new(RwLock::new(TapSession::new(protocol_id, network)));
                 entry.insert(session.clone());
                 session
             }
@@ -88,7 +86,7 @@ impl Nic {
     }
 }
 
-impl Protocol for Nic {
+impl Protocol for Tap {
     fn id(&self) -> ProtocolId {
         Self::ID
     }
@@ -104,7 +102,7 @@ impl Protocol for Nic {
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let session = Arc::new(RwLock::new(NicSession::new(upstream, network)));
+                let session = Arc::new(RwLock::new(TapSession::new(upstream, network)));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -128,10 +126,10 @@ impl Protocol for Nic {
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no protocols under
-        // this one that would ask Nic to demux a message and because, semantically,
-        // demux chooses one of its own sessions to respond to the message. We want Nic
+        // this one that would ask Tap to demux a message and because, semantically,
+        // demux chooses one of its own sessions to respond to the message. We want Tap
         // to immediatly forward incoming messages to a higher-up protocol.
-        Err(Box::new(NicError::Demux))
+        Err(Box::new(TapError::Demux))
     }
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
@@ -145,10 +143,10 @@ impl Protocol for Nic {
     }
 }
 
-fn get_network_index(control: &Control) -> Result<u8, NicError> {
+fn get_network_index(control: &Control) -> Result<u8, TapError> {
     Ok(control
         .get(&ControlKey::NetworkIndex)
-        .ok_or(NicError::IdentifierMissingKey(ControlKey::NetworkIndex))?
+        .ok_or(TapError::IdentifierMissingKey(ControlKey::NetworkIndex))?
         .to_u8()?)
 }
 
@@ -158,13 +156,13 @@ fn take_header(message: &Message) -> Option<[u8; 2]> {
 }
 
 #[derive(Clone)]
-pub struct NicSession {
+pub struct TapSession {
     network: NetworkIndex,
     outgoing: Vec<Message>,
     upstream: ProtocolId,
 }
 
-impl NicSession {
+impl TapSession {
     fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
         Self {
             upstream,
@@ -182,9 +180,9 @@ impl NicSession {
     }
 }
 
-impl Session for NicSession {
+impl Session for TapSession {
     fn protocol(&self) -> ProtocolId {
-        Nic::ID
+        Tap::ID
     }
 
     fn send(
@@ -205,7 +203,7 @@ impl Session for NicSession {
         _message: Message,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        Err(Box::new(NicError::Recv))
+        Err(Box::new(TapError::Recv))
     }
 
     fn awake(
@@ -218,12 +216,12 @@ impl Session for NicSession {
 }
 
 #[derive(Debug, ThisError)]
-pub enum NicError {
-    #[error("Expected two bytes for the NIC header")]
+pub enum TapError {
+    #[error("Expected two bytes for the header")]
     HeaderLength,
-    #[error("The NIC header did not represent a valid protocol ID")]
+    #[error("The header did not represent a valid protocol ID")]
     InvalidProtocolId(#[from] NetworkLayerError),
-    #[error("Unexpected passive open on NIC")]
+    #[error("Unexpected passive open")]
     PassiveOpen,
     #[error("Attempt to create an existing demux binding: {0:?}")]
     BindingExists(ProtocolId),
@@ -233,9 +231,9 @@ pub enum NicError {
     IdentifierMissingKey(ControlKey),
     #[error("The network index does not exist: {0}")]
     NetworkIndex(NetworkIndex),
-    #[error("New messages on a NIC should go directly to the protocol, not the session")]
+    #[error("New messages should go directly to the protocol, not the session")]
     Recv,
-    #[error("Cannot demux on a NIC because the incoming method should be used instead")]
+    #[error("Cannot demux because the incoming method should be used instead")]
     Demux,
     #[error("{0}")]
     Other(#[from] Box<dyn Error>),
