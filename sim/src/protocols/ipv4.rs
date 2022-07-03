@@ -40,7 +40,7 @@ impl Protocol for Ipv4 {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
-                participants.insert(ControlKey::NetworkIndex, 0.into());
+                participants.insert(ControlKey::NetworkIndex, 0);
                 let nic_session = context.protocol(Nic::ID)?.write().unwrap().open_active(
                     Self::ID,
                     participants,
@@ -81,8 +81,8 @@ impl Protocol for Ipv4 {
         let destination = Ipv4Address::from_be_bytes(header.destination());
         let identifier = Identifier::new(destination, source);
         let info = &mut context.info();
-        info.insert(ControlKey::LocalAddress, destination.into());
-        info.insert(ControlKey::RemoteAddress, source.into());
+        info.insert(ControlKey::LocalAddress, destination);
+        info.insert(ControlKey::RemoteAddress, source);
         match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => {
                 let session = entry.get();
@@ -198,11 +198,11 @@ impl Session for Ipv4Session {
         // .into() on every primitive.
         info.insert(
             ControlKey::RemoteAddress,
-            Ipv4Address::from_be_bytes(header.source()).into(),
+            Ipv4Address::from_be_bytes(header.source()),
         );
         info.insert(
             ControlKey::LocalAddress,
-            Ipv4Address::from_be_bytes(header.destination()).into(),
+            Ipv4Address::from_be_bytes(header.destination()),
         );
         let message = message.slice(20..);
         context

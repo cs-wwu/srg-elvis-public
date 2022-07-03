@@ -1,7 +1,26 @@
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 use thiserror::Error as ThisError;
 
-pub type Control = HashMap<ControlKey, Primitive>;
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Control(HashMap<ControlKey, Primitive>);
+
+impl Control {
+    pub fn insert(&mut self, key: ControlKey, value: impl Into<Primitive>) -> Option<Primitive> {
+        self.insert_inner(key, value.into())
+    }
+
+    fn insert_inner(&mut self, key: ControlKey, value: Primitive) -> Option<Primitive> {
+        self.0.insert(key, value)
+    }
+
+    pub fn get(&self, key: &ControlKey) -> Option<Primitive> {
+        self.0.get(key).cloned()
+    }
+
+    pub fn entry(&mut self, key: ControlKey) -> Entry<ControlKey, Primitive> {
+        self.0.entry(key)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ControlKey {

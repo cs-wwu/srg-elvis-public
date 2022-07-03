@@ -70,7 +70,7 @@ impl Nic {
         let mut protocol = protocol.write().unwrap();
         context
             .info()
-            .insert(ControlKey::NetworkIndex, network.into());
+            .insert(ControlKey::NetworkIndex, network);
         let message = message.slice(2..);
         let session_id = SessionId::new(protocol_id, network);
         let session = match self.sessions.entry(session_id) {

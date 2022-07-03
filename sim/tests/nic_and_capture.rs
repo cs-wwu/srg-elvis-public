@@ -10,7 +10,7 @@ use std::{
 
 pub fn nic_control() -> Control {
     let mut control = Control::default();
-    control.insert(ControlKey::NetworkIndex, 0u8.into());
+    control.insert(ControlKey::NetworkIndex, 0u8);
     control
 }
 
