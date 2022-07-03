@@ -33,8 +33,8 @@ impl Protocol for Ipv4 {
         mut participants: Control,
         mut context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
-        let local = get_local(&context.info())?;
-        let remote = get_remote(&context.info())?;
+        let local = get_local(context.info())?;
+        let remote = get_remote(context.info())?;
         let key = Identifier::new(local, remote);
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
