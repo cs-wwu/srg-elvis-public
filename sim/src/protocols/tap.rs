@@ -68,9 +68,7 @@ impl Tap {
         let protocol_id: ProtocolId = header.try_into()?;
         let protocol = context.protocol(protocol_id)?;
         let mut protocol = protocol.write().unwrap();
-        context
-            .info()
-            .insert(ControlKey::NetworkIndex, network);
+        context.info().insert(ControlKey::NetworkIndex, network);
         let message = message.slice(2..);
         let session_id = SessionId::new(protocol_id, network);
         let session = match self.sessions.entry(session_id) {
