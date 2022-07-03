@@ -1,6 +1,8 @@
-use elvis::{
-    core::{ArcProtocol, Internet, InternetError, Machine, Message, Network, PhysicalAddress}, protocols::UserProcess,
+use elvis::core::{
+    ArcProtocol, Internet, InternetError, Machine, Message, Network, PhysicalAddress,
 };
+use elvis::protocols::Application;
+use tap_and_capture::Capture;
 
 mod tap_and_capture;
 
@@ -15,7 +17,7 @@ pub fn internet() -> Result<(), InternetError> {
     let mut network = Network::new(vec![0, 1], 1500);
     network.send(
         PhysicalAddress::Broadcast,
-        Message::new("Hello!").with_header(&UserProcess::ID.to_bytes()),
+        Message::new("Hello!").with_header(&Capture::ID.to_bytes()),
     );
     let networks = vec![network];
     let machines = vec![machine()];

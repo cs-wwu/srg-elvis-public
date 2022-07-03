@@ -1,32 +1,30 @@
 use crate::core::{
-    ArcSession, Control, ControlFlow, Message, NetworkLayer, Protocol, ProtocolContext, ProtocolId,
+    ArcSession, Control, ControlFlow, Message, Protocol, ProtocolContext, ProtocolId,
 };
 use std::error::Error;
 use thiserror::Error as ThisError;
 
 pub trait Application {
+    const ID: ProtocolId;
+
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
 
     fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 }
 
-// Todo: We could also make UserProcess generic over Application and let each
-// have its own ID
-pub struct UserProcess {
-    application: Box<dyn Application>,
+pub struct UserProcess<T: Application> {
+    application: T,
 }
 
-impl UserProcess {
-    pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::User, 0);
-
-    pub fn new(application: Box<dyn Application>) -> Self {
+impl<T: Application> UserProcess<T> {
+    pub fn new(application: T) -> Self {
         Self { application }
     }
 }
 
-impl Protocol for UserProcess {
+impl<T: Application> Protocol for UserProcess<T> {
     fn id(&self) -> ProtocolId {
-        Self::ID
+        T::ID
     }
 
     fn open_active(
