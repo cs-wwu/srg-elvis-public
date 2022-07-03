@@ -20,6 +20,10 @@ impl Capture {
     pub fn new() -> Self {
         Default::default()
     }
+
+    pub fn messages(&self) -> &[Message] {
+        self.messages.as_slice()
+    }
 }
 
 impl Application for Capture {
@@ -51,10 +55,7 @@ pub struct Setup {
 }
 
 pub fn setup() -> Setup {
-    let mut tap = Tap::new(vec![1500]);
-    let tap_session = tap
-        .open_active(Capture::ID, tap_control(), ProtocolContext::default())
-        .unwrap();
+    let tap = Tap::new(vec![1500]);
     let tap = Arc::new(RwLock::new(tap));
     let capture = Arc::new(RwLock::new(UserProcess::new(Capture::new())));
     let protocols: [Arc<RwLock<dyn Protocol>>; 2] = [tap.clone(), capture.clone()];
@@ -99,7 +100,7 @@ fn open_active() -> Result<(), Box<dyn Error>> {
 fn tap_receive() -> Result<(), Box<dyn Error>> {
     let Setup {
         tap,
-        capture: _,
+        capture,
         context,
     } = setup();
     tap.write()
@@ -108,6 +109,11 @@ fn tap_receive() -> Result<(), Box<dyn Error>> {
     let header: [u8; 2] = Capture::ID.into();
     let message = Message::new("Hello!").with_header(&header);
     tap.write().unwrap().accept_incoming(message, 0, context)?;
-    // Todo: Add back the check that the right message came in.
+    let capture = capture.read().unwrap();
+    let application = capture.application();
+    let messages = application.messages();
+    assert_eq!(messages.len(), 1);
+    let message = messages.iter().next().unwrap().clone();
+    assert_eq!(message, Message::new("Hello!"));
     Ok(())
 }

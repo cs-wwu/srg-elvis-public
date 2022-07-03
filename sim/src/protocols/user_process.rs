@@ -20,6 +20,10 @@ impl<T: Application> UserProcess<T> {
     pub fn new(application: T) -> Self {
         Self { application }
     }
+
+    pub fn application(&self) -> &T {
+        &self.application
+    }
 }
 
 impl<T: Application> Protocol for UserProcess<T> {
