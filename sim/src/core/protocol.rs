@@ -96,6 +96,7 @@ pub trait Protocol {
     fn demux(
         &mut self,
         message: Message,
+        // Todo: Can we remove this argument?
         downstream: ArcSession,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;

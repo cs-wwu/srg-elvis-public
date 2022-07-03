@@ -6,6 +6,8 @@ use thiserror::Error as ThisError;
 
 pub trait Application {
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
+
+    fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct UserProcess {
@@ -45,11 +47,11 @@ impl Protocol for UserProcess {
 
     fn demux(
         &mut self,
-        _message: Message,
+        message: Message,
         _downstream: ArcSession,
-        _context: ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        Err(UserError::Demux)?
+        self.application.recv(message, context)
     }
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
@@ -63,6 +65,4 @@ pub enum UserError {
     OpenActive,
     #[error("Cannot listen on a user program")]
     Listen,
-    #[error("Cannot demux on a user program")]
-    Demux,
 }
