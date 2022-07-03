@@ -61,6 +61,8 @@ pub trait Protocol {
     ///   destination_address} as the participant set.
     fn open_active(
         &mut self,
+        // Todo: In order to allow multiple UserProgram to run on a machine at a given time, this
+        // is going to need to take an ArcProtocol instead of a ProtocolId. Likewise for listen.
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -96,7 +98,6 @@ pub trait Protocol {
     fn demux(
         &mut self,
         message: Message,
-        // Todo: Can we remove this argument?
         downstream: ArcSession,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;

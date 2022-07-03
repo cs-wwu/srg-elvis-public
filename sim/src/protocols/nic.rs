@@ -24,6 +24,8 @@ impl SessionId {
     }
 }
 
+// Todo: Rename Nic to Tap, for heaven's sake
+
 /// Represents something akin to an Ethernet tap or a network interface card.
 /// This should be the first responder to messages coming in off the network. It
 /// is simply there to specify which protocol should respond to a raw message

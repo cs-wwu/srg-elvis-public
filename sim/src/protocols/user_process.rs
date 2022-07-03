@@ -10,6 +10,8 @@ pub trait Application {
     fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 }
 
+// Todo: We could also make UserProcess generic over Application and let each
+// have its own ID
 pub struct UserProcess {
     application: Box<dyn Application>,
 }
