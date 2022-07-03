@@ -3,7 +3,7 @@ use crate::core::{
     ArcSession, Control, ControlFlow, ControlKey, Message, NetworkLayer, PrimitiveError, Protocol,
     ProtocolContext, ProtocolId, Session,
 };
-use etherparse::{IpNumber, Ipv4Header, Ipv4HeaderSlice, ReadError};
+use etherparse::{IpNumber, Ipv4Header, Ipv4HeaderSlice};
 use std::{
     collections::{hash_map::Entry, HashMap},
     error::Error,
@@ -31,7 +31,7 @@ impl Protocol for Ipv4 {
         &mut self,
         upstream: ProtocolId,
         mut participants: Control,
-        context: ProtocolContext,
+        mut context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>> {
         let local = get_local(&context.info())?;
         let remote = get_remote(&context.info())?;
@@ -53,42 +53,6 @@ impl Protocol for Ipv4 {
         }
     }
 
-    // Todo: Can I just get rid of open_passive and have demux create a new session if it doesn't have one yet?
-    fn open_passive(
-        &mut self,
-        downstream: ArcSession,
-        participants: Control,
-        context: ProtocolContext,
-    ) -> Result<ArcSession, Box<dyn Error>> {
-        // Todo: Is the downstream protocol going to give us the source and destination
-        // protocols? If they just got a new message, they aren't going to know that
-        // information until the message gets to us to demux or recv.
-        todo!()
-        let source = get_source(&participants)?;
-        let destination = get_destination(&participants)?;
-        let identifier = Identifier::new(destination, source);
-        let upstream = *self
-            .listen_bindings
-            .get(&destination)
-            .ok_or(Ipv4Error::MissingListenBinding(destination))?;
-        let session = match self.sessions.entry(identifier) {
-            Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => {
-                let session = Arc::new(RwLock::new(Ipv4Session::new(
-                    downstream, upstream, identifier,
-                )));
-                entry.insert(session.clone());
-                session
-            }
-        };
-        context.protocol(upstream)?.read().unwrap().open_passive(
-            session.clone(),
-            participants,
-            context,
-        );
-        Ok(session)
-    }
-
     fn listen(
         &mut self,
         upstream: ProtocolId,
@@ -106,36 +70,42 @@ impl Protocol for Ipv4 {
     }
 
     fn demux(
-        &self,
+        &mut self,
         message: Message,
         downstream: ArcSession,
-        context: ProtocolContext,
+        mut context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let header: Vec<_> = message.iter().take(20).collect();
         let header = Ipv4HeaderSlice::from_slice(&header)?;
         let source = Ipv4Address::from_be_bytes(header.source());
         let destination = Ipv4Address::from_be_bytes(header.destination());
         let identifier = Identifier::new(destination, source);
-        let info = context.info();
+        let info = &mut context.info();
         info.insert(ControlKey::LocalAddress, destination.into());
         info.insert(ControlKey::RemoteAddress, source.into());
         match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => {
                 let session = entry.get();
-                session.write().unwrap().recv(session.clone(), message, context);
+                session
+                    .write()
+                    .unwrap()
+                    .recv(session.clone(), message, context)?;
             }
             Entry::Vacant(entry) => {
                 match self.listen_bindings.get(&destination) {
                     Some(&binding) => {
                         // Todo: We want to be zero-copy, but right now it requires copying to
                         // forward the list of participants. Is there any way around this?
-                        let session = context.protocol(binding)?.write().unwrap().open_passive(
-                            downstream,
-                            info.clone(),
-                            context,
-                        )?;
-                        entry.insert(session.clone());
-                        session.write().unwrap().recv(session, message, context)?;
+                        let session = Arc::new(RwLock::new(Ipv4Session::new(
+                            downstream.clone(),
+                            binding,
+                            identifier,
+                        )));
+                        session
+                            .write()
+                            .unwrap()
+                            .recv(downstream, message, context)?;
+                        entry.insert(session);
                     }
                     None => Err(Ipv4Error::MissingListenBinding(destination))?,
                 }
@@ -172,7 +142,7 @@ impl Session for Ipv4Session {
 
     fn send(
         &mut self,
-        self_handle: ArcSession,
+        _self_handle: ArcSession,
         message: Message,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -205,7 +175,7 @@ impl Session for Ipv4Session {
         self.downstream
             .write()
             .unwrap()
-            .send(self.downstream, message, context)?;
+            .send(self.downstream.clone(), message, context)?;
         Ok(())
     }
 
@@ -237,7 +207,7 @@ impl Session for Ipv4Session {
         let message = message.slice(20..);
         context
             .protocol(self.upstream)?
-            .read()
+            .write()
             .unwrap()
             .demux(message, self_handle, context)?;
         Ok(())
@@ -245,7 +215,7 @@ impl Session for Ipv4Session {
 
     fn awake(
         &mut self,
-        self_handle: ArcSession,
+        _self_handle: ArcSession,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())

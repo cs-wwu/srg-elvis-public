@@ -41,15 +41,6 @@ impl Protocol for Capture {
         Err(Box::new(CaptureError::OpenActive))
     }
 
-    fn open_passive(
-        &mut self,
-        _downstream: ArcSession,
-        _participants: Control,
-        _context: ProtocolContext,
-    ) -> Result<ArcSession, Box<dyn Error>> {
-        Ok(self.session.clone())
-    }
-
     fn listen(
         &mut self,
         _upstream: ProtocolId,
@@ -60,7 +51,7 @@ impl Protocol for Capture {
     }
 
     fn demux(
-        &self,
+        &mut self,
         message: Message,
         _downstream: ArcSession,
         context: ProtocolContext,
@@ -68,11 +59,11 @@ impl Protocol for Capture {
         self.session
             .write()
             .unwrap()
-            .recv(self.session, message, context)
+            .recv(self.session.clone(), message, context)
     }
 
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        self.session.write().unwrap().awake(self.session, context)?;
+        self.session.write().unwrap().awake(self.session.clone(), context)?;
         // Todo: If Control is going to a useful debugging tool, we probably want a more
         // robust choice of whether to end the simulation than just asking whether we
         // have received any messages.
@@ -116,7 +107,7 @@ impl Session for CaptureSession {
         self.downstream
             .write()
             .unwrap()
-            .send(self.downstream, message, context)
+            .send(self.downstream.clone(), message, context)
     }
 
     fn recv(

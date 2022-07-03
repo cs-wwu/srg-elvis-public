@@ -37,7 +37,7 @@ impl Machine {
         let protocol_context = ProtocolContext::new(self.protocols.clone());
         for message in context.pending() {
             self.nic
-                .read()
+                .write()
                 .unwrap()
                 // Todo: We want to get the network number from pending()
                 .accept_incoming(message, 0, protocol_context.clone())?;

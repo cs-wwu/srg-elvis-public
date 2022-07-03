@@ -59,7 +59,7 @@ impl Nic {
     }
 
     pub fn accept_incoming(
-        &self,
+        &mut self,
         message: Message,
         network: NetworkIndex,
         mut context: ProtocolContext,
@@ -67,7 +67,7 @@ impl Nic {
         let header = take_header(&message).ok_or(NicError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
         let protocol = context.protocol(protocol_id)?;
-        let protocol = protocol.read().unwrap();
+        let mut protocol = protocol.write().unwrap();
         context
             .info()
             .insert(ControlKey::NetworkIndex, network.into());
@@ -109,15 +109,6 @@ impl Protocol for Nic {
         }
     }
 
-    fn open_passive(
-        &mut self,
-        _downstream: ArcSession,
-        _participants: Control,
-        _context: ProtocolContext,
-    ) -> Result<ArcSession, Box<dyn Error>> {
-        Err(Box::new(NicError::PassiveOpen))
-    }
-
     fn listen(
         &mut self,
         _upstream: ProtocolId,
@@ -129,7 +120,7 @@ impl Protocol for Nic {
     }
 
     fn demux(
-        &self,
+        &mut self,
         _message: Message,
         _downstream: ArcSession,
         _context: ProtocolContext,
@@ -150,15 +141,6 @@ impl Protocol for Nic {
         }
         Ok(ControlFlow::Continue)
     }
-}
-
-fn get_protocol_id(control: &Control) -> Result<ProtocolId, NicError> {
-    let protocol_id: ProtocolId = control
-        .get(&ControlKey::ProtocolId)
-        .ok_or(NicError::IdentifierMissingKey(ControlKey::ProtocolId))?
-        .to_u16()?
-        .try_into()?;
-    Ok(protocol_id)
 }
 
 fn get_network_index(control: &Control) -> Result<u8, NicError> {
@@ -205,7 +187,7 @@ impl Session for NicSession {
 
     fn send(
         &mut self,
-        self_handle: ArcSession,
+        _self_handle: ArcSession,
         message: Message,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -217,7 +199,7 @@ impl Session for NicSession {
 
     fn recv(
         &mut self,
-        self_handle: ArcSession,
+        _self_handle: ArcSession,
         _message: Message,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -226,7 +208,7 @@ impl Session for NicSession {
 
     fn awake(
         &mut self,
-        self_handle: ArcSession,
+        _self_handle: ArcSession,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())

@@ -147,26 +147,6 @@ pub trait Protocol {
         context: ProtocolContext,
     ) -> Result<ArcSession, Box<dyn Error>>;
 
-    /// Called by a lower-level protocol to open a session with a higher-level
-    /// protocol when it does not recognize an incoming message as corresponding
-    /// to an active session. This is useful for server programs listening for
-    /// new connections.
-    ///
-    /// # Arguments
-    ///
-    /// * `requester` is the protocol that requested to open a session. For
-    ///   example, IP would be an requester when it requests to open a new
-    ///   session on UDP.
-    /// * `identifier` is an identifier for the session. For example, IP would
-    ///   open a session with the participant set {source_address,
-    ///   destination_address}.
-    fn open_passive(
-        &mut self,
-        downstream: ArcSession,
-        participants: Control,
-        context: ProtocolContext,
-    ) -> Result<ArcSession, Box<dyn Error>>;
-
     /// Allows a high-level protocol to request that messages for which there is
     /// no existing session be sent to it.
     ///
@@ -195,7 +175,7 @@ pub trait Protocol {
 
     /// Identifies the session that a message belongs to.
     fn demux(
-        &self,
+        &mut self,
         message: Message,
         downstream: ArcSession,
         context: ProtocolContext,
