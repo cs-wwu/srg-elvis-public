@@ -1,51 +1,55 @@
 use crate::protocols::{Tap, TapError};
 
-use super::{ArcProtocol, ControlFlow, MachineContext, ProtocolContext, ProtocolId};
+use super::{ControlFlow, MachineContext, ProtocolContext, ProtocolId, RcProtocol};
 use std::{
-    collections::HashMap,
+    cell::RefCell,
+    collections::{hash_map::Entry, HashMap},
     error::Error,
-    sync::{Arc, RwLock},
+    rc::Rc,
 };
 use thiserror::Error as ThisError;
 
-pub type ProtocolMap = Arc<HashMap<ProtocolId, ArcProtocol>>;
+pub type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
 
 pub struct Machine {
     protocols: ProtocolMap,
-    tap: Arc<RwLock<Tap>>,
+    tap: Rc<RefCell<Tap>>,
 }
 
 impl Machine {
-    pub fn new(tap: Arc<RwLock<Tap>>, protocols: impl Iterator<Item = ArcProtocol>) -> Self {
-        // Todo: Guarantee that there are no duplicate protocols
-        // Todo: Guarantee that the tap is in there
-        let tap_abstract: ArcProtocol = tap.clone();
-        let protocols: HashMap<_, _> = protocols
-            .chain(std::iter::once(tap_abstract))
-            .map(|protocol| {
-                let id = protocol.read().unwrap().id();
-                (id, protocol)
-            })
-            .collect();
-        Self {
-            tap,
-            protocols: Arc::new(protocols),
+    pub fn new(
+        tap: Rc<RefCell<Tap>>,
+        protocols: impl Iterator<Item = RcProtocol>,
+    ) -> Result<Self, MachineError> {
+        let tap_abstract: RcProtocol = tap.clone();
+        let mut map = HashMap::new();
+        for protocol in protocols.chain(std::iter::once(tap_abstract)) {
+            let id = protocol.borrow().id();
+            match map.entry(id) {
+                Entry::Occupied(_) => Err(MachineError::DuplicateProtocol)?,
+                Entry::Vacant(entry) => {
+                    entry.insert(protocol);
+                }
+            }
         }
+        Ok(Self {
+            tap,
+            protocols: Rc::new(map),
+        })
     }
 
     pub fn awake(&mut self, context: &mut MachineContext) -> Result<ControlFlow, MachineError> {
         let protocol_context = ProtocolContext::new(self.protocols.clone());
         for message in context.pending() {
             self.tap
-                .write()
-                .unwrap()
+                .borrow_mut()
                 // Todo: We want to get the network number from pending()
                 .accept_incoming(message, 0, protocol_context.clone())?;
         }
 
         let mut control_flow = ControlFlow::Continue;
         for protocol in self.protocols.values() {
-            let flow = protocol.write().unwrap().awake(protocol_context.clone())?;
+            let flow = protocol.borrow_mut().awake(protocol_context.clone())?;
             match flow {
                 ControlFlow::Continue => {}
                 ControlFlow::EndSimulation => control_flow = ControlFlow::EndSimulation,
@@ -58,6 +62,8 @@ impl Machine {
 
 #[derive(Debug, ThisError)]
 pub enum MachineError {
+    #[error("Only one of each protocol should be provided")]
+    DuplicateProtocol,
     #[error("The Tap protocol is missing")]
     MissingTap,
     #[error("{0}")]

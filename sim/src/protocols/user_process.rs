@@ -1,5 +1,5 @@
 use crate::core::{
-    ArcSession, Control, ControlFlow, Message, Protocol, ProtocolContext, ProtocolId,
+    Control, ControlFlow, Message, Protocol, ProtocolContext, ProtocolId, RcSession,
 };
 use std::error::Error;
 use thiserror::Error as ThisError;
@@ -36,7 +36,7 @@ impl<T: Application> Protocol for UserProcess<T> {
         _upstream: ProtocolId,
         _participants: Control,
         _context: ProtocolContext,
-    ) -> Result<ArcSession, Box<dyn Error>> {
+    ) -> Result<RcSession, Box<dyn Error>> {
         Err(UserError::OpenActive)?
     }
 
@@ -52,7 +52,7 @@ impl<T: Application> Protocol for UserProcess<T> {
     fn demux(
         &mut self,
         message: Message,
-        _downstream: ArcSession,
+        _downstream: RcSession,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         self.application.recv(message, context)

@@ -1,13 +1,14 @@
 use super::Tap;
 use crate::core::{
-    ArcSession, Control, ControlFlow, ControlKey, Message, NetworkLayer, PrimitiveError, Protocol,
-    ProtocolContext, ProtocolId, Session,
+    Control, ControlFlow, ControlKey, Message, NetworkLayer, PrimitiveError, Protocol,
+    ProtocolContext, ProtocolId, RcSession, Session,
 };
 use etherparse::{IpNumber, Ipv4Header, Ipv4HeaderSlice};
 use std::{
+    cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     error::Error,
-    sync::{Arc, RwLock},
+    rc::Rc,
 };
 use thiserror::Error as ThisError;
 
@@ -15,7 +16,7 @@ pub type Ipv4Address = u32;
 
 pub struct Ipv4 {
     listen_bindings: HashMap<Ipv4Address, ProtocolId>,
-    sessions: HashMap<Identifier, ArcSession>,
+    sessions: HashMap<Identifier, RcSession>,
 }
 
 impl Ipv4 {
@@ -32,7 +33,7 @@ impl Protocol for Ipv4 {
         upstream: ProtocolId,
         mut participants: Control,
         mut context: ProtocolContext,
-    ) -> Result<ArcSession, Box<dyn Error>> {
+    ) -> Result<RcSession, Box<dyn Error>> {
         let local = get_local(context.info())?;
         let remote = get_remote(context.info())?;
         let key = Identifier::new(local, remote);
@@ -41,12 +42,12 @@ impl Protocol for Ipv4 {
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
                 participants.insert(ControlKey::NetworkIndex, 0);
-                let tap_session = context.protocol(Tap::ID)?.write().unwrap().open_active(
+                let tap_session = context.protocol(Tap::ID)?.borrow_mut().open_active(
                     Self::ID,
                     participants,
                     context,
                 )?;
-                let session = Arc::new(RwLock::new(Ipv4Session::new(tap_session, upstream, key)));
+                let session = Rc::new(RefCell::new(Ipv4Session::new(tap_session, upstream, key)));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -72,7 +73,7 @@ impl Protocol for Ipv4 {
     fn demux(
         &mut self,
         message: Message,
-        downstream: ArcSession,
+        downstream: RcSession,
         mut context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let header: Vec<_> = message.iter().take(20).collect();
@@ -87,8 +88,7 @@ impl Protocol for Ipv4 {
             Entry::Occupied(entry) => {
                 let session = entry.get();
                 session
-                    .write()
-                    .unwrap()
+                    .borrow_mut()
                     .recv(session.clone(), message, context)?;
             }
             Entry::Vacant(entry) => {
@@ -96,15 +96,12 @@ impl Protocol for Ipv4 {
                     Some(&binding) => {
                         // Todo: We want to be zero-copy, but right now it requires copying to
                         // forward the list of participants. Is there any way around this?
-                        let session = Arc::new(RwLock::new(Ipv4Session::new(
+                        let session = Rc::new(RefCell::new(Ipv4Session::new(
                             downstream.clone(),
                             binding,
                             identifier,
                         )));
-                        session
-                            .write()
-                            .unwrap()
-                            .recv(downstream, message, context)?;
+                        session.borrow_mut().recv(downstream, message, context)?;
                         entry.insert(session);
                     }
                     None => Err(Ipv4Error::MissingListenBinding(destination))?,
@@ -121,12 +118,12 @@ impl Protocol for Ipv4 {
 
 pub struct Ipv4Session {
     upstream: ProtocolId,
-    downstream: ArcSession,
+    downstream: RcSession,
     identifier: Identifier,
 }
 
 impl Ipv4Session {
-    fn new(downstream: ArcSession, upstream: ProtocolId, identifier: Identifier) -> Self {
+    fn new(downstream: RcSession, upstream: ProtocolId, identifier: Identifier) -> Self {
         Self {
             upstream,
             downstream,
@@ -142,7 +139,7 @@ impl Session for Ipv4Session {
 
     fn send(
         &mut self,
-        _self_handle: ArcSession,
+        _self_handle: RcSession,
         message: Message,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -173,15 +170,14 @@ impl Session for Ipv4Session {
 
         let message = message.with_header(header_buffer);
         self.downstream
-            .write()
-            .unwrap()
+            .borrow_mut()
             .send(self.downstream.clone(), message, context)?;
         Ok(())
     }
 
     fn recv(
         &mut self,
-        self_handle: ArcSession,
+        self_handle: RcSession,
         message: Message,
         mut context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -207,15 +203,14 @@ impl Session for Ipv4Session {
         let message = message.slice(20..);
         context
             .protocol(self.upstream)?
-            .write()
-            .unwrap()
+            .borrow_mut()
             .demux(message, self_handle, context)?;
         Ok(())
     }
 
     fn awake(
         &mut self,
-        _self_handle: ArcSession,
+        _self_handle: RcSession,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())

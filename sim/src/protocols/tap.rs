@@ -1,12 +1,14 @@
 use crate::core::{
-    ArcSession, Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer, NetworkLayerError,
-    PrimitiveError, Protocol, ProtocolContext, ProtocolContextError, ProtocolId, Session,
+    Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer, NetworkLayerError,
+    PrimitiveError, Protocol, ProtocolContext, ProtocolContextError, ProtocolId, RcSession,
+    Session,
 };
 use std::{
+    cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     error::Error,
     mem,
-    sync::{Arc, RwLock},
+    rc::Rc,
 };
 use thiserror::Error as ThisError;
 
@@ -33,7 +35,7 @@ impl SessionId {
 pub struct Tap {
     // Todo: Add an interface for accessing the MTUs
     // network_mtus: Vec<Mtu>,
-    sessions: HashMap<SessionId, Arc<RwLock<TapSession>>>,
+    sessions: HashMap<SessionId, Rc<RefCell<TapSession>>>,
 }
 
 impl Tap {
@@ -52,7 +54,7 @@ impl Tap {
         self.sessions
             .values()
             .map(|session| {
-                let mut session = session.write().unwrap();
+                let mut session = session.borrow_mut();
                 (session.network(), session.outgoing())
             })
             .collect()
@@ -67,19 +69,18 @@ impl Tap {
         let header = take_header(&message).ok_or(TapError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
         let protocol = context.protocol(protocol_id)?;
-        let mut protocol = protocol.write().unwrap();
         context.info().insert(ControlKey::NetworkIndex, network);
         let message = message.slice(2..);
         let session_id = SessionId::new(protocol_id, network);
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
-                let session = Arc::new(RwLock::new(TapSession::new(protocol_id, network)));
+                let session = Rc::new(RefCell::new(TapSession::new(protocol_id, network)));
                 entry.insert(session.clone());
                 session
             }
         };
-        protocol.demux(message, session, context)?;
+        protocol.borrow_mut().demux(message, session, context)?;
         Ok(())
     }
 }
@@ -94,13 +95,13 @@ impl Protocol for Tap {
         upstream: ProtocolId,
         participants: Control,
         _context: ProtocolContext,
-    ) -> Result<ArcSession, Box<dyn Error>> {
+    ) -> Result<RcSession, Box<dyn Error>> {
         let network = get_network_index(&participants)?;
         let session_id = SessionId::new(upstream, network);
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let session = Arc::new(RwLock::new(TapSession::new(upstream, network)));
+                let session = Rc::new(RefCell::new(TapSession::new(upstream, network)));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -120,7 +121,7 @@ impl Protocol for Tap {
     fn demux(
         &mut self,
         _message: Message,
-        _downstream: ArcSession,
+        _downstream: RcSession,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no protocols under
@@ -133,8 +134,7 @@ impl Protocol for Tap {
     fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         for session in self.sessions.values_mut() {
             session
-                .write()
-                .unwrap()
+                .borrow_mut()
                 .awake(session.clone(), context.clone())?;
         }
         Ok(ControlFlow::Continue)
@@ -185,7 +185,7 @@ impl Session for TapSession {
 
     fn send(
         &mut self,
-        _self_handle: ArcSession,
+        _self_handle: RcSession,
         message: Message,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -197,7 +197,7 @@ impl Session for TapSession {
 
     fn recv(
         &mut self,
-        _self_handle: ArcSession,
+        _self_handle: RcSession,
         _message: Message,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -206,7 +206,7 @@ impl Session for TapSession {
 
     fn awake(
         &mut self,
-        _self_handle: ArcSession,
+        _self_handle: RcSession,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())

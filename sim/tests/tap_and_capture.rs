@@ -5,11 +5,7 @@ use elvis::{
     },
     protocols::{Application, Tap, UserProcess},
 };
-use std::{
-    collections::HashMap,
-    error::Error,
-    sync::{Arc, RwLock},
-};
+use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Capture {
@@ -49,24 +45,24 @@ pub fn tap_control() -> Control {
     control
 }
 pub struct Setup {
-    pub tap: Arc<RwLock<Tap>>,
-    pub capture: Arc<RwLock<UserProcess<Capture>>>,
+    pub tap: Rc<RefCell<Tap>>,
+    pub capture: Rc<RefCell<UserProcess<Capture>>>,
     pub context: ProtocolContext,
 }
 
 pub fn setup() -> Setup {
     let tap = Tap::new(vec![1500]);
-    let tap = Arc::new(RwLock::new(tap));
-    let capture = Arc::new(RwLock::new(UserProcess::new(Capture::new())));
-    let protocols: [Arc<RwLock<dyn Protocol>>; 2] = [tap.clone(), capture.clone()];
+    let tap = Rc::new(RefCell::new(tap));
+    let capture = Rc::new(RefCell::new(UserProcess::new(Capture::new())));
+    let protocols: [Rc<RefCell<dyn Protocol>>; 2] = [tap.clone(), capture.clone()];
     let protocols: HashMap<_, _> = protocols
         .into_iter()
         .map(|protocol| {
-            let id = protocol.read().unwrap().id();
+            let id = protocol.borrow().id();
             (id, protocol)
         })
         .collect();
-    let context = ProtocolContext::new(Arc::new(protocols));
+    let context = ProtocolContext::new(Rc::new(protocols));
     Setup {
         tap,
         capture,
@@ -78,15 +74,13 @@ pub fn setup() -> Setup {
 fn open_active() -> Result<(), Box<dyn Error>> {
     let Setup { tap, context, .. } = setup();
     let session = tap
-        .write()
-        .unwrap()
+        .borrow_mut()
         .open_active(Capture::ID, tap_control(), context.clone())?;
     let message = Message::new("Hello!");
     session
-        .write()
-        .unwrap()
+        .borrow_mut()
         .send(session.clone(), message, context)?;
-    let delivery = tap.write().unwrap().outgoing();
+    let delivery = tap.borrow_mut().outgoing();
     assert_eq!(delivery.len(), 1);
     let delivery = delivery.into_iter().next().unwrap();
     assert_eq!(delivery.0, 0);
@@ -103,13 +97,12 @@ fn tap_receive() -> Result<(), Box<dyn Error>> {
         capture,
         context,
     } = setup();
-    tap.write()
-        .unwrap()
+    tap.borrow_mut()
         .listen(Capture::ID, Control::default(), context.clone())?;
     let header: [u8; 2] = Capture::ID.into();
     let message = Message::new("Hello!").with_header(&header);
-    tap.write().unwrap().accept_incoming(message, 0, context)?;
-    let capture = capture.read().unwrap();
+    tap.borrow_mut().accept_incoming(message, 0, context)?;
+    let capture = capture.borrow();
     let application = capture.application();
     let messages = application.messages();
     assert_eq!(messages.len(), 1);

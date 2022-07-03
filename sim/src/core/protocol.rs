@@ -1,16 +1,11 @@
 use crate::core::Message;
-use std::{
-    error::Error,
-    sync::{Arc, RwLock, Weak},
-};
+use std::{cell::RefCell, error::Error, rc::Rc};
 use thiserror::Error as ThisError;
 
 use super::{Control, ProtocolId, ProtocolMap};
 
-pub type ArcProtocol = Arc<RwLock<dyn Protocol>>;
-pub type WeakProtocol = Weak<RwLock<dyn Protocol>>;
-pub type ArcSession = Arc<RwLock<dyn Session>>;
-pub type WeakSession = Weak<RwLock<dyn Session>>;
+pub type RcProtocol = Rc<RefCell<dyn Protocol>>;
+pub type RcSession = Rc<RefCell<dyn Session>>;
 
 /// Protocols are stackable objects that function as network processing
 /// elements. Protocols have Protocols stacked above them and Protocols stacked
@@ -64,7 +59,7 @@ pub trait Protocol {
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
-    ) -> Result<ArcSession, Box<dyn Error>>;
+    ) -> Result<RcSession, Box<dyn Error>>;
 
     /// Allows a high-level protocol to request that messages for which there is
     /// no existing session be sent to it.
@@ -96,7 +91,7 @@ pub trait Protocol {
     fn demux(
         &mut self,
         message: Message,
-        downstream: ArcSession,
+        downstream: RcSession,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
@@ -117,7 +112,7 @@ pub trait Session {
     /// Invoked from a Protocol to send a Message.
     fn send(
         &mut self,
-        self_handle: ArcSession,
+        self_handle: RcSession,
         message: Message,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
@@ -136,7 +131,7 @@ pub trait Session {
     /// Invoked from a Protocol or Session object below for Message receipt.
     fn recv(
         &mut self,
-        self_handle: ArcSession,
+        self_handle: RcSession,
         message: Message,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
@@ -144,7 +139,7 @@ pub trait Session {
     /// See [awake](elvis::core::Protocol::awake)
     fn awake(
         &mut self,
-        self_handle: ArcSession,
+        self_handle: RcSession,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 }
@@ -163,7 +158,7 @@ impl ProtocolContext {
         }
     }
 
-    pub fn protocol(&self, id: ProtocolId) -> Result<ArcProtocol, ProtocolContextError> {
+    pub fn protocol(&self, id: ProtocolId) -> Result<RcProtocol, ProtocolContextError> {
         self.protocols
             .get(&id)
             .cloned()
