@@ -137,10 +137,7 @@ impl Protocol for Tap {
         Err(Box::new(TapError::Demux))
     }
 
-    fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        for session in self.sessions.values_mut() {
-            session.borrow_mut().awake(session.clone(), context)?;
-        }
+    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         Ok(ControlFlow::Continue)
     }
 }

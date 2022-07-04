@@ -43,14 +43,14 @@ impl Protocol for Ipv4 {
         mut participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<RcSession, Box<dyn Error>> {
-        let local = get_local(context.info())?;
-        let remote = get_remote(context.info())?;
+        let local = get_local(&participants)?;
+        let remote = get_remote(&participants)?;
         let key = Identifier::new(local, remote);
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
-                participants.insert(ControlKey::NetworkIndex, 0);
+                participants.insert(ControlKey::NetworkIndex, 0u8);
                 let tap_session = context.protocol(Tap::ID)?.borrow_mut().open_active(
                     Self::ID,
                     participants,
@@ -162,6 +162,7 @@ impl Session for Ipv4Session {
                 layer: NetworkLayer::Transport,
                 identifier: 17,
             } => IpNumber::Udp,
+            // Todo: Ipv4 expects UDP or TCP upstream, so we gotta make that now
             _ => Err(Ipv4Error::UnknownUpstreamProtocol)?,
         };
 
@@ -231,9 +232,9 @@ pub enum Ipv4Error {
     #[error("Could not find a listen binding for the local address: {0}")]
     MissingListenBinding(Ipv4Address),
     #[error("The identifier for a demux binding was missing a source address")]
-    MissingSourceAddress,
+    MissingLocalAddress,
     #[error("The identifier for a demux binding was missing a destination address")]
-    MissingDestinationAddress,
+    MissingRemoteAddress,
     #[error("Attempting to create a binding that already exists for source address {0}")]
     BindingExists(Ipv4Address),
     #[error("Attempting to create a session that already exists for {0} -> {1}")]
@@ -262,7 +263,7 @@ impl Identifier {
 fn get_local(control: &Control) -> Result<Ipv4Address, Ipv4Error> {
     Ok(control
         .get(&ControlKey::LocalAddress)
-        .ok_or(Ipv4Error::MissingSourceAddress)?
+        .ok_or(Ipv4Error::MissingLocalAddress)?
         .to_u32()?
         .into())
 }
@@ -270,7 +271,7 @@ fn get_local(control: &Control) -> Result<Ipv4Address, Ipv4Error> {
 fn get_remote(control: &Control) -> Result<Ipv4Address, Ipv4Error> {
     Ok(control
         .get(&ControlKey::RemoteAddress)
-        .ok_or(Ipv4Error::MissingDestinationAddress)?
+        .ok_or(Ipv4Error::MissingRemoteAddress)?
         .to_u32()?
         .into())
 }
