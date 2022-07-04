@@ -112,7 +112,7 @@ impl Protocol for Ipv4 {
                             binding,
                             identifier,
                         )));
-                        entry.insert(session);
+                        entry.insert(session.clone());
                         session
                     }
                     None => Err(Ipv4Error::MissingListenBinding(destination))?,
