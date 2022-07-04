@@ -5,6 +5,19 @@ use thiserror::Error as ThisError;
 pub struct Control(HashMap<ControlKey, Primitive>);
 
 impl Control {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn with(self, key: ControlKey, value: impl Into<Primitive>) -> Self {
+        self.with_inner(key, value.into())
+    }
+
+    fn with_inner(mut self, key: ControlKey, value: Primitive) -> Self {
+        self.insert(key, value);
+        self
+    }
+
     pub fn insert(&mut self, key: ControlKey, value: impl Into<Primitive>) -> Option<Primitive> {
         self.insert_inner(key, value.into())
     }

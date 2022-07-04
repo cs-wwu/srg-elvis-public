@@ -34,7 +34,8 @@ impl SessionId {
 /// should receive the message.
 pub struct Tap {
     // Todo: Add an interface for accessing the MTUs
-    // network_mtus: Vec<Mtu>,
+    #[allow(dead_code)]
+    network_mtus: Vec<Mtu>,
     sessions: HashMap<SessionId, Rc<RefCell<TapSession>>>,
 }
 
@@ -44,10 +45,15 @@ impl Tap {
 
     // Todo: We're going to want to use this parameter to initialize network_mtus on
     // the struct when we get around to it
-    pub fn new(_network_mtus: Vec<Mtu>) -> Self {
+    pub fn new(network_mtus: Vec<Mtu>) -> Self {
         Self {
+            network_mtus,
             sessions: Default::default(),
         }
+    }
+
+    pub fn new_shared(network_mtus: Vec<Mtu>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self::new(network_mtus)))
     }
 
     pub fn outgoing(&mut self) -> Vec<(NetworkIndex, Vec<Message>)> {
@@ -64,7 +70,7 @@ impl Tap {
         &mut self,
         message: Message,
         network: NetworkIndex,
-        mut context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), TapError> {
         let header = take_header(&message).ok_or(TapError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
@@ -94,7 +100,7 @@ impl Protocol for Tap {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        _context: ProtocolContext,
+        _context: &mut ProtocolContext,
     ) -> Result<RcSession, Box<dyn Error>> {
         let network = get_network_index(&participants)?;
         let session_id = SessionId::new(upstream, network);
@@ -112,7 +118,7 @@ impl Protocol for Tap {
         &mut self,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: ProtocolContext,
+        _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // This is a no-op because nobody can call open_passive on us anyway
         Ok(())
@@ -122,7 +128,7 @@ impl Protocol for Tap {
         &mut self,
         _message: Message,
         _downstream: RcSession,
-        _context: ProtocolContext,
+        _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no protocols under
         // this one that would ask Tap to demux a message and because, semantically,
@@ -131,11 +137,9 @@ impl Protocol for Tap {
         Err(Box::new(TapError::Demux))
     }
 
-    fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
+    fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         for session in self.sessions.values_mut() {
-            session
-                .borrow_mut()
-                .awake(session.clone(), context.clone())?;
+            session.borrow_mut().awake(session.clone(), context)?;
         }
         Ok(ControlFlow::Continue)
     }
@@ -187,7 +191,7 @@ impl Session for TapSession {
         &mut self,
         _self_handle: RcSession,
         message: Message,
-        _context: ProtocolContext,
+        _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let header: [u8; 2] = self.upstream.into();
         let message = message.with_header(&header);
@@ -199,7 +203,7 @@ impl Session for TapSession {
         &mut self,
         _self_handle: RcSession,
         _message: Message,
-        _context: ProtocolContext,
+        _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Err(Box::new(TapError::Recv))
     }
@@ -207,7 +211,7 @@ impl Session for TapSession {
     fn awake(
         &mut self,
         _self_handle: RcSession,
-        _context: ProtocolContext,
+        _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }

@@ -7,6 +7,8 @@ pub type Mac = usize;
 
 type Pending = HashMap<usize, Vec<Message>>;
 
+// Todo: Explore having Network hold Machine instances
+
 #[derive(Debug, Clone)]
 pub struct Network {
     mtu: Mtu,
@@ -31,6 +33,7 @@ impl Network {
         &self.connected
     }
 
+    // Todo: Check that the message is shorter than MTU
     pub fn send(&mut self, address: PhysicalAddress, message: Message) {
         match address {
             PhysicalAddress::Mac(mac) => send_to_mac(mac, &mut self.pending, message),

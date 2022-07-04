@@ -1,43 +1,9 @@
 use elvis::{
-    core::{
-        Control, ControlFlow, ControlKey, Message, NetworkLayer, Protocol, ProtocolContext,
-        ProtocolId,
-    },
+    applications::Capture,
+    core::{Control, ControlKey, Message, Protocol, ProtocolContext, RcProtocol},
     protocols::{Application, Tap, UserProcess},
 };
 use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
-
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct Capture {
-    messages: Vec<Message>,
-}
-
-impl Capture {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn messages(&self) -> &[Message] {
-        self.messages.as_slice()
-    }
-}
-
-impl Application for Capture {
-    const ID: ProtocolId = ProtocolId::new(NetworkLayer::User, 0);
-
-    fn awake(&mut self, _context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(if self.messages.is_empty() {
-            ControlFlow::Continue
-        } else {
-            ControlFlow::EndSimulation
-        })
-    }
-
-    fn recv(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        self.messages.push(message);
-        Ok(())
-    }
-}
 
 pub fn tap_control() -> Control {
     let mut control = Control::default();
@@ -50,36 +16,39 @@ pub struct Setup {
     pub context: ProtocolContext,
 }
 
-pub fn setup() -> Setup {
-    let tap = Tap::new(vec![1500]);
-    let tap = Rc::new(RefCell::new(tap));
-    let capture = Rc::new(RefCell::new(UserProcess::new(Capture::new())));
-    let protocols: [Rc<RefCell<dyn Protocol>>; 2] = [tap.clone(), capture.clone()];
-    let protocols: HashMap<_, _> = protocols
-        .into_iter()
-        .map(|protocol| {
-            let id = protocol.borrow().id();
-            (id, protocol)
-        })
-        .collect();
-    let context = ProtocolContext::new(Rc::new(protocols));
-    Setup {
-        tap,
-        capture,
-        context,
+impl Setup {
+    pub fn new() -> Self {
+        let tap = Tap::new_shared(vec![1500]);
+        let capture = Capture::new_shared();
+        let protocols: [RcProtocol; 2] = [tap.clone(), capture.clone()];
+        let protocols: HashMap<_, _> = protocols
+            .into_iter()
+            .map(|protocol| {
+                let id = protocol.borrow().id();
+                (id, protocol)
+            })
+            .collect();
+        let context = ProtocolContext::new(Rc::new(protocols));
+        Self {
+            tap,
+            capture,
+            context,
+        }
     }
 }
 
 #[test]
 fn open_active() -> Result<(), Box<dyn Error>> {
-    let Setup { tap, context, .. } = setup();
+    let Setup {
+        tap, mut context, ..
+    } = Setup::new();
     let session = tap
         .borrow_mut()
-        .open_active(Capture::ID, tap_control(), context.clone())?;
+        .open_active(Capture::ID, tap_control(), &mut context)?;
     let message = Message::new("Hello!");
     session
         .borrow_mut()
-        .send(session.clone(), message, context)?;
+        .send(session.clone(), message, &mut context)?;
     let delivery = tap.borrow_mut().outgoing();
     assert_eq!(delivery.len(), 1);
     let delivery = delivery.into_iter().next().unwrap();
@@ -95,18 +64,17 @@ fn tap_receive() -> Result<(), Box<dyn Error>> {
     let Setup {
         tap,
         capture,
-        context,
-    } = setup();
+        mut context,
+    } = Setup::new();
     tap.borrow_mut()
-        .listen(Capture::ID, Control::default(), context.clone())?;
+        .listen(Capture::ID, Control::default(), &mut context)?;
     let header: [u8; 2] = Capture::ID.into();
     let message = Message::new("Hello!").with_header(&header);
-    tap.borrow_mut().accept_incoming(message, 0, context)?;
+    tap.borrow_mut().accept_incoming(message, 0, &mut context)?;
     let capture = capture.borrow();
-    let application = capture.application();
-    let messages = application.messages();
-    assert_eq!(messages.len(), 1);
-    let message = messages.iter().next().unwrap().clone();
-    assert_eq!(message, Message::new("Hello!"));
+    assert_eq!(
+        capture.application().message().unwrap(),
+        Message::new("Hello!")
+    );
     Ok(())
 }

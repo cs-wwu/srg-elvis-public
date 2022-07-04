@@ -1,27 +1,31 @@
-use elvis::core::{
-    Internet, InternetError, Machine, MachineError, Message, Network, PhysicalAddress, RcProtocol,
+use elvis::{
+    applications::{Capture, SendMessage},
+    core::{Internet, InternetError, Machine, Message, Network, RcProtocol},
+    protocols::Tap,
 };
-use elvis::protocols::Application;
-use tap_and_capture::Capture;
+use std::iter;
 
-mod tap_and_capture;
-
-fn machine() -> Result<Machine, MachineError> {
-    let tap_and_capture::Setup { tap, capture, .. } = tap_and_capture::setup();
-    let capture: RcProtocol = capture;
-    Machine::new(tap, std::iter::once(capture))
-}
+// Todo: Test that the message is actually received
+// Todo: Test both send and receive
 
 #[test]
 pub fn internet() -> Result<(), InternetError> {
-    let mut network = Network::new(vec![0, 1], 1500);
-    network.send(
-        PhysicalAddress::Broadcast,
-        Message::new("Hello!").with_header(&Capture::ID.to_bytes()),
-    );
-    let networks = vec![network];
-    let machines = vec![machine()?];
-    let mut internet = Internet::new(machines, networks);
+    let network = Network::new(vec![0, 1], 1500);
+
+    let sender_tap = Tap::new_shared(vec![network.mtu()]);
+    let send_message = SendMessage::new_shared("Hello!");
+    let sender_machine = Machine::new(sender_tap, iter::once(send_message as RcProtocol))?;
+
+    let receiver_tap = Tap::new_shared(vec![network.mtu()]);
+    let capture = Capture::new_shared();
+    let receiver_machine = Machine::new(receiver_tap, iter::once(capture.clone() as RcProtocol))?;
+
+    let mut internet = Internet::new(vec![receiver_machine, sender_machine], vec![network]);
     internet.run()?;
+    assert_eq!(
+        capture.borrow().application().message().unwrap(),
+        Message::new("Hello!")
+    );
+
     Ok(())
 }

@@ -8,12 +8,13 @@ use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     error::Error,
+    fmt::Display,
+    fmt::{self},
     rc::Rc,
 };
 use thiserror::Error as ThisError;
 
-pub type Ipv4Address = u32;
-
+#[derive(Default, Clone)]
 pub struct Ipv4 {
     listen_bindings: HashMap<Ipv4Address, ProtocolId>,
     sessions: HashMap<Identifier, RcSession>,
@@ -21,6 +22,14 @@ pub struct Ipv4 {
 
 impl Ipv4 {
     pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Network, 4);
+
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn new_shared() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self::new()))
+    }
 }
 
 impl Protocol for Ipv4 {
@@ -32,7 +41,7 @@ impl Protocol for Ipv4 {
         &mut self,
         upstream: ProtocolId,
         mut participants: Control,
-        mut context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<RcSession, Box<dyn Error>> {
         let local = get_local(context.info())?;
         let remote = get_remote(context.info())?;
@@ -58,7 +67,7 @@ impl Protocol for Ipv4 {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        _context: ProtocolContext,
+        _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let local = get_local(&participants)?;
         match self.listen_bindings.entry(local) {
@@ -74,16 +83,16 @@ impl Protocol for Ipv4 {
         &mut self,
         message: Message,
         downstream: RcSession,
-        mut context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let header: Vec<_> = message.iter().take(20).collect();
         let header = Ipv4HeaderSlice::from_slice(&header)?;
-        let source = Ipv4Address::from_be_bytes(header.source());
-        let destination = Ipv4Address::from_be_bytes(header.destination());
+        let source = Ipv4Address::new(header.source());
+        let destination = Ipv4Address::new(header.destination());
         let identifier = Identifier::new(destination, source);
         let info = &mut context.info();
-        info.insert(ControlKey::LocalAddress, destination);
-        info.insert(ControlKey::RemoteAddress, source);
+        info.insert(ControlKey::LocalAddress, destination.to_u32());
+        info.insert(ControlKey::RemoteAddress, source.to_u32());
         match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => {
                 let session = entry.get();
@@ -111,7 +120,7 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn awake(&mut self, _context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
+    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         Ok(ControlFlow::Continue)
     }
 }
@@ -141,7 +150,7 @@ impl Session for Ipv4Session {
         &mut self,
         _self_handle: RcSession,
         message: Message,
-        context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let length = message.iter().count();
         let ip_number = match self.upstream {
@@ -160,8 +169,8 @@ impl Session for Ipv4Session {
             length as u16,
             30,
             ip_number,
-            self.identifier.local.to_be_bytes(),
-            self.identifier.remote.to_be_bytes(),
+            self.identifier.local.into(),
+            self.identifier.remote.into(),
         );
         header.header_checksum = header.calc_header_checksum()?;
 
@@ -179,7 +188,7 @@ impl Session for Ipv4Session {
         &mut self,
         self_handle: RcSession,
         message: Message,
-        mut context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // Todo: This is going to kind of scuffed for the time being. Etherparse makes
         // my work a lot easier but it also demands a slice to operate on, which the
@@ -194,11 +203,11 @@ impl Session for Ipv4Session {
         // .into() on every primitive.
         info.insert(
             ControlKey::RemoteAddress,
-            Ipv4Address::from_be_bytes(header.source()),
+            u32::from_be_bytes(header.source()),
         );
         info.insert(
             ControlKey::LocalAddress,
-            Ipv4Address::from_be_bytes(header.destination()),
+            u32::from_be_bytes(header.destination()),
         );
         let message = message.slice(20..);
         context
@@ -211,7 +220,7 @@ impl Session for Ipv4Session {
     fn awake(
         &mut self,
         _self_handle: RcSession,
-        _context: ProtocolContext,
+        _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
@@ -225,13 +234,13 @@ pub enum Ipv4Error {
     MissingSourceAddress,
     #[error("The identifier for a demux binding was missing a destination address")]
     MissingDestinationAddress,
-    #[error("Attempting to create a binding that already exists for source address {0:#010x}")]
+    #[error("Attempting to create a binding that already exists for source address {0}")]
     BindingExists(Ipv4Address),
-    #[error("Attempting to create a session that already exists for {0:#010x} -> {1:#010x}")]
+    #[error("Attempting to create a session that already exists for {0} -> {1}")]
     SessionExists(Ipv4Address, Ipv4Address),
     #[error("{0}")]
     Primitive(#[from] PrimitiveError),
-    #[error("Could not find a session for the key {0:#010x} -> {1:010x}")]
+    #[error("Could not find a session for the key {0} -> {1}")]
     MissingSession(Ipv4Address, Ipv4Address),
     #[error("Did not recognize the upstream protocol")]
     UnknownUpstreamProtocol,
@@ -244,25 +253,77 @@ struct Identifier {
 }
 
 impl Identifier {
-    pub fn new(local: u32, destination: u32) -> Self {
-        Self {
-            local,
-            remote: destination,
-        }
+    pub fn new(local: Ipv4Address, remote: Ipv4Address) -> Self {
+        Self { local, remote }
     }
 }
 
 // Todo: Semantics of source and destination per-callsite
-fn get_local(control: &Control) -> Result<u32, Ipv4Error> {
+fn get_local(control: &Control) -> Result<Ipv4Address, Ipv4Error> {
     Ok(control
         .get(&ControlKey::LocalAddress)
         .ok_or(Ipv4Error::MissingSourceAddress)?
-        .to_u32()?)
+        .to_u32()?
+        .into())
 }
 
-fn get_remote(control: &Control) -> Result<u32, Ipv4Error> {
+fn get_remote(control: &Control) -> Result<Ipv4Address, Ipv4Error> {
     Ok(control
         .get(&ControlKey::RemoteAddress)
         .ok_or(Ipv4Error::MissingDestinationAddress)?
-        .to_u32()?)
+        .to_u32()?
+        .into())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Ipv4Address([u8; 4]);
+
+impl Ipv4Address {
+    pub const CURRENT_NETWORK: Self = Self([0u8, 0, 0, 0]);
+    pub const PRIVATE_NETWORK: Self = Self([10u8, 0, 0, 0]);
+    pub const LOCALHOST: Self = Self([127u8, 0, 0, 1]);
+    pub const SUBNET: Self = Self([255u8, 255, 255, 255]);
+
+    pub fn new(address: impl Into<Self>) -> Self {
+        address.into()
+    }
+
+    pub fn to_u32(self) -> u32 {
+        self.into()
+    }
+
+    pub fn to_bytes(self) -> [u8; 4] {
+        self.into()
+    }
+}
+
+impl Display for Ipv4Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let bytes = <[u8; 4]>::from(*self);
+        write!(f, "{}.{}.{}.{}", bytes[0], bytes[1], bytes[2], bytes[3])
+    }
+}
+
+impl From<u32> for Ipv4Address {
+    fn from(n: u32) -> Self {
+        Self::from(n.to_be_bytes())
+    }
+}
+
+impl From<[u8; 4]> for Ipv4Address {
+    fn from(n: [u8; 4]) -> Self {
+        Self(n)
+    }
+}
+
+impl From<Ipv4Address> for u32 {
+    fn from(address: Ipv4Address) -> Self {
+        u32::from_be_bytes(address.0)
+    }
+}
+
+impl From<Ipv4Address> for [u8; 4] {
+    fn from(address: Ipv4Address) -> Self {
+        address.0
+    }
 }

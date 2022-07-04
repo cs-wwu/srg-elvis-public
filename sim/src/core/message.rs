@@ -6,6 +6,7 @@ use std::{
 
 // Todo: Add support for appending messages
 // Todo: Add support for incorrectly transmitted bytes
+// Todo: Store length on the message
 
 #[derive(Debug, Clone)]
 pub struct Message {

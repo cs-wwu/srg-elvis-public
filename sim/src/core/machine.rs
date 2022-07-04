@@ -39,17 +39,17 @@ impl Machine {
     }
 
     pub fn awake(&mut self, context: &mut MachineContext) -> Result<ControlFlow, MachineError> {
-        let protocol_context = ProtocolContext::new(self.protocols.clone());
+        let mut protocol_context = ProtocolContext::new(self.protocols.clone());
         for message in context.pending() {
             self.tap
                 .borrow_mut()
                 // Todo: We want to get the network number from pending()
-                .accept_incoming(message, 0, protocol_context.clone())?;
+                .accept_incoming(message, 0, &mut protocol_context)?;
         }
 
         let mut control_flow = ControlFlow::Continue;
         for protocol in self.protocols.values() {
-            let flow = protocol.borrow_mut().awake(protocol_context.clone())?;
+            let flow = protocol.borrow_mut().awake(&mut protocol_context)?;
             match flow {
                 ControlFlow::Continue => {}
                 ControlFlow::EndSimulation => control_flow = ControlFlow::EndSimulation,

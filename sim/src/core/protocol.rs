@@ -58,7 +58,7 @@ pub trait Protocol {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<RcSession, Box<dyn Error>>;
 
     /// Allows a high-level protocol to request that messages for which there is
@@ -84,7 +84,7 @@ pub trait Protocol {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
     /// Identifies the session that a message belongs to.
@@ -92,7 +92,7 @@ pub trait Protocol {
         &mut self,
         message: Message,
         downstream: RcSession,
-        context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
     /// Invoked to allow the protocol to do some work it needs to do. For
@@ -100,7 +100,7 @@ pub trait Protocol {
     /// message. However, it needs an opportunity to be woken up to advertise
     /// window sizes, retransmit data, poll a zero-sized window, or whatever
     /// else it may need to do.
-    fn awake(&mut self, context: ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
+    fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
 }
 
 /// A Session holds state for a particular connection. A Session "belongs"
@@ -114,7 +114,7 @@ pub trait Session {
         &mut self,
         self_handle: RcSession,
         message: Message,
-        context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
     // Todo: We probably want demux to have already parsed the header and then pass
@@ -133,14 +133,14 @@ pub trait Session {
         &mut self,
         self_handle: RcSession,
         message: Message,
-        context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
     /// See [awake](elvis::core::Protocol::awake)
     fn awake(
         &mut self,
         self_handle: RcSession,
-        context: ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 }
 
