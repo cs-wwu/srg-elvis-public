@@ -1,7 +1,7 @@
 use elvis::{
     applications::{Capture, SendMessage},
     core::{Internet, InternetError, Machine, Message, Network, RcProtocol},
-    protocols::{Tap, Ipv4},
+    protocols::{Ipv4, Tap},
 };
 
 // Todo: Test that the message is actually received
