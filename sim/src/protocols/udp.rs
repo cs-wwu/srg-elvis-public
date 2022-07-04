@@ -4,7 +4,7 @@ use crate::core::{
     ProtocolContext, ProtocolId, RcSession, Session,
 };
 use core::slice::SlicePattern;
-use etherparse::UdpHeaderSlice;
+use etherparse::{Ipv4Header, UdpHeader, UdpHeaderSlice};
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
@@ -99,6 +99,9 @@ impl Protocol for Udp {
             remote_address,
             remote_port,
         };
+        context.info().insert(ControlKey::LocalPort, local_port);
+        context.info().insert(ControlKey::RemotePort, remote_port);
+        let message = message.slice(64..);
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
@@ -194,7 +197,17 @@ impl Session for UdpSession {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        todo!()
+        let id = self.identifier;
+        let payload_len = message.iter().count();
+        // Todo: We want to use the checksum
+        let header = UdpHeader::without_ipv4_checksum(id.local_port, id.remote_port, payload_len)?;
+        let mut header_bytes = vec![];
+        header.write(&mut header_bytes);
+        let message = message.with_header(header_bytes);
+        self.downstream
+            .borrow_mut()
+            .send(self.downstream.clone(), message, context);
+        Ok(())
     }
 
     fn recv(
@@ -203,7 +216,11 @@ impl Session for UdpSession {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        todo!()
+        context
+            .protocol(self.upstream)?
+            .borrow_mut()
+            .demux(message, self_handle, context)?;
+        Ok(())
     }
 
     fn awake(
@@ -211,7 +228,7 @@ impl Session for UdpSession {
         self_handle: RcSession,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        todo!()
+        Ok(())
     }
 }
 
