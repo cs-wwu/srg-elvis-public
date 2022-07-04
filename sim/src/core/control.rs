@@ -39,8 +39,8 @@ impl Control {
 pub enum ControlKey {
     LocalAddress,
     RemoteAddress,
-    SourcePort,
-    DestinationPort,
+    LocalPort,
+    RemotePort,
     NetworkIndex,
     ProtocolId,
     Other(&'static str),

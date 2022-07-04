@@ -17,7 +17,7 @@ use thiserror::Error as ThisError;
 #[derive(Default, Clone)]
 pub struct Ipv4 {
     listen_bindings: HashMap<Ipv4Address, ProtocolId>,
-    sessions: HashMap<Identifier, RcSession>,
+    sessions: HashMap<SessionId, RcSession>,
 }
 
 impl Ipv4 {
@@ -45,7 +45,7 @@ impl Protocol for Ipv4 {
     ) -> Result<RcSession, Box<dyn Error>> {
         let local = get_local(&participants)?;
         let remote = get_remote(&participants)?;
-        let key = Identifier::new(local, remote);
+        let key = SessionId::new(local, remote);
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
@@ -89,7 +89,7 @@ impl Protocol for Ipv4 {
         let header = Ipv4HeaderSlice::from_slice(&header)?;
         let source = Ipv4Address::new(header.source());
         let destination = Ipv4Address::new(header.destination());
-        let identifier = Identifier::new(destination, source);
+        let identifier = SessionId::new(destination, source);
         let info = &mut context.info();
         info.insert(ControlKey::LocalAddress, destination.to_u32());
         info.insert(ControlKey::RemoteAddress, source.to_u32());
@@ -128,11 +128,11 @@ impl Protocol for Ipv4 {
 pub struct Ipv4Session {
     upstream: ProtocolId,
     downstream: RcSession,
-    identifier: Identifier,
+    identifier: SessionId,
 }
 
 impl Ipv4Session {
-    fn new(downstream: RcSession, upstream: ProtocolId, identifier: Identifier) -> Self {
+    fn new(downstream: RcSession, upstream: ProtocolId, identifier: SessionId) -> Self {
         Self {
             upstream,
             downstream,
@@ -248,12 +248,12 @@ pub enum Ipv4Error {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Identifier {
+struct SessionId {
     pub local: Ipv4Address,
     pub remote: Ipv4Address,
 }
 
-impl Identifier {
+impl SessionId {
     pub fn new(local: Ipv4Address, remote: Ipv4Address) -> Self {
         Self { local, remote }
     }
