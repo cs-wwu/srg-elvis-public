@@ -1,4 +1,4 @@
-use super::Tap;
+use super::{Tap, Udp};
 use crate::core::{
     Control, ControlFlow, ControlKey, Message, NetworkLayer, PrimitiveError, Protocol,
     ProtocolContext, ProtocolId, RcSession, Session,
@@ -85,6 +85,12 @@ impl Protocol for Ipv4 {
         downstream: RcSession,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
+        // Todo: This is going to kind of scuffed for the time being. Etherparse makes
+        // my work a lot easier but it also demands a slice to operate on, which the
+        // Message API doesn't offer. We're going to break zero-copy a bit and just copy
+        // the first twenty bytes of the message to treat as the header. In the future,
+        // we're going to want to replace Etherparse with our own parsing code so we can
+        // just work with the iterator API directly.
         let header: Vec<_> = message.iter().take(20).collect();
         let header = Ipv4HeaderSlice::from_slice(&header)?;
         let source = Ipv4Address::new(header.source());
@@ -93,13 +99,9 @@ impl Protocol for Ipv4 {
         let info = &mut context.info();
         info.insert(ControlKey::LocalAddress, destination.to_u32());
         info.insert(ControlKey::RemoteAddress, source.to_u32());
-        match self.sessions.entry(identifier) {
-            Entry::Occupied(entry) => {
-                let session = entry.get();
-                session
-                    .borrow_mut()
-                    .recv(session.clone(), message, context)?;
-            }
+        let message = message.slice(20..);
+        let session = match self.sessions.entry(identifier) {
+            Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
                 match self.listen_bindings.get(&destination) {
                     Some(&binding) => {
@@ -110,13 +112,16 @@ impl Protocol for Ipv4 {
                             binding,
                             identifier,
                         )));
-                        session.borrow_mut().recv(downstream, message, context)?;
                         entry.insert(session);
+                        session
                     }
                     None => Err(Ipv4Error::MissingListenBinding(destination))?,
                 }
             }
-        }
+        };
+        session
+            .borrow_mut()
+            .recv(session.clone(), message, context)?;
         Ok(())
     }
 
@@ -158,10 +163,7 @@ impl Session for Ipv4Session {
                 layer: NetworkLayer::Transport,
                 identifier: 6,
             } => IpNumber::Tcp,
-            ProtocolId {
-                layer: NetworkLayer::Transport,
-                identifier: 17,
-            } => IpNumber::Udp,
+            Udp::ID => IpNumber::Udp,
             // Todo: Ipv4 expects UDP or TCP upstream, so we gotta make that now
             _ => Err(Ipv4Error::UnknownUpstreamProtocol)?,
         };
@@ -191,26 +193,6 @@ impl Session for Ipv4Session {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        // Todo: This is going to kind of scuffed for the time being. Etherparse makes
-        // my work a lot easier but it also demands a slice to operate on, which the
-        // Message API doesn't offer. We're going to break zero-copy a bit and just copy
-        // the first twenty bytes of the message to treat as the header. In the future,
-        // we're going to want to replace Etherparse with our own parsing code so we can
-        // just work with the iterator API directly.
-        let header: Vec<_> = message.iter().take(20).collect();
-        let header = Ipv4HeaderSlice::from_slice(&header)?;
-        let info = context.info();
-        // Todo: Offer a better API for the Control type so we don't have to call
-        // .into() on every primitive.
-        info.insert(
-            ControlKey::RemoteAddress,
-            u32::from_be_bytes(header.source()),
-        );
-        info.insert(
-            ControlKey::LocalAddress,
-            u32::from_be_bytes(header.destination()),
-        );
-        let message = message.slice(20..);
         context
             .protocol(self.upstream)?
             .borrow_mut()
