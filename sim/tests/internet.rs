@@ -4,9 +4,6 @@ use elvis::{
     protocols::{Ipv4, Tap, Udp},
 };
 
-// Todo: Test that the message is actually received
-// Todo: Test both send and receive
-
 #[test]
 pub fn internet() -> Result<(), InternetError> {
     let network = Network::new(vec![0, 1], 1500);
