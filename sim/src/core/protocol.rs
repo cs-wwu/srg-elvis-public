@@ -136,7 +136,6 @@ pub trait Session {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
-    /// See [awake](elvis::core::Protocol::awake)
     fn awake(
         &mut self,
         self_handle: RcSession,
