@@ -8,8 +8,8 @@ use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     error::Error,
+    fmt,
     fmt::Display,
-    fmt::{self},
     rc::Rc,
 };
 use thiserror::Error as ThisError;
@@ -67,7 +67,7 @@ impl Protocol for Ipv4 {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        _context: &mut ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let local = get_local(&participants)?;
         match self.listen_bindings.entry(local) {
@@ -76,7 +76,12 @@ impl Protocol for Ipv4 {
                 entry.insert(upstream);
             }
         }
-        Ok(())
+
+        // Essentially a no-op but good for completeness and as an example
+        context
+            .protocol(Tap::ID)?
+            .borrow_mut()
+            .listen(Self::ID, participants, context)
     }
 
     fn demux(

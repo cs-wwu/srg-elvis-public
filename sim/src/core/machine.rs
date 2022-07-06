@@ -1,6 +1,8 @@
 use crate::protocols::{Tap, TapError};
 
-use super::{ControlFlow, MachineContext, ProtocolContext, ProtocolId, RcProtocol};
+use super::{
+    ControlFlow, MachineContext, PhysicalAddress, ProtocolContext, ProtocolId, RcProtocol,
+};
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
@@ -41,18 +43,44 @@ impl Machine {
     pub fn awake(&mut self, context: &mut MachineContext) -> Result<ControlFlow, MachineError> {
         let mut protocol_context = ProtocolContext::new(self.protocols.clone());
         for message in context.pending() {
-            self.tap
+            match self
+                .tap
                 .borrow_mut()
                 // Todo: We want to get the network number from pending()
-                .accept_incoming(message, 0, &mut protocol_context)?;
+                .accept_incoming(message, 0, &mut protocol_context)
+            {
+                Ok(flow) => flow,
+                Err(e) => {
+                    eprintln!("{:?} -> {}", e, e);
+                    continue;
+                }
+            }
         }
 
         let mut control_flow = ControlFlow::Continue;
         for protocol in self.protocols.values() {
-            let flow = protocol.borrow_mut().awake(&mut protocol_context)?;
+            let flow = match protocol.borrow_mut().awake(&mut protocol_context) {
+                Ok(flow) => flow,
+                Err(e) => {
+                    eprintln!("{:?} -> {}", e, e);
+                    continue;
+                }
+            };
             match flow {
                 ControlFlow::Continue => {}
                 ControlFlow::EndSimulation => control_flow = ControlFlow::EndSimulation,
+            }
+        }
+
+        let outgoing: HashMap<_, _> = self.tap.borrow_mut().outgoing().into_iter().collect();
+        for (i, network) in context.networks().enumerate() {
+            if let Some(messages) = outgoing.get(&(i as u8)) {
+                for message in messages.into_iter() {
+                    network
+                        .borrow_mut()
+                        // Todo: Use the correct physical address
+                        .send(PhysicalAddress::Broadcast, message.clone());
+                }
             }
         }
 

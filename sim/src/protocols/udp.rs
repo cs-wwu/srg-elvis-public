@@ -70,13 +70,17 @@ impl Protocol for Udp {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        _context: &mut ProtocolContext,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let port = get_local_port(&participants)?;
         let address = get_local_address(&participants)?;
         let identifier = ListenId { address, port };
         self.listen_bindings.insert(identifier, upstream);
-        Ok(())
+
+        context
+            .protocol(Ipv4::ID)?
+            .borrow_mut()
+            .listen(Self::ID, participants, context)
     }
 
     fn demux(
@@ -86,7 +90,7 @@ impl Protocol for Udp {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // Todo: Scuffed copy fest. Revise.
-        let header_bytes: Vec<_> = message.iter().take(64).collect();
+        let header_bytes: Vec<_> = message.iter().take(8).collect();
         let header = UdpHeaderSlice::from_slice(header_bytes.as_slice())?;
         let local_address = get_local_address(context.info())?;
         let remote_address = get_remote_address(context.info())?;
@@ -100,7 +104,7 @@ impl Protocol for Udp {
         };
         context.info().insert(ControlKey::LocalPort, local_port);
         context.info().insert(ControlKey::RemotePort, remote_port);
-        let message = message.slice(64..);
+        let message = message.slice(8..);
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
@@ -122,7 +126,9 @@ impl Protocol for Udp {
                 }
             }
         };
-        session.borrow_mut().send(session.clone(), message, context)?;
+        session
+            .borrow_mut()
+            .recv(session.clone(), message, context)?;
         Ok(())
     }
 
