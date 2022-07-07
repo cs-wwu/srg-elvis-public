@@ -1,30 +1,14 @@
+use super::{session::SessionId, NetworkIndex, TapError, TapSession, NETWORK_INDEX_KEY};
 use crate::core::{
-    Control, ControlFlow, ControlKey, Message, Mtu, NetworkLayer, NetworkLayerError,
-    PrimitiveError, Protocol, ProtocolContext, ProtocolContextError, ProtocolId, RcSession,
-    Session,
+    Control, ControlFlow, Message, Mtu, NetworkLayer, Protocol, ProtocolContext, ProtocolId,
+    RcSession,
 };
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     error::Error,
-    mem,
     rc::Rc,
 };
-use thiserror::Error as ThisError;
-
-type NetworkIndex = u8;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct SessionId {
-    upstream: ProtocolId,
-    network: NetworkIndex,
-}
-
-impl SessionId {
-    pub fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
-        Self { upstream, network }
-    }
-}
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 /// This should be the first responder to messages coming in off the network. It
@@ -75,7 +59,7 @@ impl Tap {
         let header = take_header(&message).ok_or(TapError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
         let protocol = context.protocol(protocol_id)?;
-        context.info().insert(ControlKey::NetworkIndex, network);
+        context.info().insert(NETWORK_INDEX_KEY, network);
         let message = message.slice(2..);
         let session_id = SessionId::new(protocol_id, network);
         let session = match self.sessions.entry(session_id) {
@@ -102,7 +86,11 @@ impl Protocol for Tap {
         participants: Control,
         _context: &mut ProtocolContext,
     ) -> Result<RcSession, Box<dyn Error>> {
-        let network = get_network_index(&participants)?;
+        let network = participants
+            .get(NETWORK_INDEX_KEY)
+            .expect("Missing network index")
+            .to_u8()
+            .expect("Incorrect network index type");
         let session_id = SessionId::new(upstream, network);
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
@@ -134,7 +122,7 @@ impl Protocol for Tap {
         // this one that would ask Tap to demux a message and because, semantically,
         // demux chooses one of its own sessions to respond to the message. We want Tap
         // to immediatly forward incoming messages to a higher-up protocol.
-        Err(Box::new(TapError::Demux))
+        panic!("Cannot demux on a Tap")
     }
 
     fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
@@ -142,102 +130,7 @@ impl Protocol for Tap {
     }
 }
 
-fn get_network_index(control: &Control) -> Result<u8, TapError> {
-    Ok(control
-        .get(&ControlKey::NetworkIndex)
-        .ok_or(TapError::IdentifierMissingKey(ControlKey::NetworkIndex))?
-        .to_u8()?)
-}
-
 fn take_header(message: &Message) -> Option<[u8; 2]> {
     let mut iter = message.iter();
     Some([iter.next()?, iter.next()?])
-}
-
-#[derive(Clone)]
-pub struct TapSession {
-    network: NetworkIndex,
-    outgoing: Vec<Message>,
-    upstream: ProtocolId,
-}
-
-impl TapSession {
-    fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
-        Self {
-            upstream,
-            network,
-            outgoing: vec![],
-        }
-    }
-
-    pub fn network(&self) -> NetworkIndex {
-        self.network
-    }
-
-    pub fn outgoing(&mut self) -> Vec<Message> {
-        mem::take(&mut self.outgoing)
-    }
-}
-
-impl Session for TapSession {
-    fn protocol(&self) -> ProtocolId {
-        Tap::ID
-    }
-
-    fn send(
-        &mut self,
-        _self_handle: RcSession,
-        message: Message,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
-        let header: [u8; 2] = self.upstream.into();
-        let message = message.with_header(&header);
-        self.outgoing.push(message);
-        Ok(())
-    }
-
-    fn recv(
-        &mut self,
-        _self_handle: RcSession,
-        _message: Message,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
-        Err(Box::new(TapError::Recv))
-    }
-
-    fn awake(
-        &mut self,
-        _self_handle: RcSession,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
-}
-
-#[derive(Debug, ThisError)]
-pub enum TapError {
-    #[error("Expected two bytes for the header")]
-    HeaderLength,
-    #[error("The header did not represent a valid protocol ID")]
-    InvalidProtocolId(#[from] NetworkLayerError),
-    #[error("Unexpected passive open")]
-    PassiveOpen,
-    #[error("Attempt to create an existing demux binding: {0:?}")]
-    BindingExists(ProtocolId),
-    #[error("Could not find a matching session")]
-    SessionNotFound,
-    #[error("An identifier is missing a required key")]
-    IdentifierMissingKey(ControlKey),
-    #[error("The network index does not exist: {0}")]
-    NetworkIndex(NetworkIndex),
-    #[error("New messages should go directly to the protocol, not the session")]
-    Recv,
-    #[error("Cannot demux because the incoming method should be used instead")]
-    Demux,
-    #[error("{0}")]
-    Other(#[from] Box<dyn Error>),
-    #[error("{0}")]
-    Primitive(#[from] PrimitiveError),
-    #[error("{0}")]
-    ProtocolContext(#[from] ProtocolContextError),
 }

@@ -1,8 +1,12 @@
 use std::{cell::RefCell, error::Error, rc::Rc};
 
 use crate::{
-    core::{Control, ControlFlow, ControlKey, Message, NetworkLayer, ProtocolContext, ProtocolId},
-    protocols::{Application, Ipv4Address, Udp, UserProcess},
+    core::{Control, ControlFlow, Message, NetworkLayer, ProtocolContext, ProtocolId},
+    protocols::{
+        ipv4::{self, Ipv4Address},
+        udp::{self, Udp},
+        user_process::{Application, UserProcess},
+    },
 };
 
 pub struct SendMessage {
@@ -12,7 +16,10 @@ pub struct SendMessage {
 
 impl SendMessage {
     pub fn new(text: &'static str) -> Self {
-        Self { text, did_set_up: false }
+        Self {
+            text,
+            did_set_up: false,
+        }
     }
 
     pub fn new_shared(text: &'static str) -> Rc<RefCell<UserProcess<Self>>> {
@@ -25,17 +32,17 @@ impl Application for SendMessage {
 
     fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         if self.did_set_up {
-            return Ok(ControlFlow::Continue)
+            return Ok(ControlFlow::Continue);
         }
         self.did_set_up = true;
 
         let protocol = context.protocol(Udp::ID)?;
         let participants = Control::new()
             // Todo: This should be some other IP address
-            .with(ControlKey::LocalAddress, Ipv4Address::LOCALHOST.to_u32())
-            .with(ControlKey::RemoteAddress, Ipv4Address::LOCALHOST.to_u32())
-            .with(ControlKey::LocalPort, 0xdeadu16)
-            .with(ControlKey::RemotePort, 0xbeefu16);
+            .with(ipv4::LOCAL_ADDRESS_KEY, Ipv4Address::LOCALHOST.to_u32())
+            .with(ipv4::REMOTE_ADDRESS_KEY, Ipv4Address::LOCALHOST.to_u32())
+            .with(udp::LOCAL_PORT_KEY, 0xdeadu16)
+            .with(udp::REMOTE_PORT_KEY, 0xbeefu16);
         let session = protocol
             .borrow_mut()
             .open_active(Self::ID, participants, context)?;

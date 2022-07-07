@@ -1,49 +1,33 @@
-use std::collections::{hash_map::Entry, HashMap};
-use thiserror::Error as ThisError;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Control(HashMap<ControlKey, Primitive>);
+pub struct Control(HashMap<&'static str, Primitive>);
 
 impl Control {
     pub fn new() -> Self {
         Default::default()
     }
 
-    pub fn with(self, key: ControlKey, value: impl Into<Primitive>) -> Self {
+    pub fn with(self, key: &'static str, value: impl Into<Primitive>) -> Self {
         self.with_inner(key, value.into())
     }
 
-    fn with_inner(mut self, key: ControlKey, value: Primitive) -> Self {
+    fn with_inner(mut self, key: &'static str, value: Primitive) -> Self {
         self.insert(key, value);
         self
     }
 
-    pub fn insert(&mut self, key: ControlKey, value: impl Into<Primitive>) -> Option<Primitive> {
+    pub fn insert(&mut self, key: &'static str, value: impl Into<Primitive>) {
         self.insert_inner(key, value.into())
     }
 
-    fn insert_inner(&mut self, key: ControlKey, value: Primitive) -> Option<Primitive> {
-        self.0.insert(key, value)
+    fn insert_inner(&mut self, key: &'static str, value: Primitive) {
+        self.0.insert(key, value);
     }
 
-    pub fn get(&self, key: &ControlKey) -> Option<Primitive> {
+    pub fn get(&self, key: &'static str) -> Option<Primitive> {
         self.0.get(key).cloned()
     }
-
-    pub fn entry(&mut self, key: ControlKey) -> Entry<ControlKey, Primitive> {
-        self.0.entry(key)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ControlKey {
-    LocalAddress,
-    RemoteAddress,
-    LocalPort,
-    RemotePort,
-    NetworkIndex,
-    ProtocolId,
-    Other(&'static str),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -61,79 +45,73 @@ pub enum Primitive {
 }
 
 impl Primitive {
-    pub fn to_u8(self) -> Result<u8, PrimitiveError> {
+    pub fn to_u8(self) -> Option<u8> {
         match self {
-            Self::U8(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
+            Self::U8(value) => Some(value),
+            _ => None,
         }
     }
 
-    pub fn to_u16(self) -> Result<u16, PrimitiveError> {
+    pub fn to_u16(self) -> Option<u16> {
         match self {
-            Self::U16(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
+            Self::U16(value) => Some(value),
+            _ => None,
         }
     }
 
-    pub fn to_u32(self) -> Result<u32, PrimitiveError> {
+    pub fn to_u32(self) -> Option<u32> {
         match self {
-            Self::U32(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
+            Self::U32(value) => Some(value),
+            _ => None,
         }
     }
 
-    pub fn to_u64(self) -> Result<u64, PrimitiveError> {
+    pub fn to_u64(self) -> Option<u64> {
         match self {
-            Self::U64(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
+            Self::U64(value) => Some(value),
+            _ => None,
         }
     }
-    pub fn to_u128(self) -> Result<u128, PrimitiveError> {
+    pub fn to_u128(self) -> Option<u128> {
         match self {
-            Self::U128(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
-        }
-    }
-
-    pub fn to_i8(self) -> Result<i8, PrimitiveError> {
-        match self {
-            Self::I8(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
+            Self::U128(value) => Some(value),
+            _ => None,
         }
     }
 
-    pub fn to_i16(self) -> Result<i16, PrimitiveError> {
+    pub fn to_i8(self) -> Option<i8> {
         match self {
-            Self::I16(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
+            Self::I8(value) => Some(value),
+            _ => None,
         }
     }
 
-    pub fn to_i32(self) -> Result<i32, PrimitiveError> {
+    pub fn to_i16(self) -> Option<i16> {
         match self {
-            Self::I32(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
+            Self::I16(value) => Some(value),
+            _ => None,
         }
     }
 
-    pub fn to_i64(self) -> Result<i64, PrimitiveError> {
+    pub fn to_i32(self) -> Option<i32> {
         match self {
-            Self::I64(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
+            Self::I32(value) => Some(value),
+            _ => None,
         }
     }
-    pub fn to_i128(self) -> Result<i128, PrimitiveError> {
-        match self {
-            Self::I128(value) => Ok(value),
-            _ => Err(PrimitiveError::WrongPrimitiveKind),
-        }
-    }
-}
 
-#[derive(Debug, ThisError)]
-pub enum PrimitiveError {
-    #[error("Tried to unwrap into the wrong primitive type")]
-    WrongPrimitiveKind,
+    pub fn to_i64(self) -> Option<i64> {
+        match self {
+            Self::I64(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn to_i128(self) -> Option<i128> {
+        match self {
+            Self::I128(value) => Some(value),
+            _ => None,
+        }
+    }
 }
 
 impl From<u8> for Primitive {

@@ -1,15 +1,12 @@
-use crate::protocols::{Tap, TapError};
-
 use super::{
     ControlFlow, MachineContext, PhysicalAddress, ProtocolContext, ProtocolId, RcProtocol,
 };
+use crate::protocols::tap::Tap;
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
-    error::Error,
     rc::Rc,
 };
-use thiserror::Error as ThisError;
 
 pub type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
 
@@ -19,28 +16,25 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(
-        tap: Rc<RefCell<Tap>>,
-        protocols: impl Iterator<Item = RcProtocol>,
-    ) -> Result<Self, MachineError> {
+    pub fn new(tap: Rc<RefCell<Tap>>, protocols: impl Iterator<Item = RcProtocol>) -> Self {
         let tap_abstract: RcProtocol = tap.clone();
         let mut map = HashMap::new();
         for protocol in protocols.chain(std::iter::once(tap_abstract)) {
             let id = protocol.borrow().id();
             match map.entry(id) {
-                Entry::Occupied(_) => Err(MachineError::DuplicateProtocol)?,
+                Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
                     entry.insert(protocol);
                 }
             }
         }
-        Ok(Self {
+        Self {
             tap,
             protocols: Rc::new(map),
-        })
+        }
     }
 
-    pub fn awake(&mut self, context: &mut MachineContext) -> Result<ControlFlow, MachineError> {
+    pub fn awake(&mut self, context: &mut MachineContext) -> ControlFlow {
         let mut protocol_context = ProtocolContext::new(self.protocols.clone());
         for message in context.pending() {
             match self
@@ -75,7 +69,7 @@ impl Machine {
         let outgoing: HashMap<_, _> = self.tap.borrow_mut().outgoing().into_iter().collect();
         for (i, network) in context.networks().enumerate() {
             if let Some(messages) = outgoing.get(&(i as u8)) {
-                for message in messages.into_iter() {
+                for message in messages {
                     network
                         .borrow_mut()
                         // Todo: Use the correct physical address
@@ -84,18 +78,6 @@ impl Machine {
             }
         }
 
-        Ok(control_flow)
+        control_flow
     }
-}
-
-#[derive(Debug, ThisError)]
-pub enum MachineError {
-    #[error("Only one of each protocol should be provided")]
-    DuplicateProtocol,
-    #[error("The Tap protocol is missing")]
-    MissingTap,
-    #[error("{0}")]
-    Tap(#[from] TapError),
-    #[error("{0}")]
-    Other(#[from] Box<dyn Error>),
 }

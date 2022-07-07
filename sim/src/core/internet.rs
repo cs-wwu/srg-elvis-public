@@ -1,6 +1,5 @@
-use super::{ControlFlow, Mac, Machine, MachineError, Message, Network};
+use super::{ControlFlow, Mac, Machine, Message, Network};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
-use thiserror::Error as ThisError;
 
 pub struct Internet {
     machines: Vec<Machine>,
@@ -44,7 +43,7 @@ impl Internet {
         }
     }
 
-    pub fn run(&mut self) -> Result<(), InternetError> {
+    pub fn run(&mut self) {
         'outer: loop {
             for (mac, machine) in self.machines.iter_mut().enumerate() {
                 let mut context = MachineContext {
@@ -52,20 +51,13 @@ impl Internet {
                     networks_for_machine: self.networks_for_machine[&mac].clone(),
                     networks: self.networks.clone(),
                 };
-                match machine.awake(&mut context)? {
+                match machine.awake(&mut context) {
                     ControlFlow::Continue => {}
                     ControlFlow::EndSimulation => break 'outer,
                 }
             }
         }
-        Ok(())
     }
-}
-
-#[derive(Debug, ThisError)]
-pub enum InternetError {
-    #[error("{0}")]
-    Machine(#[from] MachineError),
 }
 
 pub struct MachineContext {
