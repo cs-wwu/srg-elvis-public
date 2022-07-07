@@ -31,7 +31,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use elvis::core::Message;
+    /// # use elvis::core::message::Message;
     /// let message = Message::new(b"Body");
     /// ```
     pub fn new(body: impl Into<Chunk>) -> Self {
@@ -49,7 +49,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use elvis::core::{Message, Chunk};
+    /// # use elvis::core::message::{Message, Chunk};
     /// let message = Message::new(b"Body").with_header(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
@@ -70,7 +70,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use elvis::core::{Message, Chunk};
+    /// # use elvis::core::message::{Message, Chunk};
     /// let message = Message::new(b"Body").with_header(b"Header");
     /// let sliced = message.slice(3..8);
     /// assert!(sliced.iter().eq(b"derBo".iter().cloned()));
@@ -100,7 +100,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use elvis::core::{Message, Chunk};
+    /// # use elvis::core::message::{Message, Chunk};
     /// let message = Message::new(b"Body").with_header(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
