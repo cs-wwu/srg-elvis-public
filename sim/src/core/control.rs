@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 /// of participants, information extracted from headers, or configuration for
 /// opening a session.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Control(HashMap<StaticStr, Primitive>);
+pub struct Control(HashMap<&'static str, Primitive>);
 
 impl Control {
     /// Creates a new control.
@@ -16,12 +16,8 @@ impl Control {
     /// A builder function that adds the given key-value pair to the control.
     ///
     /// See [`insert`](Self::insert) for more details.
-    pub fn with(self, key: &'static str, value: impl Into<Primitive>) -> Self {
-        self.with_inner(key, value.into())
-    }
-
-    fn with_inner(mut self, key: &'static str, value: Primitive) -> Self {
-        self.insert_inner(key, value);
+    pub fn with(mut self, key: &'static str, value: impl Into<Primitive>) -> Self {
+        self.insert_inner(key, value.into());
         self
     }
 
@@ -35,23 +31,23 @@ impl Control {
     }
 
     fn insert_inner(&mut self, key: &'static str, value: Primitive) {
-        self.0.insert(key.into(), value);
+        self.0.insert(key, value);
     }
 
     /// Gets the value for the given key.
     pub fn get(&self, key: &'static str) -> Option<Primitive> {
-        self.0.get(&key.into()).cloned()
+        self.0.get(&key).cloned()
     }
 }
 
 /// Since we only work with static strings for [`Control`], we use a newtype to
 /// make the string hash based on its pointer to speed up map performance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 struct StaticStr(&'static str);
 
 impl Hash for StaticStr {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_usize(self.0.as_ptr() as usize)
+        self.0.as_ptr().hash(state)
     }
 }
 
@@ -60,6 +56,14 @@ impl From<&'static str> for StaticStr {
         Self(s)
     }
 }
+
+impl PartialEq for StaticStr {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_ptr() == other.0.as_ptr()
+    }
+}
+
+impl Eq for StaticStr {}
 
 /// A value of some numeric primitive type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -215,5 +219,50 @@ impl From<i64> for Primitive {
 impl From<i128> for Primitive {
     fn from(value: i128) -> Self {
         Self::I128(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::hash_map::RandomState,
+        hash::{BuildHasher, Hash, Hasher},
+    };
+
+    use super::StaticStr;
+
+    #[test]
+    fn static_str() {
+        let s1 = StaticStr("Hi!");
+        let s2 = StaticStr("Hi!");
+        assert_eq!(s1, s2);
+
+        let hasher_builder = RandomState::new();
+        let hashes: Vec<_> = [s1, s2]
+            .into_iter()
+            .map(|s| {
+                let mut hasher = hasher_builder.build_hasher();
+                s.hash(&mut hasher);
+                hasher.finish()
+            })
+            .collect();
+
+        assert_eq!(hashes[0], hashes[1]);
+
+        let s1 = StaticStr("John!");
+        let s2 = StaticStr("Paul!");
+        assert_ne!(s1, s2);
+
+        let hasher_builder = RandomState::new();
+        let hashes: Vec<_> = [s1, s2]
+            .into_iter()
+            .map(|s| {
+                let mut hasher = hasher_builder.build_hasher();
+                s.hash(&mut hasher);
+                hasher.finish()
+            })
+            .collect();
+
+        assert_ne!(hashes[0], hashes[1]);
     }
 }
