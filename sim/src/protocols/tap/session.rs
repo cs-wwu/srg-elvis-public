@@ -1,5 +1,5 @@
 use super::{NetworkIndex, Tap};
-use crate::core::{Message, ProtocolContext, ProtocolId, RcSession, Session};
+use crate::core::{message::Message, ProtocolContext, ProtocolId, RcSession, Session};
 use std::{error::Error, mem};
 
 #[derive(Clone)]

@@ -1,4 +1,4 @@
-use super::{ControlFlow, Mac, Machine, Message, Network};
+use super::{message::Message, network::Mac, protocol::ControlFlow, Machine, Network};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub struct Internet {

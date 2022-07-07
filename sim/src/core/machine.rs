@@ -1,11 +1,15 @@
-use super::{
-    ControlFlow, MachineContext, PhysicalAddress, ProtocolContext, ProtocolId, RcProtocol,
-};
 use crate::protocols::tap::Tap;
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     rc::Rc,
+};
+
+use super::{
+    internet::MachineContext,
+    network::PhysicalAddress,
+    protocol::{ControlFlow, ProtocolContext, RcProtocol},
+    ProtocolId,
 };
 
 pub type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;

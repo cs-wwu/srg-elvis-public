@@ -1,6 +1,6 @@
 use elvis::{
     applications::{Capture, SendMessage},
-    core::{Internet, Machine, Message, Network, RcProtocol},
+    core::{message::Message, Internet, Machine, Network, RcProtocol},
     protocols::{ipv4::Ipv4, tap::Tap, udp::Udp},
 };
 

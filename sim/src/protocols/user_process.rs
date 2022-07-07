@@ -1,5 +1,5 @@
 use crate::core::{
-    Control, ControlFlow, Message, Protocol, ProtocolContext, ProtocolId, RcSession,
+    message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId, RcSession,
 };
 use std::{cell::RefCell, error::Error, rc::Rc};
 

@@ -1,6 +1,6 @@
 use super::Udp;
 use crate::{
-    core::{Message, ProtocolContext, ProtocolId, RcSession, Session},
+    core::{message::Message, ProtocolContext, ProtocolId, RcSession, Session},
     protocols::ipv4::Ipv4Address,
 };
 use etherparse::UdpHeader;

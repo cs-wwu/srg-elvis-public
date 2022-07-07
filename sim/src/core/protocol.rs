@@ -1,8 +1,7 @@
-use crate::core::Message;
 use std::{cell::RefCell, error::Error, rc::Rc};
 use thiserror::Error as ThisError;
 
-use super::{Control, ProtocolId, ProtocolMap};
+use super::{message::Message, Control, ProtocolId, ProtocolMap};
 
 pub type RcProtocol = Rc<RefCell<dyn Protocol>>;
 pub type RcSession = Rc<RefCell<dyn Session>>;

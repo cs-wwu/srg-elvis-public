@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
-/// A key-value store for protocols to be able to exchange data, such as a list
-/// of participants, information extracted from headers, or configuration for
-/// opening a session.
+/// A key-value store with which to exchange data between protocols.
+///
+/// [`Protocol`](super::Protocol)s often need to pass information to one another
+/// such as lists of participants, information extracted from headers, and
+/// configuration for opening a session. A control facilitates passing such
+/// information.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Control(HashMap<&'static str, Primitive>);
 

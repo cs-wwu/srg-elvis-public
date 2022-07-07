@@ -1,5 +1,5 @@
 use crate::{
-    core::{Control, ControlFlow, Message, NetworkLayer, ProtocolContext, ProtocolId},
+    core::{message::Message, Control, ControlFlow, NetworkLayer, ProtocolContext, ProtocolId},
     protocols::{
         ipv4::{self, Ipv4Address},
         udp::{self, Udp},

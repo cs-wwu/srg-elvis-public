@@ -1,6 +1,5 @@
+use super::message::Message;
 use std::collections::{hash_map::Entry, HashMap};
-
-use super::Message;
 
 pub type Mtu = u32;
 pub type Mac = usize;

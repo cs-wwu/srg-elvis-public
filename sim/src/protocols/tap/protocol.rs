@@ -1,7 +1,7 @@
 use super::{session::SessionId, NetworkIndex, TapError, TapSession, NETWORK_INDEX_KEY};
 use crate::core::{
-    Control, ControlFlow, Message, Mtu, NetworkLayer, Protocol, ProtocolContext, ProtocolId,
-    RcSession,
+    message::Message, Control, ControlFlow, Mtu, NetworkLayer, Protocol, ProtocolContext,
+    ProtocolId, RcSession,
 };
 use std::{
     cell::RefCell,

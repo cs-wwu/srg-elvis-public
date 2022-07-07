@@ -1,11 +1,11 @@
 use super::{
-    get_local_address, get_remote_address, session::SessionId, Ipv4Address, Ipv4Error,
-    Ipv4Session, LOCAL_ADDRESS_KEY, REMOTE_ADDRESS_KEY,
+    get_local_address, get_remote_address, session::SessionId, Ipv4Address, Ipv4Error, Ipv4Session,
+    LOCAL_ADDRESS_KEY, REMOTE_ADDRESS_KEY,
 };
 use crate::{
     core::{
-        Control, ControlFlow, Message, NetworkLayer, Protocol, ProtocolContext, ProtocolId,
-        RcSession,
+        message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
+        ProtocolId, RcSession,
     },
     protocols::tap::{self, Tap},
 };

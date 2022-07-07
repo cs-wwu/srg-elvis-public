@@ -4,8 +4,8 @@ use super::{
 };
 use crate::{
     core::{
-        Control, ControlFlow, Message, NetworkLayer, Protocol, ProtocolContext, ProtocolId,
-        RcSession, Session,
+        message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
+        ProtocolId, RcSession, Session,
     },
     protocols::ipv4::{get_local_address, get_remote_address, Ipv4, Ipv4Address},
 };
