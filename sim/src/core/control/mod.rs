@@ -3,9 +3,6 @@ use std::collections::HashMap;
 mod primitive;
 pub use primitive::Primitive;
 
-mod static_str;
-use static_str::StaticStr;
-
 /// A key-value store with which to exchange data between protocols.
 ///
 /// [`Protocol`](super::Protocol)s often need to pass information to one another
