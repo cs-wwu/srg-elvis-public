@@ -1,7 +1,3 @@
-use super::{
-    get_local_address, get_remote_address, session::SessionId, Ipv4Address, Ipv4Error, Ipv4Session,
-    LOCAL_ADDRESS_KEY, REMOTE_ADDRESS_KEY,
-};
 use crate::{
     core::{
         message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
@@ -16,6 +12,18 @@ use std::{
     error::Error,
     rc::Rc,
 };
+
+mod ipv4_address;
+pub use ipv4_address::Ipv4Address;
+
+mod ipv4_misc;
+pub use ipv4_misc::{
+    get_local_address, get_remote_address, Ipv4Error, LOCAL_ADDRESS_KEY, REMOTE_ADDRESS_KEY,
+};
+
+mod ipv4_session;
+pub use ipv4_session::Ipv4Session;
+use ipv4_session::SessionId;
 
 #[derive(Default, Clone)]
 pub struct Ipv4 {

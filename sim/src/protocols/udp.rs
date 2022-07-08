@@ -1,7 +1,3 @@
-use super::{
-    get_local_port, get_remote_port, session::SessionId, UdpError, UdpSession, LOCAL_PORT_KEY,
-    REMOTE_PORT_KEY,
-};
 use crate::{
     core::{
         message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
@@ -16,6 +12,14 @@ use std::{
     error::Error,
     rc::Rc,
 };
+
+mod udp_misc;
+pub use udp_misc::{get_local_port, get_remote_port, UdpError, LOCAL_PORT_KEY, REMOTE_PORT_KEY};
+
+mod udp_session;
+pub use udp_session::UdpSession;
+
+use self::udp_session::SessionId;
 
 #[derive(Default, Clone)]
 pub struct Udp {

@@ -1,12 +1,6 @@
 use crate::core::Control;
 use thiserror::Error as ThisError;
 
-mod protocol;
-pub use protocol::Udp;
-
-mod session;
-pub use session::UdpSession;
-
 pub const LOCAL_PORT_KEY: &str = "udp_local_port";
 pub const REMOTE_PORT_KEY: &str = "udp_remote_port";
 

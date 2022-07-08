@@ -1,6 +1,7 @@
-use super::{NetworkIndex, Tap};
 use crate::core::{message::Message, ProtocolContext, ProtocolId, RcSession, Session};
 use std::{error::Error, mem};
+
+use super::{tap_misc::NetworkIndex, Tap};
 
 #[derive(Clone)]
 pub struct TapSession {

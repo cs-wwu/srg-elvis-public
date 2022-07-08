@@ -1,16 +1,8 @@
+use crate::core::{NetworkLayerError, ProtocolContextError};
 use std::error::Error;
-
 use thiserror::Error as ThisError;
 
-use crate::core::{NetworkLayerError, ProtocolContextError};
-
-mod protocol;
-pub use protocol::Tap;
-
-mod session;
-pub use session::TapSession;
-
-type NetworkIndex = u8;
+pub(super) type NetworkIndex = u8;
 
 /// The key for a network index on [`Control`](crate::core::Control). Expects a
 /// value of type `u8`.

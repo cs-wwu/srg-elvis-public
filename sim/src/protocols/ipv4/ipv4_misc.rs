@@ -1,14 +1,6 @@
+use super::ipv4_address::Ipv4Address;
 use crate::core::Control;
 use thiserror::Error as ThisError;
-
-mod protocol;
-pub use protocol::Ipv4;
-
-mod session;
-pub use session::Ipv4Session;
-
-mod address;
-pub use address::Ipv4Address;
 
 pub const LOCAL_ADDRESS_KEY: &str = "ipv4_local_address";
 pub const REMOTE_ADDRESS_KEY: &str = "ipv4_remote_address";

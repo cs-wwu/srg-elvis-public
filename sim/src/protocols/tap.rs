@@ -1,4 +1,3 @@
-use super::{session::SessionId, NetworkIndex, TapError, TapSession, NETWORK_INDEX_KEY};
 use crate::core::{
     message::Message, Control, ControlFlow, Mtu, NetworkLayer, Protocol, ProtocolContext,
     ProtocolId, RcSession,
@@ -8,6 +7,17 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     error::Error,
     rc::Rc,
+};
+
+mod tap_misc;
+pub use tap_misc::NETWORK_INDEX_KEY;
+
+mod tap_session;
+pub use tap_session::TapSession;
+
+use self::{
+    tap_misc::{NetworkIndex, TapError},
+    tap_session::SessionId,
 };
 
 /// Represents something akin to an Ethernet tap or a network interface card.
