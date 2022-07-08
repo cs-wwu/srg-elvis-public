@@ -5,8 +5,8 @@
 //! [x-kernel] design for protocol layering.
 //!
 //! # Organization
-//! - [`Message`](message::Message) and [`Control`] provides utilities common to
-//!   most protocols
+//! - [`Message`](message::Message) and [`Control`] provide basic utilities
+//!   common to most protocols
 //! - [`Protocol`] and [`Session`] implement individual protocols
 //! - [`Internet`], [`Network`], and [`Machine`] work together to run the
 //!   simulation
@@ -25,16 +25,17 @@
 //!
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
-mod control;
-pub use control::*;
+pub mod control;
+pub use control::Control;
+
+pub mod message;
+pub use message::Message;
 
 mod internet;
 pub use internet::*;
 
 mod machine;
 pub use machine::*;
-
-pub mod message;
 
 mod network;
 pub use network::*;
