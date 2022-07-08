@@ -61,7 +61,8 @@ impl Session for UdpSession {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context
-            .protocol(self.upstream)?
+            .protocol(self.upstream)
+            .expect("No such protocol")
             .borrow_mut()
             .demux(message, self_handle, context)?;
         Ok(())

@@ -39,7 +39,8 @@ impl Application for Capture {
                 .with(udp::LOCAL_PORT_KEY, 0xbeefu16)
                 .with(udp::REMOTE_PORT_KEY, 0xdeadu16);
             context
-                .protocol(Udp::ID)?
+                .protocol(Udp::ID)
+                .expect("No such protocol")
                 .borrow_mut()
                 .listen(Self::ID, participants, context)?;
         }

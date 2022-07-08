@@ -36,13 +36,13 @@ impl Application for SendMessage {
         }
         self.did_set_up = true;
 
-        let protocol = context.protocol(Udp::ID)?;
         let participants = Control::new()
             // Todo: This should be some other IP address
             .with(ipv4::LOCAL_ADDRESS_KEY, Ipv4Address::LOCALHOST.to_u32())
             .with(ipv4::REMOTE_ADDRESS_KEY, Ipv4Address::LOCALHOST.to_u32())
             .with(udp::LOCAL_PORT_KEY, 0xdeadu16)
             .with(udp::REMOTE_PORT_KEY, 0xbeefu16);
+        let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let session = protocol
             .borrow_mut()
             .open_active(Self::ID, participants, context)?;

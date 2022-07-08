@@ -1,10 +1,11 @@
+use super::{
+    message::Message,
+    session::{ControlFlow, RcSession},
+    Control, ProtocolContext, ProtocolId,
+};
 use std::{cell::RefCell, error::Error, rc::Rc};
-use thiserror::Error as ThisError;
-
-use super::{message::Message, Control, ProtocolId, ProtocolMap};
 
 pub type RcProtocol = Rc<RefCell<dyn Protocol>>;
-pub type RcSession = Rc<RefCell<dyn Session>>;
 
 /// Protocols are stackable objects that function as network processing
 /// elements. Protocols have Protocols stacked above them and Protocols stacked
@@ -100,83 +101,4 @@ pub trait Protocol {
     /// window sizes, retransmit data, poll a zero-sized window, or whatever
     /// else it may need to do.
     fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
-}
-
-/// A Session holds state for a particular connection. A Session "belongs"
-/// to a Protocol.
-pub trait Session {
-    // Returns the ID of the protocol used to demux messages upward
-    fn protocol(&self) -> ProtocolId;
-
-    /// Invoked from a Protocol to send a Message.
-    fn send(
-        &mut self,
-        self_handle: RcSession,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
-
-    // Todo: We probably want demux to have already parsed the header and then pass
-    // it on to the session. One of the things the x-kernel paper mentions is that
-    // we want to touch the header as few times as possible for best performance. At
-    // the moment, we require that the demux and recv methods each parse the header
-    // separately, which is evidently inefficient. Without being able to make
-    // Session generic, this does raise the question of what type would be
-    // appropriate for passing structured header information from one method to
-    // another. Do we possibly just attach information to the context? I'm not sure
-    // just how efficient getting values from a HashMap is compared to just parsing
-    // the header again. It's not entirely clear what to do here.
-
-    /// Invoked from a Protocol or Session object below for Message receipt.
-    fn recv(
-        &mut self,
-        self_handle: RcSession,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
-
-    fn awake(
-        &mut self,
-        self_handle: RcSession,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
-}
-
-#[derive(Clone, Default)]
-pub struct ProtocolContext {
-    protocols: ProtocolMap,
-    info: Control,
-}
-
-impl ProtocolContext {
-    pub fn new(protocols: ProtocolMap) -> Self {
-        Self {
-            protocols,
-            info: Control::default(),
-        }
-    }
-
-    pub fn protocol(&self, id: ProtocolId) -> Result<RcProtocol, ProtocolContextError> {
-        self.protocols
-            .get(&id)
-            .cloned()
-            .ok_or(ProtocolContextError::NoSuchProtocol)
-    }
-
-    pub fn info(&mut self) -> &mut Control {
-        &mut self.info
-    }
-}
-
-#[derive(Debug, ThisError)]
-pub enum ProtocolContextError {
-    #[error("Could not find the given protocol")]
-    NoSuchProtocol,
-    #[error("{0}")]
-    Other(#[from] Box<dyn Error>),
-}
-
-pub enum ControlFlow {
-    Continue,
-    EndSimulation,
 }

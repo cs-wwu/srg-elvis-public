@@ -6,10 +6,8 @@ use std::{
 };
 
 use super::{
-    internet::MachineContext,
-    network::PhysicalAddress,
-    protocol::{ControlFlow, ProtocolContext, RcProtocol},
-    ProtocolId,
+    internet::MachineContext, network::PhysicalAddress, protocol::RcProtocol, ControlFlow,
+    ProtocolContext, ProtocolId,
 };
 
 pub type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;

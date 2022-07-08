@@ -68,7 +68,6 @@ impl Tap {
     ) -> Result<(), TapError> {
         let header = take_header(&message).ok_or(TapError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
-        let protocol = context.protocol(protocol_id)?;
         context.info().insert(NETWORK_INDEX_KEY, network);
         let message = message.slice(2..);
         let session_id = SessionId::new(protocol_id, network);
@@ -80,6 +79,9 @@ impl Tap {
                 session
             }
         };
+        let protocol = context
+            .protocol(protocol_id)
+            .ok_or(TapError::NoSuchProtocol(protocol_id))?;
         protocol.borrow_mut().demux(message, session, context)?;
         Ok(())
     }

@@ -31,6 +31,15 @@ pub use control::Control;
 pub mod message;
 pub use message::Message;
 
+mod protocol;
+pub use protocol::{Protocol, RcProtocol};
+
+mod session;
+pub use session::{ControlFlow, RcSession, Session};
+
+mod protocol_context;
+pub use protocol_context::ProtocolContext;
+
 mod internet;
 pub use internet::*;
 
@@ -39,9 +48,6 @@ pub use machine::*;
 
 mod network;
 pub use network::*;
-
-mod protocol;
-pub use protocol::*;
 
 mod protocol_id;
 pub use protocol_id::*;

@@ -62,11 +62,11 @@ impl Protocol for Ipv4 {
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
                 participants.insert(tap::NETWORK_INDEX_KEY, 0u8);
-                let tap_session = context.protocol(Tap::ID)?.borrow_mut().open_active(
-                    Self::ID,
-                    participants,
-                    context,
-                )?;
+                let tap_session = context
+                    .protocol(Tap::ID)
+                    .expect("No such protocol")
+                    .borrow_mut()
+                    .open_active(Self::ID, participants, context)?;
                 let session = Rc::new(RefCell::new(Ipv4Session::new(tap_session, upstream, key)));
                 entry.insert(session.clone());
                 Ok(session)
@@ -90,7 +90,8 @@ impl Protocol for Ipv4 {
 
         // Essentially a no-op but good for completeness and as an example
         context
-            .protocol(Tap::ID)?
+            .protocol(Tap::ID)
+            .expect("No such protocol")
             .borrow_mut()
             .listen(Self::ID, participants, context)
     }

@@ -1,4 +1,4 @@
-use crate::core::{NetworkLayerError, ProtocolContextError};
+use crate::core::{NetworkLayerError, ProtocolId};
 use std::error::Error;
 use thiserror::Error as ThisError;
 
@@ -14,8 +14,8 @@ pub enum TapError {
     HeaderLength,
     #[error("The header did not represent a valid protocol ID: {0}")]
     InvalidProtocolId(#[from] NetworkLayerError),
-    #[error("Could not find a protocol for the protocol ID: {0}")]
-    NoSuchProtocol(#[from] ProtocolContextError),
+    #[error("Could not find a protocol for the protocol ID: {0:?}")]
+    NoSuchProtocol(ProtocolId),
     #[error("{0}")]
     Other(#[from] Box<dyn Error>),
 }
