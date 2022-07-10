@@ -6,7 +6,7 @@ pub(super) type NetworkIndex = u8;
 
 /// The key for a network index on [`Control`](crate::core::Control). Expects a
 /// value of type `u8`.
-pub const NETWORK_INDEX_KEY: &str = "tap_network_index";
+pub static NETWORK_INDEX_KEY: &str = "tap_network_index";
 
 #[derive(Debug, ThisError)]
 pub enum TapError {

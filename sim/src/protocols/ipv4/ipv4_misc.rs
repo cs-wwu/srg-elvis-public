@@ -2,8 +2,8 @@ use super::ipv4_address::Ipv4Address;
 use crate::core::Control;
 use thiserror::Error as ThisError;
 
-pub const LOCAL_ADDRESS_KEY: &str = "ipv4_local_address";
-pub const REMOTE_ADDRESS_KEY: &str = "ipv4_remote_address";
+pub static LOCAL_ADDRESS_KEY: &str = "ipv4_local_address";
+pub static REMOTE_ADDRESS_KEY: &str = "ipv4_remote_address";
 
 pub fn get_local_address(control: &Control) -> Ipv4Address {
     control

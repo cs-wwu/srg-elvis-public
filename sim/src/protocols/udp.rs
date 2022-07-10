@@ -63,11 +63,11 @@ impl Protocol for Udp {
         match self.sessions.entry(identifier) {
             Entry::Occupied(_) => Err(UdpError::SessionExists)?,
             Entry::Vacant(entry) => {
-                let downstream = context.protocol(Ipv4::ID).borrow_mut().open_active(
-                    Self::ID,
-                    participants,
-                    context,
-                )?;
+                let downstream = context
+                    .protocol(Ipv4::ID)
+                    .expect("No such protocol")
+                    .borrow_mut()
+                    .open_active(Self::ID, participants, context)?;
                 let session = UdpSession::new_shared(upstream, downstream, identifier);
                 entry.insert(session.clone());
                 Ok(session)
