@@ -1,5 +1,3 @@
-use std::{cell::RefCell, error::Error, rc::Rc};
-
 use crate::{
     core::{message::Message, Control, ControlFlow, NetworkLayer, ProtocolContext, ProtocolId},
     protocols::{
@@ -8,13 +6,16 @@ use crate::{
         user_process::{Application, UserProcess},
     },
 };
+use std::{cell::RefCell, error::Error, rc::Rc};
 
+/// An application that sends a single message over the network.
 pub struct SendMessage {
     text: &'static str,
     did_set_up: bool,
 }
 
 impl SendMessage {
+    /// Creates a new send message application.
     pub fn new(text: &'static str) -> Self {
         Self {
             text,
@@ -22,6 +23,7 @@ impl SendMessage {
         }
     }
 
+    /// Creates a new send message application behind a shared handle.
     pub fn new_shared(text: &'static str) -> Rc<RefCell<UserProcess<Self>>> {
         UserProcess::new_shared(Self::new(text))
     }

@@ -8,6 +8,8 @@ use crate::{
 };
 use std::{cell::RefCell, error::Error, rc::Rc};
 
+/// An application that stores the first message it receives and then exits the
+/// simulation.
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Capture {
     message: Option<Message>,
@@ -15,14 +17,17 @@ pub struct Capture {
 }
 
 impl Capture {
+    /// Creates a new capture.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Creates a new capture behind a shared handle.
     pub fn new_shared() -> Rc<RefCell<UserProcess<Self>>> {
         UserProcess::new_shared(Self::new())
     }
 
+    /// Gets the message that was received.
     pub fn message(&self) -> Option<Message> {
         self.message.clone()
     }

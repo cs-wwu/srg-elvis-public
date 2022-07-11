@@ -1,3 +1,7 @@
+use super::{
+    internet::MachineContext, network::PhysicalAddress, protocol::RcProtocol, ControlFlow,
+    ProtocolContext, ProtocolId,
+};
 use crate::protocols::tap::Tap;
 use std::{
     cell::RefCell,
@@ -5,19 +9,22 @@ use std::{
     rc::Rc,
 };
 
-use super::{
-    internet::MachineContext, network::PhysicalAddress, protocol::RcProtocol, ControlFlow,
-    ProtocolContext, ProtocolId,
-};
+pub(super) type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
 
-pub type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
-
+/// A networked computer in the simultation.
+///
+/// A machine is conceptually a computer attached to the internet. Machines are
+/// managed by the [`Internet`](super::Internet) and communicate through
+/// [`Network`](super::Network)s. Each machine contains a set of
+/// [`Protocol`](super::Protocol)s that it manages. The protocols may be
+/// networking protocols or user programs.
 pub struct Machine {
     protocols: ProtocolMap,
     tap: Rc<RefCell<Tap>>,
 }
 
 impl Machine {
+    /// Creates a new machine containing the `tap` and other `protocols`.
     pub fn new(tap: Rc<RefCell<Tap>>, protocols: impl Iterator<Item = RcProtocol>) -> Self {
         let tap_abstract: RcProtocol = tap.clone();
         let mut map = HashMap::new();
@@ -36,6 +43,8 @@ impl Machine {
         }
     }
 
+    /// Gives the machine time to process incoming messages and
+    /// [`awake`](super::Protocol::awake) its protocols.
     pub fn awake(&mut self, context: &mut MachineContext) -> ControlFlow {
         let mut protocol_context = ProtocolContext::new(self.protocols.clone());
         for message in context.pending() {

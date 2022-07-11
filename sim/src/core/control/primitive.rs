@@ -348,6 +348,7 @@ impl TryFrom<Primitive> for i128 {
     }
 }
 
+/// Represents a variant of [`Primitive`], minus the contained value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PrimitiveKind {
     U8,
@@ -398,6 +399,7 @@ impl Display for PrimitiveKind {
     }
 }
 
+/// An error caused by a [`Primitive`]
 #[derive(Debug, ThisError)]
 pub enum PrimitiveError {
     #[error("Expected {expected} but got {actual}")]

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt, fmt::Display, hash::Hash};
 use thiserror::Error as ThisError;
 
 mod primitive;
-pub use primitive::*;
+pub use primitive::{Primitive, PrimitiveError, PrimitiveKind};
 
 #[derive(Debug, Clone, Copy)]
 struct StaticStr(&'static str);
