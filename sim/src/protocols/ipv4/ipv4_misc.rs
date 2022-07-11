@@ -2,52 +2,45 @@ use super::ipv4_address::Ipv4Address;
 use crate::core::{control::Primitive, Control};
 use thiserror::Error as ThisError;
 
-static LOCAL_ADDRESS_KEY: &str = "ipv4_local_address";
-static REMOTE_ADDRESS_KEY: &str = "ipv4_remote_address";
+pub trait Bounds = TryFrom<Primitive> + Into<Primitive> + Copy + std::fmt::Debug;
 
-pub struct ControlValue<T: TryFrom<Primitive>, const K: &'static str>(T)
-where
-    T: TryFrom<Primitive> + Into<Primitive>;
+#[derive(Debug, Clone, Copy)]
+pub struct ControlValue<T: Bounds, const K: &'static str>(T);
 
-impl<T, const K: &'static str> TryFrom<&Control> for ControlValue<T, K>
-where
-    T: TryFrom<Primitive> + Into<Primitive>,
-{
+impl<T: Bounds, const K: &'static str> TryFrom<&Control> for ControlValue<T, K> {
     type Error = ControlValueError<<T as TryFrom<Primitive>>::Error>;
 
     fn try_from(control: &Control) -> Result<Self, Self::Error> {
         Ok(Self(T::try_from(
-            control
-                .get(LOCAL_ADDRESS_KEY)
-                .ok_or(ControlValueError::Missing(K))?,
+            control.get(K).ok_or(ControlValueError::Missing(K))?,
         )?))
     }
 }
 
-impl<T, const K: &'static str> ControlValue<T, K>
-where
-    T: TryFrom<Primitive> + Into<Primitive>,
-{
-    pub fn set(&self, control: &mut Control) {
+impl<T: Bounds, const K: &'static str> ControlValue<T, K> {
+    pub fn set(self, control: &mut Control) {
         control.insert(K, self.0)
     }
 }
 
-impl<T, const K: &'static str> ControlValue<T, K>
-where
-    T: TryFrom<Primitive> + Into<Primitive>,
-{
+impl<T: Bounds, const K: &'static str> From<T> for ControlValue<T, K> {
+    fn from(t: T) -> Self {
+        Self(t)
+    }
+}
+
+impl<T: Bounds, const K: &'static str> ControlValue<T, K> {
     pub fn into_inner(self) -> T {
         self.0
     }
 }
 
-impl<T, const K: &'static str> From<T> for ControlValue<T, K>
+impl<T: Bounds, const K: &'static str> ControlValue<T, K>
 where
-    T: TryFrom<Primitive> + Into<Primitive>,
+    <T as TryFrom<Primitive>>::Error: std::fmt::Debug,
 {
-    fn from(t: T) -> Self {
-        Self(t)
+    pub fn get(control: &Control) -> T {
+        Self::try_from(control).unwrap().into_inner()
     }
 }
 

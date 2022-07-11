@@ -52,8 +52,8 @@ impl Protocol for Udp {
     ) -> Result<SharedSession, Box<dyn Error>> {
         let local_port = get_local_port(&participants);
         let remote_port = get_remote_port(&participants);
-        let local_address = LocalAddress::try_from(&participants).unwrap().into_inner();
-        let remote_address = RemoteAddress::try_from(&participants).unwrap().into_inner();
+        let local_address = LocalAddress::get(&participants);
+        let remote_address = RemoteAddress::get(&participants);
         let identifier = SessionId {
             local_address,
             local_port,
@@ -86,7 +86,7 @@ impl Protocol for Udp {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let port = get_local_port(&participants);
-        let address = LocalAddress::try_from(&participants).unwrap().into_inner();
+        let address = LocalAddress::get(&participants);
         let identifier = ListenId { address, port };
         self.listen_bindings.insert(identifier, upstream);
 
@@ -105,8 +105,8 @@ impl Protocol for Udp {
         // Todo: Scuffed copy fest. Revise.
         let header_bytes: Vec<_> = message.iter().take(8).collect();
         let header = UdpHeaderSlice::from_slice(header_bytes.as_slice())?;
-        let local_address = LocalAddress::try_from(&context.info).unwrap().into_inner();
-        let remote_address = RemoteAddress::try_from(&context.info).unwrap().into_inner();
+        let local_address = LocalAddress::get(&context.info);
+        let remote_address = RemoteAddress::get(&context.info);
         let local_port = header.destination_port();
         let remote_port = header.source_port();
         let session_id = SessionId {

@@ -55,8 +55,8 @@ impl Protocol for Ipv4 {
         mut participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let local = LocalAddress::try_from(&participants).unwrap().into_inner();
-        let remote = RemoteAddress::try_from(&participants).unwrap().into_inner();
+        let local = LocalAddress::get(&participants);
+        let remote = RemoteAddress::get(&participants);
         let key = SessionId::new(local, remote);
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
@@ -81,7 +81,7 @@ impl Protocol for Ipv4 {
         participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let local = LocalAddress::try_from(&participants).unwrap().into_inner();
+        let local = LocalAddress::get(&participants);
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => Err(Ipv4Error::BindingExists(local))?,
             Entry::Vacant(entry) => {
