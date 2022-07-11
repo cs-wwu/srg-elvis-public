@@ -10,13 +10,13 @@ use std::{
 };
 
 mod tap_misc;
-pub use tap_misc::NETWORK_INDEX_KEY;
+pub use tap_misc::set_network_index;
 
 mod tap_session;
 pub use tap_session::TapSession;
 
 use self::{
-    tap_misc::{NetworkIndex, TapError},
+    tap_misc::{get_network_index, NetworkIndex, TapError},
     tap_session::SessionId,
 };
 
@@ -37,8 +37,8 @@ impl Tap {
     /// The unique identifier for this protocol
     pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Link, 0);
 
-    // Todo: We're going to want to use this parameter to initialize network_mtus on
-    // the struct when we get around to it
+    // Todo: We're going to want to use this parameter to initialize
+    // network_mtus on the struct when we get around to it
     pub fn new(network_mtus: Vec<Mtu>) -> Self {
         Self {
             network_mtus,
@@ -68,7 +68,7 @@ impl Tap {
     ) -> Result<(), TapError> {
         let header = take_header(&message).ok_or(TapError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
-        context.info.insert(NETWORK_INDEX_KEY, network);
+        set_network_index(&mut context.info, network);
         let message = message.slice(2..);
         let session_id = SessionId::new(protocol_id, network);
         let session = match self.sessions.entry(session_id) {
@@ -99,11 +99,7 @@ impl Protocol for Tap {
         participants: Control,
         _context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let network = participants
-            .get(NETWORK_INDEX_KEY)
-            .expect("Missing network index")
-            .to_u8()
-            .expect("Incorrect network index type");
+        let network = get_network_index(&participants);
         let session_id = SessionId::new(upstream, network);
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone().into()),
@@ -130,10 +126,11 @@ impl Protocol for Tap {
         _message: Message,
         _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        // We use accept_incoming instead of demux because there are no protocols under
-        // this one that would ask Tap to demux a message and because, semantically,
-        // demux chooses one of its own sessions to respond to the message. We want Tap
-        // to immediatly forward incoming messages to a higher-up protocol.
+        // We use accept_incoming instead of demux because there are no
+        // protocols under this one that would ask Tap to demux a message and
+        // because, semantically, demux chooses one of its own sessions to
+        // respond to the message. We want Tap to immediatly forward incoming
+        // messages to a higher-up protocol.
         panic!("Cannot demux on a Tap")
     }
 

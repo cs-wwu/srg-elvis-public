@@ -2,8 +2,12 @@ use super::ipv4_address::Ipv4Address;
 use crate::core::Control;
 use thiserror::Error as ThisError;
 
-pub static LOCAL_ADDRESS_KEY: &str = "ipv4_local_address";
-pub static REMOTE_ADDRESS_KEY: &str = "ipv4_remote_address";
+static LOCAL_ADDRESS_KEY: &str = "ipv4_local_address";
+static REMOTE_ADDRESS_KEY: &str = "ipv4_remote_address";
+
+pub fn set_local_address(control: &mut Control, address: Ipv4Address) {
+    control.insert(LOCAL_ADDRESS_KEY, address.to_u32())
+}
 
 pub fn get_local_address(control: &Control) -> Ipv4Address {
     control
@@ -12,6 +16,10 @@ pub fn get_local_address(control: &Control) -> Ipv4Address {
         .to_u32()
         .expect("Incorrect local address type")
         .into()
+}
+
+pub fn set_remote_address(control: &mut Control, address: Ipv4Address) {
+    control.insert(REMOTE_ADDRESS_KEY, address.to_u32())
 }
 
 pub fn get_remote_address(control: &Control) -> Ipv4Address {

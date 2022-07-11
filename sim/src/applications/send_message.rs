@@ -3,8 +3,8 @@ use std::{cell::RefCell, error::Error, rc::Rc};
 use crate::{
     core::{message::Message, Control, ControlFlow, NetworkLayer, ProtocolContext, ProtocolId},
     protocols::{
-        ipv4::{self, Ipv4Address},
-        udp::{self, Udp},
+        ipv4::{set_local_address, set_remote_address, Ipv4Address},
+        udp::{set_local_port, set_remote_port, Udp},
         user_process::{Application, UserProcess},
     },
 };
@@ -36,12 +36,12 @@ impl Application for SendMessage {
         }
         self.did_set_up = true;
 
-        let participants = Control::new()
-            // Todo: This should be some other IP address
-            .with(ipv4::LOCAL_ADDRESS_KEY, Ipv4Address::LOCALHOST.to_u32())
-            .with(ipv4::REMOTE_ADDRESS_KEY, Ipv4Address::LOCALHOST.to_u32())
-            .with(udp::LOCAL_PORT_KEY, 0xdeadu16)
-            .with(udp::REMOTE_PORT_KEY, 0xbeefu16);
+        let mut participants = Control::new();
+        // Todo: This should be some other IP address
+        set_local_address(&mut participants, Ipv4Address::LOCALHOST);
+        set_remote_address(&mut participants, Ipv4Address::LOCALHOST);
+        set_local_port(&mut participants, 0xdeadu16);
+        set_remote_port(&mut participants, 0xbeefu16);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let mut session = protocol
             .borrow_mut()

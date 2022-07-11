@@ -14,7 +14,7 @@ use std::{
 };
 
 mod udp_misc;
-pub use udp_misc::{get_local_port, get_remote_port, UdpError, LOCAL_PORT_KEY, REMOTE_PORT_KEY};
+pub use udp_misc::{get_local_port, get_remote_port, set_local_port, set_remote_port, UdpError};
 
 mod udp_session;
 pub use udp_session::UdpSession;
@@ -115,8 +115,8 @@ impl Protocol for Udp {
             remote_address,
             remote_port,
         };
-        context.info.insert(LOCAL_PORT_KEY, local_port);
-        context.info.insert(REMOTE_PORT_KEY, remote_port);
+        set_local_port(&mut context.info, local_port);
+        set_remote_port(&mut context.info, remote_port);
         let message = message.slice(8..);
         let mut session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {

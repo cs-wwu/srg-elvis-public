@@ -3,7 +3,7 @@ use crate::{
         message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
         ProtocolId, SharedSession,
     },
-    protocols::tap::{self, Tap},
+    protocols::tap::Tap,
 };
 use etherparse::Ipv4HeaderSlice;
 use std::{
@@ -18,11 +18,13 @@ pub use ipv4_address::Ipv4Address;
 
 mod ipv4_misc;
 use ipv4_misc::Ipv4Error;
-pub use ipv4_misc::{get_local_address, get_remote_address, LOCAL_ADDRESS_KEY, REMOTE_ADDRESS_KEY};
+pub use ipv4_misc::{get_local_address, get_remote_address, set_local_address, set_remote_address};
 
 mod ipv4_session;
 pub use ipv4_session::Ipv4Session;
 use ipv4_session::SessionId;
+
+use super::tap::set_network_index;
 
 #[derive(Default, Clone)]
 pub struct Ipv4 {
@@ -60,7 +62,7 @@ impl Protocol for Ipv4 {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
-                participants.insert(tap::NETWORK_INDEX_KEY, 0u8);
+                set_network_index(&mut participants, 0u8);
                 let tap_session = context
                     .protocol(Tap::ID)
                     .expect("No such protocol")
@@ -100,27 +102,29 @@ impl Protocol for Ipv4 {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        // Todo: This is going to kind of scuffed for the time being. Etherparse makes
-        // my work a lot easier but it also demands a slice to operate on, which the
-        // Message API doesn't offer. We're going to break zero-copy a bit and just copy
-        // the first twenty bytes of the message to treat as the header. In the future,
-        // we're going to want to replace Etherparse with our own parsing code so we can
-        // just work with the iterator API directly.
+        // Todo: This is going to kind of scuffed for the time being. Etherparse
+        // makes my work a lot easier but it also demands a slice to operate on,
+        // which the Message API doesn't offer. We're going to break zero-copy a
+        // bit and just copy the first twenty bytes of the message to treat as
+        // the header. In the future, we're going to want to replace Etherparse
+        // with our own parsing code so we can just work with the iterator API
+        // directly.
         let header: Vec<_> = message.iter().take(20).collect();
         let header = Ipv4HeaderSlice::from_slice(&header)?;
         let source = Ipv4Address::new(header.source());
         let destination = Ipv4Address::new(header.destination());
         let identifier = SessionId::new(destination, source);
-        context.info.insert(LOCAL_ADDRESS_KEY, destination.to_u32());
-        context.info.insert(REMOTE_ADDRESS_KEY, source.to_u32());
+        set_local_address(&mut context.info, destination);
+        set_remote_address(&mut context.info, source);
         let message = message.slice(20..);
         let mut session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
                 match self.listen_bindings.get(&destination) {
                     Some(&binding) => {
-                        // Todo: We want to be zero-copy, but right now it requires copying to
-                        // forward the list of participants. Is there any way around this?
+                        // Todo: We want to be zero-copy, but right now it
+                        // requires copying to forward the list of participants.
+                        // Is there any way around this?
                         let session = SharedSession::new(Ipv4Session::new(
                             context.current_session().expect("No current session"),
                             binding,

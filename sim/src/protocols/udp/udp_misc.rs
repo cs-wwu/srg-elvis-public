@@ -1,8 +1,16 @@
 use crate::core::Control;
 use thiserror::Error as ThisError;
 
-pub static LOCAL_PORT_KEY: &str = "udp_local_port";
-pub static REMOTE_PORT_KEY: &str = "udp_remote_port";
+static LOCAL_PORT_KEY: &str = "udp_local_port";
+static REMOTE_PORT_KEY: &str = "udp_remote_port";
+
+pub fn set_local_port(control: &mut Control, port: u16) {
+    control.insert(LOCAL_PORT_KEY, port)
+}
+
+pub fn set_remote_port(control: &mut Control, port: u16) {
+    control.insert(REMOTE_PORT_KEY, port)
+}
 
 pub fn get_local_port(control: &Control) -> u16 {
     control
