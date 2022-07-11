@@ -1,6 +1,11 @@
 use super::{Message, ProtocolContext, Session};
 use std::{cell::RefCell, error::Error, rc::Rc};
 
+/// A shared handle to a [`Session`].
+///
+/// In addition to facilitating multiple ownership, a shared session also acts a
+/// proxy to the underlying session and makes sure that the correct current
+/// session is applied to the context.
 #[derive(Clone)]
 pub struct SharedSession {
     session: Rc<RefCell<dyn Session>>,
@@ -18,9 +23,9 @@ impl SharedSession {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        context.current_session = Some(self.clone());
+        context.push_session(self.clone());
         self.session.borrow_mut().send(message, context)?;
-        context.current_session = None;
+        context.pop_session();
         Ok(())
     }
 
@@ -29,16 +34,16 @@ impl SharedSession {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        context.current_session = Some(self.clone());
+        context.push_session(self.clone());
         self.session.borrow_mut().recv(message, context)?;
-        context.current_session = None;
+        context.pop_session();
         Ok(())
     }
 
     pub fn awake(&mut self, context: &mut ProtocolContext) -> Result<(), Box<dyn Error>> {
-        context.current_session = Some(self.clone());
+        context.push_session(self.clone());
         self.session.borrow_mut().awake(context)?;
-        context.current_session = None;
+        context.pop_session();
         Ok(())
     }
 }

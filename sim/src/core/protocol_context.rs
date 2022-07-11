@@ -3,8 +3,8 @@ use super::{protocol::RcProtocol, Control, ProtocolId, ProtocolMap, SharedSessio
 #[derive(Clone)]
 pub struct ProtocolContext {
     protocols: ProtocolMap,
+    session_stack: Vec<SharedSession>,
     pub info: Control,
-    pub current_session: Option<SharedSession>,
 }
 
 impl ProtocolContext {
@@ -12,11 +12,23 @@ impl ProtocolContext {
         Self {
             protocols,
             info: Control::new(),
-            current_session: None,
+            session_stack: vec![],
         }
     }
 
     pub fn protocol(&self, id: ProtocolId) -> Option<RcProtocol> {
         self.protocols.get(&id).cloned()
+    }
+
+    pub fn current_session(&mut self) -> Option<SharedSession> {
+        self.session_stack.last().cloned()
+    }
+
+    pub fn push_session(&mut self, session: SharedSession) {
+        self.session_stack.push(session)
+    }
+
+    pub fn pop_session(&mut self) {
+        self.session_stack.pop();
     }
 }

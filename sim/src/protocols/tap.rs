@@ -79,7 +79,7 @@ impl Tap {
                 session
             }
         };
-        context.current_session = Some(session.into());
+        context.push_session(session.into());
         let protocol = context
             .protocol(protocol_id)
             .ok_or(TapError::NoSuchProtocol(protocol_id))?;

@@ -132,10 +132,7 @@ impl Protocol for Udp {
                     Entry::Occupied(listen_entry) => {
                         let session = SharedSession::new(UdpSession {
                             upstream: *listen_entry.get(),
-                            downstream: context
-                                .current_session
-                                .clone()
-                                .expect("No current session"),
+                            downstream: context.current_session().expect("No current session"),
                             identifier: session_id,
                         });
                         session_entry.insert(session.clone());

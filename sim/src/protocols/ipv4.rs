@@ -122,7 +122,7 @@ impl Protocol for Ipv4 {
                         // Todo: We want to be zero-copy, but right now it requires copying to
                         // forward the list of participants. Is there any way around this?
                         let session = SharedSession::new(Ipv4Session::new(
-                            context.current_session.clone().expect("No current session"),
+                            context.current_session().expect("No current session"),
                             binding,
                             identifier,
                         ));
