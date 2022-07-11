@@ -3,7 +3,7 @@ use crate::{
         message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
         ProtocolId, SharedSession,
     },
-    protocols::ipv4::{Ipv4, Ipv4Address, LocalAddress, RemoteAddress},
+    protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
 };
 use etherparse::UdpHeaderSlice;
 use std::{
@@ -14,7 +14,7 @@ use std::{
 };
 
 mod udp_misc;
-pub use udp_misc::{get_local_port, get_remote_port, set_local_port, set_remote_port, UdpError};
+pub use udp_misc::{LocalPort, RemotePort, UdpError};
 
 mod udp_session;
 pub use udp_session::UdpSession;
@@ -50,10 +50,10 @@ impl Protocol for Udp {
         participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let local_port = get_local_port(&participants);
-        let remote_port = get_remote_port(&participants);
-        let local_address = LocalAddress::get(&participants);
-        let remote_address = RemoteAddress::get(&participants);
+        let local_port = LocalPort::try_from(&participants).unwrap();
+        let remote_port = RemotePort::try_from(&participants).unwrap();
+        let local_address = LocalAddress::try_from(&participants).unwrap();
+        let remote_address = RemoteAddress::try_from(&participants).unwrap();
         let identifier = SessionId {
             local_address,
             local_port,
@@ -85,8 +85,8 @@ impl Protocol for Udp {
         participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let port = get_local_port(&participants);
-        let address = LocalAddress::get(&participants);
+        let port = LocalPort::try_from(&participants).unwrap();
+        let address = LocalAddress::try_from(&participants).unwrap();
         let identifier = ListenId { address, port };
         self.listen_bindings.insert(identifier, upstream);
 
@@ -105,18 +105,18 @@ impl Protocol for Udp {
         // Todo: Scuffed copy fest. Revise.
         let header_bytes: Vec<_> = message.iter().take(8).collect();
         let header = UdpHeaderSlice::from_slice(header_bytes.as_slice())?;
-        let local_address = LocalAddress::get(&context.info);
-        let remote_address = RemoteAddress::get(&context.info);
-        let local_port = header.destination_port();
-        let remote_port = header.source_port();
+        let local_address = LocalAddress::try_from(&context.info).unwrap();
+        let remote_address = RemoteAddress::try_from(&context.info).unwrap();
+        let local_port = LocalPort::new(header.destination_port());
+        let remote_port = RemotePort::new(header.source_port());
         let session_id = SessionId {
             local_address,
             local_port,
             remote_address,
             remote_port,
         };
-        set_local_port(&mut context.info, local_port);
-        set_remote_port(&mut context.info, remote_port);
+        local_port.apply(&mut context.info);
+        remote_port.apply(&mut context.info);
         let message = message.slice(8..);
         let mut session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
@@ -153,6 +153,6 @@ impl Protocol for Udp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ListenId {
-    address: Ipv4Address,
-    port: u16,
+    address: LocalAddress,
+    port: LocalPort,
 }

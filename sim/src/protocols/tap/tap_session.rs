@@ -1,7 +1,7 @@
 use crate::core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session};
 use std::{error::Error, mem};
 
-use super::{tap_misc::NetworkIndex, Tap};
+use super::{NetworkIndex, Tap};
 
 #[derive(Clone)]
 pub struct TapSession {

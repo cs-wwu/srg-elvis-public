@@ -10,15 +10,12 @@ use std::{
 };
 
 mod tap_misc;
-pub use tap_misc::set_network_index;
+pub use tap_misc::NetworkIndex;
 
 mod tap_session;
 pub use tap_session::TapSession;
 
-use self::{
-    tap_misc::{get_network_index, NetworkIndex, TapError},
-    tap_session::SessionId,
-};
+use self::{tap_misc::TapError, tap_session::SessionId};
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 /// This should be the first responder to messages coming in off the network. It
@@ -63,18 +60,18 @@ impl Tap {
     pub fn accept_incoming(
         &mut self,
         message: Message,
-        network: NetworkIndex,
+        network: u8,
         context: &mut ProtocolContext,
     ) -> Result<(), TapError> {
         let header = take_header(&message).ok_or(TapError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
-        set_network_index(&mut context.info, network);
+        NetworkIndex::set(&mut context.info, network);
         let message = message.slice(2..);
-        let session_id = SessionId::new(protocol_id, network);
+        let session_id = SessionId::new(protocol_id, network.into());
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
-                let session = Rc::new(RefCell::new(TapSession::new(protocol_id, network)));
+                let session = Rc::new(RefCell::new(TapSession::new(protocol_id, network.into())));
                 entry.insert(session.clone());
                 session
             }
@@ -99,12 +96,12 @@ impl Protocol for Tap {
         participants: Control,
         _context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let network = get_network_index(&participants);
-        let session_id = SessionId::new(upstream, network);
+        let network = NetworkIndex::get(&participants);
+        let session_id = SessionId::new(upstream, network.into());
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone().into()),
             Entry::Vacant(entry) => {
-                let session = Rc::new(RefCell::new(TapSession::new(upstream, network)));
+                let session = Rc::new(RefCell::new(TapSession::new(upstream, network.into())));
                 entry.insert(session.clone());
                 Ok(session.into())
             }

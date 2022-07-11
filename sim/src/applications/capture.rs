@@ -2,7 +2,7 @@ use crate::{
     core::{message::Message, Control, ControlFlow, NetworkLayer, ProtocolContext, ProtocolId},
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
-        udp::{set_local_port, set_remote_port, Udp},
+        udp::{LocalPort, RemotePort, Udp},
         user_process::{Application, UserProcess},
     },
 };
@@ -36,8 +36,8 @@ impl Application for Capture {
             let mut participants = Control::new();
             LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
             RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-            set_local_port(&mut participants, 0xbeefu16);
-            set_remote_port(&mut participants, 0xdeadu16);
+            LocalPort::set(&mut participants, 0xbeefu16);
+            RemotePort::set(&mut participants, 0xdeadu16);
             context
                 .protocol(Udp::ID)
                 .expect("No such protocol")

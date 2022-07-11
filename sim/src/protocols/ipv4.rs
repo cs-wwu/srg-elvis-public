@@ -24,11 +24,11 @@ mod ipv4_session;
 pub use ipv4_session::Ipv4Session;
 use ipv4_session::SessionId;
 
-use super::tap::set_network_index;
+use super::tap::NetworkIndex;
 
 #[derive(Default, Clone)]
 pub struct Ipv4 {
-    listen_bindings: HashMap<Ipv4Address, ProtocolId>,
+    listen_bindings: HashMap<LocalAddress, ProtocolId>,
     sessions: HashMap<SessionId, SharedSession>,
 }
 
@@ -55,14 +55,14 @@ impl Protocol for Ipv4 {
         mut participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let local = LocalAddress::get(&participants);
-        let remote = RemoteAddress::get(&participants);
-        let key = SessionId::new(local, remote);
+        let local = LocalAddress::try_from(&participants).unwrap();
+        let remote = RemoteAddress::try_from(&participants).unwrap();
+        let key = SessionId { local, remote };
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
                 // Todo: Actually pick the right network index
-                set_network_index(&mut participants, 0u8);
+                NetworkIndex::set(&mut participants, 0);
                 let tap_session = context
                     .protocol(Tap::ID)
                     .expect("No such protocol")
@@ -81,7 +81,7 @@ impl Protocol for Ipv4 {
         participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let local = LocalAddress::get(&participants);
+        let local = LocalAddress::try_from(&participants).unwrap();
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => Err(Ipv4Error::BindingExists(local))?,
             Entry::Vacant(entry) => {
@@ -111,16 +111,16 @@ impl Protocol for Ipv4 {
         // directly.
         let header: Vec<_> = message.iter().take(20).collect();
         let header = Ipv4HeaderSlice::from_slice(&header)?;
-        let source = Ipv4Address::new(header.source());
-        let destination = Ipv4Address::new(header.destination());
-        let identifier = SessionId::new(destination, source);
-        LocalAddress::set(&mut context.info, destination);
-        RemoteAddress::set(&mut context.info, source);
+        let remote = RemoteAddress::from(header.source());
+        let local = LocalAddress::from(header.destination());
+        let identifier = SessionId { local, remote };
+        local.apply(&mut context.info);
+        remote.apply(&mut context.info);
         let message = message.slice(20..);
         let mut session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
-                match self.listen_bindings.get(&destination) {
+                match self.listen_bindings.get(&local) {
                     Some(&binding) => {
                         // Todo: We want to be zero-copy, but right now it
                         // requires copying to forward the list of participants.
@@ -133,7 +133,7 @@ impl Protocol for Ipv4 {
                         entry.insert(session.clone());
                         session
                     }
-                    None => Err(Ipv4Error::MissingListenBinding(destination))?,
+                    None => Err(Ipv4Error::MissingListenBinding(local))?,
                 }
             }
         };

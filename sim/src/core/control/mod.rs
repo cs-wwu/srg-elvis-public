@@ -1,8 +1,8 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, fmt, fmt::Display, hash::Hash};
 use thiserror::Error as ThisError;
 
 mod primitive;
-pub use primitive::Primitive;
+pub use primitive::*;
 
 #[derive(Debug, Clone, Copy)]
 struct StaticStr(&'static str);
@@ -69,12 +69,13 @@ impl Control {
     }
 }
 
-pub trait Bounds = TryFrom<Primitive> + Into<Primitive> + Copy + std::fmt::Debug;
-
 #[derive(Debug, Clone, Copy)]
-pub struct ControlValue<T: Bounds, const K: &'static str>(T);
+pub struct ControlValue<T, const K: &'static str>(T);
 
-impl<T: Bounds, const K: &'static str> TryFrom<&Control> for ControlValue<T, K> {
+impl<T, const K: &'static str> TryFrom<&Control> for ControlValue<T, K>
+where
+    T: TryFrom<Primitive>,
+{
     type Error = ControlValueError<<T as TryFrom<Primitive>>::Error>;
 
     fn try_from(control: &Control) -> Result<Self, Self::Error> {
@@ -84,15 +85,22 @@ impl<T: Bounds, const K: &'static str> TryFrom<&Control> for ControlValue<T, K> 
     }
 }
 
-impl<T: Bounds, const K: &'static str> From<T> for ControlValue<T, K> {
-    fn from(t: T) -> Self {
-        Self(t)
+impl<T, const K: &'static str> ControlValue<T, K>
+where
+    T: Into<Primitive>,
+{
+    pub fn set(control: &mut Control, value: T) {
+        control.insert(K, value)
+    }
+
+    pub fn apply(self, control: &mut Control) {
+        control.insert(K, self.0)
     }
 }
 
-impl<T: Bounds, const K: &'static str> ControlValue<T, K> {
-    pub fn set(control: &mut Control, value: T) {
-        control.insert(K, value)
+impl<T, const K: &'static str> ControlValue<T, K> {
+    pub fn new(t: T) -> Self {
+        Self(t)
     }
 
     pub fn into_inner(self) -> T {
@@ -100,14 +108,62 @@ impl<T: Bounds, const K: &'static str> ControlValue<T, K> {
     }
 }
 
-impl<T: Bounds, const K: &'static str> ControlValue<T, K>
+impl<T, const K: &'static str> ControlValue<T, K>
 where
+    T: TryFrom<Primitive>,
     <T as TryFrom<Primitive>>::Error: std::fmt::Debug,
 {
     pub fn get(control: &Control) -> T {
         Self::try_from(control).unwrap().into_inner()
     }
 }
+
+impl<T, const K: &'static str> PartialEq for ControlValue<T, K>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T, const K: &'static str> Eq for ControlValue<T, K> where T: PartialEq {}
+
+impl<T, const K: &'static str> Hash for ControlValue<T, K>
+where
+    T: Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<T, const K: &'static str> Display for ControlValue<T, K>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+macro_rules! from_impls {
+    ($control_value:ty, $t:ty) => {
+        impl From<$t> for $control_value {
+            fn from(t: $t) -> Self {
+                Self::new(t.into())
+            }
+        }
+
+        impl From<$control_value> for $t {
+            fn from(value: $control_value) -> Self {
+                value.into_inner().into()
+            }
+        }
+    };
+}
+
+pub(crate) use from_impls;
 
 #[derive(Debug, ThisError)]
 pub enum ControlValueError<E> {

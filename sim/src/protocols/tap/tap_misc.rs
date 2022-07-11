@@ -1,22 +1,12 @@
-use crate::core::{Control, NetworkLayerError, ProtocolId};
+use crate::core::{
+    control::{from_impls, ControlValue},
+    NetworkLayerError, ProtocolId,
+};
 use std::error::Error;
 use thiserror::Error as ThisError;
 
-pub type NetworkIndex = u8;
-
-static NETWORK_INDEX_KEY: &str = "tap_network_index";
-
-pub fn set_network_index(control: &mut Control, index: NetworkIndex) {
-    control.insert(NETWORK_INDEX_KEY, index)
-}
-
-pub fn get_network_index(control: &Control) -> NetworkIndex {
-    control
-        .get(NETWORK_INDEX_KEY)
-        .expect("Missing network index")
-        .to_u8()
-        .expect("Incorrect network index type")
-}
+pub type NetworkIndex = ControlValue<u8, "tap_network_index">;
+from_impls!(NetworkIndex, u8);
 
 #[derive(Debug, ThisError)]
 pub enum TapError {

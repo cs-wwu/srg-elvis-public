@@ -1,4 +1,4 @@
-use super::{Ipv4, Ipv4Address};
+use super::{Ipv4, LocalAddress, RemoteAddress};
 use crate::{
     core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::udp::Udp,
@@ -46,8 +46,8 @@ impl Session for Ipv4Session {
             length as u16,
             30,
             ip_number,
-            self.identifier.local.into(),
-            self.identifier.remote.into(),
+            self.identifier.local.into_inner().into(),
+            self.identifier.remote.into_inner().into(),
         );
         header.header_checksum = header.calc_header_checksum()?;
 
@@ -79,12 +79,6 @@ impl Session for Ipv4Session {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
-    pub local: Ipv4Address,
-    pub remote: Ipv4Address,
-}
-
-impl SessionId {
-    pub fn new(local: Ipv4Address, remote: Ipv4Address) -> Self {
-        Self { local, remote }
-    }
+    pub local: LocalAddress,
+    pub remote: RemoteAddress,
 }

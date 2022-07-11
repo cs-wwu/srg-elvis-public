@@ -1,5 +1,4 @@
 #![feature(adt_const_params)]
-#![feature(trait_alias)]
 
 //! A library for running large-scale simulalations of many computers
 //! communicating over networks.

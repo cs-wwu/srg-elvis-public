@@ -1,7 +1,10 @@
-use super::Udp;
+use super::{
+    udp_misc::{LocalPort, RemotePort},
+    Udp,
+};
 use crate::{
     core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session, SharedSession},
-    protocols::ipv4::Ipv4Address,
+    protocols::ipv4::{LocalAddress, RemoteAddress},
 };
 use etherparse::UdpHeader;
 use std::error::Error;
@@ -25,7 +28,11 @@ impl Session for UdpSession {
         let id = self.identifier;
         let payload_len = message.iter().count();
         // Todo: We want to use the checksum
-        let header = UdpHeader::without_ipv4_checksum(id.local_port, id.remote_port, payload_len)?;
+        let header = UdpHeader::without_ipv4_checksum(
+            id.local_port.into(),
+            id.remote_port.into(),
+            payload_len,
+        )?;
         let mut header_bytes = vec![];
         header.write(&mut header_bytes)?;
         let message = message.with_header(header_bytes);
@@ -53,8 +60,8 @@ impl Session for UdpSession {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
-    pub local_address: Ipv4Address,
-    pub local_port: u16,
-    pub remote_address: Ipv4Address,
-    pub remote_port: u16,
+    pub local_address: LocalAddress,
+    pub local_port: LocalPort,
+    pub remote_address: RemoteAddress,
+    pub remote_port: RemotePort,
 }

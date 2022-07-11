@@ -70,7 +70,7 @@ impl Machine {
 
         let outgoing: HashMap<_, _> = self.tap.borrow_mut().outgoing().into_iter().collect();
         for (i, network) in context.networks().enumerate() {
-            if let Some(messages) = outgoing.get(&(i as u8)) {
+            if let Some(messages) = outgoing.get(&(i as u8).into()) {
                 for message in messages {
                     network
                         .borrow_mut()
