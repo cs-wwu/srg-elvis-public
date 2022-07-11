@@ -1,4 +1,4 @@
-use crate::core::{message::Message, ProtocolContext, ProtocolId, Session};
+use crate::core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session};
 use std::{error::Error, mem};
 
 use super::{tap_misc::NetworkIndex, Tap};
@@ -52,8 +52,8 @@ impl Session for TapSession {
         panic!("Cannot recv on a Tap")
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<(), Box<dyn Error>> {
-        Ok(())
+    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
+        Ok(ControlFlow::Continue)
     }
 }
 

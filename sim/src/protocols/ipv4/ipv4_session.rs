@@ -1,6 +1,6 @@
 use super::{Ipv4, Ipv4Address};
 use crate::{
-    core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
+    core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::udp::Udp,
 };
 use etherparse::{IpNumber, Ipv4Header};
@@ -72,8 +72,8 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<(), Box<dyn Error>> {
-        Ok(())
+    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
+        Ok(ControlFlow::Continue)
     }
 }
 

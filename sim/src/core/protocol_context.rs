@@ -1,4 +1,4 @@
-use super::{protocol::RcProtocol, session::SharedSession, Control, ProtocolId, ProtocolMap};
+use super::{protocol::RcProtocol, Control, ProtocolId, ProtocolMap, SharedSession};
 
 #[derive(Clone)]
 pub struct ProtocolContext {

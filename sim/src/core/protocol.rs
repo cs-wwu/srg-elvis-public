@@ -1,7 +1,5 @@
 use super::{
-    message::Message,
-    session::{ControlFlow, SharedSession},
-    Control, ProtocolContext, ProtocolId,
+    message::Message, session::ControlFlow, Control, ProtocolContext, ProtocolId, SharedSession,
 };
 use std::{cell::RefCell, error::Error, rc::Rc};
 
