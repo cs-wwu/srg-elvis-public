@@ -1,6 +1,6 @@
 use super::{Ipv4, Ipv4Address};
 use crate::{
-    core::{message::Message, ProtocolContext, ProtocolId, RcSession, Session},
+    core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::udp::Udp,
 };
 use etherparse::{IpNumber, Ipv4Header};
@@ -8,12 +8,16 @@ use std::error::Error;
 
 pub struct Ipv4Session {
     upstream: ProtocolId,
-    downstream: RcSession,
+    downstream: SharedSession,
     identifier: SessionId,
 }
 
 impl Ipv4Session {
-    pub(super) fn new(downstream: RcSession, upstream: ProtocolId, identifier: SessionId) -> Self {
+    pub(super) fn new(
+        downstream: SharedSession,
+        upstream: ProtocolId,
+        identifier: SessionId,
+    ) -> Self {
         Self {
             upstream,
             downstream,
@@ -29,7 +33,6 @@ impl Session for Ipv4Session {
 
     fn send(
         &mut self,
-        _self_handle: RcSession,
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -52,15 +55,12 @@ impl Session for Ipv4Session {
         header.write(&mut header_buffer)?;
 
         let message = message.with_header(header_buffer);
-        self.downstream
-            .borrow_mut()
-            .send(self.downstream.clone(), message, context)?;
+        self.downstream.send(message, context)?;
         Ok(())
     }
 
     fn recv(
         &mut self,
-        self_handle: RcSession,
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -68,15 +68,11 @@ impl Session for Ipv4Session {
             .protocol(self.upstream)
             .expect("No such protocol")
             .borrow_mut()
-            .demux(message, self_handle, context)?;
+            .demux(message, context)?;
         Ok(())
     }
 
-    fn awake(
-        &mut self,
-        _self_handle: RcSession,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

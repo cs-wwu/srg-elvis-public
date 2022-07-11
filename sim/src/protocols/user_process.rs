@@ -1,5 +1,5 @@
 use crate::core::{
-    message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId, RcSession,
+    message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId, SharedSession,
 };
 use std::{cell::RefCell, error::Error, rc::Rc};
 
@@ -43,7 +43,7 @@ impl<T: Application> Protocol for UserProcess<T> {
         _upstream: ProtocolId,
         _participants: Control,
         _context: &mut ProtocolContext,
-    ) -> Result<RcSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, Box<dyn Error>> {
         panic!("Cannot active open on a user process")
     }
 
@@ -59,7 +59,6 @@ impl<T: Application> Protocol for UserProcess<T> {
     fn demux(
         &mut self,
         message: Message,
-        _downstream: RcSession,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         self.application.recv(message, context)

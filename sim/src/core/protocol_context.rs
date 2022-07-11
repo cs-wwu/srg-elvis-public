@@ -1,24 +1,22 @@
-use super::{protocol::RcProtocol, Control, ProtocolId, ProtocolMap};
+use super::{protocol::RcProtocol, session::SharedSession, Control, ProtocolId, ProtocolMap};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ProtocolContext {
     protocols: ProtocolMap,
-    info: Control,
+    pub info: Control,
+    pub current_session: Option<SharedSession>,
 }
 
 impl ProtocolContext {
     pub fn new(protocols: ProtocolMap) -> Self {
         Self {
             protocols,
-            info: Control::default(),
+            info: Control::new(),
+            current_session: None,
         }
     }
 
     pub fn protocol(&self, id: ProtocolId) -> Option<RcProtocol> {
         self.protocols.get(&id).cloned()
-    }
-
-    pub fn info(&mut self) -> &mut Control {
-        &mut self.info
     }
 }

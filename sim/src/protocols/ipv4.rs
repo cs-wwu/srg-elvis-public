@@ -1,7 +1,7 @@
 use crate::{
     core::{
         message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
-        ProtocolId, RcSession,
+        ProtocolId, SharedSession,
     },
     protocols::tap::{self, Tap},
 };
@@ -17,9 +17,8 @@ mod ipv4_address;
 pub use ipv4_address::Ipv4Address;
 
 mod ipv4_misc;
-pub use ipv4_misc::{
-    get_local_address, get_remote_address, Ipv4Error, LOCAL_ADDRESS_KEY, REMOTE_ADDRESS_KEY,
-};
+use ipv4_misc::Ipv4Error;
+pub use ipv4_misc::{get_local_address, get_remote_address, LOCAL_ADDRESS_KEY, REMOTE_ADDRESS_KEY};
 
 mod ipv4_session;
 pub use ipv4_session::Ipv4Session;
@@ -28,7 +27,7 @@ use ipv4_session::SessionId;
 #[derive(Default, Clone)]
 pub struct Ipv4 {
     listen_bindings: HashMap<Ipv4Address, ProtocolId>,
-    sessions: HashMap<SessionId, RcSession>,
+    sessions: HashMap<SessionId, SharedSession>,
 }
 
 impl Ipv4 {
@@ -53,7 +52,7 @@ impl Protocol for Ipv4 {
         upstream: ProtocolId,
         mut participants: Control,
         context: &mut ProtocolContext,
-    ) -> Result<RcSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, Box<dyn Error>> {
         let local = get_local_address(&participants);
         let remote = get_remote_address(&participants);
         let key = SessionId::new(local, remote);
@@ -67,7 +66,7 @@ impl Protocol for Ipv4 {
                     .expect("No such protocol")
                     .borrow_mut()
                     .open_active(Self::ID, participants, context)?;
-                let session = Rc::new(RefCell::new(Ipv4Session::new(tap_session, upstream, key)));
+                let session = SharedSession::new(Ipv4Session::new(tap_session, upstream, key));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -99,7 +98,6 @@ impl Protocol for Ipv4 {
     fn demux(
         &mut self,
         message: Message,
-        downstream: RcSession,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // Todo: This is going to kind of scuffed for the time being. Etherparse makes
@@ -113,22 +111,21 @@ impl Protocol for Ipv4 {
         let source = Ipv4Address::new(header.source());
         let destination = Ipv4Address::new(header.destination());
         let identifier = SessionId::new(destination, source);
-        let info = &mut context.info();
-        info.insert(LOCAL_ADDRESS_KEY, destination.to_u32());
-        info.insert(REMOTE_ADDRESS_KEY, source.to_u32());
+        context.info.insert(LOCAL_ADDRESS_KEY, destination.to_u32());
+        context.info.insert(REMOTE_ADDRESS_KEY, source.to_u32());
         let message = message.slice(20..);
-        let session = match self.sessions.entry(identifier) {
+        let mut session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
                 match self.listen_bindings.get(&destination) {
                     Some(&binding) => {
                         // Todo: We want to be zero-copy, but right now it requires copying to
                         // forward the list of participants. Is there any way around this?
-                        let session = Rc::new(RefCell::new(Ipv4Session::new(
-                            downstream.clone(),
+                        let session = SharedSession::new(Ipv4Session::new(
+                            context.current_session.clone().expect("No current session"),
                             binding,
                             identifier,
-                        )));
+                        ));
                         entry.insert(session.clone());
                         session
                     }
@@ -136,9 +133,7 @@ impl Protocol for Ipv4 {
                 }
             }
         };
-        session
-            .borrow_mut()
-            .recv(session.clone(), message, context)?;
+        session.recv(message, context)?;
         Ok(())
     }
 

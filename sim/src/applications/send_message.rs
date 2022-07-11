@@ -43,12 +43,10 @@ impl Application for SendMessage {
             .with(udp::LOCAL_PORT_KEY, 0xdeadu16)
             .with(udp::REMOTE_PORT_KEY, 0xbeefu16);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
-        let session = protocol
+        let mut session = protocol
             .borrow_mut()
             .open_active(Self::ID, participants, context)?;
-        session
-            .borrow_mut()
-            .send(session.clone(), Message::new(self.text), context)?;
+        session.send(Message::new(self.text), context)?;
         Ok(ControlFlow::Continue)
     }
 

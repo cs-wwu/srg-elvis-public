@@ -1,6 +1,6 @@
 use crate::core::{
     message::Message, Control, ControlFlow, Mtu, NetworkLayer, Protocol, ProtocolContext,
-    ProtocolId, RcSession,
+    ProtocolId, SharedSession,
 };
 use std::{
     cell::RefCell,
@@ -68,7 +68,7 @@ impl Tap {
     ) -> Result<(), TapError> {
         let header = take_header(&message).ok_or(TapError::HeaderLength)?;
         let protocol_id: ProtocolId = header.try_into()?;
-        context.info().insert(NETWORK_INDEX_KEY, network);
+        context.info.insert(NETWORK_INDEX_KEY, network);
         let message = message.slice(2..);
         let session_id = SessionId::new(protocol_id, network);
         let session = match self.sessions.entry(session_id) {
@@ -79,10 +79,11 @@ impl Tap {
                 session
             }
         };
+        context.current_session = Some(session.into());
         let protocol = context
             .protocol(protocol_id)
             .ok_or(TapError::NoSuchProtocol(protocol_id))?;
-        protocol.borrow_mut().demux(message, session, context)?;
+        protocol.borrow_mut().demux(message, context)?;
         Ok(())
     }
 }
@@ -97,7 +98,7 @@ impl Protocol for Tap {
         upstream: ProtocolId,
         participants: Control,
         _context: &mut ProtocolContext,
-    ) -> Result<RcSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, Box<dyn Error>> {
         let network = participants
             .get(NETWORK_INDEX_KEY)
             .expect("Missing network index")
@@ -105,11 +106,11 @@ impl Protocol for Tap {
             .expect("Incorrect network index type");
         let session_id = SessionId::new(upstream, network);
         match self.sessions.entry(session_id) {
-            Entry::Occupied(entry) => Ok(entry.get().clone()),
+            Entry::Occupied(entry) => Ok(entry.get().clone().into()),
             Entry::Vacant(entry) => {
                 let session = Rc::new(RefCell::new(TapSession::new(upstream, network)));
                 entry.insert(session.clone());
-                Ok(session)
+                Ok(session.into())
             }
         }
     }
@@ -127,7 +128,6 @@ impl Protocol for Tap {
     fn demux(
         &mut self,
         _message: Message,
-        _downstream: RcSession,
         _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no protocols under

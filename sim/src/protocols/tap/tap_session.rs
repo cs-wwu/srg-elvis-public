@@ -1,4 +1,4 @@
-use crate::core::{message::Message, ProtocolContext, ProtocolId, RcSession, Session};
+use crate::core::{message::Message, ProtocolContext, ProtocolId, Session};
 use std::{error::Error, mem};
 
 use super::{tap_misc::NetworkIndex, Tap};
@@ -35,7 +35,6 @@ impl Session for TapSession {
 
     fn send(
         &mut self,
-        _self_handle: RcSession,
         message: Message,
         _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -47,18 +46,13 @@ impl Session for TapSession {
 
     fn recv(
         &mut self,
-        _self_handle: RcSession,
         _message: Message,
         _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         panic!("Cannot recv on a Tap")
     }
 
-    fn awake(
-        &mut self,
-        _self_handle: RcSession,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

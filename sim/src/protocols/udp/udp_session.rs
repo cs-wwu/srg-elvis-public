@@ -1,33 +1,15 @@
 use super::Udp;
 use crate::{
-    core::{message::Message, ProtocolContext, ProtocolId, RcSession, Session},
+    core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::ipv4::Ipv4Address,
 };
 use etherparse::UdpHeader;
-use std::{cell::RefCell, error::Error, rc::Rc};
+use std::error::Error;
 
 pub struct UdpSession {
-    upstream: ProtocolId,
-    downstream: RcSession,
-    identifier: SessionId,
-}
-
-impl UdpSession {
-    pub(super) fn new(upstream: ProtocolId, downstream: RcSession, identifier: SessionId) -> Self {
-        Self {
-            upstream,
-            downstream,
-            identifier,
-        }
-    }
-
-    pub(super) fn new_shared(
-        upstream: ProtocolId,
-        downstream: RcSession,
-        identifier: SessionId,
-    ) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::new(upstream, downstream, identifier)))
-    }
+    pub(super) upstream: ProtocolId,
+    pub(super) downstream: SharedSession,
+    pub(super) identifier: SessionId,
 }
 
 impl Session for UdpSession {
@@ -37,7 +19,6 @@ impl Session for UdpSession {
 
     fn send(
         &mut self,
-        _self_handle: RcSession,
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -48,15 +29,12 @@ impl Session for UdpSession {
         let mut header_bytes = vec![];
         header.write(&mut header_bytes)?;
         let message = message.with_header(header_bytes);
-        self.downstream
-            .borrow_mut()
-            .send(self.downstream.clone(), message, context)?;
+        self.downstream.send(message, context)?;
         Ok(())
     }
 
     fn recv(
         &mut self,
-        self_handle: RcSession,
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -64,15 +42,11 @@ impl Session for UdpSession {
             .protocol(self.upstream)
             .expect("No such protocol")
             .borrow_mut()
-            .demux(message, self_handle, context)?;
+            .demux(message, context)?;
         Ok(())
     }
 
-    fn awake(
-        &mut self,
-        _self_handle: RcSession,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

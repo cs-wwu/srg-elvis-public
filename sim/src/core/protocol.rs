@@ -1,6 +1,6 @@
 use super::{
     message::Message,
-    session::{ControlFlow, RcSession},
+    session::{ControlFlow, SharedSession},
     Control, ProtocolContext, ProtocolId,
 };
 use std::{cell::RefCell, error::Error, rc::Rc};
@@ -59,7 +59,7 @@ pub trait Protocol {
         upstream: ProtocolId,
         participants: Control,
         context: &mut ProtocolContext,
-    ) -> Result<RcSession, Box<dyn Error>>;
+    ) -> Result<SharedSession, Box<dyn Error>>;
 
     /// Allows a high-level protocol to request that messages for which there is
     /// no existing session be sent to it.
@@ -91,7 +91,6 @@ pub trait Protocol {
     fn demux(
         &mut self,
         message: Message,
-        downstream: RcSession,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
