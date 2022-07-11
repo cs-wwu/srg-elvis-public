@@ -115,7 +115,7 @@ impl Protocol for Ipv4 {
         let destination = Ipv4Address::new(header.destination());
         let identifier = SessionId::new(destination, source);
         LocalAddress::from(destination).set(&mut context.info);
-        LocalAddress::from(source).set(&mut context.info);
+        RemoteAddress::from(source).set(&mut context.info);
         let message = message.slice(20..);
         let mut session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
