@@ -93,7 +93,7 @@ impl Protocol for Tap {
         Self::ID
     }
 
-    fn open_active(
+    fn open(
         &mut self,
         upstream: ProtocolId,
         participants: Control,

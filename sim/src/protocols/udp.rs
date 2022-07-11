@@ -44,7 +44,7 @@ impl Protocol for Udp {
         Self::ID
     }
 
-    fn open_active(
+    fn open(
         &mut self,
         upstream: ProtocolId,
         participants: Control,
@@ -67,7 +67,7 @@ impl Protocol for Udp {
                     .protocol(Ipv4::ID)
                     .expect("No such protocol")
                     .borrow_mut()
-                    .open_active(Self::ID, participants, context)?;
+                    .open(Self::ID, participants, context)?;
                 let session = SharedSession::new(UdpSession {
                     upstream,
                     downstream,

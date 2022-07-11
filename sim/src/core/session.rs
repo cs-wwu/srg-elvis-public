@@ -23,7 +23,7 @@ pub trait Session {
 
     /// Takes an incoming message and decides which protocol to send it to for
     /// further processing.
-    fn recv(
+    fn receive(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,

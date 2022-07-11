@@ -47,7 +47,7 @@ impl Protocol for Ipv4 {
         Self::ID
     }
 
-    fn open_active(
+    fn open(
         &mut self,
         upstream: ProtocolId,
         mut participants: Control,
@@ -65,7 +65,7 @@ impl Protocol for Ipv4 {
                     .protocol(Tap::ID)
                     .expect("No such protocol")
                     .borrow_mut()
-                    .open_active(Self::ID, participants, context)?;
+                    .open(Self::ID, participants, context)?;
                 let session = SharedSession::new(Ipv4Session::new(tap_session, upstream, key));
                 entry.insert(session.clone());
                 Ok(session)

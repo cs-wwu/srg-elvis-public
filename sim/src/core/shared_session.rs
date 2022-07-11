@@ -33,14 +33,14 @@ impl SharedSession {
     }
 
     /// Updates the current session on the context and calls
-    /// [`recv`](Session::recv) on the underlying session.
+    /// [`receive`](Session::receive) on the underlying session.
     pub fn recv(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context.push_session(self.clone());
-        self.session.borrow_mut().recv(message, context)?;
+        self.session.borrow_mut().receive(message, context)?;
         context.pop_session();
         Ok(())
     }

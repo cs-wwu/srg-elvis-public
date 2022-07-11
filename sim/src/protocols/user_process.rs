@@ -38,7 +38,7 @@ impl<T: Application> Protocol for UserProcess<T> {
         T::ID
     }
 
-    fn open_active(
+    fn open(
         &mut self,
         _upstream: ProtocolId,
         _participants: Control,

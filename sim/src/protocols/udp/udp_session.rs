@@ -33,7 +33,7 @@ impl Session for UdpSession {
         Ok(())
     }
 
-    fn recv(
+    fn receive(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,

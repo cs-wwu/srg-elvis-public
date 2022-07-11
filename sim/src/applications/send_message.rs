@@ -45,7 +45,7 @@ impl Application for SendMessage {
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let mut session = protocol
             .borrow_mut()
-            .open_active(Self::ID, participants, context)?;
+            .open(Self::ID, participants, context)?;
         session.send(Message::new(self.text), context)?;
         Ok(ControlFlow::Continue)
     }

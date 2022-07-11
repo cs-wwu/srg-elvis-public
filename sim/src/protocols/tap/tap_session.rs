@@ -44,7 +44,7 @@ impl Session for TapSession {
         Ok(())
     }
 
-    fn recv(
+    fn receive(
         &mut self,
         _message: Message,
         _context: &mut ProtocolContext,

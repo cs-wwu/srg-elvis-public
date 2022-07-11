@@ -59,7 +59,7 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
-    fn recv(
+    fn receive(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,
