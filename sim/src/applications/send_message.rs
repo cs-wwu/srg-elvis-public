@@ -38,8 +38,8 @@ impl Application for SendMessage {
 
         let mut participants = Control::new();
         // Todo: This should be some other IP address
-        LocalAddress::from(Ipv4Address::LOCALHOST).set(&mut participants);
-        RemoteAddress::from(Ipv4Address::LOCALHOST).set(&mut participants);
+        LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
+        RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         set_local_port(&mut participants, 0xdeadu16);
         set_remote_port(&mut participants, 0xbeefu16);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");

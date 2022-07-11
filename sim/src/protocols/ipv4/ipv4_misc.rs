@@ -17,12 +17,6 @@ impl<T: Bounds, const K: &'static str> TryFrom<&Control> for ControlValue<T, K> 
     }
 }
 
-impl<T: Bounds, const K: &'static str> ControlValue<T, K> {
-    pub fn set(self, control: &mut Control) {
-        control.insert(K, self.0)
-    }
-}
-
 impl<T: Bounds, const K: &'static str> From<T> for ControlValue<T, K> {
     fn from(t: T) -> Self {
         Self(t)
@@ -30,6 +24,10 @@ impl<T: Bounds, const K: &'static str> From<T> for ControlValue<T, K> {
 }
 
 impl<T: Bounds, const K: &'static str> ControlValue<T, K> {
+    pub fn set(control: &mut Control, value: T) {
+        control.insert(K, value)
+    }
+
     pub fn into_inner(self) -> T {
         self.0
     }

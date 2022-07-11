@@ -34,8 +34,8 @@ impl Application for Capture {
     fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         if !self.did_set_up {
             let mut participants = Control::new();
-            LocalAddress::from(Ipv4Address::LOCALHOST).set(&mut participants);
-            RemoteAddress::from(Ipv4Address::LOCALHOST).set(&mut participants);
+            LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
+            RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
             set_local_port(&mut participants, 0xbeefu16);
             set_remote_port(&mut participants, 0xdeadu16);
             context
