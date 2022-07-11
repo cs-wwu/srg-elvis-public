@@ -1,7 +1,7 @@
 use crate::{
     core::{message::Message, Control, ControlFlow, NetworkLayer, ProtocolContext, ProtocolId},
     protocols::{
-        ipv4::{set_local_address, set_remote_address, Ipv4Address},
+        ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{set_local_port, set_remote_port, Udp},
         user_process::{Application, UserProcess},
     },
@@ -34,8 +34,8 @@ impl Application for Capture {
     fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         if !self.did_set_up {
             let mut participants = Control::new();
-            set_local_address(&mut participants, Ipv4Address::LOCALHOST);
-            set_remote_address(&mut participants, Ipv4Address::LOCALHOST);
+            LocalAddress::from(Ipv4Address::LOCALHOST).set(&mut participants);
+            RemoteAddress::from(Ipv4Address::LOCALHOST).set(&mut participants);
             set_local_port(&mut participants, 0xbeefu16);
             set_remote_port(&mut participants, 0xdeadu16);
             context

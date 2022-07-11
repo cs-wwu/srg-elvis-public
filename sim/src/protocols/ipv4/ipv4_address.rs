@@ -1,4 +1,6 @@
+use crate::core::control::Primitive;
 use std::fmt::{self, Display};
+use thiserror::Error as ThisError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ipv4Address([u8; 4]);
@@ -51,4 +53,27 @@ impl From<Ipv4Address> for [u8; 4] {
     fn from(address: Ipv4Address) -> Self {
         address.0
     }
+}
+
+impl TryFrom<Primitive> for Ipv4Address {
+    type Error = Ipv4AddressError;
+
+    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+        Ok(value
+            .to_u32()
+            .ok_or(Ipv4AddressError::WrongPrimitive)?
+            .into())
+    }
+}
+
+impl From<Ipv4Address> for Primitive {
+    fn from(address: Ipv4Address) -> Self {
+        Primitive::U32(address.into())
+    }
+}
+
+#[derive(Debug, ThisError)]
+pub enum Ipv4AddressError {
+    #[error("The primitive is the wrong type")]
+    WrongPrimitive,
 }

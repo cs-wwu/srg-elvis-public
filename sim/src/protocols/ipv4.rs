@@ -18,7 +18,7 @@ pub use ipv4_address::Ipv4Address;
 
 mod ipv4_misc;
 use ipv4_misc::Ipv4Error;
-pub use ipv4_misc::{get_local_address, get_remote_address, set_local_address, set_remote_address};
+pub use ipv4_misc::{LocalAddress, RemoteAddress};
 
 mod ipv4_session;
 pub use ipv4_session::Ipv4Session;
@@ -55,8 +55,8 @@ impl Protocol for Ipv4 {
         mut participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let local = get_local_address(&participants);
-        let remote = get_remote_address(&participants);
+        let local = LocalAddress::try_from(&participants).unwrap().into_inner();
+        let remote = RemoteAddress::try_from(&participants).unwrap().into_inner();
         let key = SessionId::new(local, remote);
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
@@ -81,7 +81,7 @@ impl Protocol for Ipv4 {
         participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let local = get_local_address(&participants);
+        let local = LocalAddress::try_from(&participants).unwrap().into_inner();
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => Err(Ipv4Error::BindingExists(local))?,
             Entry::Vacant(entry) => {
@@ -114,8 +114,8 @@ impl Protocol for Ipv4 {
         let source = Ipv4Address::new(header.source());
         let destination = Ipv4Address::new(header.destination());
         let identifier = SessionId::new(destination, source);
-        set_local_address(&mut context.info, destination);
-        set_remote_address(&mut context.info, source);
+        LocalAddress::from(destination).set(&mut context.info);
+        LocalAddress::from(source).set(&mut context.info);
         let message = message.slice(20..);
         let mut session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),

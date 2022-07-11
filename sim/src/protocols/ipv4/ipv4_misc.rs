@@ -1,35 +1,66 @@
 use super::ipv4_address::Ipv4Address;
-use crate::core::Control;
+use crate::core::{control::Primitive, Control};
 use thiserror::Error as ThisError;
 
 static LOCAL_ADDRESS_KEY: &str = "ipv4_local_address";
 static REMOTE_ADDRESS_KEY: &str = "ipv4_remote_address";
 
-pub fn set_local_address(control: &mut Control, address: Ipv4Address) {
-    control.insert(LOCAL_ADDRESS_KEY, address.to_u32())
+pub struct ControlValue<T: TryFrom<Primitive>, const K: &'static str>(T)
+where
+    T: TryFrom<Primitive> + Into<Primitive>;
+
+impl<T, const K: &'static str> TryFrom<&Control> for ControlValue<T, K>
+where
+    T: TryFrom<Primitive> + Into<Primitive>,
+{
+    type Error = ControlValueError<<T as TryFrom<Primitive>>::Error>;
+
+    fn try_from(control: &Control) -> Result<Self, Self::Error> {
+        Ok(Self(T::try_from(
+            control
+                .get(LOCAL_ADDRESS_KEY)
+                .ok_or(ControlValueError::Missing(K))?,
+        )?))
+    }
 }
 
-pub fn get_local_address(control: &Control) -> Ipv4Address {
-    control
-        .get(LOCAL_ADDRESS_KEY)
-        .expect("Missing local address")
-        .to_u32()
-        .expect("Incorrect local address type")
-        .into()
+impl<T, const K: &'static str> ControlValue<T, K>
+where
+    T: TryFrom<Primitive> + Into<Primitive>,
+{
+    pub fn set(&self, control: &mut Control) {
+        control.insert(K, self.0)
+    }
 }
 
-pub fn set_remote_address(control: &mut Control, address: Ipv4Address) {
-    control.insert(REMOTE_ADDRESS_KEY, address.to_u32())
+impl<T, const K: &'static str> ControlValue<T, K>
+where
+    T: TryFrom<Primitive> + Into<Primitive>,
+{
+    pub fn into_inner(self) -> T {
+        self.0
+    }
 }
 
-pub fn get_remote_address(control: &Control) -> Ipv4Address {
-    control
-        .get(REMOTE_ADDRESS_KEY)
-        .expect("Missing remote address")
-        .to_u32()
-        .expect("Incorrect remote address type")
-        .into()
+impl<T, const K: &'static str> From<T> for ControlValue<T, K>
+where
+    T: TryFrom<Primitive> + Into<Primitive>,
+{
+    fn from(t: T) -> Self {
+        Self(t)
+    }
 }
+
+#[derive(Debug, ThisError)]
+pub enum ControlValueError<E> {
+    #[error("Missing control key")]
+    Missing(&'static str),
+    #[error("{0}")]
+    Invalid(#[from] E),
+}
+
+pub type LocalAddress = ControlValue<Ipv4Address, "ipv4_local_address">;
+pub type RemoteAddress = ControlValue<Ipv4Address, "ipv4_remote_address">;
 
 #[derive(Debug, ThisError)]
 pub(super) enum Ipv4Error {

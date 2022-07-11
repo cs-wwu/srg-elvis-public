@@ -1,3 +1,5 @@
+#![feature(adt_const_params)]
+
 //! A library for running large-scale simulalations of many computers
 //! communicating over networks.
 //!
