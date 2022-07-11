@@ -1,8 +1,31 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 use thiserror::Error as ThisError;
 
 mod primitive;
 pub use primitive::Primitive;
+
+#[derive(Debug, Clone, Copy)]
+struct StaticStr(&'static str);
+
+impl From<&'static str> for StaticStr {
+    fn from(s: &'static str) -> Self {
+        Self(s)
+    }
+}
+
+impl Hash for StaticStr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.as_ptr().hash(state);
+    }
+}
+
+impl PartialEq for StaticStr {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_ptr() == other.0.as_ptr()
+    }
+}
+
+impl Eq for StaticStr {}
 
 /// A key-value store with which to exchange data between protocols.
 ///
@@ -11,7 +34,7 @@ pub use primitive::Primitive;
 /// configuration for opening a session. A control facilitates passing such
 /// information.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Control(HashMap<&'static str, Primitive>);
+pub struct Control(HashMap<StaticStr, Primitive>);
 
 impl Control {
     /// Creates a new control.
@@ -37,12 +60,12 @@ impl Control {
     }
 
     fn insert_inner(&mut self, key: &'static str, value: Primitive) {
-        self.0.insert(key, value);
+        self.0.insert(key.into(), value);
     }
 
     /// Gets the value for the given key.
     pub fn get(&self, key: &'static str) -> Option<Primitive> {
-        self.0.get(&key).cloned()
+        self.0.get(&key.into()).cloned()
     }
 }
 
