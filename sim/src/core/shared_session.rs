@@ -12,12 +12,15 @@ pub struct SharedSession {
 }
 
 impl SharedSession {
+    /// Creates a new shared session
     pub fn new(session: impl Session + 'static) -> Self {
         Self {
             session: Rc::new(RefCell::new(session)),
         }
     }
 
+    /// Updates the current session on the context and calls
+    /// [`send`](Session::send) on the underlying session.
     pub fn send(
         &mut self,
         message: Message,
@@ -29,6 +32,8 @@ impl SharedSession {
         Ok(())
     }
 
+    /// Updates the current session on the context and calls
+    /// [`recv`](Session::recv) on the underlying session.
     pub fn recv(
         &mut self,
         message: Message,
@@ -40,6 +45,8 @@ impl SharedSession {
         Ok(())
     }
 
+    /// Updates the current session on the context and calls
+    /// [`awake`](Session::awake) on the underlying session.
     pub fn awake(&mut self, context: &mut ProtocolContext) -> Result<(), Box<dyn Error>> {
         context.push_session(self.clone());
         self.session.borrow_mut().awake(context)?;
