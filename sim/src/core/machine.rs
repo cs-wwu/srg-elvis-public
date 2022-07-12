@@ -6,6 +6,7 @@ use crate::protocols::tap::Tap;
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
+    iter,
     rc::Rc,
 };
 
@@ -25,10 +26,10 @@ pub struct Machine {
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
-    pub fn new(tap: Rc<RefCell<Tap>>, protocols: impl Iterator<Item = RcProtocol>) -> Self {
-        let tap_abstract: RcProtocol = tap.clone();
+    pub fn new(tap: Tap, protocols: impl Iterator<Item = RcProtocol>) -> Self {
+        let tap = Rc::new(RefCell::new(tap));
         let mut map = HashMap::new();
-        for protocol in protocols.chain(std::iter::once(tap_abstract)) {
+        for protocol in protocols.chain(iter::once(tap.clone() as RcProtocol)) {
             let id = protocol.borrow().id();
             match map.entry(id) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),

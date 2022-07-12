@@ -8,14 +8,14 @@ use elvis::{
 pub fn internet() {
     let network = Network::new(vec![0, 1], 1500);
 
-    let sender_tap = Tap::new_shared(vec![network.mtu()]);
+    let sender_tap = Tap::new(vec![network.mtu()]);
     let sender_udp = Udp::new_shared();
     let sender_ip = Ipv4::new_shared();
     let send_message = SendMessage::new_shared("Hello!");
     let sender_protocols: [RcProtocol; 3] = [sender_udp, sender_ip, send_message];
     let sender_machine = Machine::new(sender_tap, sender_protocols.into_iter());
 
-    let receiver_tap = Tap::new_shared(vec![network.mtu()]);
+    let receiver_tap = Tap::new(vec![network.mtu()]);
     let receiver_udp = Udp::new_shared();
     let receiver_ip = Ipv4::new_shared();
     let capture = Capture::new_shared();

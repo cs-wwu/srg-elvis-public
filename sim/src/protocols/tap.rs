@@ -43,10 +43,6 @@ impl Tap {
         }
     }
 
-    pub fn new_shared(network_mtus: Vec<Mtu>) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::new(network_mtus)))
-    }
-
     pub fn outgoing(&mut self) -> Vec<(NetworkIndex, Vec<Message>)> {
         self.sessions
             .values()
