@@ -1,13 +1,15 @@
 use super::ipv4_address::Ipv4Address;
-use crate::core::control::{from_impls, ControlValue};
+use crate::core::control::{from_impls, make_key, ControlValue};
 use thiserror::Error as ThisError;
 
-pub type LocalAddress = ControlValue<Ipv4Address, "ipv4_local_address">;
+make_key!(LocalAddressKey);
+pub type LocalAddress = ControlValue<{ LocalAddressKey::KEY }, Ipv4Address>;
 from_impls!(LocalAddress, Ipv4Address);
 from_impls!(LocalAddress, [u8; 4]);
 from_impls!(LocalAddress, u32);
 
-pub type RemoteAddress = ControlValue<Ipv4Address, "ipv4_remote_address">;
+make_key!(RemoteAddressKey);
+pub type RemoteAddress = ControlValue<{ RemoteAddressKey::KEY }, Ipv4Address>;
 from_impls!(RemoteAddress, Ipv4Address);
 from_impls!(RemoteAddress, [u8; 4]);
 from_impls!(RemoteAddress, u32);

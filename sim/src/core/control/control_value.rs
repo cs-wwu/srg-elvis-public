@@ -12,37 +12,28 @@ use thiserror::Error as ThisError;
 /// `Control`. The first generic parameter is the value type to wrap. The second
 /// generic parameter is a `const` generic that specifies the key to use on the
 /// control.
-///
-/// # Examples
-///
-/// Creating a new control value type for setting a port number on a control:
-///
-/// ```
-/// # use elvis::core::control::ControlValue;
-/// pub type Port = ControlValue<u16, "my_port_key">;
-/// ```
 #[derive(Debug, Clone, Copy)]
-pub struct ControlValue<T, const K: &'static str>(T);
+pub struct ControlValue<const K: u64, V>(V);
 
-impl<T, const K: &'static str> TryFrom<&Control> for ControlValue<T, K>
+impl<const K: u64, V> TryFrom<&Control> for ControlValue<K, V>
 where
-    T: TryFrom<Primitive>,
+    V: TryFrom<Primitive>,
 {
-    type Error = ControlValueError<<T as TryFrom<Primitive>>::Error>;
+    type Error = ControlValueError<<V as TryFrom<Primitive>>::Error>;
 
     fn try_from(control: &Control) -> Result<Self, Self::Error> {
-        Ok(Self(T::try_from(
+        Ok(Self(V::try_from(
             control.get(K).ok_or(ControlValueError::Missing(K))?,
         )?))
     }
 }
 
-impl<T, const K: &'static str> ControlValue<T, K>
+impl<const K: u64, V> ControlValue<K, V>
 where
-    T: Into<Primitive>,
+    V: Into<Primitive>,
 {
     /// Set the given `value` on the `control`
-    pub fn set(control: &mut Control, value: T) {
+    pub fn set(control: &mut Control, value: V) {
         control.insert(K, value)
     }
 
@@ -52,51 +43,51 @@ where
     }
 }
 
-impl<T, const K: &'static str> ControlValue<T, K> {
+impl<const K: u64, V> ControlValue<K, V> {
     /// Create a new control value to wrap the `value`.
-    pub fn new(value: T) -> Self {
+    pub fn new(value: V) -> Self {
         Self(value)
     }
 
     /// Retrieve the wrapped value.
-    pub fn into_inner(self) -> T {
+    pub fn into_inner(self) -> V {
         self.0
     }
 }
 
-impl<T, const K: &'static str> ControlValue<T, K>
+impl<const K: u64, V> ControlValue<K, V>
 where
-    T: TryFrom<Primitive>,
-    <T as TryFrom<Primitive>>::Error: std::fmt::Debug,
+    V: TryFrom<Primitive>,
+    <V as TryFrom<Primitive>>::Error: std::fmt::Debug,
 {
-    pub fn get(control: &Control) -> T {
+    pub fn get(control: &Control) -> V {
         Self::try_from(control).unwrap().into_inner()
     }
 }
 
-impl<T, const K: &'static str> PartialEq for ControlValue<T, K>
+impl<const K: u64, V> PartialEq for ControlValue<K, V>
 where
-    T: PartialEq,
+    V: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<T, const K: &'static str> Eq for ControlValue<T, K> where T: PartialEq {}
+impl<const K: u64, V> Eq for ControlValue<K, V> where V: PartialEq {}
 
-impl<T, const K: &'static str> Hash for ControlValue<T, K>
+impl<const K: u64, V> Hash for ControlValue<K, V>
 where
-    T: Hash,
+    V: Hash,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<T, const K: &'static str> Display for ControlValue<T, K>
+impl<const K: u64, V> Display for ControlValue<K, V>
 where
-    T: Display,
+    V: Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -129,13 +120,23 @@ macro_rules! from_impls {
     };
 }
 
-pub(crate) use from_impls;
+macro_rules! make_key {
+    ($key:ident) => {
+        struct $key;
+
+        impl $key {
+            pub const KEY: u64 = std::intrinsics::type_id::<Self>();
+        }
+    };
+}
+
+pub(crate) use {from_impls, make_key};
 
 /// An error occuring as a result of some operation on a [`ControlValue`].
 #[derive(Debug, ThisError)]
 pub enum ControlValueError<E> {
     #[error("Missing control key")]
-    Missing(&'static str),
+    Missing(u64),
     #[error("{0}")]
     Invalid(#[from] E),
 }

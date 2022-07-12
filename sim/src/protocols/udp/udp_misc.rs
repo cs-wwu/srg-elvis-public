@@ -1,9 +1,12 @@
-use crate::core::control::{from_impls, ControlValue};
+use crate::core::control::{from_impls, make_key, ControlValue};
 use thiserror::Error as ThisError;
 
-pub type LocalPort = ControlValue<u16, "udp_local_port">;
+make_key!(LocalPortKey);
+pub type LocalPort = ControlValue<{ LocalPortKey::KEY }, u16>;
 from_impls!(LocalPort, u16);
-pub type RemotePort = ControlValue<u16, "udp_remote_port">;
+
+make_key!(RemotePortKey);
+pub type RemotePort = ControlValue<{ RemotePortKey::KEY }, u16>;
 from_impls!(RemotePort, u16);
 
 #[derive(Debug, ThisError)]

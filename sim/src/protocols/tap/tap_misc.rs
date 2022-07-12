@@ -1,11 +1,12 @@
 use crate::core::{
-    control::{from_impls, ControlValue},
+    control::{from_impls, make_key, ControlValue},
     ProtocolId,
 };
 use std::error::Error;
 use thiserror::Error as ThisError;
 
-pub type NetworkIndex = ControlValue<u8, "tap_network_index">;
+make_key!(NetworkIndexKey);
+pub type NetworkIndex = ControlValue<{ NetworkIndexKey::KEY }, u8>;
 from_impls!(NetworkIndex, u8);
 
 #[derive(Debug, ThisError)]
