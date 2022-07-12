@@ -1,31 +1,14 @@
-use std::{collections::HashMap, fmt, fmt::Display, hash::Hash};
-use thiserror::Error as ThisError;
+use std::collections::HashMap;
 
 mod primitive;
 pub use primitive::{Primitive, PrimitiveError, PrimitiveKind};
 
-#[derive(Debug, Clone, Copy)]
-struct StaticStr(&'static str);
+mod static_str;
+use static_str::StaticStr;
 
-impl From<&'static str> for StaticStr {
-    fn from(s: &'static str) -> Self {
-        Self(s)
-    }
-}
-
-impl Hash for StaticStr {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.as_ptr().hash(state);
-    }
-}
-
-impl PartialEq for StaticStr {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.as_ptr() == other.0.as_ptr()
-    }
-}
-
-impl Eq for StaticStr {}
+mod control_value;
+pub(crate) use control_value::from_impls;
+pub use control_value::{ControlValue, ControlValueError};
 
 /// A key-value store with which to exchange data between protocols.
 ///
@@ -67,108 +50,4 @@ impl Control {
     pub fn get(&self, key: &'static str) -> Option<Primitive> {
         self.0.get(&key.into()).cloned()
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ControlValue<T, const K: &'static str>(T);
-
-impl<T, const K: &'static str> TryFrom<&Control> for ControlValue<T, K>
-where
-    T: TryFrom<Primitive>,
-{
-    type Error = ControlValueError<<T as TryFrom<Primitive>>::Error>;
-
-    fn try_from(control: &Control) -> Result<Self, Self::Error> {
-        Ok(Self(T::try_from(
-            control.get(K).ok_or(ControlValueError::Missing(K))?,
-        )?))
-    }
-}
-
-impl<T, const K: &'static str> ControlValue<T, K>
-where
-    T: Into<Primitive>,
-{
-    pub fn set(control: &mut Control, value: T) {
-        control.insert(K, value)
-    }
-
-    pub fn apply(self, control: &mut Control) {
-        control.insert(K, self.0)
-    }
-}
-
-impl<T, const K: &'static str> ControlValue<T, K> {
-    pub fn new(t: T) -> Self {
-        Self(t)
-    }
-
-    pub fn into_inner(self) -> T {
-        self.0
-    }
-}
-
-impl<T, const K: &'static str> ControlValue<T, K>
-where
-    T: TryFrom<Primitive>,
-    <T as TryFrom<Primitive>>::Error: std::fmt::Debug,
-{
-    pub fn get(control: &Control) -> T {
-        Self::try_from(control).unwrap().into_inner()
-    }
-}
-
-impl<T, const K: &'static str> PartialEq for ControlValue<T, K>
-where
-    T: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T, const K: &'static str> Eq for ControlValue<T, K> where T: PartialEq {}
-
-impl<T, const K: &'static str> Hash for ControlValue<T, K>
-where
-    T: Hash,
-{
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
-    }
-}
-
-impl<T, const K: &'static str> Display for ControlValue<T, K>
-where
-    T: Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-macro_rules! from_impls {
-    ($control_value:ty, $t:ty) => {
-        impl From<$t> for $control_value {
-            fn from(t: $t) -> Self {
-                Self::new(t.into())
-            }
-        }
-
-        impl From<$control_value> for $t {
-            fn from(value: $control_value) -> Self {
-                value.into_inner().into()
-            }
-        }
-    };
-}
-
-pub(crate) use from_impls;
-
-#[derive(Debug, ThisError)]
-pub enum ControlValueError<E> {
-    #[error("Missing control key")]
-    Missing(&'static str),
-    #[error("{0}")]
-    Invalid(#[from] E),
 }
