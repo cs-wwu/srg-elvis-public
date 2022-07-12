@@ -1,6 +1,7 @@
 use super::{message::Message, network::Mac, ControlFlow, Machine, Network};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+/// The top-level container that controls the simulation.
 pub struct Internet {
     machines: Vec<Machine>,
     /// Contains a mapping from a machine index to network indices
@@ -9,6 +10,8 @@ pub struct Internet {
 }
 
 impl Internet {
+    /// Creates a new internet simulation with the given `machines` and
+    /// `networks`
     pub fn new(machines: Vec<Machine>, networks: Vec<Network>) -> Self {
         let networks_for_machine: HashMap<_, _> = (0..machines.len())
             .map(|machine_index| {
@@ -43,6 +46,7 @@ impl Internet {
         }
     }
 
+    /// Runs the simulation.
     pub fn run(&mut self) {
         'outer: loop {
             for (mac, machine) in self.machines.iter_mut().enumerate() {
@@ -60,6 +64,11 @@ impl Internet {
     }
 }
 
+/// A context object to facilitate awaking [`Machine`]s.
+///
+/// Provides the currently executing machine access to information about its
+/// execution environment, such as which networks it is connected to or its
+/// pending messages.
 pub struct MachineContext {
     mac: Mac,
     /// Contains a mapping from a machine index to network indices
@@ -68,6 +77,8 @@ pub struct MachineContext {
 }
 
 impl MachineContext {
+    /// Returns an iterator over the networks reachable by the currently
+    /// executing [`Machine`].
     pub fn networks(&self) -> impl Iterator<Item = Rc<RefCell<Network>>> {
         NetworksIterator {
             current: 0,
@@ -76,6 +87,8 @@ impl MachineContext {
         }
     }
 
+    /// Returns a list of the messages queued for delivery to the currently
+    /// executing machine from all of its connected networks.
     pub fn pending(&self) -> Vec<Message> {
         let mut networks = self.networks();
         let mut messages = if let Some(network) = networks.next() {
@@ -92,6 +105,7 @@ impl MachineContext {
     }
 }
 
+/// An iterator over networks neighboring the currently executing [`Machine`].
 struct NetworksIterator {
     current: usize,
     networks_for_machine: Rc<Vec<usize>>,
