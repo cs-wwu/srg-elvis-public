@@ -1,4 +1,4 @@
-use super::{Message, ProtocolContext, ProtocolId};
+use super::{Message, ProtocolContext};
 use std::error::Error;
 
 /// Holds the state for a particular connection.
@@ -10,9 +10,6 @@ use std::error::Error;
 /// to use for demuxing incoming messages, and keeping track of state such as
 /// TCP windows.
 pub trait Session {
-    /// Returns the ID of the protocol that creates and manages this session.
-    fn protocol(&self) -> ProtocolId;
-
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
     fn send(

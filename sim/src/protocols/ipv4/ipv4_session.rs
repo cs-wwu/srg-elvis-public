@@ -1,4 +1,4 @@
-use super::{Ipv4, LocalAddress, RemoteAddress};
+use super::{LocalAddress, RemoteAddress};
 use crate::{
     core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::udp::Udp,
@@ -27,10 +27,6 @@ impl Ipv4Session {
 }
 
 impl Session for Ipv4Session {
-    fn protocol(&self) -> ProtocolId {
-        Ipv4::ID
-    }
-
     fn send(
         &mut self,
         message: Message,

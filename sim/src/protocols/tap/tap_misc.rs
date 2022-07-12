@@ -1,6 +1,6 @@
 use crate::core::{
     control::{from_impls, ControlValue},
-    NetworkLayerError, ProtocolId,
+    ProtocolId,
 };
 use std::error::Error;
 use thiserror::Error as ThisError;
@@ -12,8 +12,6 @@ from_impls!(NetworkIndex, u8);
 pub enum TapError {
     #[error("Expected two bytes for the header")]
     HeaderLength,
-    #[error("The header did not represent a valid protocol ID: {0}")]
-    InvalidProtocolId(#[from] NetworkLayerError),
     #[error("Could not find a protocol for the protocol ID: {0:?}")]
     NoSuchProtocol(ProtocolId),
     #[error("{0}")]

@@ -1,7 +1,4 @@
-use super::{
-    udp_misc::{LocalPort, RemotePort},
-    Udp,
-};
+use super::udp_misc::{LocalPort, RemotePort};
 use crate::{
     core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::ipv4::{LocalAddress, RemoteAddress},
@@ -16,10 +13,6 @@ pub struct UdpSession {
 }
 
 impl Session for UdpSession {
-    fn protocol(&self) -> ProtocolId {
-        Udp::ID
-    }
-
     fn send(
         &mut self,
         message: Message,

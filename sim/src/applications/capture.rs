@@ -1,5 +1,5 @@
 use crate::{
-    core::{message::Message, Control, ControlFlow, NetworkLayer, ProtocolContext, ProtocolId},
+    core::{message::Message, Control, ControlFlow, ProtocolContext, ProtocolId},
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort, Udp},
@@ -34,7 +34,7 @@ impl Capture {
 }
 
 impl Application for Capture {
-    const ID: ProtocolId = ProtocolId::new(NetworkLayer::User, 0);
+    const ID: ProtocolId = ProtocolId::of::<Self>();
 
     fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         if !self.did_set_up {

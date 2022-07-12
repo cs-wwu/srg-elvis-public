@@ -1,4 +1,6 @@
 #![feature(adt_const_params)]
+#![feature(core_intrinsics)]
+#![feature(const_type_id)]
 
 //! A library for running large-scale simulalations of many computers
 //! communicating over networks.

@@ -1,7 +1,7 @@
 use crate::{
     core::{
-        message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
-        ProtocolId, SharedSession,
+        message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId,
+        SharedSession,
     },
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
 };
@@ -28,7 +28,7 @@ pub struct Udp {
 }
 
 impl Udp {
-    pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Transport, 17);
+    pub const ID: ProtocolId = ProtocolId::of::<Self>();
 
     pub fn new() -> Self {
         Default::default()

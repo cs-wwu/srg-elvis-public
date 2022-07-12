@@ -1,7 +1,31 @@
-use super::{
-    message::Message, session::ControlFlow, Control, ProtocolContext, ProtocolId, SharedSession,
-};
+use super::{message::Message, session::ControlFlow, Control, ProtocolContext, SharedSession};
 use std::{cell::RefCell, error::Error, rc::Rc};
+
+/// A unique identifier for a [`Protocol`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProtocolId(u64);
+
+impl ProtocolId {
+    pub const fn of<T: 'static>() -> Self {
+        Self(std::intrinsics::type_id::<T>())
+    }
+
+    pub fn into_inner(self) -> u64 {
+        self.0
+    }
+}
+
+impl From<u64> for ProtocolId {
+    fn from(n: u64) -> Self {
+        Self(n)
+    }
+}
+
+impl From<ProtocolId> for u64 {
+    fn from(id: ProtocolId) -> Self {
+        id.0
+    }
+}
 
 /// A shared handle to a [`Protocol`].
 pub type RcProtocol = Rc<RefCell<dyn Protocol>>;

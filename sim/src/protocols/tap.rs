@@ -1,6 +1,6 @@
 use crate::core::{
-    message::Message, Control, ControlFlow, Mtu, NetworkLayer, Protocol, ProtocolContext,
-    ProtocolId, SharedSession,
+    message::Message, Control, ControlFlow, Mtu, Protocol, ProtocolContext, ProtocolId,
+    SharedSession,
 };
 use std::{
     cell::RefCell,
@@ -31,8 +31,7 @@ pub struct Tap {
 }
 
 impl Tap {
-    /// The unique identifier for this protocol
-    pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Link, 0);
+    pub const ID: ProtocolId = ProtocolId::of::<Self>();
 
     // Todo: We're going to want to use this parameter to initialize
     // network_mtus on the struct when we get around to it
@@ -60,14 +59,13 @@ impl Tap {
         context: &mut ProtocolContext,
     ) -> Result<(), TapError> {
         let header = take_header(&message).ok_or(TapError::HeaderLength)?;
-        let protocol_id: ProtocolId = header.try_into()?;
         NetworkIndex::set(&mut context.info, network);
-        let message = message.slice(2..);
-        let session_id = SessionId::new(protocol_id, network.into());
+        let message = message.slice(8..);
+        let session_id = SessionId::new(header, network.into());
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
-                let session = Rc::new(RefCell::new(TapSession::new(protocol_id, network.into())));
+                let session = Rc::new(RefCell::new(TapSession::new(header, network.into())));
                 entry.insert(session.clone());
                 session
             }
@@ -129,7 +127,19 @@ impl Protocol for Tap {
     }
 }
 
-fn take_header(message: &Message) -> Option<[u8; 2]> {
+fn take_header(message: &Message) -> Option<ProtocolId> {
     let mut iter = message.iter();
-    Some([iter.next()?, iter.next()?])
+    Some(
+        u64::from_be_bytes([
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+        ])
+        .into(),
+    )
 }

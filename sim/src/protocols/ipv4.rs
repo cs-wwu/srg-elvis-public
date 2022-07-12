@@ -1,7 +1,7 @@
 use crate::{
     core::{
-        message::Message, Control, ControlFlow, NetworkLayer, Protocol, ProtocolContext,
-        ProtocolId, SharedSession,
+        message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId,
+        SharedSession,
     },
     protocols::tap::Tap,
 };
@@ -33,7 +33,7 @@ pub struct Ipv4 {
 }
 
 impl Ipv4 {
-    pub const ID: ProtocolId = ProtocolId::new(NetworkLayer::Network, 4);
+    pub const ID: ProtocolId = ProtocolId::of::<Self>();
 
     pub fn new() -> Self {
         Default::default()

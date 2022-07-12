@@ -1,7 +1,6 @@
+use super::{tap_misc::TapError, NetworkIndex};
 use crate::core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session};
 use std::{error::Error, mem};
-
-use super::{tap_misc::TapError, NetworkIndex, Tap};
 
 #[derive(Clone)]
 pub struct TapSession {
@@ -29,17 +28,12 @@ impl TapSession {
 }
 
 impl Session for TapSession {
-    fn protocol(&self) -> ProtocolId {
-        Tap::ID
-    }
-
     fn send(
         &mut self,
         message: Message,
         _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let header: [u8; 2] = self.upstream.into();
-        let message = message.with_header(&header);
+        let message = message.with_header(&self.upstream.into_inner().to_be_bytes());
         self.outgoing.push(message);
         Ok(())
     }

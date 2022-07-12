@@ -18,10 +18,10 @@
 //! session would contain information about the window, the state of the
 //! connection, and the stream of bytes to send. Sessions are created by the
 //! protocol either in response to a program opening a connection or a new
-//! connection being opened for a listening server program. In addition
-//! to creating new sessions, protocols also route incoming packets to the
-//! correct sessions. A [`Machine`] bundles a collection of protocols and
-//! facilitates their coordination.
+//! connection being opened for a listening server program. In addition to
+//! creating new sessions, protocols also route incoming packets to the correct
+//! sessions. A [`Machine`] bundles a collection of protocols and facilitates
+//! their coordination.
 //!
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
@@ -38,7 +38,7 @@ pub mod message;
 pub use message::Message;
 
 mod protocol;
-pub use protocol::{Protocol, RcProtocol};
+pub use protocol::{Protocol, ProtocolId, RcProtocol};
 
 mod shared_session;
 pub use shared_session::SharedSession;
@@ -57,6 +57,3 @@ pub use machine::*;
 
 mod network;
 pub use network::*;
-
-mod protocol_id;
-pub use protocol_id::*;
