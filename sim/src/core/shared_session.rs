@@ -34,7 +34,7 @@ impl SharedSession {
 
     /// Updates the current session on the context and calls
     /// [`receive`](Session::receive) on the underlying session.
-    pub fn recv(
+    pub fn receive(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,

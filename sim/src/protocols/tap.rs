@@ -72,11 +72,8 @@ impl Tap {
                 session
             }
         };
-        context.push_session(session.into());
-        let protocol = context
-            .protocol(protocol_id)
-            .ok_or(TapError::NoSuchProtocol(protocol_id))?;
-        protocol.borrow_mut().demux(message, context)?;
+        let mut session = SharedSession::from(session);
+        session.receive(message, context)?;
         Ok(())
     }
 }

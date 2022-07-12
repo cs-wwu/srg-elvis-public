@@ -137,7 +137,7 @@ impl Protocol for Ipv4 {
                 }
             }
         };
-        session.recv(message, context)?;
+        session.receive(message, context)?;
         Ok(())
     }
 

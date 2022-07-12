@@ -1,7 +1,7 @@
 use crate::core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session};
 use std::{error::Error, mem};
 
-use super::{NetworkIndex, Tap};
+use super::{tap_misc::TapError, NetworkIndex, Tap};
 
 #[derive(Clone)]
 pub struct TapSession {
@@ -46,10 +46,14 @@ impl Session for TapSession {
 
     fn receive(
         &mut self,
-        _message: Message,
-        _context: &mut ProtocolContext,
+        message: Message,
+        context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        panic!("Cannot recv on a Tap")
+        let protocol = context
+            .protocol(self.upstream)
+            .ok_or(TapError::NoSuchProtocol(self.upstream))?;
+        let mut protocol = protocol.borrow_mut();
+        protocol.demux(message, context)
     }
 
     fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {

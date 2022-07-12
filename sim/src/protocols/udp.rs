@@ -142,7 +142,7 @@ impl Protocol for Udp {
                 }
             }
         };
-        session.recv(message, context)?;
+        session.receive(message, context)?;
         Ok(())
     }
 
