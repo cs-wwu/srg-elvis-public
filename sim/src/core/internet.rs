@@ -1,4 +1,4 @@
-use super::{message::Message, network::Mac, ControlFlow, Machine, Network};
+use super::{message::Message, ControlFlow, Machine, MachineId, Network};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 /// The top-level container that controls the simulation.
@@ -70,7 +70,7 @@ impl Internet {
 /// execution environment, such as which networks it is connected to or its
 /// pending messages.
 pub struct MachineContext {
-    mac: Mac,
+    mac: MachineId,
     /// Contains a mapping from a machine index to network indices
     networks_for_machine: Rc<Vec<usize>>,
     networks: Rc<Vec<Rc<RefCell<Network>>>>,

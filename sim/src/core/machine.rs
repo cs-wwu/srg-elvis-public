@@ -10,6 +10,9 @@ use std::{
     rc::Rc,
 };
 
+/// An identifier for a particular [`Machine`] in the simulation.
+pub type MachineId = usize;
+
 pub(super) type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
 
 /// A networked computer in the simultation.
