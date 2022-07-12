@@ -50,15 +50,11 @@ impl Protocol for Udp {
         participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let local_port = LocalPort::try_from(&participants).unwrap();
-        let remote_port = RemotePort::try_from(&participants).unwrap();
-        let local_address = LocalAddress::try_from(&participants).unwrap();
-        let remote_address = RemoteAddress::try_from(&participants).unwrap();
         let identifier = SessionId {
-            local_address,
-            local_port,
-            remote_address,
-            remote_port,
+            local_port: LocalPort::try_from(&participants).unwrap(),
+            remote_port: RemotePort::try_from(&participants).unwrap(),
+            local_address: LocalAddress::try_from(&participants).unwrap(),
+            remote_address: RemoteAddress::try_from(&participants).unwrap(),
         };
         match self.sessions.entry(identifier) {
             Entry::Occupied(_) => Err(UdpError::SessionExists)?,
@@ -85,9 +81,10 @@ impl Protocol for Udp {
         participants: Control,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let port = LocalPort::try_from(&participants).unwrap();
-        let address = LocalAddress::try_from(&participants).unwrap();
-        let identifier = ListenId { address, port };
+        let identifier = ListenId {
+            port: LocalPort::try_from(&participants).unwrap(),
+            address: LocalAddress::try_from(&participants).unwrap(),
+        };
         self.listen_bindings.insert(identifier, upstream);
 
         context
