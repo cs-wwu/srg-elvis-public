@@ -1,3 +1,6 @@
+//! Basic user-level applications for utilities, logging, debugging, and other
+//! general purposes.
+
 mod capture;
 mod send_message;
 
