@@ -1,3 +1,6 @@
+//! An implementation of [Internet Protocol version
+//! 4](https://datatracker.ietf.org/doc/html/rfc791).
+
 use crate::{
     core::{
         message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId,
@@ -21,11 +24,11 @@ use ipv4_misc::Ipv4Error;
 pub use ipv4_misc::{LocalAddress, RemoteAddress};
 
 mod ipv4_session;
-pub use ipv4_session::Ipv4Session;
-use ipv4_session::SessionId;
+use ipv4_session::{Ipv4Session, SessionId};
 
 use super::tap::NetworkIndex;
 
+/// An implementation of the Internet Protocol.
 #[derive(Default, Clone)]
 pub struct Ipv4 {
     listen_bindings: HashMap<LocalAddress, ProtocolId>,
@@ -33,12 +36,15 @@ pub struct Ipv4 {
 }
 
 impl Ipv4 {
+    /// A unique identifier for the protocol.
     pub const ID: ProtocolId = ProtocolId::of::<Self>();
 
+    /// Creates a new instance of the protocol.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Creates a new shared handle to an instance of the protocol.
     pub fn new_shared() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self::new()))
     }

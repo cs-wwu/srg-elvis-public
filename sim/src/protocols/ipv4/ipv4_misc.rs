@@ -3,12 +3,14 @@ use crate::core::control::{from_impls, make_key, ControlValue};
 use thiserror::Error as ThisError;
 
 make_key!(LocalAddressKey);
+/// A [`ControlValue`] for the local IPv4 address.
 pub type LocalAddress = ControlValue<{ LocalAddressKey::KEY }, Ipv4Address>;
 from_impls!(LocalAddress, Ipv4Address);
 from_impls!(LocalAddress, [u8; 4]);
 from_impls!(LocalAddress, u32);
 
 make_key!(RemoteAddressKey);
+/// A [`ControlValue`] for the remote IPv4 address.
 pub type RemoteAddress = ControlValue<{ RemoteAddressKey::KEY }, Ipv4Address>;
 from_impls!(RemoteAddress, Ipv4Address);
 from_impls!(RemoteAddress, [u8; 4]);

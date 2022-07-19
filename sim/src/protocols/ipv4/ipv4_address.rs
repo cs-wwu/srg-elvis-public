@@ -1,23 +1,35 @@
 use crate::core::control::{Primitive, PrimitiveError};
 use std::fmt::{self, Display};
 
+/// Represents an address used by the [`Ipv4`](super::Ipv4) protocol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ipv4Address([u8; 4]);
 
 impl Ipv4Address {
+    /// The address `0.0.0.0`.
     pub const CURRENT_NETWORK: Self = Self([0u8, 0, 0, 0]);
+
+    /// The address `10.0.0.0`.
     pub const PRIVATE_NETWORK: Self = Self([10u8, 0, 0, 0]);
+
+    /// The address `127.0.0.1`.
     pub const LOCALHOST: Self = Self([127u8, 0, 0, 1]);
+
+    /// The address `255.255.255.255`.
     pub const SUBNET: Self = Self([255u8, 255, 255, 255]);
 
+    /// Creates a new address. The number can be provided as a `[u8; 4]` or a
+    /// `u32`.
     pub fn new(address: impl Into<Self>) -> Self {
         address.into()
     }
 
+    /// Gets the address as a `u32`.
     pub fn to_u32(self) -> u32 {
         self.into()
     }
 
+    /// Gets the address as a `[u8; 4]`.
     pub fn to_bytes(self) -> [u8; 4] {
         self.into()
     }
