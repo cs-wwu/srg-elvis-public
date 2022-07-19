@@ -6,10 +6,10 @@ use crate::{
 use etherparse::UdpHeader;
 use std::error::Error;
 
-pub struct UdpSession {
-    pub(super) upstream: ProtocolId,
-    pub(super) downstream: SharedSession,
-    pub(super) identifier: SessionId,
+pub(super) struct UdpSession {
+    pub upstream: ProtocolId,
+    pub downstream: SharedSession,
+    pub identifier: SessionId,
 }
 
 impl Session for UdpSession {

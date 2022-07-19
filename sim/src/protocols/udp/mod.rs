@@ -1,3 +1,6 @@
+//! An implementation of the [User Datagram
+//! Protocol](https://www.ietf.org/rfc/rfc768.txt).
+
 use crate::{
     core::{
         message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId,
@@ -14,13 +17,13 @@ use std::{
 };
 
 mod udp_misc;
-pub use udp_misc::{LocalPort, RemotePort, UdpError};
+use udp_misc::UdpError;
+pub use udp_misc::{LocalPort, RemotePort};
 
 mod udp_session;
-pub use udp_session::UdpSession;
+use udp_session::{SessionId, UdpSession};
 
-use self::udp_session::SessionId;
-
+/// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
     listen_bindings: HashMap<ListenId, ProtocolId>,
@@ -28,12 +31,15 @@ pub struct Udp {
 }
 
 impl Udp {
+    /// A unique identifier for the protocol.
     pub const ID: ProtocolId = ProtocolId::of::<Self>();
 
+    /// Creates a new instance of the protocol.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Creates a new shared handle to an instance of the protocol.
     pub fn new_shared() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self::new()))
     }

@@ -5,13 +5,18 @@ use std::{
 };
 use thiserror::Error as ThisError;
 
-/// Simplifies the creation of interfaces for [`Control`].
+/// Provides an interface for setting particular keys on a [`Control`].
 ///
-/// A control value wraps a type that can be converted to and from a
-/// [`Primitive`] and provides functions to get and set that value to a
-/// `Control`. The first generic parameter is the value type to wrap. The second
-/// generic parameter is a `const` generic that specifies the key to use on the
-/// control.
+/// In particular, protocols can expose monomorphized control values that act as
+/// getters and setters for particular properties on a `Control` such that the
+/// correct key and type are correctly adhered to by users. For example, a UDP
+/// implementation would provide control values for local and remote port
+/// numbers so that upstream and downstream protocols can exchange that
+/// information in a consistent way. A control value wraps a type that can be
+/// converted to and from a [`Primitive`] and provides functions to get and set
+/// that value on a `Control`. The first generic parameter is the value type to
+/// wrap. The second generic parameter is a `const` generic that specifies the
+/// key to use on that control.
 #[derive(Debug, Clone, Copy)]
 pub struct ControlValue<const K: u64, V>(V);
 

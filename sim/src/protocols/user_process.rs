@@ -1,3 +1,6 @@
+//! Utilities for running user-level programs in the context of a
+//! protocol-oriented simulation.
+
 use crate::core::{
     message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId, SharedSession,
 };
