@@ -1,3 +1,5 @@
+//! The base-level protocol that communicates directly with networks.
+
 use crate::core::{
     message::Message, Control, ControlFlow, Mtu, Protocol, ProtocolContext, ProtocolId,
     SharedSession,
@@ -13,16 +15,18 @@ mod tap_misc;
 pub use tap_misc::NetworkIndex;
 
 mod tap_session;
-pub use tap_session::TapSession;
+use tap_session::TapSession;
 
 use self::{tap_misc::TapError, tap_session::SessionId};
 
 /// Represents something akin to an Ethernet tap or a network interface card.
-/// This should be the first responder to messages coming in off the network. It
-/// is simply there to specify which protocol should respond to a raw message
-/// coming off the network, for example IPv4 or IPv6. The header is very simple,
-/// adding only a u32 that specifies the `ProtocolId` of the protocol that
-/// should receive the message.
+///
+/// A tap sits at the bottom of a protocol stack and should be the first
+/// responder to messages coming in off the network. It is simply there to
+/// specify which protocol should respond to a raw message coming off the
+/// network, for example IPv4 or IPv6. The header is very simple, adding only a
+/// u32 that specifies the `ProtocolId` of the protocol that should receive the
+/// message.
 pub struct Tap {
     // Todo: Add an interface for accessing the MTUs
     #[allow(dead_code)]
@@ -31,10 +35,10 @@ pub struct Tap {
 }
 
 impl Tap {
+    /// A unique identifier for the protocol.
     pub const ID: ProtocolId = ProtocolId::of::<Self>();
 
-    // Todo: We're going to want to use this parameter to initialize
-    // network_mtus on the struct when we get around to it
+    /// Creates a new network tap.
     pub fn new(network_mtus: Vec<Mtu>) -> Self {
         Self {
             network_mtus,
@@ -42,6 +46,8 @@ impl Tap {
         }
     }
 
+    /// Gets a list of the pending, outgoing messages that have been sent on the
+    /// tap.
     pub fn outgoing(&mut self) -> Vec<(NetworkIndex, Vec<Message>)> {
         self.sessions
             .values()
@@ -52,6 +58,9 @@ impl Tap {
             .collect()
     }
 
+    /// Delivers a message to the network for delivery up the protocol stack.
+    /// The tap will demux the message and forward it to the appropriate
+    /// protocol.
     pub fn accept_incoming(
         &mut self,
         message: Message,
@@ -129,17 +138,5 @@ impl Protocol for Tap {
 
 fn take_header(message: &Message) -> Option<ProtocolId> {
     let mut iter = message.iter();
-    Some(
-        u64::from_be_bytes([
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-        ])
-        .into(),
-    )
+    Some(u64::from_be_bytes([iter.next()?; 8]).into())
 }

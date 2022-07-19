@@ -6,6 +6,8 @@ use std::error::Error;
 use thiserror::Error as ThisError;
 
 make_key!(NetworkIndexKey);
+/// A [`ControlValue`] for which network to send on or which a message was
+/// received from.
 pub type NetworkIndex = ControlValue<{ NetworkIndexKey::KEY }, u8>;
 from_impls!(NetworkIndex, u8);
 
