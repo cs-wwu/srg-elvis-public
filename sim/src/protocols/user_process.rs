@@ -3,11 +3,22 @@ use crate::core::{
 };
 use std::{cell::RefCell, error::Error, rc::Rc};
 
+/// A program being run in a [`UserProcess`].
+///
+/// An application is similar to a stripped-down
+/// [`Session`](crate::core::Session). It runs when messages come in over the
+/// network or when the containing [`Machine`](crate::core::Machine) awakens the
+/// application to give it time to run.
 pub trait Application {
+    /// A unique identifier for the application.
     const ID: ProtocolId;
 
+    /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
+    /// is not called in response to specific events.
     fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
 
+    /// Called when the containing [`UserProcess`] receives a message over the
+    /// network and gives the application time to handle it.
     fn recv(
         &mut self,
         message: Message,
@@ -15,27 +26,39 @@ pub trait Application {
     ) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct UserProcess<T: Application> {
-    application: T,
+/// A user-level process that sits at the top of the networking stack.
+///
+/// In Elvis, user-level processes are protocols like anything else. Unlike most
+/// protocols, they do not have sessions associated with them. Instead, when
+/// messages are demuxed to a user process, they are sent to the [`Application`]
+/// assigned to the generic type parameter `A`. Also unlike other protocols,
+/// user processes should not have higher-level protocols attempting to open
+/// connections on or listen through them.
+pub struct UserProcess<A: Application> {
+    application: A,
 }
 
-impl<T: Application> UserProcess<T> {
-    pub fn new(application: T) -> Self {
+impl<A: Application> UserProcess<A> {
+    /// Creates a new user process to run the given application.
+    pub fn new(application: A) -> Self {
         Self { application }
     }
 
-    pub fn new_shared(application: T) -> Rc<RefCell<Self>> {
+    /// Creates a new user process running the given application behind a shared
+    /// handle.
+    pub fn new_shared(application: A) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self::new(application)))
     }
 
-    pub fn application(&self) -> &T {
+    /// Gets the application the user process is running.
+    pub fn application(&self) -> &A {
         &self.application
     }
 }
 
-impl<T: Application> Protocol for UserProcess<T> {
+impl<A: Application> Protocol for UserProcess<A> {
     fn id(&self) -> ProtocolId {
-        T::ID
+        A::ID
     }
 
     fn open(
