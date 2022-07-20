@@ -1,4 +1,4 @@
-use super::ipv4_misc::Ipv4Error;
+use super::{ipv4_misc::Ipv4Error, Ipv4Address};
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -12,6 +12,12 @@ pub(super) struct Ipv4Header {
     pub identification: u16,
     pub fragment_offset: u16,
     pub flags: ControlFlags,
+    pub time_to_live: u8,
+    pub protocol: u8,
+    // Todo: Remove this eventually. It is only needed during parsing.
+    pub checksum: u16,
+    pub source: Ipv4Address,
+    pub destination: Ipv4Address,
 }
 
 impl Ipv4Header {
@@ -36,6 +42,14 @@ impl Ipv4Header {
         if control_flag_bits & 0b100 != 0 {
             Err(Ipv4Error::UsedReservedFlag)?
         }
+        let time_to_live = next(bytes)?;
+        let protocol = next(bytes)?;
+        // Todo: Check that the checksum is valid
+        let checksum = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
+        let source: Ipv4Address =
+            u32::from_be_bytes([next(bytes)?, next(bytes)?, next(bytes)?, next(bytes)?]).into();
+        let destination: Ipv4Address =
+            u32::from_be_bytes([next(bytes)?, next(bytes)?, next(bytes)?, next(bytes)?]).into();
         Ok(Self {
             ihl,
             type_of_service: tos_byte.into(),
@@ -43,6 +57,11 @@ impl Ipv4Header {
             identification,
             fragment_offset,
             flags: control_flag_bits.into(),
+            time_to_live,
+            protocol,
+            checksum,
+            source,
+            destination,
         })
     }
 }
@@ -253,6 +272,11 @@ mod tests {
             valid_header.is_fragmenting_payload()
         );
         assert_eq!(parsed.fragment_offset, 0);
+        assert_eq!(parsed.time_to_live, valid_header.time_to_live);
+        assert_eq!(parsed.protocol, valid_header.protocol);
+        assert_eq!(parsed.checksum, valid_header.calc_header_checksum()?);
+        assert_eq!(parsed.source.to_bytes(), valid_header.source);
+        assert_eq!(parsed.destination.to_bytes(), valid_header.destination);
         Ok(())
     }
 }
