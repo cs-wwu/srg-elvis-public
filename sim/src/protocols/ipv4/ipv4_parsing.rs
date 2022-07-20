@@ -10,6 +10,8 @@ pub(super) struct Ipv4Header {
     pub type_of_service: TypeOfService,
     pub total_length: u16,
     pub identification: u16,
+    pub fragment_offset: u16,
+    pub flags: ControlFlags,
 }
 
 impl Ipv4Header {
@@ -28,17 +30,48 @@ impl Ipv4Header {
         }
         let total_length = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
         let identification = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
+        let flags_and_fragment_offset_bytes = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
+        let fragment_offset = flags_and_fragment_offset_bytes & 0x1fff; // 13 bits
+        let control_flag_bits = (flags_and_fragment_offset_bytes >> 13) as u8;
+        if control_flag_bits & 0b100 != 0 {
+            Err(Ipv4Error::UsedReservedFlag)?
+        }
         Ok(Self {
             ihl,
             type_of_service: tos_byte.into(),
             total_length,
             identification,
+            fragment_offset,
+            flags: control_flag_bits.into(),
         })
     }
 }
 
 fn next(bytes: &mut impl Iterator<Item = u8>) -> Result<u8, Ipv4Error> {
     bytes.next().ok_or(Ipv4Error::HeaderTooShort)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct ControlFlags(u8);
+
+impl ControlFlags {
+    pub fn new(byte: u8) -> Self {
+        Self(byte)
+    }
+
+    pub fn may_fragment(&self) -> bool {
+        self.0 & 0b10 == 0
+    }
+
+    pub fn is_last_fragment(&self) -> bool {
+        self.0 & 0b1 == 0
+    }
+}
+
+impl From<u8> for ControlFlags {
+    fn from(byte: u8) -> Self {
+        Self(byte)
+    }
 }
 
 /// The Type of Service provides an indication of the abstract
@@ -211,6 +244,15 @@ mod tests {
         assert_eq!(parsed.type_of_service.precedence(), Precedence::Routine);
         assert_eq!(parsed.total_length, valid_header.total_len());
         assert_eq!(parsed.identification, valid_header.identification);
+        assert_eq!(
+            parsed.flags.is_last_fragment(),
+            !valid_header.more_fragments
+        );
+        assert_eq!(
+            parsed.flags.may_fragment(),
+            valid_header.is_fragmenting_payload()
+        );
+        assert_eq!(parsed.fragment_offset, 0);
         Ok(())
     }
 }

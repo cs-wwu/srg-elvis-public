@@ -38,4 +38,6 @@ pub(super) enum Ipv4Error {
     UsedReservedTos,
     #[error("Expected version 4 in IPv4 header")]
     IncorrectIpv4Version,
+    #[error("The reserved control flags bit was used")]
+    UsedReservedFlag,
 }
