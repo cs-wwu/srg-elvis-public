@@ -21,35 +21,65 @@ pub(super) struct Ipv4Header {
 }
 
 impl Ipv4Header {
-    pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, Ipv4Error> {
-        let bytes = &mut bytes;
-        let byte = next(bytes)?;
-        let version = byte >> 4;
+    pub fn from_bytes<T: Iterator<Item = u8>>(mut bytes: T) -> Result<Self, Ipv4Error> {
+        let mut word = || -> Result<[u8; 4], Ipv4Error> {
+            let mut next = || bytes.next().ok_or(Ipv4Error::HeaderTooShort);
+            Ok([next()?, next()?, next()?, next()?])
+        };
+        let base = [word()?, word()?, word()?, word()?, word()?];
+
+        let version_and_ihl = base[0][0];
+        let version = version_and_ihl >> 4;
         if version != 4 {
             Err(Ipv4Error::IncorrectIpv4Version)?
         }
-        let ihl = byte & 0b1111;
-        let tos_byte = bytes.next().ok_or(Ipv4Error::HeaderTooShort)?;
+        let ihl = version_and_ihl & 0b1111;
+        if ihl != 5 {
+            Err(Ipv4Error::InvalidHeaderLength)?
+        }
+        let tos_byte = base[0][1];
         let reserved = tos_byte & 0b11;
         if reserved != 0 {
             Err(Ipv4Error::UsedReservedTos)?
         }
-        let total_length = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
-        let identification = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
-        let flags_and_fragment_offset_bytes = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
-        let fragment_offset = flags_and_fragment_offset_bytes & 0x1fff; // 13 bits
+        let total_length = u16::from_be_bytes([base[0][2], base[0][3]]);
+        let identification = u16::from_be_bytes([base[1][0], base[1][1]]);
+        let flags_and_fragment_offset_bytes = u16::from_be_bytes([base[1][2], base[1][3]]);
+        let fragment_offset = flags_and_fragment_offset_bytes & 0x1fff;
         let control_flag_bits = (flags_and_fragment_offset_bytes >> 13) as u8;
         if control_flag_bits & 0b100 != 0 {
             Err(Ipv4Error::UsedReservedFlag)?
         }
-        let time_to_live = next(bytes)?;
-        let protocol = next(bytes)?;
-        // Todo: Check that the checksum is valid
-        let checksum = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
-        let source: Ipv4Address =
-            u32::from_be_bytes([next(bytes)?, next(bytes)?, next(bytes)?, next(bytes)?]).into();
-        let destination: Ipv4Address =
-            u32::from_be_bytes([next(bytes)?, next(bytes)?, next(bytes)?, next(bytes)?]).into();
+        let time_to_live = base[2][0];
+        let protocol = base[2][1];
+        let expected_checksum = u16::from_be_bytes([base[2][2], base[2][3]]);
+        let source: Ipv4Address = u32::from_be_bytes(base[3]).into();
+        let destination: Ipv4Address = u32::from_be_bytes(base[4]).into();
+
+        if expected_checksum != 0 {
+            let mut checksum = 0u16;
+            let mut carry = false;
+            oc_add_u32(&mut checksum, &mut carry, base[0]);
+            oc_add_u32(&mut checksum, &mut carry, base[1]);
+            oc_add_u8(&mut checksum, &mut carry, time_to_live, protocol);
+            oc_add_u32(&mut checksum, &mut carry, base[3]);
+            oc_add_u32(&mut checksum, &mut carry, base[4]);
+            oc_add_u16(&mut checksum, &mut carry, 0); // Apply carry bit if there is one
+            let checksum = match checksum {
+                // Use that there are two one's complement representations of zero
+                // and pick the nonzero one to differentiate from an unused
+                // checksum.
+                0xffff => 0xffff,
+                _ => !checksum,
+            };
+            if checksum != expected_checksum {
+                Err(Ipv4Error::IncorrectChecksum {
+                    expected: expected_checksum,
+                    actual: checksum,
+                })?
+            }
+        }
+
         Ok(Self {
             ihl,
             type_of_service: tos_byte.into(),
@@ -59,15 +89,24 @@ impl Ipv4Header {
             flags: control_flag_bits.into(),
             time_to_live,
             protocol,
-            checksum,
+            checksum: expected_checksum,
             source,
             destination,
         })
     }
 }
 
-fn next(bytes: &mut impl Iterator<Item = u8>) -> Result<u8, Ipv4Error> {
-    bytes.next().ok_or(Ipv4Error::HeaderTooShort)
+fn oc_add_u16(checksum: &mut u16, carry: &mut bool, value: u16) {
+    (*checksum, *carry) = checksum.carrying_add(value, *carry);
+}
+
+fn oc_add_u8(checksum: &mut u16, carry: &mut bool, a: u8, b: u8) {
+    oc_add_u16(checksum, carry, u16::from_be_bytes([a, b]));
+}
+
+fn oc_add_u32(checksum: &mut u16, carry: &mut bool, word: [u8; 4]) {
+    oc_add_u8(checksum, carry, word[0], word[1]);
+    oc_add_u8(checksum, carry, word[2], word[3]);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -40,4 +40,10 @@ pub(super) enum Ipv4Error {
     IncorrectIpv4Version,
     #[error("The reserved control flags bit was used")]
     UsedReservedFlag,
+    #[error("Expected 5 bytes for IPv4 header")]
+    InvalidHeaderLength,
+    #[error(
+        "The header checksum {expected:#06x} does not match the calculated checksum {actual:#06x}"
+    )]
+    IncorrectChecksum { expected: u16, actual: u16 },
 }
