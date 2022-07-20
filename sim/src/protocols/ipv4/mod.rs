@@ -8,7 +8,6 @@ use crate::{
     },
     protocols::tap::Tap,
 };
-use etherparse::Ipv4HeaderSlice;
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
@@ -17,6 +16,7 @@ use std::{
 };
 
 mod ipv4_parsing;
+use ipv4_parsing::Ipv4Header;
 
 mod ipv4_address;
 pub use ipv4_address::Ipv4Address;
@@ -110,40 +110,27 @@ impl Protocol for Ipv4 {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        // Todo: This is going to kind of scuffed for the time being. Etherparse
-        // makes my work a lot easier but it also demands a slice to operate on,
-        // which the Message API doesn't offer. We're going to break zero-copy a
-        // bit and just copy the first twenty bytes of the message to treat as
-        // the header. In the future, we're going to want to replace Etherparse
-        // with our own parsing code so we can just work with the iterator API
-        // directly.
-        let header: Vec<_> = message.iter().take(20).collect();
-        let header = Ipv4HeaderSlice::from_slice(&header)?;
-        let remote = RemoteAddress::from(header.source());
-        let local = LocalAddress::from(header.destination());
+        let header = Ipv4Header::from_bytes(message.iter())?;
+        let remote = RemoteAddress::from(header.source);
+        let local = LocalAddress::from(header.destination);
         let identifier = SessionId { local, remote };
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
-        let message = message.slice(20..);
+        let message = message.slice(header.ihl as usize * 4..);
         let mut session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => {
-                match self.listen_bindings.get(&local) {
-                    Some(&binding) => {
-                        // Todo: We want to be zero-copy, but right now it
-                        // requires copying to forward the list of participants.
-                        // Is there any way around this?
-                        let session = SharedSession::new(Ipv4Session::new(
-                            context.current_session().expect("No current session"),
-                            binding,
-                            identifier,
-                        ));
-                        entry.insert(session.clone());
-                        session
-                    }
-                    None => Err(Ipv4Error::MissingListenBinding(local))?,
+            Entry::Vacant(entry) => match self.listen_bindings.get(&local) {
+                Some(&binding) => {
+                    let session = SharedSession::new(Ipv4Session::new(
+                        context.current_session().expect("No current session"),
+                        binding,
+                        identifier,
+                    ));
+                    entry.insert(session.clone());
+                    session
                 }
-            }
+                None => Err(Ipv4Error::MissingListenBinding(local))?,
+            },
         };
         session.receive(message, context)?;
         Ok(())
