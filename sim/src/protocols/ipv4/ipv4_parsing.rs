@@ -22,74 +22,86 @@ pub(super) struct Ipv4Header {
 
 impl Ipv4Header {
     pub fn from_bytes<T: Iterator<Item = u8>>(mut bytes: T) -> Result<Self, Ipv4Error> {
-        let mut word = || -> Result<[u8; 4], Ipv4Error> {
-            let mut next = || bytes.next().ok_or(Ipv4Error::HeaderTooShort);
-            Ok([next()?, next()?, next()?, next()?])
-        };
-        let base = [word()?, word()?, word()?, word()?, word()?];
+        let mut next =
+            || -> Result<u8, Ipv4Error> { bytes.next().ok_or(Ipv4Error::HeaderTooShort) };
 
-        let version_and_ihl = base[0][0];
+        let mut checksum = 0u16;
+        let mut carry = false;
+
+        let version_and_ihl = next()?;
         let version = version_and_ihl >> 4;
         if version != 4 {
             Err(Ipv4Error::IncorrectIpv4Version)?
         }
         let ihl = version_and_ihl & 0b1111;
         if ihl != 5 {
+            // Todo: Support optional headers
             Err(Ipv4Error::InvalidHeaderLength)?
         }
-        let tos_byte = base[0][1];
-        let reserved = tos_byte & 0b11;
+        let type_of_service_byte = next()?;
+        let reserved = type_of_service_byte & 0b11;
         if reserved != 0 {
             Err(Ipv4Error::UsedReservedTos)?
         }
-        let total_length = u16::from_be_bytes([base[0][2], base[0][3]]);
-        let identification = u16::from_be_bytes([base[1][0], base[1][1]]);
-        let flags_and_fragment_offset_bytes = u16::from_be_bytes([base[1][2], base[1][3]]);
+        oc_add_u8(
+            &mut checksum,
+            &mut carry,
+            version_and_ihl,
+            type_of_service_byte,
+        );
+
+        let total_length = u16::from_be_bytes([next()?, next()?]);
+        oc_add_u16(&mut checksum, &mut carry, total_length);
+
+        let identification = u16::from_be_bytes([next()?, next()?]);
+        oc_add_u16(&mut checksum, &mut carry, identification);
+
+        let flags_and_fragment_offset_bytes = u16::from_be_bytes([next()?, next()?]);
         let fragment_offset = flags_and_fragment_offset_bytes & 0x1fff;
         let control_flag_bits = (flags_and_fragment_offset_bytes >> 13) as u8;
         if control_flag_bits & 0b100 != 0 {
             Err(Ipv4Error::UsedReservedFlag)?
         }
-        let time_to_live = base[2][0];
-        let protocol = base[2][1];
-        let expected_checksum = u16::from_be_bytes([base[2][2], base[2][3]]);
-        let source: Ipv4Address = u32::from_be_bytes(base[3]).into();
-        let destination: Ipv4Address = u32::from_be_bytes(base[4]).into();
+        oc_add_u16(&mut checksum, &mut carry, flags_and_fragment_offset_bytes);
 
-        if expected_checksum != 0 {
-            let mut checksum = 0u16;
-            let mut carry = false;
-            oc_add_u32(&mut checksum, &mut carry, base[0]);
-            oc_add_u32(&mut checksum, &mut carry, base[1]);
-            oc_add_u8(&mut checksum, &mut carry, time_to_live, protocol);
-            oc_add_u32(&mut checksum, &mut carry, base[3]);
-            oc_add_u32(&mut checksum, &mut carry, base[4]);
-            oc_add_u16(&mut checksum, &mut carry, 0); // Apply carry bit if there is one
-            let checksum = match checksum {
-                // Use that there are two one's complement representations of zero
-                // and pick the nonzero one to differentiate from an unused
-                // checksum.
-                0xffff => 0xffff,
-                _ => !checksum,
-            };
-            if checksum != expected_checksum {
-                Err(Ipv4Error::IncorrectChecksum {
-                    expected: expected_checksum,
-                    actual: checksum,
-                })?
-            }
+        let time_to_live = next()?;
+        let protocol = next()?;
+        oc_add_u8(&mut checksum, &mut carry, time_to_live, protocol);
+
+        let expected_checksum = u16::from_be_bytes([next()?, next()?]);
+
+        let source_bytes = [next()?, next()?, next()?, next()?];
+        let source: Ipv4Address = u32::from_be_bytes(source_bytes).into();
+        oc_add_u32(&mut checksum, &mut carry, source_bytes);
+
+        let destination_bytes = [next()?, next()?, next()?, next()?];
+        let destination: Ipv4Address = u32::from_be_bytes(destination_bytes).into();
+        oc_add_u32(&mut checksum, &mut carry, destination_bytes);
+
+        let checksum = match checksum {
+            // Use that there are two one's complement representations of zero
+            // and pick the nonzero one to differentiate from an unused
+            // checksum.
+            0xffff => 0xffff,
+            _ => !checksum,
+        };
+        if checksum != expected_checksum {
+            Err(Ipv4Error::IncorrectChecksum {
+                expected: expected_checksum,
+                actual: checksum,
+            })?
         }
 
         Ok(Self {
             ihl,
-            type_of_service: tos_byte.into(),
+            type_of_service: type_of_service_byte.into(),
             total_length,
             identification,
             fragment_offset,
             flags: control_flag_bits.into(),
             time_to_live,
             protocol,
-            checksum: expected_checksum,
+            checksum,
             source,
             destination,
         })
