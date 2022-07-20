@@ -9,6 +9,7 @@ pub(super) struct Ipv4Header {
     /// The type of service. See [`TypeOfService`] for more details.
     pub type_of_service: TypeOfService,
     pub total_length: u16,
+    pub identification: u16,
 }
 
 impl Ipv4Header {
@@ -26,10 +27,12 @@ impl Ipv4Header {
             Err(Ipv4Error::UsedReservedTos)?
         }
         let total_length = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
+        let identification = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
         Ok(Self {
             ihl,
             type_of_service: tos_byte.into(),
             total_length,
+            identification,
         })
     }
 }
@@ -207,6 +210,7 @@ mod tests {
         assert_eq!(parsed.type_of_service.reliability(), Reliability::Normal);
         assert_eq!(parsed.type_of_service.precedence(), Precedence::Routine);
         assert_eq!(parsed.total_length, valid_header.total_len());
+        assert_eq!(parsed.identification, valid_header.identification);
         Ok(())
     }
 }
