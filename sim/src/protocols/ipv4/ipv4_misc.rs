@@ -24,4 +24,6 @@ pub(super) enum Ipv4Error {
     BindingExists(LocalAddress),
     #[error("Attempting to create a session that already exists for {0} -> {1}")]
     SessionExists(LocalAddress, RemoteAddress),
+    #[error("The IPv4 header is incomplete")]
+    HeaderTooShort,
 }

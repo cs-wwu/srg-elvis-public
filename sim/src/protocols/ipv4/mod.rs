@@ -16,6 +16,8 @@ use std::{
     rc::Rc,
 };
 
+mod ipv4_parsing;
+
 mod ipv4_address;
 pub use ipv4_address::Ipv4Address;
 
