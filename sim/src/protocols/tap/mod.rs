@@ -138,5 +138,17 @@ impl Protocol for Tap {
 
 fn take_header(message: &Message) -> Option<ProtocolId> {
     let mut iter = message.iter();
-    Some(u64::from_be_bytes([iter.next()?; 8]).into())
+    Some(
+        u64::from_be_bytes([
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+        ])
+        .into(),
+    )
 }
