@@ -26,4 +26,16 @@ pub(super) enum Ipv4Error {
     SessionExists(LocalAddress, RemoteAddress),
     #[error("The IPv4 header is incomplete")]
     HeaderTooShort,
+    #[error("Could not convert to Reliability from {0}")]
+    Reliability(u8),
+    #[error("Could not convert to Delay from {0}")]
+    Delay(u8),
+    #[error("Could not convert to Throughput from {0}")]
+    Throughput(u8),
+    #[error("Could not convert to Precedence from {0}")]
+    Precedence(u8),
+    #[error("The reserved bits in type of service are nonzero")]
+    UsedReservedTos,
+    #[error("Expected version 4 in IPv4 header")]
+    IncorrectIpv4Version,
 }

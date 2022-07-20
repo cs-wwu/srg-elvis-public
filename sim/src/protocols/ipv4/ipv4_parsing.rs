@@ -3,19 +3,173 @@ use super::ipv4_misc::Ipv4Error;
 /// An IPv4 header, as described in RFC791 p11 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct Ipv4Header {
-    /// The protocol version
-    // Todo: Remove this eventually
-    pub version: u8,
     /// The internet header length
+    // Todo: Remove this eventually. It is only needed during parsing.
     pub ihl: u8,
+    /// The type of service. See [`TypeOfService`] for more details.
+    pub type_of_service: TypeOfService,
 }
 
 impl Ipv4Header {
     pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, Ipv4Error> {
         let byte = bytes.next().ok_or(Ipv4Error::HeaderTooShort)?;
         let version = byte >> 4;
+        if version != 4 {
+            Err(Ipv4Error::IncorrectIpv4Version)?
+        }
         let ihl = byte & 0b1111;
-        Ok(Self { version, ihl })
+        let byte = bytes.next().ok_or(Ipv4Error::HeaderTooShort)?;
+        let reserved = byte & 0b11;
+        if reserved != 0 {
+            Err(Ipv4Error::UsedReservedTos)?
+        }
+        let type_of_service: TypeOfService = byte.into();
+        Ok(Self {
+            ihl,
+            type_of_service,
+        })
+    }
+}
+
+/// The Type of Service provides an indication of the abstract
+/// parameters of the quality of service desired.  These parameters are
+/// to be used to guide the selection of the actual service parameters
+/// when transmitting a datagram through a particular network.  Several
+/// networks offer service precedence, which somehow treats high
+/// precedence traffic as more important than other traffic (generally
+/// by accepting only traffic above a certain precedence at time of high
+/// load).  The major choice is a three way tradeoff between low-delay,
+/// high-reliability, and high-throughput.
+///
+/// See RFC791 p11 s3.1 for more details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct TypeOfService(u8);
+
+impl TypeOfService {
+    pub fn new(byte: u8) -> Self {
+        Self(byte)
+    }
+
+    // Note: It should not be possible for any of these functions to fail
+    // because the enum variants cover any possible byte value we would be
+    // passing in.
+
+    pub fn precedence(&self) -> Precedence {
+        (self.0 >> 5).try_into().unwrap()
+    }
+
+    pub fn delay(&self) -> Delay {
+        ((self.0 >> 4) & 0b1).try_into().unwrap()
+    }
+
+    pub fn throughput(&self) -> Throughput {
+        ((self.0 >> 3) & 0b1).try_into().unwrap()
+    }
+
+    pub fn reliability(&self) -> Reliability {
+        ((self.0 >> 2) & 0b1).try_into().unwrap()
+    }
+}
+
+impl From<u8> for TypeOfService {
+    fn from(byte: u8) -> Self {
+        Self(byte)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub(super) enum Delay {
+    Normal = 0,
+    Low = 1,
+}
+
+impl TryFrom<u8> for Delay {
+    type Error = Ipv4Error;
+
+    fn try_from(byte: u8) -> Result<Self, Self::Error> {
+        match byte {
+            0 => Ok(Self::Normal),
+            1 => Ok(Self::Low),
+            _ => Err(Ipv4Error::Delay(byte)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub(super) enum Throughput {
+    Normal = 0,
+    High = 1,
+}
+
+impl TryFrom<u8> for Throughput {
+    type Error = Ipv4Error;
+
+    fn try_from(byte: u8) -> Result<Self, Self::Error> {
+        match byte {
+            0 => Ok(Self::Normal),
+            1 => Ok(Self::High),
+            _ => Err(Ipv4Error::Throughput(byte)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub(super) enum Reliability {
+    Normal = 0,
+    High = 1,
+}
+
+impl TryFrom<u8> for Reliability {
+    type Error = Ipv4Error;
+
+    fn try_from(byte: u8) -> Result<Self, Self::Error> {
+        match byte {
+            0 => Ok(Self::Normal),
+            1 => Ok(Self::High),
+            _ => Err(Ipv4Error::Reliability(byte)),
+        }
+    }
+}
+
+/// The Network Control precedence designation is intended to be used within a
+/// network only.  The actual use and control of that designation is up to each
+/// network. The Internetwork Control designation is intended for use by gateway
+/// control originators only. If the actual use of these precedence designations
+/// is of concern to a particular network, it is the responsibility of that
+/// network to control the access to, and use of, those precedence designations.
+///
+/// Described in RFC791 p13 s3.1
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub(super) enum Precedence {
+    NetworkControl = 0b111,
+    InternetworkControl = 0b110,
+    CriticEcp = 0b101,
+    FlashOverride = 0b100,
+    Flash = 0b011,
+    Immediate = 0b010,
+    Priority = 0b001,
+    Routine = 0b000,
+}
+
+impl TryFrom<u8> for Precedence {
+    type Error = Ipv4Error;
+
+    fn try_from(byte: u8) -> Result<Self, Self::Error> {
+        match byte {
+            0b111 => Ok(Self::NetworkControl),
+            0b110 => Ok(Self::InternetworkControl),
+            0b101 => Ok(Self::CriticEcp),
+            0b100 => Ok(Self::FlashOverride),
+            0b011 => Ok(Self::Flash),
+            0b010 => Ok(Self::Immediate),
+            0b001 => Ok(Self::Priority),
+            0b000 => Ok(Self::Routine),
+            _ => Err(Ipv4Error::Precedence(byte)),
+        }
     }
 }
 
@@ -40,8 +194,11 @@ mod tests {
         let mut serial_header = vec![];
         valid_header.write(&mut serial_header);
         let parsed = Ipv4Header::from_bytes(serial_header.iter().cloned())?;
-        assert_eq!(valid_header.ihl(), parsed.ihl);
-        assert_eq!(4, parsed.version);
+        assert_eq!(parsed.ihl, valid_header.ihl());
+        assert_eq!(parsed.type_of_service.delay(), Delay::Normal);
+        assert_eq!(parsed.type_of_service.throughput(), Throughput::Normal);
+        assert_eq!(parsed.type_of_service.reliability(), Reliability::Normal);
+        assert_eq!(parsed.type_of_service.precedence(), Precedence::Routine);
         Ok(())
     }
 }
