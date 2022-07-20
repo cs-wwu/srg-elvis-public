@@ -8,27 +8,34 @@ pub(super) struct Ipv4Header {
     pub ihl: u8,
     /// The type of service. See [`TypeOfService`] for more details.
     pub type_of_service: TypeOfService,
+    pub total_length: u16,
 }
 
 impl Ipv4Header {
     pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, Ipv4Error> {
-        let byte = bytes.next().ok_or(Ipv4Error::HeaderTooShort)?;
+        let bytes = &mut bytes;
+        let byte = next(bytes)?;
         let version = byte >> 4;
         if version != 4 {
             Err(Ipv4Error::IncorrectIpv4Version)?
         }
         let ihl = byte & 0b1111;
-        let byte = bytes.next().ok_or(Ipv4Error::HeaderTooShort)?;
-        let reserved = byte & 0b11;
+        let tos_byte = bytes.next().ok_or(Ipv4Error::HeaderTooShort)?;
+        let reserved = tos_byte & 0b11;
         if reserved != 0 {
             Err(Ipv4Error::UsedReservedTos)?
         }
-        let type_of_service: TypeOfService = byte.into();
+        let total_length = u16::from_be_bytes([next(bytes)?, next(bytes)?]);
         Ok(Self {
             ihl,
-            type_of_service,
+            type_of_service: tos_byte.into(),
+            total_length,
         })
     }
+}
+
+fn next(bytes: &mut impl Iterator<Item = u8>) -> Result<u8, Ipv4Error> {
+    bytes.next().ok_or(Ipv4Error::HeaderTooShort)
 }
 
 /// The Type of Service provides an indication of the abstract
@@ -199,6 +206,7 @@ mod tests {
         assert_eq!(parsed.type_of_service.throughput(), Throughput::Normal);
         assert_eq!(parsed.type_of_service.reliability(), Reliability::Normal);
         assert_eq!(parsed.type_of_service.precedence(), Precedence::Routine);
+        assert_eq!(parsed.total_length, valid_header.total_len());
         Ok(())
     }
 }
