@@ -40,7 +40,7 @@ impl UdpHeader {
         // [zero, UDP protocol number] from pseudo header
         checksum.add_u8(0, 17);
 
-        let mut bytes_consumed = 0;
+        let mut bytes_consumed = 8;
 
         while bytes_consumed < length {
             let first = bytes.next().ok_or(UdpError::HeaderTooShort)?;
