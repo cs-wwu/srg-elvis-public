@@ -40,8 +40,8 @@ impl Session for Ipv4Session {
             _ => panic!("Unknown upstream protocol"),
         };
         let header = Ipv4HeaderBuilder::new(
-            self.identifier.local.into_inner().into(),
-            self.identifier.remote.into_inner().into(),
+            self.identifier.local.into(),
+            self.identifier.remote.into(),
             protocol_number,
             length as u16,
         )

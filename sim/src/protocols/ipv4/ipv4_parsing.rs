@@ -185,9 +185,7 @@ impl Ipv4HeaderBuilder {
         checksum.add_u32(self.source.into());
         checksum.add_u32(self.destination.into());
 
-        let mut out = vec![];
-        out.push(version_and_ihl);
-        out.push(type_of_service);
+        let mut out = vec![version_and_ihl, type_of_service];
         out.extend_from_slice(&total_length.to_be_bytes());
         out.extend_from_slice(&self.identification.to_be_bytes());
         out.extend_from_slice(&flags_and_fragment_offset.to_be_bytes());
