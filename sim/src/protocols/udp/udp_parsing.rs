@@ -41,7 +41,6 @@ impl UdpHeader {
         checksum.add_u8(0, 17);
 
         let mut bytes_consumed = 8;
-
         while bytes_consumed < length {
             let first = bytes.next().ok_or(UdpError::HeaderTooShort)?;
             // If we got an odd number of bytes, pad with a zero
@@ -56,6 +55,10 @@ impl UdpHeader {
                 }
             };
             checksum.add_u16(u16::from_be_bytes([first, second]));
+        }
+
+        if bytes_consumed != length || bytes.next().is_some() {
+            Err(UdpError::LengthMismatch)?
         }
 
         let actual_checksum = checksum.as_u16();

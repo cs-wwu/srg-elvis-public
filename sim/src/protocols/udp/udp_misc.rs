@@ -23,4 +23,6 @@ pub(super) enum UdpError {
         "The computed checksum {actual:#06x} did not match the header checksum {expected:#06x}"
     )]
     InvalidChecksum { actual: u16, expected: u16 },
+    #[error("The number of message bytes differs from the header")]
+    LengthMismatch,
 }
