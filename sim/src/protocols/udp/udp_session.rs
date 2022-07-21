@@ -1,9 +1,11 @@
-use super::udp_misc::{LocalPort, RemotePort};
+use super::{
+    udp_misc::{LocalPort, RemotePort},
+    udp_parsing::build_udp_header,
+};
 use crate::{
     core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::ipv4::{LocalAddress, RemoteAddress},
 };
-use etherparse::UdpHeader;
 use std::error::Error;
 
 pub(super) struct UdpSession {
@@ -19,23 +21,14 @@ impl Session for UdpSession {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let id = self.identifier;
-        let payload: Vec<_> = message.iter().collect();
-        let ipv4_header = etherparse::Ipv4Header::new(
-            payload.len().try_into()?,
-            30,
-            etherparse::IpNumber::Udp,
+        let header = build_udp_header(
             self.identifier.local_address.into(),
-            self.identifier.remote_address.into(),
-        );
-        let header = UdpHeader::with_ipv4_checksum(
             id.local_port.into(),
+            self.identifier.remote_address.into(),
             id.remote_port.into(),
-            &ipv4_header,
-            payload.as_slice(),
+            message.iter(),
         )?;
-        let mut header_bytes = vec![];
-        header.write(&mut header_bytes)?;
-        let message = message.with_header(header_bytes);
+        let message = message.with_header(header);
         self.downstream.send(message, context)?;
         Ok(())
     }

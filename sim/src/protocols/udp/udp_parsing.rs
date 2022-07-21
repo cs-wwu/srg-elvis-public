@@ -82,57 +82,53 @@ impl UdpHeader {
     }
 }
 
-pub(super) struct UdpHeaderBuilder {}
-
-impl UdpHeaderBuilder {
-    pub fn build(
-        source_address: Ipv4Address,
-        source_port: u16,
-        destination_address: Ipv4Address,
-        destination_port: u16,
-        mut payload: impl Iterator<Item = u8>,
-    ) -> Result<Vec<u8>, UdpError> {
-        let mut checksum = Checksum::new();
-        let mut length = 0;
-        loop {
-            let first = match payload.next() {
-                Some(first) => first,
-                None => break,
-            };
-            let second = match payload.next() {
-                Some(second) => {
-                    length += 2;
-                    second
-                }
-                None => {
-                    length += 1;
-                    0
-                }
-            };
-            checksum.add_u8(first, second);
-        }
-
-        let length = HEADER_OCTETS
-            .checked_add(length.try_into().map_err(|_| UdpError::OverlyLongPayload)?)
-            .ok_or(UdpError::OverlyLongPayload)?;
-
-        // Once for the header, again for the pseudo header
-        checksum.add_u16(length);
-        checksum.add_u16(length);
-
-        checksum.add_u32(source_address.into());
-        checksum.add_u32(destination_address.into());
-        checksum.add_u8(0, 17);
-        checksum.add_u16(source_port);
-        checksum.add_u16(destination_port);
-
-        let mut out = vec![];
-        out.extend_from_slice(&source_port.to_be_bytes());
-        out.extend_from_slice(&destination_port.to_be_bytes());
-        out.extend_from_slice(&length.to_be_bytes());
-        out.extend_from_slice(&checksum.as_u16().to_be_bytes());
-        Ok(out)
+pub(super) fn build_udp_header(
+    source_address: Ipv4Address,
+    source_port: u16,
+    destination_address: Ipv4Address,
+    destination_port: u16,
+    mut payload: impl Iterator<Item = u8>,
+) -> Result<Vec<u8>, UdpError> {
+    let mut checksum = Checksum::new();
+    let mut length = 0;
+    loop {
+        let first = match payload.next() {
+            Some(first) => first,
+            None => break,
+        };
+        let second = match payload.next() {
+            Some(second) => {
+                length += 2;
+                second
+            }
+            None => {
+                length += 1;
+                0
+            }
+        };
+        checksum.add_u8(first, second);
     }
+
+    let length = HEADER_OCTETS
+        .checked_add(length.try_into().map_err(|_| UdpError::OverlyLongPayload)?)
+        .ok_or(UdpError::OverlyLongPayload)?;
+
+    // Once for the header, again for the pseudo header
+    checksum.add_u16(length);
+    checksum.add_u16(length);
+
+    checksum.add_u32(source_address.into());
+    checksum.add_u32(destination_address.into());
+    checksum.add_u8(0, 17);
+    checksum.add_u16(source_port);
+    checksum.add_u16(destination_port);
+
+    let mut out = vec![];
+    out.extend_from_slice(&source_port.to_be_bytes());
+    out.extend_from_slice(&destination_port.to_be_bytes());
+    out.extend_from_slice(&length.to_be_bytes());
+    out.extend_from_slice(&checksum.as_u16().to_be_bytes());
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -200,7 +196,7 @@ mod tests {
     #[test]
     fn generates_header() -> anyhow::Result<()> {
         let (_, _, expected, payload) = etherparse_headers();
-        let actual = UdpHeaderBuilder::build(
+        let actual = build_udp_header(
             SOURCE_ADDRESS.into(),
             SOURCE_PORT,
             DESTINATION_ADDRESS.into(),
