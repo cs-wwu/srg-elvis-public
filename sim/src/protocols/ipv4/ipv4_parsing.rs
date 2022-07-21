@@ -1,14 +1,14 @@
+use super::{ipv4_misc::Ipv4Error, Ipv4Address};
 use crate::protocols::utility::Checksum;
 
-use super::{ipv4_misc::Ipv4Error, Ipv4Address};
+// Note: There are many #[allow(dead_code)] flags in this file. None of this
+// stuff is public and not all of it is being used internally, but we want to
+// have the APIs built out for future use.
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct Ipv4Header {
-    /// The internet header length
-    // Todo: Remove this eventually. It is only needed during parsing.
     pub ihl: u8,
-    /// The type of service. See [`TypeOfService`] for more details.
     pub type_of_service: TypeOfService,
     pub total_length: u16,
     pub identification: u16,
@@ -16,7 +16,8 @@ pub(super) struct Ipv4Header {
     pub flags: ControlFlags,
     pub time_to_live: u8,
     pub protocol: u8,
-    // Todo: Remove this eventually. It is only needed during parsing.
+    // Todo: This isn't needed after parsing in main line code, but it is nice
+    // for testing and for completeness. Consider whether it is worth removing.
     pub checksum: u16,
     pub source: Ipv4Address,
     pub destination: Ipv4Address,
@@ -102,14 +103,12 @@ impl Ipv4Header {
 pub(super) struct ControlFlags(u8);
 
 impl ControlFlags {
-    pub fn new(byte: u8) -> Self {
-        Self(byte)
-    }
-
+    #[allow(dead_code)]
     pub fn may_fragment(&self) -> bool {
         self.0 & 0b10 == 0
     }
 
+    #[allow(dead_code)]
     pub fn is_last_fragment(&self) -> bool {
         self.0 & 0b1 == 0
     }
@@ -136,26 +135,26 @@ impl From<u8> for ControlFlags {
 pub(super) struct TypeOfService(u8);
 
 impl TypeOfService {
-    pub fn new(byte: u8) -> Self {
-        Self(byte)
-    }
-
     // Note: It should not be possible for any of these functions to fail
     // because the enum variants cover any possible byte value we would be
     // passing in.
 
+    #[allow(dead_code)]
     pub fn precedence(&self) -> Precedence {
         (self.0 >> 5).try_into().unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn delay(&self) -> Delay {
         ((self.0 >> 4) & 0b1).try_into().unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn throughput(&self) -> Throughput {
         ((self.0 >> 3) & 0b1).try_into().unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn reliability(&self) -> Reliability {
         ((self.0 >> 2) & 0b1).try_into().unwrap()
     }
@@ -274,15 +273,18 @@ mod tests {
         let protocol = etherparse::IpNumber::Udp;
         let source = [127, 0, 0, 1];
         let destination = [123, 45, 67, 89];
-        let mut valid_header = etherparse::Ipv4Header::new(
+        let valid_header = etherparse::Ipv4Header::new(
             payload.len().try_into()?,
             ttl,
             protocol,
             source,
             destination,
         );
-        let mut serial_header = vec![];
-        valid_header.write(&mut serial_header);
+        let serial_header = {
+            let mut serial_header = vec![];
+            valid_header.write(&mut serial_header)?;
+            serial_header
+        };
         let parsed = Ipv4Header::from_bytes(serial_header.iter().cloned())?;
         assert_eq!(parsed.ihl, valid_header.ihl());
         assert_eq!(parsed.type_of_service.delay(), Delay::Normal);

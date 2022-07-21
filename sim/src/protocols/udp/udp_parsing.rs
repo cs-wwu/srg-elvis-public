@@ -1,12 +1,14 @@
-use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
-
 use super::udp_misc::UdpError;
+use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 
 pub(super) struct UdpHeader {
     pub source: u16,
     pub destination: u16,
+    // Todo: Consider removing unused header parts. For now, it's nice having
+    // these available for the tests.
+    #[allow(dead_code)]
     pub length: u16,
-    // Todo: Remove this. It is only needed while parsing.
+    #[allow(dead_code)]
     pub checksum: u16,
 }
 
@@ -106,7 +108,7 @@ mod tests {
         )?;
         let serial = {
             let mut serial = vec![];
-            valid_header.write(&mut serial);
+            valid_header.write(&mut serial)?;
             serial
         };
         let actual = UdpHeader::from_bytes_ipv4(
