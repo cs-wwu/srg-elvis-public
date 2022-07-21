@@ -5,6 +5,10 @@ use crate::protocols::utility::Checksum;
 // stuff is public and not all of it is being used internally, but we want to
 // have the APIs built out for future use.
 
+const BASE_WORDS: u8 = 5;
+const BASE_OCTETS: u16 = BASE_WORDS as u16 * 4;
+const FRAGMENT_OFFSET_MASK: u16 = 0x1fff;
+
 /// An IPv4 header, as described in RFC791 p11 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct Ipv4Header {
@@ -36,7 +40,7 @@ impl Ipv4Header {
             Err(Ipv4Error::IncorrectIpv4Version)?
         }
         let ihl = version_and_ihl & 0b1111;
-        if ihl != 5 {
+        if ihl != BASE_WORDS {
             // Todo: Support optional headers
             Err(Ipv4Error::InvalidHeaderLength)?
         }
@@ -54,7 +58,7 @@ impl Ipv4Header {
         checksum.add_u16(identification);
 
         let flags_and_fragment_offset_bytes = u16::from_be_bytes([next()?, next()?]);
-        let fragment_offset = flags_and_fragment_offset_bytes & 0x1fff;
+        let fragment_offset = flags_and_fragment_offset_bytes & FRAGMENT_OFFSET_MASK;
         let control_flag_bits = (flags_and_fragment_offset_bytes >> 13) as u8;
         if control_flag_bits & 0b100 != 0 {
             Err(Ipv4Error::UsedReservedFlag)?
@@ -99,10 +103,120 @@ impl Ipv4Header {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct Ipv4HeaderBuilder {
+    type_of_service: TypeOfService,
+    payload_length: u16,
+    identification: u16,
+    fragment_offset: u16,
+    flags: ControlFlags,
+    time_to_live: u8,
+    protocol: u8,
+    source: Ipv4Address,
+    destination: Ipv4Address,
+}
+
+impl Ipv4HeaderBuilder {
+    pub fn new(
+        source: Ipv4Address,
+        destination: Ipv4Address,
+        protocol: ProtocolNumber,
+        payload_length: u16,
+    ) -> Self {
+        Self {
+            type_of_service: Default::default(),
+            payload_length,
+            identification: 0,
+            fragment_offset: 0,
+            flags: Default::default(),
+            time_to_live: 30,
+            protocol: protocol as u8,
+            source,
+            destination,
+        }
+    }
+
+    pub fn type_of_service(mut self, type_of_service: TypeOfService) -> Self {
+        self.type_of_service = type_of_service;
+        self
+    }
+
+    pub fn identification(mut self, identification: u16) -> Self {
+        self.identification = identification;
+        self
+    }
+
+    pub fn fragment_offset(mut self, fragment_offset: u16) -> Self {
+        self.fragment_offset = fragment_offset;
+        self
+    }
+
+    pub fn flags(mut self, flags: ControlFlags) -> Self {
+        self.flags = flags;
+        self
+    }
+
+    pub fn build(self) -> Result<Vec<u8>, Ipv4Error> {
+        let mut checksum = Checksum::new();
+
+        let version_and_ihl = (4u8 << 4) | BASE_WORDS;
+        let type_of_service = self.type_of_service.as_u8();
+        checksum.add_u8(version_and_ihl, type_of_service);
+
+        let total_length = self
+            .payload_length
+            .checked_add(BASE_OCTETS)
+            .ok_or(Ipv4Error::OverlyLongPayload)?;
+        checksum.add_u16(total_length);
+
+        checksum.add_u16(self.identification);
+
+        if self.fragment_offset > FRAGMENT_OFFSET_MASK {
+            Err(Ipv4Error::OverlyLongFragmentOffset)?
+        }
+        let flags_and_fragment_offset =
+            ((self.flags.as_u8() as u16) << 13) | (self.fragment_offset & FRAGMENT_OFFSET_MASK);
+        checksum.add_u16(flags_and_fragment_offset);
+
+        checksum.add_u8(self.time_to_live, self.protocol as u8);
+        checksum.add_u32(self.source.into());
+        checksum.add_u32(self.destination.into());
+
+        let mut out = vec![];
+        out.push(version_and_ihl);
+        out.push(type_of_service);
+        out.extend_from_slice(&total_length.to_be_bytes());
+        out.extend_from_slice(&self.identification.to_be_bytes());
+        out.extend_from_slice(&flags_and_fragment_offset.to_be_bytes());
+        out.push(self.time_to_live);
+        out.push(self.protocol as u8);
+        out.extend_from_slice(&checksum.as_u16().to_be_bytes());
+        out.extend_from_slice(&self.source.to_u32().to_be_bytes());
+        out.extend_from_slice(&self.destination.to_u32().to_be_bytes());
+        Ok(out)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub(super) enum ProtocolNumber {
+    // Todo: Expand this list as we support more protocols out of the box.
+    // https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+    Icpm = 1,
+    Igmp = 2,
+    Ipv4 = 4,
+    Tcp = 6,
+    Udp = 17,
+    Ipv6 = 41,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub(super) struct ControlFlags(u8);
 
 impl ControlFlags {
+    pub fn new(may_fragment: bool, is_last_fragment: bool) -> Self {
+        Self((!is_last_fragment as u8) | ((!may_fragment as u8) << 1))
+    }
+
     #[allow(dead_code)]
     pub fn may_fragment(&self) -> bool {
         self.0 & 0b10 == 0
@@ -112,11 +226,21 @@ impl ControlFlags {
     pub fn is_last_fragment(&self) -> bool {
         self.0 & 0b1 == 0
     }
+
+    pub fn as_u8(self) -> u8 {
+        self.into()
+    }
 }
 
 impl From<u8> for ControlFlags {
     fn from(byte: u8) -> Self {
         Self(byte)
+    }
+}
+
+impl From<ControlFlags> for u8 {
+    fn from(flags: ControlFlags) -> Self {
+        flags.0
     }
 }
 
@@ -131,13 +255,17 @@ impl From<u8> for ControlFlags {
 /// high-reliability, and high-throughput.
 ///
 /// See RFC791 p11 s3.1 for more details.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub(super) struct TypeOfService(u8);
 
 impl TypeOfService {
     // Note: It should not be possible for any of these functions to fail
     // because the enum variants cover any possible byte value we would be
     // passing in.
+
+    pub fn new() -> Self {
+        todo!()
+    }
 
     #[allow(dead_code)]
     pub fn precedence(&self) -> Precedence {
@@ -158,11 +286,21 @@ impl TypeOfService {
     pub fn reliability(&self) -> Reliability {
         ((self.0 >> 2) & 0b1).try_into().unwrap()
     }
+
+    pub fn as_u8(self) -> u8 {
+        self.into()
+    }
 }
 
 impl From<u8> for TypeOfService {
     fn from(byte: u8) -> Self {
         Self(byte)
+    }
+}
+
+impl From<TypeOfService> for u8 {
+    fn from(type_of_service: TypeOfService) -> Self {
+        type_of_service.0
     }
 }
 
@@ -266,15 +404,14 @@ impl TryFrom<u8> for Precedence {
 mod tests {
     use super::*;
 
-    #[test]
-    fn parses_basic_header() -> anyhow::Result<()> {
+    fn make_header() -> (etherparse::Ipv4Header, Vec<u8>, u16) {
         let payload = "Hello, world!";
         let ttl = 30;
         let protocol = etherparse::IpNumber::Udp;
         let source = [127, 0, 0, 1];
         let destination = [123, 45, 67, 89];
-        let valid_header = etherparse::Ipv4Header::new(
-            payload.len().try_into()?,
+        let header = etherparse::Ipv4Header::new(
+            payload.len().try_into().unwrap(),
             ttl,
             protocol,
             source,
@@ -282,9 +419,15 @@ mod tests {
         );
         let serial_header = {
             let mut serial_header = vec![];
-            valid_header.write(&mut serial_header)?;
+            header.write(&mut serial_header).unwrap();
             serial_header
         };
+        (header, serial_header, payload.len().try_into().unwrap())
+    }
+
+    #[test]
+    fn parses_basic_header() -> anyhow::Result<()> {
+        let (valid_header, serial_header, _) = make_header();
         let parsed = Ipv4Header::from_bytes(serial_header.iter().cloned())?;
         assert_eq!(parsed.ihl, valid_header.ihl());
         assert_eq!(parsed.type_of_service.delay(), Delay::Normal);
@@ -307,6 +450,21 @@ mod tests {
         assert_eq!(parsed.checksum, valid_header.calc_header_checksum()?);
         assert_eq!(parsed.source.to_bytes(), valid_header.source);
         assert_eq!(parsed.destination.to_bytes(), valid_header.destination);
+        Ok(())
+    }
+
+    #[test]
+    fn generates_basic_header() -> anyhow::Result<()> {
+        let (_, expected, payload_length) = make_header();
+        let actual = Ipv4HeaderBuilder::new(
+            Ipv4Address::new([127, 0, 0, 1]),
+            Ipv4Address::new([123, 45, 67, 89]),
+            ProtocolNumber::Udp,
+            payload_length,
+        )
+        .flags(ControlFlags::new(false, true))
+        .build()?;
+        assert_eq!(actual, expected);
         Ok(())
     }
 }

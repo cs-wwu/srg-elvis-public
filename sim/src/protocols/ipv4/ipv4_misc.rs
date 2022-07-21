@@ -46,4 +46,8 @@ pub(super) enum Ipv4Error {
         "The header checksum {expected:#06x} does not match the calculated checksum {actual:#06x}"
     )]
     IncorrectChecksum { expected: u16, actual: u16 },
+    #[error("The payload is longer than is allowed")]
+    OverlyLongPayload,
+    #[error("The fragment offset is too long to fit control flags in the header")]
+    OverlyLongFragmentOffset,
 }
