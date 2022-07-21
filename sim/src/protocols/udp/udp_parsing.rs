@@ -40,6 +40,24 @@ impl UdpHeader {
         // [zero, UDP protocol number] from pseudo header
         checksum.add_u8(0, 17);
 
+        let mut bytes_consumed = 0;
+
+        while bytes_consumed < length {
+            let first = bytes.next().ok_or(UdpError::HeaderTooShort)?;
+            // If we got an odd number of bytes, pad with a zero
+            let second = match bytes.next() {
+                Some(second) => {
+                    bytes_consumed += 2;
+                    second
+                }
+                None => {
+                    bytes_consumed += 1;
+                    0
+                }
+            };
+            checksum.add_u16(u16::from_be_bytes([first, second]));
+        }
+
         let actual_checksum = checksum.as_u16();
         if actual_checksum != expected_checksum {
             Err(UdpError::InvalidChecksum {
@@ -62,14 +80,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_udp_header() {
+    fn parses_udp_header() -> anyhow::Result<()> {
         let payload = b"Hello, world!";
         let time_to_live = 30;
         let protocol = etherparse::IpNumber::Udp;
         let source_address = [127, 0, 0, 1];
         let destination_address = [123, 45, 67, 89];
         let ip_header = etherparse::Ipv4Header::new(
-            payload.len().try_into().unwrap(),
+            payload.len().try_into()?,
             time_to_live,
             protocol,
             source_address,
@@ -82,19 +100,17 @@ mod tests {
             destination_port,
             &ip_header,
             payload,
-        )
-        .unwrap();
+        )?;
         let serial = {
             let mut serial = vec![];
             valid_header.write(&mut serial);
             serial
         };
         let actual = UdpHeader::from_bytes_ipv4(
-            serial.into_iter(),
+            serial.into_iter().chain(payload.iter().cloned()),
             source_address.into(),
             destination_address.into(),
-        )
-        .unwrap();
+        )?;
         assert_eq!(actual.source, valid_header.source_port);
         assert_eq!(actual.destination, valid_header.destination_port);
         assert_eq!(actual.length, valid_header.length);
@@ -104,5 +120,6 @@ mod tests {
                 .calc_checksum_ipv4(&ip_header, payload)
                 .unwrap()
         );
+        Ok(())
     }
 }
