@@ -1,6 +1,3 @@
-#![feature(core_intrinsics)]
-#![feature(const_type_id)]
-
 //! The Extensible, Large-scale Virtual Internet Simulator, a library for
 //! running simulations of many computers communicating over networks.
 //!

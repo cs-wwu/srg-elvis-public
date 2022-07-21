@@ -1,14 +1,14 @@
 use crate::core::control::{from_impls, make_key, ControlValue};
 use thiserror::Error as ThisError;
 
-make_key!(LocalPortKey);
+const LOCAL_PORT_KEY: u64 = make_key("UDP Local Port");
 /// A [`ControlValue`] for the local port number.
-pub type LocalPort = ControlValue<{ LocalPortKey::KEY }, u16>;
+pub type LocalPort = ControlValue<LOCAL_PORT_KEY, u16>;
 from_impls!(LocalPort, u16);
 
-make_key!(RemotePortKey);
+const REMOTE_PORT_KEY: u64 = make_key("UDP Remote Port");
 /// A [`ControlValue`] for the remote port number.
-pub type RemotePort = ControlValue<{ RemotePortKey::KEY }, u16>;
+pub type RemotePort = ControlValue<REMOTE_PORT_KEY, u16>;
 from_impls!(RemotePort, u16);
 
 #[derive(Debug, ThisError)]

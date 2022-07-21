@@ -1,4 +1,7 @@
-use super::{message::Message, session::ControlFlow, Control, ProtocolContext, SharedSession};
+use super::{
+    control::make_key, message::Message, session::ControlFlow, Control, ProtocolContext,
+    SharedSession,
+};
 use std::{cell::RefCell, error::Error, rc::Rc};
 
 /// A unique identifier for a [`Protocol`].
@@ -6,10 +9,17 @@ use std::{cell::RefCell, error::Error, rc::Rc};
 pub struct ProtocolId(u64);
 
 impl ProtocolId {
-    pub const fn of<T: 'static>() -> Self {
-        Self(std::intrinsics::type_id::<T>())
+    /// Creates a new protocol ID with the given number.
+    pub const fn new(id: u64) -> Self {
+        Self(id)
     }
 
+    /// Creates a pseudorandom ID by hashing the string identifier.
+    pub const fn from_string(string: &'static str) -> Self {
+        Self(make_key(string))
+    }
+
+    /// Gets the underlying ID number.
     pub fn into_inner(self) -> u64 {
         self.0
     }

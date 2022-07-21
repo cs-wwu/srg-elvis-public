@@ -36,7 +36,7 @@ pub struct Tap {
 
 impl Tap {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::of::<Self>();
+    pub const ID: ProtocolId = ProtocolId::new(0xdeadbeef);
 
     /// Creates a new network tap.
     pub fn new(network_mtus: Vec<Mtu>) -> Self {

@@ -30,7 +30,7 @@ impl SendMessage {
 }
 
 impl Application for SendMessage {
-    const ID: ProtocolId = ProtocolId::of::<Self>();
+    const ID: ProtocolId = ProtocolId::from_string("Send Message");
 
     fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
         if self.did_set_up {

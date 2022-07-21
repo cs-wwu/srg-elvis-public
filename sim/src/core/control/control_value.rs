@@ -1,4 +1,5 @@
 use super::{Control, Primitive};
+use sha2_const::Sha256;
 use std::{
     fmt::{self, Display},
     hash::Hash,
@@ -99,6 +100,15 @@ where
     }
 }
 
+pub const fn make_key(string_identifier: &'static str) -> u64 {
+    let digest = Sha256::new()
+        .update(string_identifier.as_bytes())
+        .finalize();
+    u64::from_be_bytes([
+        digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+    ])
+}
+
 /// Create bidirectional [`From`] implementations between the [`ControlValue`]
 /// and some type.
 ///
@@ -125,17 +135,7 @@ macro_rules! from_impls {
     };
 }
 
-macro_rules! make_key {
-    ($key:ident) => {
-        struct $key;
-
-        impl $key {
-            pub const KEY: u64 = std::intrinsics::type_id::<Self>();
-        }
-    };
-}
-
-pub(crate) use {from_impls, make_key};
+pub(crate) use from_impls;
 
 /// An error occuring as a result of some operation on a [`ControlValue`].
 #[derive(Debug, ThisError)]

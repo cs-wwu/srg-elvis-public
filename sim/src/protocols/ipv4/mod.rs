@@ -39,7 +39,7 @@ pub struct Ipv4 {
 
 impl Ipv4 {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::of::<Self>();
+    pub const ID: ProtocolId = ProtocolId::new(4);
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {

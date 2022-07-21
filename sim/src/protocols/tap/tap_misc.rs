@@ -5,10 +5,10 @@ use crate::core::{
 use std::error::Error;
 use thiserror::Error as ThisError;
 
-make_key!(NetworkIndexKey);
+const NETWORK_INDEX_KEY: u64 = make_key("Tap Network Index");
 /// A [`ControlValue`] for which network to send on or which a message was
 /// received from.
-pub type NetworkIndex = ControlValue<{ NetworkIndexKey::KEY }, u8>;
+pub type NetworkIndex = ControlValue<NETWORK_INDEX_KEY, u8>;
 from_impls!(NetworkIndex, u8);
 
 #[derive(Debug, ThisError)]

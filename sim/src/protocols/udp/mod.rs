@@ -35,7 +35,7 @@ pub struct Udp {
 
 impl Udp {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::of::<Self>();
+    pub const ID: ProtocolId = ProtocolId::new(17);
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
