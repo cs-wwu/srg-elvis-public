@@ -1,9 +1,11 @@
-use super::{LocalAddress, RemoteAddress};
+use super::{
+    ipv4_parsing::{Ipv4HeaderBuilder, ProtocolNumber},
+    LocalAddress, RemoteAddress,
+};
 use crate::{
     core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::udp::Udp,
 };
-use etherparse::{IpNumber, Ipv4Header};
 use std::error::Error;
 
 pub struct Ipv4Session {
@@ -33,24 +35,18 @@ impl Session for Ipv4Session {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let length = message.iter().count();
-        let ip_number = match self.upstream {
-            Udp::ID => IpNumber::Udp,
+        let protocol_number = match self.upstream {
+            Udp::ID => ProtocolNumber::Udp,
             _ => panic!("Unknown upstream protocol"),
         };
-
-        let mut header = Ipv4Header::new(
-            length as u16,
-            30,
-            ip_number,
+        let header = Ipv4HeaderBuilder::new(
             self.identifier.local.into_inner().into(),
             self.identifier.remote.into_inner().into(),
-        );
-        header.header_checksum = header.calc_header_checksum()?;
-
-        let mut header_buffer = vec![];
-        header.write(&mut header_buffer)?;
-
-        let message = message.with_header(header_buffer);
+            protocol_number,
+            length as u16,
+        )
+        .build()?;
+        let message = message.with_header(header);
         self.downstream.send(message, context)?;
         Ok(())
     }
