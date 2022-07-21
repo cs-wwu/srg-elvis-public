@@ -135,21 +135,25 @@ impl Ipv4HeaderBuilder {
         }
     }
 
+    #[allow(dead_code)]
     pub fn type_of_service(mut self, type_of_service: TypeOfService) -> Self {
         self.type_of_service = type_of_service;
         self
     }
 
+    #[allow(dead_code)]
     pub fn identification(mut self, identification: u16) -> Self {
         self.identification = identification;
         self
     }
 
+    #[allow(dead_code)]
     pub fn fragment_offset(mut self, fragment_offset: u16) -> Self {
         self.fragment_offset = fragment_offset;
         self
     }
 
+    #[allow(dead_code)]
     pub fn flags(mut self, flags: ControlFlags) -> Self {
         self.flags = flags;
         self
@@ -201,11 +205,16 @@ impl Ipv4HeaderBuilder {
 pub(super) enum ProtocolNumber {
     // Todo: Expand this list as we support more protocols out of the box.
     // https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+    #[allow(dead_code)]
     Icpm = 1,
+    #[allow(dead_code)]
     Igmp = 2,
+    #[allow(dead_code)]
     Ipv4 = 4,
+    #[allow(dead_code)]
     Tcp = 6,
     Udp = 17,
+    #[allow(dead_code)]
     Ipv6 = 41,
 }
 
@@ -213,6 +222,7 @@ pub(super) enum ProtocolNumber {
 pub(super) struct ControlFlags(u8);
 
 impl ControlFlags {
+    #[allow(dead_code)]
     pub fn new(may_fragment: bool, is_last_fragment: bool) -> Self {
         Self((!is_last_fragment as u8) | ((!may_fragment as u8) << 1))
     }
@@ -263,6 +273,7 @@ impl TypeOfService {
     // because the enum variants cover any possible byte value we would be
     // passing in.
 
+    #[allow(dead_code)]
     pub fn new(
         precedence: Precedence,
         delay: Delay,
