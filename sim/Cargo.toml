@@ -9,7 +9,6 @@ etherparse = "0.10"
 
 [dev-dependencies]
 criterion = "0.3"
-anyhow = "1.0"
 
 [[bench]]
 name = "internet"
