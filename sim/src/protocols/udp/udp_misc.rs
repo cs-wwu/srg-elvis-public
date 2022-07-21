@@ -17,4 +17,10 @@ pub(super) enum UdpError {
     SessionExists,
     #[error("Tried to demux with a missing session and no listen bindings")]
     MissingSession,
+    #[error("Too few bytes to constitute a UDP header")]
+    HeaderTooShort,
+    #[error(
+        "The computed checksum {actual:#06x} did not match the header checksum {expected:#06x}"
+    )]
+    InvalidChecksum { actual: u16, expected: u16 },
 }
