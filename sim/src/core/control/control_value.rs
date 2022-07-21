@@ -1,5 +1,5 @@
 use super::{Control, Primitive};
-use sha2_const::Sha256;
+use const_fnv1a_hash::fnv1a_hash_64;
 use std::{
     fmt::{self, Display},
     hash::Hash,
@@ -101,12 +101,7 @@ where
 }
 
 pub const fn make_key(string_identifier: &'static str) -> u64 {
-    let digest = Sha256::new()
-        .update(string_identifier.as_bytes())
-        .finalize();
-    u64::from_be_bytes([
-        digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
-    ])
+    fnv1a_hash_64(string_identifier.as_bytes(), None)
 }
 
 /// Create bidirectional [`From`] implementations between the [`ControlValue`]
