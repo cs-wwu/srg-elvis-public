@@ -1,8 +1,5 @@
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Checksum {
-    sum: u16,
-    carry: bool,
-}
+pub struct Checksum(u16);
 
 impl Checksum {
     pub fn new() -> Self {
@@ -10,7 +7,8 @@ impl Checksum {
     }
 
     pub fn add_u16(&mut self, value: u16) {
-        (self.sum, self.carry) = self.sum.carrying_add(value, self.carry);
+        let (sum, carry) = self.0.overflowing_add(value);
+        self.0 = sum + carry as u16;
     }
 
     pub fn add_u8(&mut self, a: u8, b: u8) {
@@ -23,7 +21,7 @@ impl Checksum {
     }
 
     pub fn as_u16(&self) -> u16 {
-        match self.sum {
+        match self.0 {
             // Use that there are two one's complement representations of zero
             // and pick the nonzero one to differentiate from an unused
             // checksum.
