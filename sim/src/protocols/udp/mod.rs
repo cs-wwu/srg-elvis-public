@@ -8,7 +8,6 @@ use crate::{
     },
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
 };
-use etherparse::UdpHeaderSlice;
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
@@ -22,6 +21,8 @@ pub use udp_misc::{LocalPort, RemotePort};
 
 mod udp_session;
 use udp_session::{SessionId, UdpSession};
+
+use self::udp_parsing::UdpHeader;
 
 mod udp_parsing;
 
@@ -107,13 +108,15 @@ impl Protocol for Udp {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        // Todo: Scuffed copy fest. Revise.
-        let header_bytes: Vec<_> = message.iter().take(8).collect();
-        let header = UdpHeaderSlice::from_slice(header_bytes.as_slice())?;
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
-        let local_port = LocalPort::new(header.destination_port());
-        let remote_port = RemotePort::new(header.source_port());
+        let header = UdpHeader::from_bytes_ipv4(
+            message.iter(),
+            remote_address.into(),
+            local_address.into(),
+        )?;
+        let local_port = LocalPort::new(header.destination);
+        let remote_port = RemotePort::new(header.source);
         let session_id = SessionId {
             local_address,
             local_port,

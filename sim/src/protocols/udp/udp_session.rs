@@ -19,12 +19,19 @@ impl Session for UdpSession {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let id = self.identifier;
-        let payload_len = message.iter().count();
-        // Todo: We want to use the checksum
-        let header = UdpHeader::without_ipv4_checksum(
+        let payload: Vec<_> = message.iter().collect();
+        let ipv4_header = etherparse::Ipv4Header::new(
+            payload.len().try_into()?,
+            30,
+            etherparse::IpNumber::Udp,
+            self.identifier.local_address.into(),
+            self.identifier.remote_address.into(),
+        );
+        let header = UdpHeader::with_ipv4_checksum(
             id.local_port.into(),
             id.remote_port.into(),
-            payload_len,
+            &ipv4_header,
+            payload.as_slice(),
         )?;
         let mut header_bytes = vec![];
         header.write(&mut header_bytes)?;

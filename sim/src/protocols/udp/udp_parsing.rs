@@ -3,11 +3,11 @@ use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 use super::udp_misc::UdpError;
 
 pub(super) struct UdpHeader {
-    source: u16,
-    destination: u16,
-    length: u16,
+    pub source: u16,
+    pub destination: u16,
+    pub length: u16,
     // Todo: Remove this. It is only needed while parsing.
-    checksum: u16,
+    pub checksum: u16,
 }
 
 impl UdpHeader {
