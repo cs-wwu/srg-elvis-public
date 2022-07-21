@@ -25,4 +25,6 @@ pub(super) enum UdpError {
     InvalidChecksum { actual: u16, expected: u16 },
     #[error("The number of message bytes differs from the header")]
     LengthMismatch,
+    #[error("The UDP payload is longer than can fit into a single packet")]
+    OverlyLongPayload,
 }

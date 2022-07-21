@@ -1,6 +1,8 @@
 use super::udp_misc::UdpError;
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 
+const HEADER_OCTETS: u16 = 8;
+
 pub(super) struct UdpHeader {
     pub source: u16,
     pub destination: u16,
@@ -80,51 +82,132 @@ impl UdpHeader {
     }
 }
 
+pub(super) struct UdpHeaderBuilder {}
+
+impl UdpHeaderBuilder {
+    pub fn build(
+        source_address: Ipv4Address,
+        source_port: u16,
+        destination_address: Ipv4Address,
+        destination_port: u16,
+        mut payload: impl Iterator<Item = u8>,
+    ) -> Result<Vec<u8>, UdpError> {
+        let mut checksum = Checksum::new();
+        let mut length = 0;
+        loop {
+            let first = match payload.next() {
+                Some(first) => first,
+                None => break,
+            };
+            let second = match payload.next() {
+                Some(second) => {
+                    length += 2;
+                    second
+                }
+                None => {
+                    length += 1;
+                    0
+                }
+            };
+            checksum.add_u8(first, second);
+        }
+
+        let length = HEADER_OCTETS
+            .checked_add(length.try_into().map_err(|_| UdpError::OverlyLongPayload)?)
+            .ok_or(UdpError::OverlyLongPayload)?;
+
+        // Once for the header, again for the pseudo header
+        checksum.add_u16(length);
+        checksum.add_u16(length);
+
+        checksum.add_u32(source_address.into());
+        checksum.add_u32(destination_address.into());
+        checksum.add_u8(0, 17);
+        checksum.add_u16(source_port);
+        checksum.add_u16(destination_port);
+
+        let mut out = vec![];
+        out.extend_from_slice(&source_port.to_be_bytes());
+        out.extend_from_slice(&destination_port.to_be_bytes());
+        out.extend_from_slice(&length.to_be_bytes());
+        out.extend_from_slice(&checksum.as_u16().to_be_bytes());
+        Ok(out)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn parses_udp_header() -> anyhow::Result<()> {
-        let payload = b"Hello, world!";
+    const SOURCE_ADDRESS: [u8; 4] = [127, 0, 0, 1];
+    const SOURCE_PORT: u16 = 12345;
+    const DESTINATION_ADDRESS: [u8; 4] = [123, 45, 67, 89];
+    const DESTINATION_PORT: u16 = 6789;
+
+    fn etherparse_headers() -> (
+        etherparse::Ipv4Header,
+        etherparse::UdpHeader,
+        Vec<u8>,
+        &'static str,
+    ) {
+        let payload = "Hello, world!";
         let time_to_live = 30;
         let protocol = etherparse::IpNumber::Udp;
-        let source_address = [127, 0, 0, 1];
-        let destination_address = [123, 45, 67, 89];
         let ip_header = etherparse::Ipv4Header::new(
-            payload.len().try_into()?,
+            payload.len().try_into().unwrap(),
             time_to_live,
             protocol,
-            source_address,
-            destination_address,
+            SOURCE_ADDRESS,
+            DESTINATION_ADDRESS,
         );
-        let source_port = 12345u16;
-        let destination_port = 6789u16;
-        let valid_header = etherparse::UdpHeader::with_ipv4_checksum(
-            source_port,
-            destination_port,
+        let udp_header = etherparse::UdpHeader::with_ipv4_checksum(
+            SOURCE_PORT,
+            DESTINATION_PORT,
             &ip_header,
-            payload,
-        )?;
+            payload.as_bytes(),
+        )
+        .unwrap();
         let serial = {
             let mut serial = vec![];
-            valid_header.write(&mut serial)?;
+            udp_header.write(&mut serial).unwrap();
             serial
         };
+        (ip_header, udp_header, serial, payload)
+    }
+
+    #[test]
+    fn parses_header() -> anyhow::Result<()> {
+        let (ip_header, expected, expected_serial, payload) = etherparse_headers();
         let actual = UdpHeader::from_bytes_ipv4(
-            serial.into_iter().chain(payload.iter().cloned()),
-            source_address.into(),
-            destination_address.into(),
+            expected_serial
+                .into_iter()
+                .chain(payload.as_bytes().iter().cloned()),
+            SOURCE_ADDRESS.into(),
+            DESTINATION_ADDRESS.into(),
         )?;
-        assert_eq!(actual.source, valid_header.source_port);
-        assert_eq!(actual.destination, valid_header.destination_port);
-        assert_eq!(actual.length, valid_header.length);
+        assert_eq!(actual.source, expected.source_port);
+        assert_eq!(actual.destination, expected.destination_port);
+        assert_eq!(actual.length, expected.length);
         assert_eq!(
             actual.checksum,
-            valid_header
-                .calc_checksum_ipv4(&ip_header, payload)
+            expected
+                .calc_checksum_ipv4(&ip_header, payload.as_bytes())
                 .unwrap()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn generates_header() -> anyhow::Result<()> {
+        let (_, _, expected, payload) = etherparse_headers();
+        let actual = UdpHeaderBuilder::build(
+            SOURCE_ADDRESS.into(),
+            SOURCE_PORT,
+            DESTINATION_ADDRESS.into(),
+            DESTINATION_PORT,
+            payload.as_bytes().iter().cloned(),
+        )?;
+        assert_eq!(actual, expected);
         Ok(())
     }
 }
