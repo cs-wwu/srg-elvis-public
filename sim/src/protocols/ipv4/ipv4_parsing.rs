@@ -263,8 +263,18 @@ impl TypeOfService {
     // because the enum variants cover any possible byte value we would be
     // passing in.
 
-    pub fn new() -> Self {
-        todo!()
+    pub fn new(
+        precedence: Precedence,
+        delay: Delay,
+        throughput: Throughput,
+        reliability: Reliability,
+    ) -> Self {
+        Self(
+            ((reliability as u8) << 2)
+                | ((throughput as u8) << 3)
+                | ((delay as u8) << 4)
+                | ((precedence as u8) << 5),
+        )
     }
 
     #[allow(dead_code)]
@@ -463,6 +473,12 @@ mod tests {
             payload_length,
         )
         .flags(ControlFlags::new(false, true))
+        .type_of_service(TypeOfService::new(
+            Precedence::Routine,
+            Delay::Normal,
+            Throughput::Normal,
+            Reliability::Normal,
+        ))
         .build()?;
         assert_eq!(actual, expected);
         Ok(())
