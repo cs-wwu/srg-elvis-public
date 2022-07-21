@@ -23,7 +23,7 @@ pub(super) struct Ipv4Header {
 }
 
 impl Ipv4Header {
-    pub fn from_bytes<T: Iterator<Item = u8>>(mut bytes: T) -> Result<Self, Ipv4Error> {
+    pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, Ipv4Error> {
         let mut next =
             || -> Result<u8, Ipv4Error> { bytes.next().ok_or(Ipv4Error::HeaderTooShort) };
 

@@ -23,6 +23,8 @@ pub use udp_misc::{LocalPort, RemotePort};
 mod udp_session;
 use udp_session::{SessionId, UdpSession};
 
+mod udp_parsing;
+
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
