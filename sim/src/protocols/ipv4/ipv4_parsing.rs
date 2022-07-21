@@ -268,25 +268,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_basic_header() {
+    fn parses_basic_header() -> anyhow::Result<()> {
         let payload = "Hello, world!";
         let ttl = 30;
         let protocol = etherparse::IpNumber::Udp;
         let source = [127, 0, 0, 1];
         let destination = [123, 45, 67, 89];
         let mut valid_header = etherparse::Ipv4Header::new(
-            payload.len().try_into().unwrap(),
+            payload.len().try_into()?,
             ttl,
             protocol,
             source,
             destination,
         );
-        let serial = {
-            let mut serial = vec![];
-            valid_header.write(&mut serial);
-            serial
-        };
-        let parsed = Ipv4Header::from_bytes(serial.iter().cloned()).unwrap();
+        let mut serial_header = vec![];
+        valid_header.write(&mut serial_header);
+        let parsed = Ipv4Header::from_bytes(serial_header.iter().cloned())?;
         assert_eq!(parsed.ihl, valid_header.ihl());
         assert_eq!(parsed.type_of_service.delay(), Delay::Normal);
         assert_eq!(parsed.type_of_service.throughput(), Throughput::Normal);
@@ -305,11 +302,9 @@ mod tests {
         assert_eq!(parsed.fragment_offset, 0);
         assert_eq!(parsed.time_to_live, valid_header.time_to_live);
         assert_eq!(parsed.protocol, valid_header.protocol);
-        assert_eq!(
-            parsed.checksum,
-            valid_header.calc_header_checksum().unwrap()
-        );
+        assert_eq!(parsed.checksum, valid_header.calc_header_checksum()?);
         assert_eq!(parsed.source.to_bytes(), valid_header.source);
         assert_eq!(parsed.destination.to_bytes(), valid_header.destination);
+        Ok(())
     }
 }
