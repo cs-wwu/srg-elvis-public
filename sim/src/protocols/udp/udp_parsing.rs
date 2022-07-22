@@ -44,22 +44,7 @@ impl UdpHeader {
         // [zero, UDP protocol number] from pseudo header
         checksum.add_u8(0, 17);
 
-        let mut bytes_consumed = 8;
-        while bytes_consumed < length {
-            let first = bytes.next().ok_or(UdpError::HeaderTooShort)?;
-            // If we got an odd number of bytes, pad with a zero
-            let second = match bytes.next() {
-                Some(second) => {
-                    bytes_consumed += 2;
-                    second
-                }
-                None => {
-                    bytes_consumed += 1;
-                    0
-                }
-            };
-            checksum.add_u16(u16::from_be_bytes([first, second]));
-        }
+        let bytes_consumed = next_padded(&mut bytes, &mut checksum) + 8;
 
         if bytes_consumed != length || bytes.next().is_some() {
             Err(UdpError::LengthMismatch)?
@@ -90,20 +75,7 @@ pub(super) fn build_udp_header(
     mut payload: impl Iterator<Item = u8>,
 ) -> Result<Vec<u8>, UdpError> {
     let mut checksum = Checksum::new();
-    let mut length = 0;
-    while let Some(first) = payload.next() {
-        let second = match payload.next() {
-            Some(second) => {
-                length += 2;
-                second
-            }
-            None => {
-                length += 1;
-                0
-            }
-        };
-        checksum.add_u8(first, second);
-    }
+    let length = next_padded(&mut payload, &mut checksum);
 
     let length = HEADER_OCTETS
         .checked_add(length.try_into().map_err(|_| UdpError::OverlyLongPayload)?)
@@ -125,6 +97,24 @@ pub(super) fn build_udp_header(
     out.extend_from_slice(&length.to_be_bytes());
     out.extend_from_slice(&checksum.as_u16().to_be_bytes());
     Ok(out)
+}
+
+fn next_padded(payload: &mut impl Iterator<Item = u8>, checksum: &mut Checksum) -> u16 {
+    let mut length = 0;
+    while let Some(first) = payload.next() {
+        let second = match payload.next() {
+            Some(second) => {
+                length += 2;
+                second
+            }
+            None => {
+                length += 1;
+                0
+            }
+        };
+        checksum.add_u8(first, second);
+    }
+    length
 }
 
 #[cfg(test)]
