@@ -91,11 +91,7 @@ pub(super) fn build_udp_header(
 ) -> Result<Vec<u8>, UdpError> {
     let mut checksum = Checksum::new();
     let mut length = 0;
-    loop {
-        let first = match payload.next() {
-            Some(first) => first,
-            None => break,
-        };
+    while let Some(first) = payload.next() {
         let second = match payload.next() {
             Some(second) => {
                 length += 2;
