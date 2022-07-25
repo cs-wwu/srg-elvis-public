@@ -9,9 +9,9 @@ use slice_range::SliceRange;
 mod message_bytes;
 pub use message_bytes::MessageBytes;
 
-// Todo: Add support for appending messages
-// Todo: Add support for incorrectly transmitted bytes
-// Todo: Store length on the message
+// TODO(hardint): Add support for appending messages
+// TODO(hardint): Add support for incorrectly transmitted bytes
+// TODO(hardint): Store length on the message
 
 /// A byte collection with efficient operations for implementing protocols.
 ///

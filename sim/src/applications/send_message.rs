@@ -39,7 +39,7 @@ impl Application for SendMessage {
         self.did_set_up = true;
 
         let mut participants = Control::new();
-        // Todo: This should be some other IP address
+        // TODO(hardint): This should be some other IP addressODO
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         LocalPort::set(&mut participants, 0xdeadu16);

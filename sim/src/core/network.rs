@@ -6,7 +6,7 @@ pub type Mtu = u32;
 
 type Pending = HashMap<usize, Vec<Message>>;
 
-// Todo: Explore having Network hold Machine instances
+// TODO(hardint): Explore having Network hold Machine instances
 
 /// A link-level connection between [`Machine`](super::Machine)s.
 ///
@@ -43,7 +43,7 @@ impl Network {
 
     /// Send a `message` to the machine or machines identified by `address`.
     pub fn send(&mut self, address: PhysicalAddress, message: Message) {
-        // Todo: Check that the message is shorter than MTU
+        // TODO(hardint): Check that the message is shorter than MTU
         match address {
             PhysicalAddress::Recipient(mac) => send_to_mac(mac, &mut self.pending, message),
             PhysicalAddress::Broadcast => {
@@ -57,7 +57,7 @@ impl Network {
     /// Remove and return the list messages not yet processed that are destined
     /// for delivery to `address`.
     pub fn take_queue(&mut self, address: MachineId) -> Vec<Message> {
-        // Todo: Allow only taking individual messages as a speed control
+        // TODO(hardint): Allow only taking individual messages as a speed control
         // mechanism
         match self.pending.entry(address) {
             Entry::Occupied(entry) => entry.remove(),

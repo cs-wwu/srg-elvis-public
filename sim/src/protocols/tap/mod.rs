@@ -28,7 +28,7 @@ use self::{tap_misc::TapError, tap_session::SessionId};
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
 pub struct Tap {
-    // Todo: Add an interface for accessing the MTUs
+    // TODO(hardint): Add an interface for accessing the MTUs
     #[allow(dead_code)]
     network_mtus: Vec<Mtu>,
     sessions: HashMap<SessionId, Rc<RefCell<TapSession>>>,

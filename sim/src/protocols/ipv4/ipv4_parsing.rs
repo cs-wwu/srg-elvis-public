@@ -20,7 +20,7 @@ pub(super) struct Ipv4Header {
     pub flags: ControlFlags,
     pub time_to_live: u8,
     pub protocol: u8,
-    // Todo: This isn't needed after parsing in main line code, but it is nice
+    // TODO(hardint): This isn't needed after parsing in main line code, but it is nice
     // for testing and for completeness. Consider whether it is worth removing.
     pub checksum: u16,
     pub source: Ipv4Address,
@@ -41,7 +41,7 @@ impl Ipv4Header {
         }
         let ihl = version_and_ihl & 0b1111;
         if ihl != BASE_WORDS {
-            // Todo: Support optional headers
+            // TODO(hardint): Support optional headers
             Err(Ipv4Error::InvalidHeaderLength)?
         }
         let type_of_service_byte = next()?;
@@ -201,7 +201,7 @@ impl Ipv4HeaderBuilder {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub(super) enum ProtocolNumber {
-    // Todo: Expand this list as we support more protocols out of the box.
+    // TODO(hardint): Expand this list as we support more protocols out of the box.
     // https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
     #[allow(dead_code)]
     Icpm = 1,

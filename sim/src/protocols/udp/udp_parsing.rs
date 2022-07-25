@@ -6,7 +6,7 @@ const HEADER_OCTETS: u16 = 8;
 pub(super) struct UdpHeader {
     pub source: u16,
     pub destination: u16,
-    // Todo: Consider removing unused header parts. For now, it's nice having
+    // TODO(hardint): Consider removing unused header parts. For now, it's nice having
     // these available for the tests.
     #[allow(dead_code)]
     pub length: u16,

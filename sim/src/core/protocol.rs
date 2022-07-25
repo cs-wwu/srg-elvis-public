@@ -45,7 +45,7 @@ pub type RcProtocol = Rc<RefCell<dyn Protocol>>;
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
 pub trait Protocol {
-    // Todo: We need methods that allow other protocols to query info about a
+    // TODO(hardint): We need methods that allow other protocols to query info about a
     // protocol and its sessions. For example, a TCP or an IP protocol will want
     // a method to learn about a Tap's MTU.
 

@@ -55,7 +55,7 @@ impl Machine {
             match self
                 .tap
                 .borrow_mut()
-                // Todo: We want to get the network number from pending()
+                // TODO(hardint): We want to get the network number from pending()
                 .accept_incoming(message, 0, &mut protocol_context)
             {
                 Ok(flow) => flow,
@@ -87,7 +87,7 @@ impl Machine {
                 for message in messages {
                     network
                         .borrow_mut()
-                        // Todo: Use the correct physical address
+                        // TODO(hardint): Use the correct physical address
                         .send(PhysicalAddress::Broadcast, message.clone());
                 }
             }
