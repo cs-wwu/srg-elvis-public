@@ -90,7 +90,6 @@ impl Protocol for Ipv4 {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let local = LocalAddress::try_from(&participants).unwrap();
-        let trait_object = self as &dyn Protocol;
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => Err(Ipv4Error::BindingExists(local))?,
             Entry::Vacant(entry) => {
