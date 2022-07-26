@@ -1,5 +1,11 @@
 use std::rc::Rc;
 
+// Chunks are a newtype wrapper over `Rc<Vec<u8>>`. The allow message parts to
+// be immutably shared between different machines. It is useful in the interface
+// for Message because it allows Message::new() and Message::with_header() to be
+// polymorphic over a variety of message data sources. The various From impls
+// makes this work.
+
 /// A piece of a [Message](super::Message), either a message body or a
 /// header.
 #[derive(Debug)]
@@ -31,13 +37,13 @@ impl From<Vec<u8>> for Chunk {
 
 impl From<&[u8]> for Chunk {
     fn from(slice: &[u8]) -> Self {
-        Self(Rc::new(slice.to_vec()))
+        slice.to_vec().into()
     }
 }
 
 impl<const N: usize> From<&[u8; N]> for Chunk {
     fn from(array: &[u8; N]) -> Self {
-        From::from(array.as_slice())
+        array.as_slice().into()
     }
 }
 
