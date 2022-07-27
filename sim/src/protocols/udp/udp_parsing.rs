@@ -78,7 +78,7 @@ pub(super) fn build_udp_header(
     let length = next_padded(&mut payload, &mut checksum);
 
     let length = HEADER_OCTETS
-        .checked_add(length.try_into().map_err(|_| UdpError::OverlyLongPayload)?)
+        .checked_add(length)
         .ok_or(UdpError::OverlyLongPayload)?;
 
     // Once for the header, again for the pseudo header
