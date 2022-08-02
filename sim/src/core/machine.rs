@@ -1,5 +1,5 @@
 use super::{
-    internet::MachineContext, network::PhysicalAddress, protocol::RcProtocol, ControlFlow,
+    internet::MachineContext, network::PhysicalAddress, protocol::RcProtocol, ControlFlow, Network,
     ProtocolContext, ProtocolId,
 };
 use crate::protocols::tap::Tap;
@@ -23,14 +23,15 @@ pub(super) type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
 /// [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
+    id: MachineId,
     protocols: ProtocolMap,
     tap: Rc<RefCell<Tap>>,
 }
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
-    pub fn new(tap: Tap, protocols: impl Iterator<Item = RcProtocol>) -> Self {
-        let tap = Rc::new(RefCell::new(tap));
+    pub fn new(protocols: impl Iterator<Item = RcProtocol>, id: MachineId) -> Self {
+        let tap = Rc::new(RefCell::new(Tap::new()));
         let mut map = HashMap::new();
         for protocol in protocols.chain(iter::once(tap.clone() as RcProtocol)) {
             let id = protocol.borrow().id();
@@ -42,9 +43,18 @@ impl Machine {
             }
         }
         Self {
+            id,
             tap,
             protocols: Rc::new(map),
         }
+    }
+
+    pub fn attach(&mut self, network: &Network) {
+        self.tap.borrow_mut().attach(network);
+    }
+
+    pub fn id(&self) -> MachineId {
+        self.id
     }
 
     /// Gives the machine time to process incoming messages and

@@ -1,7 +1,7 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    message::Message, Control, ControlFlow, Mtu, Protocol, ProtocolContext, ProtocolId,
+    message::Message, Control, ControlFlow, Mtu, Network, Protocol, ProtocolContext, ProtocolId,
     SharedSession,
 };
 use std::{
@@ -39,11 +39,16 @@ impl Tap {
     pub const ID: ProtocolId = ProtocolId::new(0xdeadbeef);
 
     /// Creates a new network tap.
-    pub fn new(network_mtus: Vec<Mtu>) -> Self {
+    pub fn new() -> Self {
         Self {
-            network_mtus,
+            network_mtus: vec![],
             sessions: Default::default(),
         }
+    }
+
+    pub fn attach(&mut self, network: &Network) {
+        // TODO(hardint): Also store a channel to send on
+        self.network_mtus.push(network.mtu());
     }
 
     /// Gets a list of the pending, outgoing messages that have been sent on the
