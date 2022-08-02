@@ -1,4 +1,4 @@
-#[test]
-pub fn internet() {
-    elvis::simulation::default_simulation();
+#[tokio::test]
+pub async fn internet() {
+    elvis::simulation::default_simulation().await;
 }

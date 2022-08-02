@@ -8,7 +8,7 @@ use crate::{
     protocols::{ipv4::Ipv4, tap::Tap, udp::Udp},
 };
 
-pub fn default_simulation() {
+pub async fn default_simulation() {
     let network = Network::new(vec![0, 1], 1500);
 
     let sender_tap = Tap::new(vec![network.mtu()]);
