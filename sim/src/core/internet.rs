@@ -1,15 +1,13 @@
-use super::{message::Message, ControlFlow, Machine, MachineId, Network};
+use super::{message::Message, ControlFlow, Machine, MachineId, Mtu, Network, RcProtocol};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-type MachineIndex = usize;
 type NetworkIndex = usize;
 
 /// A shared, mutable handle to a network. We will be handing these out to
 /// multiple [`Machine`]s at a time.
 type SharedNetwork = Rc<RefCell<Network>>;
-/// A shared but immutable list of networks in the simulation. We won't be
-/// changing which networks there are, so [`RefCell`] is not needed.
-type SharedNetworks = Rc<Vec<SharedNetwork>>;
+/// A shared but immutable list of networks in the simulation.
+type SharedNetworks = Rc<RefCell<Vec<SharedNetwork>>>;
 /// A shared handle to a list of network indices. These are used to track which
 /// networks are available to a given [`Machine`].
 type NetworkIndices = Rc<Vec<NetworkIndex>>;
@@ -17,23 +15,51 @@ type NetworkIndices = Rc<Vec<NetworkIndex>>;
 /// The top-level container that controls the simulation.
 pub struct Internet {
     machines: Vec<Machine>,
-    /// Contains a mapping from a machine index to network indices
-    networks_for_machine: HashMap<MachineIndex, NetworkIndices>,
     networks: SharedNetworks,
 }
 
 impl Internet {
+    pub fn new() -> Self {
+        Self {
+            machines: vec![],
+            networks: Rc::new(RefCell::new(vec![])),
+        }
+    }
+
+    pub fn network(&mut self, mtu: Mtu) -> NetworkIndex {
+        let mut networks = self.networks.borrow_mut();
+        networks.push(Rc::new(RefCell::new(Network::new(mtu))));
+        networks.len() - 1
+    }
+
+    pub fn machine<const P: usize, const N: usize>(
+        &mut self,
+        protocols: [RcProtocol; P],
+        networks: [NetworkIndex; N],
+    ) {
+        let mut machine = Machine::new(protocols, self.machines.len());
+        let self_networks = self.networks.borrow();
+        for network in networks.into_iter() {
+            let network = self_networks.get(network).unwrap();
+            network.borrow_mut().attach(&machine);
+            machine.attach(network.borrow());
+        }
+        self.machines.push(machine);
+    }
+
     /// Creates a new internet simulation with the given `machines` and
     /// `networks`
-    pub fn new(machines: Vec<Machine>, networks: Vec<Network>) -> Self {
+    fn networks_for_machine(&self) -> HashMap<MachineId, NetworkIndices> {
         // Each network contain a list of which machines are attached to it. We
         // also need the opposite, a list of which networks are accessible to
         // each machine. We begin by looping over all machine indices.
-        let networks_for_machine: HashMap<_, _> = (0..machines.len())
+        let networks_for_machine: HashMap<_, _> = (0..self.machines.len())
             .map(|machine_index| {
                 // We accumulate a list of which networks are reachable by this
                 // machine.
-                let networks_indices: Vec<_> = networks
+                let networks_indices: Vec<_> = self
+                    .networks
+                    .borrow()
                     .iter()
                     .enumerate()
                     .filter_map(|(network_index, network)| {
@@ -41,6 +67,7 @@ impl Internet {
                         // network's connected machines. If so, include the
                         // network in our list.
                         network
+                            .borrow()
                             .connected_machines()
                             .iter()
                             .any(|&connected| connected == machine_index)
@@ -52,25 +79,17 @@ impl Internet {
             })
             .collect();
 
-        let networks: Vec<_> = networks
-            .into_iter()
-            .map(|network| Rc::new(RefCell::new(network)))
-            .collect();
-
-        Self {
-            machines,
-            networks_for_machine,
-            networks: Rc::new(networks),
-        }
+        networks_for_machine
     }
 
     /// Runs the simulation.
     pub fn run(&mut self) {
+        let networks_for_machine = self.networks_for_machine();
         'outer: loop {
             for (mac, machine) in self.machines.iter_mut().enumerate() {
                 let mut context = MachineContext {
                     mac,
-                    networks_for_machine: self.networks_for_machine[&mac].clone(),
+                    networks_for_machine: networks_for_machine[&mac].clone(),
                     networks: self.networks.clone(),
                 };
                 match machine.awake(&mut context) {
@@ -91,7 +110,7 @@ pub struct MachineContext {
     mac: MachineId,
     /// Contains a mapping from a machine index to network indices
     networks_for_machine: Rc<Vec<NetworkIndex>>,
-    networks: Rc<Vec<Rc<RefCell<Network>>>>,
+    networks: Rc<RefCell<Vec<Rc<RefCell<Network>>>>>,
 }
 
 impl MachineContext {
@@ -136,6 +155,6 @@ impl Iterator for NetworksIterator {
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.networks_for_machine.get(self.current).cloned()?;
         self.current += 1;
-        self.networks.get(index).cloned()
+        self.networks.borrow().get(index).cloned()
     }
 }

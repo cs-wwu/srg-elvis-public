@@ -29,9 +29,8 @@ impl Network {
         }
     }
 
-    pub fn join(&mut self, machine: &mut Machine) {
+    pub fn attach(&mut self, machine: &Machine) {
         self.connected.push(machine.id());
-        machine.attach(self);
     }
 
     /// The network's maximum transmission unit.

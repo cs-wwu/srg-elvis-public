@@ -5,7 +5,7 @@ use crate::core::{
     SharedSession,
 };
 use std::{
-    cell::RefCell,
+    cell::{Ref, RefCell},
     collections::{hash_map::Entry, HashMap},
     error::Error,
     rc::Rc,
@@ -46,7 +46,7 @@ impl Tap {
         }
     }
 
-    pub fn attach(&mut self, network: &Network) {
+    pub fn attach(&mut self, network: Ref<Network>) {
         // TODO(hardint): Also store a channel to send on
         self.network_mtus.push(network.mtu());
     }

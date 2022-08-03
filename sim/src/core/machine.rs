@@ -4,7 +4,7 @@ use super::{
 };
 use crate::protocols::tap::Tap;
 use std::{
-    cell::RefCell,
+    cell::{Ref, RefCell},
     collections::{hash_map::Entry, HashMap},
     iter,
     rc::Rc,
@@ -30,10 +30,13 @@ pub struct Machine {
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
-    pub fn new(protocols: impl Iterator<Item = RcProtocol>, id: MachineId) -> Self {
+    pub fn new<const S: usize>(protocols: [RcProtocol; S], id: MachineId) -> Self {
         let tap = Rc::new(RefCell::new(Tap::new()));
         let mut map = HashMap::new();
-        for protocol in protocols.chain(iter::once(tap.clone() as RcProtocol)) {
+        for protocol in protocols
+            .into_iter()
+            .chain(iter::once(tap.clone() as RcProtocol))
+        {
             let id = protocol.borrow().id();
             match map.entry(id) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
@@ -49,7 +52,7 @@ impl Machine {
         }
     }
 
-    pub fn attach(&mut self, network: &Network) {
+    pub fn attach(&mut self, network: Ref<Network>) {
         self.tap.borrow_mut().attach(network);
     }
 
@@ -61,20 +64,6 @@ impl Machine {
     /// [`awake`](super::Protocol::awake) its protocols.
     pub fn awake(&mut self, context: &mut MachineContext) -> ControlFlow {
         let mut protocol_context = ProtocolContext::new(self.protocols.clone());
-        for message in context.pending() {
-            match self
-                .tap
-                .borrow_mut()
-                // TODO(hardint): We want to get the network number from pending()
-                .accept_incoming(message, 0, &mut protocol_context)
-            {
-                Ok(flow) => flow,
-                Err(e) => {
-                    eprintln!("{:?} -> {}", e, e);
-                    continue;
-                }
-            }
-        }
 
         let mut control_flow = ControlFlow::Continue;
         for protocol in self.protocols.values() {
@@ -88,6 +77,21 @@ impl Machine {
             match flow {
                 ControlFlow::Continue => {}
                 ControlFlow::EndSimulation => control_flow = ControlFlow::EndSimulation,
+            }
+        }
+
+        for message in context.pending() {
+            match self
+                .tap
+                .borrow_mut()
+                // TODO(hardint): We want to get the network number from pending()
+                .accept_incoming(message, 0, &mut protocol_context)
+            {
+                Ok(flow) => flow,
+                Err(e) => {
+                    eprintln!("{:?} -> {}", e, e);
+                    continue;
+                }
             }
         }
 
