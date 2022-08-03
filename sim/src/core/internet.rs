@@ -6,8 +6,9 @@ type NetworkIndex = usize;
 /// A shared, mutable handle to a network. We will be handing these out to
 /// multiple machines at a time.
 type SharedNetwork = Rc<RefCell<Network>>;
-/// A shared but immutable list of networks in the simulation.
-type SharedNetworks = Rc<RefCell<Vec<SharedNetwork>>>;
+/// A shared but immutable list of networks in the simulation. We will not be
+/// mutating the vector after creation to no RefCell is needed.
+type SharedNetworks = Rc<Vec<SharedNetwork>>;
 /// A shared handle to a list of network indices. These are used to track which
 /// networks are available to a given machine.
 type NetworkIndices = Rc<Vec<NetworkIndex>>;
@@ -16,7 +17,7 @@ type NetworkIndices = Rc<Vec<NetworkIndex>>;
 #[derive(Default)]
 pub struct Internet {
     machines: Vec<Machine>,
-    networks: SharedNetworks,
+    networks: Vec<SharedNetwork>,
 }
 
 impl Internet {
@@ -27,9 +28,8 @@ impl Internet {
 
     /// Adds a network to the simulation and returns a handle to it.
     pub fn network(&mut self, mtu: Mtu) -> NetworkIndex {
-        let mut networks = self.networks.borrow_mut();
-        networks.push(Rc::new(RefCell::new(Network::new(mtu))));
-        networks.len() - 1
+        self.networks.push(Rc::new(RefCell::new(Network::new(mtu))));
+        self.networks.len() - 1
     }
 
     /// Adds a machine to the simulation with the given protocols and attached
@@ -40,9 +40,8 @@ impl Internet {
         networks: [NetworkIndex; N],
     ) {
         let mut machine = Machine::new(protocols, self.machines.len());
-        let self_networks = self.networks.borrow();
         for network in networks.into_iter() {
-            let network = self_networks.get(network).unwrap();
+            let network = self.networks.get(network).unwrap();
             network.borrow_mut().attach(&machine);
             machine.attach(network.borrow());
         }
@@ -61,7 +60,6 @@ impl Internet {
                 // machine.
                 let networks_indices: Vec<_> = self
                     .networks
-                    .borrow()
                     .iter()
                     .enumerate()
                     .filter_map(|(network_index, network)| {
@@ -85,14 +83,15 @@ impl Internet {
     }
 
     /// Runs the simulation.
-    pub fn run(&mut self) {
+    pub fn run(mut self) {
         let networks_for_machine = self.networks_for_machine();
+        let networks = Rc::new(self.networks);
         'outer: loop {
             for (mac, machine) in self.machines.iter_mut().enumerate() {
                 let mut context = MachineContext {
                     mac,
                     networks_for_machine: networks_for_machine[&mac].clone(),
-                    networks: self.networks.clone(),
+                    networks: networks.clone(),
                 };
                 match machine.awake(&mut context) {
                     ControlFlow::Continue => {}
@@ -112,7 +111,7 @@ pub struct MachineContext {
     mac: MachineId,
     /// Contains a mapping from a machine index to network indices
     networks_for_machine: Rc<Vec<NetworkIndex>>,
-    networks: Rc<RefCell<Vec<Rc<RefCell<Network>>>>>,
+    networks: SharedNetworks,
 }
 
 impl MachineContext {
@@ -157,6 +156,6 @@ impl Iterator for NetworksIterator {
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.networks_for_machine.get(self.current).cloned()?;
         self.current += 1;
-        self.networks.borrow().get(index).cloned()
+        self.networks.get(index).cloned()
     }
 }
