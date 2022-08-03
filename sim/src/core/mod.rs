@@ -8,8 +8,7 @@
 //! - [`Message`](message::Message) and [`Control`] provide basic utilities
 //!   common to most protocols
 //! - [`Protocol`] and [`Session`] implement individual protocols
-//! - [`Internet`], [`Network`], and [`Machine`] work together to run the
-//!   simulation
+//! - [`Internet`] provides the actual simulation
 //!
 //! # Protocol structure
 //!
@@ -20,8 +19,7 @@
 //! protocol either in response to a program opening a connection or a new
 //! connection being opened for a listening server program. In addition to
 //! creating new sessions, protocols also route incoming packets to the correct
-//! sessions. A [`Machine`] bundles a collection of protocols and facilitates
-//! their coordination.
+//! sessions.
 //!
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
@@ -50,10 +48,10 @@ mod protocol_context;
 pub use protocol_context::ProtocolContext;
 
 mod internet;
-pub use internet::*;
+pub use internet::Internet;
 
 mod machine;
-pub use machine::*;
+pub(crate) use machine::*;
 
 mod network;
-pub use network::*;
+pub(crate) use network::*;

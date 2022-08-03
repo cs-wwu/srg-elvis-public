@@ -4,12 +4,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 type NetworkIndex = usize;
 
 /// A shared, mutable handle to a network. We will be handing these out to
-/// multiple [`Machine`]s at a time.
+/// multiple machines at a time.
 type SharedNetwork = Rc<RefCell<Network>>;
 /// A shared but immutable list of networks in the simulation.
 type SharedNetworks = Rc<RefCell<Vec<SharedNetwork>>>;
 /// A shared handle to a list of network indices. These are used to track which
-/// networks are available to a given [`Machine`].
+/// networks are available to a given machine.
 type NetworkIndices = Rc<Vec<NetworkIndex>>;
 
 /// The top-level container that controls the simulation.
@@ -101,7 +101,7 @@ impl Internet {
     }
 }
 
-/// A context object to facilitate awaking [`Machine`]s.
+/// A context object to facilitate awaking machines.
 ///
 /// Provides the currently executing machine access to information about its
 /// execution environment, such as which networks it is connected to or its
@@ -115,7 +115,7 @@ pub struct MachineContext {
 
 impl MachineContext {
     /// Returns an iterator over the networks reachable by the currently
-    /// executing [`Machine`].
+    /// executing machine.
     pub fn networks(&self) -> impl Iterator<Item = Rc<RefCell<Network>>> {
         NetworksIterator {
             current: 0,
@@ -142,7 +142,7 @@ impl MachineContext {
     }
 }
 
-/// An iterator over networks neighboring the currently executing [`Machine`].
+/// An iterator over networks neighboring the currently executing machine.
 struct NetworksIterator {
     current: NetworkIndex,
     networks_for_machine: NetworkIndices,
