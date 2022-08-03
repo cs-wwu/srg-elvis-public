@@ -34,10 +34,10 @@ impl Internet {
 
     /// Adds a machine to the simulation with the given protocols and attached
     /// to the given networks.
-    pub fn machine<const P: usize, const N: usize>(
+    pub fn machine(
         &mut self,
-        protocols: [RcProtocol; P],
-        networks: [NetworkIndex; N],
+        protocols: impl IntoIterator<Item = RcProtocol>,
+        networks: impl IntoIterator<Item = NetworkIndex>,
     ) {
         let mut machine = Machine::new(protocols, self.machines.len());
         for network in networks.into_iter() {

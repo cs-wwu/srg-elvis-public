@@ -30,7 +30,7 @@ pub struct Machine {
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
-    pub fn new<const S: usize>(protocols: [RcProtocol; S], id: MachineId) -> Self {
+    pub fn new(protocols: impl IntoIterator<Item = RcProtocol>, id: MachineId) -> Self {
         let tap = Rc::new(RefCell::new(Tap::new()));
         let mut map = HashMap::new();
         for protocol in protocols
