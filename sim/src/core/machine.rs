@@ -1,10 +1,10 @@
 use super::{
-    internet::MachineContext, network::PhysicalAddress, protocol::RcProtocol, ControlFlow,
+    internet::MachineContext, network::PhysicalAddress, protocol::RcProtocol, ControlFlow, Network,
     ProtocolContext, ProtocolId,
 };
 use crate::protocols::tap::Tap;
 use std::{
-    cell::RefCell,
+    cell::{Ref, RefCell},
     collections::{hash_map::Entry, HashMap},
     iter,
     rc::Rc,
@@ -23,16 +23,20 @@ pub(super) type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
 /// [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
+    id: MachineId,
     protocols: ProtocolMap,
     tap: Rc<RefCell<Tap>>,
 }
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
-    pub fn new(tap: Tap, protocols: impl Iterator<Item = RcProtocol>) -> Self {
-        let tap = Rc::new(RefCell::new(tap));
+    pub fn new<const S: usize>(protocols: [RcProtocol; S], id: MachineId) -> Self {
+        let tap = Rc::new(RefCell::new(Tap::new()));
         let mut map = HashMap::new();
-        for protocol in protocols.chain(iter::once(tap.clone() as RcProtocol)) {
+        for protocol in protocols
+            .into_iter()
+            .chain(iter::once(tap.clone() as RcProtocol))
+        {
             let id = protocol.borrow().id();
             match map.entry(id) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
@@ -42,29 +46,24 @@ impl Machine {
             }
         }
         Self {
+            id,
             tap,
             protocols: Rc::new(map),
         }
+    }
+
+    pub fn attach(&mut self, network: Ref<Network>) {
+        self.tap.borrow_mut().attach(network);
+    }
+
+    pub fn id(&self) -> MachineId {
+        self.id
     }
 
     /// Gives the machine time to process incoming messages and
     /// [`awake`](super::Protocol::awake) its protocols.
     pub fn awake(&mut self, context: &mut MachineContext) -> ControlFlow {
         let mut protocol_context = ProtocolContext::new(self.protocols.clone());
-        for message in context.pending() {
-            match self
-                .tap
-                .borrow_mut()
-                // TODO(hardint): We want to get the network number from pending()
-                .accept_incoming(message, 0, &mut protocol_context)
-            {
-                Ok(flow) => flow,
-                Err(e) => {
-                    eprintln!("{:?} -> {}", e, e);
-                    continue;
-                }
-            }
-        }
 
         let mut control_flow = ControlFlow::Continue;
         for protocol in self.protocols.values() {
@@ -78,6 +77,21 @@ impl Machine {
             match flow {
                 ControlFlow::Continue => {}
                 ControlFlow::EndSimulation => control_flow = ControlFlow::EndSimulation,
+            }
+        }
+
+        for message in context.pending() {
+            match self
+                .tap
+                .borrow_mut()
+                // TODO(hardint): We want to get the network number from pending()
+                .accept_incoming(message, 0, &mut protocol_context)
+            {
+                Ok(flow) => flow,
+                Err(e) => {
+                    eprintln!("{:?} -> {}", e, e);
+                    continue;
+                }
             }
         }
 

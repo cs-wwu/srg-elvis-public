@@ -10,7 +10,7 @@ use std::{cell::RefCell, error::Error, rc::Rc};
 ///
 /// An application is similar to a stripped-down
 /// [`Session`](crate::core::Session). It runs when messages come in over the
-/// network or when the containing [`Machine`](crate::core::Machine) awakens the
+/// network or when the containing machine awakens the
 /// application to give it time to run.
 pub trait Application {
     /// A unique identifier for the application.

@@ -1,11 +1,11 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    message::Message, Control, ControlFlow, Mtu, Protocol, ProtocolContext, ProtocolId,
+    message::Message, Control, ControlFlow, Mtu, Network, Protocol, ProtocolContext, ProtocolId,
     SharedSession,
 };
 use std::{
-    cell::RefCell,
+    cell::{Ref, RefCell},
     collections::{hash_map::Entry, HashMap},
     error::Error,
     rc::Rc,
@@ -27,6 +27,7 @@ use self::{tap_misc::TapError, tap_session::SessionId};
 /// network, for example IPv4 or IPv6. The header is very simple, adding only a
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
+#[derive(Default)]
 pub struct Tap {
     // TODO(hardint): Add an interface for accessing the MTUs
     #[allow(dead_code)]
@@ -39,11 +40,13 @@ impl Tap {
     pub const ID: ProtocolId = ProtocolId::new(0xdeadbeef);
 
     /// Creates a new network tap.
-    pub fn new(network_mtus: Vec<Mtu>) -> Self {
-        Self {
-            network_mtus,
-            sessions: Default::default(),
-        }
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn attach(&mut self, network: Ref<Network>) {
+        // TODO(hardint): Also store a channel to send on
+        self.network_mtus.push(network.mtu());
     }
 
     /// Gets a list of the pending, outgoing messages that have been sent on the

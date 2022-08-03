@@ -1,12 +1,10 @@
-use super::{message::Message, MachineId};
+use super::{message::Message, Machine, MachineId};
 use std::collections::{hash_map::Entry, HashMap};
 
 /// A maximum transmission unit
 pub type Mtu = u32;
 
 type Pending = HashMap<usize, Vec<Message>>;
-
-// TODO(hardint): Explore having Network hold Machine instances
 
 /// A link-level connection between [`Machine`](super::Machine)s.
 ///
@@ -23,12 +21,16 @@ pub struct Network {
 impl Network {
     /// Create a new network with the given `mtu` and list of networked
     /// [`Machine`](super::Machine)s.
-    pub fn new(connected: Vec<MachineId>, mtu: Mtu) -> Self {
+    pub fn new(mtu: Mtu) -> Self {
         Self {
-            connected,
+            connected: vec![],
             pending: Default::default(),
             mtu,
         }
+    }
+
+    pub fn attach(&mut self, machine: &Machine) {
+        self.connected.push(machine.id());
     }
 
     /// The network's maximum transmission unit.
