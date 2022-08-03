@@ -19,6 +19,7 @@ pub struct Internet {
 }
 
 impl Internet {
+    /// Creates a new internet.
     pub fn new() -> Self {
         Self {
             machines: vec![],
@@ -26,12 +27,15 @@ impl Internet {
         }
     }
 
+    /// Adds a network to the simulation and returns a handle to it.
     pub fn network(&mut self, mtu: Mtu) -> NetworkIndex {
         let mut networks = self.networks.borrow_mut();
         networks.push(Rc::new(RefCell::new(Network::new(mtu))));
         networks.len() - 1
     }
 
+    /// Adds a machine to the simulation with the given protocols and attached
+    /// to the given networks.
     pub fn machine<const P: usize, const N: usize>(
         &mut self,
         protocols: [RcProtocol; P],
