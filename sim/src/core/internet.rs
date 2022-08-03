@@ -13,6 +13,7 @@ type SharedNetworks = Rc<RefCell<Vec<SharedNetwork>>>;
 type NetworkIndices = Rc<Vec<NetworkIndex>>;
 
 /// The top-level container that controls the simulation.
+#[derive(Default)]
 pub struct Internet {
     machines: Vec<Machine>,
     networks: SharedNetworks,
@@ -21,10 +22,7 @@ pub struct Internet {
 impl Internet {
     /// Creates a new internet.
     pub fn new() -> Self {
-        Self {
-            machines: vec![],
-            networks: Rc::new(RefCell::new(vec![])),
-        }
+        Default::default()
     }
 
     /// Adds a network to the simulation and returns a handle to it.

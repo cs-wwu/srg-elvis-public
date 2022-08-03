@@ -27,6 +27,7 @@ use self::{tap_misc::TapError, tap_session::SessionId};
 /// network, for example IPv4 or IPv6. The header is very simple, adding only a
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
+#[derive(Default)]
 pub struct Tap {
     // TODO(hardint): Add an interface for accessing the MTUs
     #[allow(dead_code)]
@@ -40,10 +41,7 @@ impl Tap {
 
     /// Creates a new network tap.
     pub fn new() -> Self {
-        Self {
-            network_mtus: vec![],
-            sessions: Default::default(),
-        }
+        Default::default()
     }
 
     pub fn attach(&mut self, network: Ref<Network>) {
