@@ -14,7 +14,6 @@ from_impls!(NetworkId, crate::core::NetworkId);
 
 pub struct NetworkInfo {
     pub mtu: Mtu,
-    pub network_id: NetworkId,
     pub sender: Sender<Postmarked>,
     pub receiver: Receiver<Delivery>,
 }

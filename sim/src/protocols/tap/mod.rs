@@ -1,7 +1,8 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession,
+    message::Message, Control, Delivery, Mtu, Postmarked, Protocol, ProtocolContext, ProtocolId,
+    SharedSession,
 };
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -16,6 +17,7 @@ pub use tap_misc::{NetworkId, NetworkInfo};
 
 mod tap_session;
 use tap_session::TapSession;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use self::{tap_misc::TapError, tap_session::SessionId};
 
@@ -29,7 +31,8 @@ use self::{tap_misc::TapError, tap_session::SessionId};
 /// message.
 #[derive(Default)]
 pub struct Tap {
-    networks: Vec<NetworkInfo>,
+    receivers: HashMap<crate::core::NetworkId, Receiver<Delivery>>,
+    senders: HashMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
     sessions: HashMap<SessionId, Arc<Mutex<TapSession>>>,
 }
 
@@ -42,8 +45,24 @@ impl Tap {
         Default::default()
     }
 
-    pub fn attach(&mut self, network_info: NetworkInfo) {
-        self.networks.push(network_info);
+    pub fn attach(&mut self, network_info: NetworkInfo, network_id: crate::core::NetworkId) {
+        let NetworkInfo {
+            mtu,
+            sender,
+            receiver,
+        } = network_info;
+        match self.receivers.entry(network_id) {
+            Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
+            Entry::Vacant(entry) => {
+                entry.insert(receiver);
+            }
+        }
+        match self.senders.entry(network_id) {
+            Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
+            Entry::Vacant(entry) => {
+                entry.insert((sender, mtu));
+            }
+        }
     }
 }
 
@@ -63,7 +82,8 @@ impl Protocol for Tap {
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone().into()),
             Entry::Vacant(entry) => {
-                let session = Arc::new(Mutex::new(TapSession::new(upstream, network.into())));
+                let sender = self.senders.get(&network).unwrap().0.clone();
+                let session = Arc::new(Mutex::new(TapSession::new(upstream, sender)));
                 entry.insert(session.clone());
                 Ok(session.into())
             }
@@ -94,12 +114,13 @@ impl Protocol for Tap {
     }
 
     fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        let mut networks = mem::replace(&mut self.networks, vec![]);
+        let mut receivers = mem::replace(&mut self.receivers, Default::default());
+        let senders = mem::replace(&mut self.senders, Default::default());
         let mut sessions = mem::replace(&mut self.sessions, Default::default());
         tokio::spawn(async move {
-            let mut futures: FuturesUnordered<_> = networks
-                .iter_mut()
-                .map(|info| info.receiver.recv())
+            let mut futures: FuturesUnordered<_> = receivers
+                .values_mut()
+                .map(|receiver| receiver.recv())
                 .collect();
             while let Some(Some(delivery)) = futures.next().await {
                 let mut context = context.clone();
@@ -112,8 +133,8 @@ impl Protocol for Tap {
                 let session = match sessions.entry(session_id) {
                     Entry::Occupied(entry) => entry.get().clone(),
                     Entry::Vacant(entry) => {
-                        let session =
-                            Arc::new(Mutex::new(TapSession::new(header, delivery.network.into())));
+                        let sender = senders.get(&delivery.network).unwrap().0.clone();
+                        let session = Arc::new(Mutex::new(TapSession::new(header, sender)));
                         entry.insert(session.clone());
                         session
                     }

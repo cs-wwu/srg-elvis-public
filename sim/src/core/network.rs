@@ -1,4 +1,5 @@
 use futures::stream::{FuturesUnordered, StreamExt};
+use std::mem;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::protocols::tap::NetworkInfo;
@@ -17,8 +18,6 @@ use std::{
 pub type Mtu = u32;
 
 pub type NetworkId = usize;
-
-type Pending = HashMap<usize, Vec<Message>>;
 
 /// A link-level connection between [`Machine`](super::Machine)s.
 ///
@@ -44,42 +43,42 @@ impl Network {
         }
     }
 
-    pub fn id(&self) -> NetworkId {
-        self.id
-    }
-
-    pub async fn start(&mut self) {
-        let mut futures: FuturesUnordered<_> = self
-            .receivers
-            .iter_mut()
-            .map(|receiver| receiver.recv())
-            .collect();
-        while let Some(Some(next)) = futures.next().await {
-            let delivery = Delivery {
-                message: next.message,
-                network: self.id,
-            };
-            match next.address {
-                PhysicalAddress::Recipient(mac) => match self.senders.entry(mac) {
-                    Entry::Occupied(mut entry) => {
-                        entry.get_mut().send(delivery).await;
-                    }
-                    Entry::Vacant(entry) => panic!("No machine found with that ID"),
-                },
-                PhysicalAddress::Broadcast => {
-                    for sender in self.senders.values_mut() {
-                        sender.send(delivery.clone()).await;
+    pub fn start(&mut self) {
+        let mut receivers = mem::replace(&mut self.receivers, Default::default());
+        let id = self.id;
+        let mut senders = mem::replace(&mut self.senders, Default::default());
+        tokio::spawn(async move {
+            let mut futures: FuturesUnordered<_> = receivers
+                .iter_mut()
+                .map(|receiver| receiver.recv())
+                .collect();
+            while let Some(Some(next)) = futures.next().await {
+                let delivery = Delivery {
+                    message: next.message,
+                    network: id,
+                };
+                match next.address {
+                    PhysicalAddress::Recipient(mac) => match senders.entry(mac) {
+                        Entry::Occupied(mut entry) => {
+                            entry.get_mut().send(delivery).await.unwrap();
+                        }
+                        Entry::Vacant(_) => panic!("No machine found with that ID"),
+                    },
+                    PhysicalAddress::Broadcast => {
+                        for sender in senders.values_mut() {
+                            sender.send(delivery.clone()).await.unwrap();
+                        }
                     }
                 }
             }
-        }
+        });
     }
 
     pub fn attach(&mut self, machine: &mut Machine) {
         let (machine_sender, network_receiver) = mpsc::channel(16);
         let (network_sender, machine_receiver) = mpsc::channel(16);
         match self.senders.entry(machine.id()) {
-            Entry::Occupied(entry) => panic!("Attaching the same machine to the network twice"),
+            Entry::Occupied(_) => panic!("Attaching the same machine to the network twice"),
             Entry::Vacant(entry) => {
                 entry.insert(network_sender);
             }
@@ -87,26 +86,10 @@ impl Network {
         self.receivers.push(network_receiver);
         let info = NetworkInfo {
             mtu: self.mtu,
-            network_id: self.id.into(),
             sender: machine_sender,
             receiver: machine_receiver,
         };
-        machine.attach(info);
-    }
-
-    /// The network's maximum transmission unit.
-    pub fn mtu(&self) -> Mtu {
-        self.mtu
-    }
-
-    /// The list of connected machines.
-    pub fn connected_machines(&self) -> impl Iterator<Item = &MachineId> {
-        self.senders.keys()
-    }
-
-    /// Send a `message` to the machine or machines identified by `address`.
-    pub async fn send(&mut self, address: PhysicalAddress, message: Message) {
-        // TODO(hardint): Check that the message is shorter than MTU
+        machine.attach(info, self.id.into());
     }
 }
 
@@ -119,13 +102,13 @@ pub enum PhysicalAddress {
     Broadcast,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Postmarked {
     pub message: Message,
     pub address: PhysicalAddress,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Delivery {
     pub message: Message,
     pub network: NetworkId,

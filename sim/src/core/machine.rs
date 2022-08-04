@@ -1,4 +1,4 @@
-use super::{protocol::SharedProtocol, ProtocolContext, ProtocolId};
+use super::{protocol::SharedProtocol, NetworkId, ProtocolContext, ProtocolId};
 use crate::protocols::tap::{NetworkInfo, Tap};
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -48,8 +48,8 @@ impl Machine {
         }
     }
 
-    pub fn attach(&mut self, info: NetworkInfo) {
-        self.tap.lock().unwrap().attach(info);
+    pub fn attach(&mut self, info: NetworkInfo, network_id: NetworkId) {
+        self.tap.lock().unwrap().attach(info, network_id);
     }
 
     pub fn id(&self) -> MachineId {
@@ -59,13 +59,14 @@ impl Machine {
     /// Gives the machine time to process incoming messages and
     /// [`awake`](super::Protocol::awake) its protocols.
     pub fn start(&mut self) {
-        let mut protocol_context = ProtocolContext::new(self.protocols.clone());
+        let protocol_context = ProtocolContext::new(self.protocols.clone());
         for protocol in self.protocols.values() {
             protocol
                 .clone()
                 .lock()
                 .unwrap()
-                .start(protocol_context.clone());
+                .start(protocol_context.clone())
+                .unwrap()
         }
     }
 }
