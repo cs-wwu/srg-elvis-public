@@ -1,4 +1,4 @@
-use std::{fmt::Display, rc::Rc};
+use std::{fmt::Display, sync::Arc};
 
 mod chunk;
 pub use chunk::Chunk;
@@ -22,7 +22,7 @@ pub use message_bytes::MessageBytes;
 /// for composing, sending, and splitting byte sequences.
 #[derive(Debug, Clone)]
 pub struct Message {
-    stack: Rc<WrappedMessage>,
+    stack: Arc<WrappedMessage>,
 }
 
 impl Message {
@@ -40,7 +40,7 @@ impl Message {
 
     fn new_inner(body: Chunk) -> Self {
         Self {
-            stack: Rc::new(WrappedMessage::Body(body)),
+            stack: Arc::new(WrappedMessage::Body(body)),
         }
     }
 
@@ -60,7 +60,7 @@ impl Message {
 
     fn with_header_inner(&self, header: Chunk) -> Self {
         Self {
-            stack: Rc::new(WrappedMessage::Header(header, self.stack.clone())),
+            stack: Arc::new(WrappedMessage::Header(header, self.stack.clone())),
         }
     }
 
@@ -87,7 +87,7 @@ impl Message {
         let start = range.start();
         let end = range.end();
         Self {
-            stack: Rc::new(WrappedMessage::Slice {
+            stack: Arc::new(WrappedMessage::Slice {
                 start,
                 length: end - start,
                 message: self.stack.clone(),
@@ -133,8 +133,8 @@ enum WrappedMessage {
     Slice {
         start: usize,
         length: usize,
-        message: Rc<WrappedMessage>,
+        message: Arc<WrappedMessage>,
     },
-    Header(Chunk, Rc<WrappedMessage>),
+    Header(Chunk, Arc<WrappedMessage>),
     Body(Chunk),
 }

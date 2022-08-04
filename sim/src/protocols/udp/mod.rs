@@ -2,17 +2,13 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
-    core::{
-        message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId,
-        SharedSession,
-    },
+    core::{message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession},
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
 };
 use std::{
-    cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     error::Error,
-    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
 mod udp_misc;
@@ -43,8 +39,8 @@ impl Udp {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared() -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::new()))
+    pub fn new_shared() -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self::new()))
     }
 }
 
@@ -71,7 +67,8 @@ impl Protocol for Udp {
                 let downstream = context
                     .protocol(Ipv4::ID)
                     .expect("No such protocol")
-                    .borrow_mut()
+                    .lock()
+                    .unwrap()
                     .open(Self::ID, participants, context)?;
                 let session = SharedSession::new(UdpSession {
                     upstream,
@@ -99,7 +96,8 @@ impl Protocol for Udp {
         context
             .protocol(Ipv4::ID)
             .expect("No such protocol")
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .listen(Self::ID, participants, context)
     }
 
@@ -154,8 +152,8 @@ impl Protocol for Udp {
         Ok(())
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(ControlFlow::Continue)
+    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
 

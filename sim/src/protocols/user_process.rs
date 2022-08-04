@@ -2,9 +2,12 @@
 //! protocol-oriented simulation.
 
 use crate::core::{
-    message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId, SharedSession,
+    message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession,
 };
-use std::{cell::RefCell, error::Error, rc::Rc};
+use std::{
+    error::Error,
+    sync::{Arc, Mutex},
+};
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -18,7 +21,7 @@ pub trait Application {
 
     /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
     /// is not called in response to specific events.
-    fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
+    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
@@ -49,8 +52,8 @@ impl<A: Application> UserProcess<A> {
 
     /// Creates a new user process running the given application behind a shared
     /// handle.
-    pub fn new_shared(application: A) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::new(application)))
+    pub fn new_shared(application: A) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self::new(application)))
     }
 
     /// Gets the application the user process is running.
@@ -90,7 +93,7 @@ impl<A: Application> Protocol for UserProcess<A> {
         self.application.recv(message, context)
     }
 
-    fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        self.application.awake(context)
+    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        self.application.start(context)
     }
 }

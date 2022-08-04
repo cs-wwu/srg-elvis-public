@@ -1,18 +1,18 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    message::Message, Control, ControlFlow, Mtu, Network, Protocol, ProtocolContext, ProtocolId,
-    SharedSession,
+    message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession,
 };
 use std::{
-    cell::{Ref, RefCell},
     collections::{hash_map::Entry, HashMap},
     error::Error,
-    rc::Rc,
+    mem,
+    sync::{Arc, Mutex},
 };
 
 mod tap_misc;
-pub use tap_misc::NetworkIndex;
+use futures::{stream::FuturesUnordered, StreamExt};
+pub use tap_misc::{NetworkId, NetworkInfo};
 
 mod tap_session;
 use tap_session::TapSession;
@@ -29,10 +29,8 @@ use self::{tap_misc::TapError, tap_session::SessionId};
 /// message.
 #[derive(Default)]
 pub struct Tap {
-    // TODO(hardint): Add an interface for accessing the MTUs
-    #[allow(dead_code)]
-    network_mtus: Vec<Mtu>,
-    sessions: HashMap<SessionId, Rc<RefCell<TapSession>>>,
+    networks: Vec<NetworkInfo>,
+    sessions: HashMap<SessionId, Arc<Mutex<TapSession>>>,
 }
 
 impl Tap {
@@ -44,47 +42,8 @@ impl Tap {
         Default::default()
     }
 
-    pub fn attach(&mut self, network: Ref<Network>) {
-        // TODO(hardint): Also store a channel to send on
-        self.network_mtus.push(network.mtu());
-    }
-
-    /// Gets a list of the pending, outgoing messages that have been sent on the
-    /// tap.
-    pub fn outgoing(&mut self) -> Vec<(NetworkIndex, Vec<Message>)> {
-        self.sessions
-            .values()
-            .map(|session| {
-                let mut session = session.borrow_mut();
-                (session.network(), session.outgoing())
-            })
-            .collect()
-    }
-
-    /// Delivers a message to the network for delivery up the protocol stack.
-    /// The tap will demux the message and forward it to the appropriate
-    /// protocol.
-    pub fn accept_incoming(
-        &mut self,
-        message: Message,
-        network: u8,
-        context: &mut ProtocolContext,
-    ) -> Result<(), TapError> {
-        let header = take_header(&message).ok_or(TapError::HeaderLength)?;
-        NetworkIndex::set(&mut context.info, network);
-        let message = message.slice(8..);
-        let session_id = SessionId::new(header, network.into());
-        let session = match self.sessions.entry(session_id) {
-            Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => {
-                let session = Rc::new(RefCell::new(TapSession::new(header, network.into())));
-                entry.insert(session.clone());
-                session
-            }
-        };
-        let mut session = SharedSession::from(session);
-        session.receive(message, context)?;
-        Ok(())
+    pub fn attach(&mut self, network_info: NetworkInfo) {
+        self.networks.push(network_info);
     }
 }
 
@@ -99,12 +58,12 @@ impl Protocol for Tap {
         participants: Control,
         _context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let network = NetworkIndex::get(&participants);
+        let network = NetworkId::get(&participants);
         let session_id = SessionId::new(upstream, network.into());
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone().into()),
             Entry::Vacant(entry) => {
-                let session = Rc::new(RefCell::new(TapSession::new(upstream, network.into())));
+                let session = Arc::new(Mutex::new(TapSession::new(upstream, network.into())));
                 entry.insert(session.clone());
                 Ok(session.into())
             }
@@ -134,8 +93,39 @@ impl Protocol for Tap {
         panic!("Cannot demux on a Tap")
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(ControlFlow::Continue)
+    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        let mut networks = mem::replace(&mut self.networks, vec![]);
+        let mut sessions = mem::replace(&mut self.sessions, Default::default());
+        tokio::spawn(async move {
+            let mut futures: FuturesUnordered<_> = networks
+                .iter_mut()
+                .map(|info| info.receiver.recv())
+                .collect();
+            while let Some(Some(delivery)) = futures.next().await {
+                let mut context = context.clone();
+                let header = take_header(&delivery.message)
+                    .ok_or(TapError::HeaderLength)
+                    .unwrap();
+                NetworkId::set(&mut context.info, delivery.network);
+                let message = delivery.message.slice(8..);
+                let session_id = SessionId::new(header, delivery.network.into());
+                let session = match sessions.entry(session_id) {
+                    Entry::Occupied(entry) => entry.get().clone(),
+                    Entry::Vacant(entry) => {
+                        let session =
+                            Arc::new(Mutex::new(TapSession::new(header, delivery.network.into())));
+                        entry.insert(session.clone());
+                        session
+                    }
+                };
+                let mut session = SharedSession::from(session);
+                match session.receive(message, &mut context) {
+                    Ok(()) => {}
+                    Err(e) => println!("{}", e),
+                }
+            }
+        });
+        Ok(())
     }
 }
 

@@ -1,11 +1,11 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::WrappedMessage;
 
 /// An iterator over the bytes of a message
 pub struct MessageBytes {
     /// Tracks the current message part
-    stack: Option<Rc<WrappedMessage>>,
+    stack: Option<Arc<WrappedMessage>>,
     /// Tracks the index into the current chunk
     i: usize,
     /// The length of the slice
@@ -13,7 +13,7 @@ pub struct MessageBytes {
 }
 
 impl MessageBytes {
-    pub(super) fn new(stack: Rc<WrappedMessage>) -> Self {
+    pub(super) fn new(stack: Arc<WrappedMessage>) -> Self {
         Self {
             stack: Some(stack),
             i: 0,

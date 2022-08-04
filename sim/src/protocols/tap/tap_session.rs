@@ -1,16 +1,16 @@
-use super::{tap_misc::TapError, NetworkIndex};
-use crate::core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session};
+use super::{tap_misc::TapError, NetworkId};
+use crate::core::{message::Message, ProtocolContext, ProtocolId, Session};
 use std::{error::Error, mem};
 
 #[derive(Clone)]
 pub struct TapSession {
-    network: NetworkIndex,
+    network: NetworkId,
     outgoing: Vec<Message>,
     upstream: ProtocolId,
 }
 
 impl TapSession {
-    pub(super) fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
+    pub(super) fn new(upstream: ProtocolId, network: NetworkId) -> Self {
         Self {
             upstream,
             network,
@@ -18,7 +18,7 @@ impl TapSession {
         }
     }
 
-    pub fn network(&self) -> NetworkIndex {
+    pub fn network(&self) -> NetworkId {
         self.network
     }
 
@@ -46,23 +46,23 @@ impl Session for TapSession {
         let protocol = context
             .protocol(self.upstream)
             .ok_or(TapError::NoSuchProtocol(self.upstream))?;
-        let mut protocol = protocol.borrow_mut();
+        let mut protocol = protocol.lock().unwrap();
         protocol.demux(message, context)
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(ControlFlow::Continue)
+    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
     upstream: ProtocolId,
-    network: NetworkIndex,
+    network: NetworkId,
 }
 
 impl SessionId {
-    pub fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
+    pub fn new(upstream: ProtocolId, network: NetworkId) -> Self {
         Self { upstream, network }
     }
 }

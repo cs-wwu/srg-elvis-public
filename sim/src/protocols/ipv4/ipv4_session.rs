@@ -3,7 +3,7 @@ use super::{
     LocalAddress, RemoteAddress,
 };
 use crate::{
-    core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session, SharedSession},
+    core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::udp::Udp,
 };
 use std::error::Error;
@@ -59,13 +59,14 @@ impl Session for Ipv4Session {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .demux(message, context)?;
         Ok(())
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(ControlFlow::Continue)
+    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
 

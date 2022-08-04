@@ -36,7 +36,7 @@ pub mod message;
 pub use message::Message;
 
 mod protocol;
-pub use protocol::{Protocol, ProtocolId, RcProtocol};
+pub use protocol::{Protocol, ProtocolId, SharedProtocol};
 
 mod shared_session;
 pub use shared_session::SharedSession;

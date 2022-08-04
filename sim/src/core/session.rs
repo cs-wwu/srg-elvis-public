@@ -26,13 +26,7 @@ pub trait Session {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
-    /// Called to allow a session to carry out some work outside the context of
-    /// responding to a message.
-    ///
-    /// As an example, TCP may decide to retransmit packets or poll empty window
-    /// sizes even when no new messages are being sent or received. This
-    /// lifecycle method is a session's opportunity to carry out such tasks.
-    fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
+    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 }
 
 /// Expresses what to do after a protocol is called on to run.
