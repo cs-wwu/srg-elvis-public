@@ -4,11 +4,7 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::protocols::tap::NetworkInfo;
 
-use super::{
-    control::{Primitive, PrimitiveError},
-    message::Message,
-    Machine, MachineId,
-};
+use super::{message::Message, Machine, MachineId};
 use std::{
     collections::{hash_map::Entry, HashMap},
     hash::Hash,
@@ -17,7 +13,7 @@ use std::{
 /// A maximum transmission unit
 pub type Mtu = u32;
 
-pub type NetworkId = usize;
+pub type NetworkId = u32;
 
 /// A link-level connection between [`Machine`](super::Machine)s.
 ///
@@ -112,18 +108,4 @@ pub struct Postmarked {
 pub struct Delivery {
     pub message: Message,
     pub network: NetworkId,
-}
-
-impl From<NetworkId> for Primitive {
-    fn from(id: NetworkId) -> Self {
-        id.into()
-    }
-}
-
-impl TryFrom<Primitive> for NetworkId {
-    type Error = PrimitiveError;
-
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
-        value.try_into()
-    }
 }

@@ -16,7 +16,7 @@ impl Internet {
 
     /// Adds a network to the simulation and returns a handle to it.
     pub fn network(&mut self, mtu: Mtu) -> NetworkId {
-        let id = self.networks.len();
+        let id: NetworkId = self.networks.len().try_into().unwrap();
         self.networks
             .push(Arc::new(Mutex::new(Network::new(id, mtu))));
         id
@@ -32,7 +32,7 @@ impl Internet {
         let mut machine = Machine::new(protocols, self.machines.len());
         for network in networks.into_iter() {
             self.networks
-                .get(network)
+                .get(network as usize)
                 .unwrap()
                 .clone()
                 .lock()
