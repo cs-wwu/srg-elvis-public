@@ -5,6 +5,7 @@ use std::{
     iter,
     sync::{Arc, Mutex},
 };
+use tokio::sync::{mpsc::Sender, watch};
 
 /// An identifier for a particular [`Machine`] in the simulation.
 pub type MachineId = usize;
@@ -58,15 +59,16 @@ impl Machine {
 
     /// Gives the machine time to process incoming messages and
     /// [`awake`](super::Protocol::awake) its protocols.
-    pub fn start(&mut self) {
+    pub async fn start(&mut self, shutdown: Sender<()>) {
         let protocol_context = ProtocolContext::new(self.protocols.clone());
         for protocol in self.protocols.values() {
             protocol
                 .clone()
                 .lock()
                 .unwrap()
-                .start(protocol_context.clone())
-                .unwrap()
+                .start(protocol_context.clone(), shutdown.clone())
+                .await
+                .unwrap();
         }
     }
 }

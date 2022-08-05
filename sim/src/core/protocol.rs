@@ -1,8 +1,10 @@
 use super::{control::make_key, message::Message, Control, ProtocolContext, SharedSession};
+use async_trait::async_trait;
 use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
+use tokio::sync::mpsc::Sender;
 
 /// A unique identifier for a [`Protocol`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -44,6 +46,7 @@ pub type SharedProtocol = Arc<Mutex<dyn Protocol + Send + Sync>>;
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
+#[async_trait]
 pub trait Protocol {
     // TODO(hardint): We need methods that allow other protocols to query info about a
     // protocol and its sessions. For example, a TCP or an IP protocol will want
@@ -113,11 +116,15 @@ pub trait Protocol {
     ///   asked to receive the message by calling [`listen`](Protocol::listen)
     ///   at an earlier time. If so, a new session should be created.
     /// - Call [`receive`](super::Session::receive) on the selected session.
-    fn demux(
+    async fn demux(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
-    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    async fn start(
+        &mut self,
+        context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>>;
 }

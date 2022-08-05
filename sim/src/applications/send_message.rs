@@ -6,10 +6,12 @@ use crate::{
         user_process::{Application, UserProcess},
     },
 };
+use async_trait::async_trait;
 use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
+use tokio::sync::mpsc::Sender;
 
 /// An application that sends a single message over the network.
 pub struct SendMessage {
@@ -28,10 +30,15 @@ impl SendMessage {
     }
 }
 
+#[async_trait]
 impl Application for SendMessage {
     const ID: ProtocolId = ProtocolId::from_string("Send Message");
 
-    fn start(&mut self, mut context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    async fn start(
+        &mut self,
+        mut context: ProtocolContext,
+        _shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
         // TODO(hardint): This should be some other IP address
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
@@ -47,7 +54,7 @@ impl Application for SendMessage {
         Ok(())
     }
 
-    fn recv(
+    async fn recv(
         &mut self,
         _message: Message,
         _context: &mut ProtocolContext,

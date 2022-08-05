@@ -6,16 +6,19 @@ use crate::{
         user_process::{Application, UserProcess},
     },
 };
+use async_trait::async_trait;
 use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
+use tokio::sync::mpsc::Sender;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Capture {
     message: Option<Message>,
+    shutdown: Option<Sender<()>>,
 }
 
 impl Capture {
@@ -35,10 +38,16 @@ impl Capture {
     }
 }
 
+#[async_trait]
 impl Application for Capture {
     const ID: ProtocolId = ProtocolId::from_string("Capture");
 
-    fn start(&mut self, mut context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    async fn start(
+        &mut self,
+        mut context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
+        self.shutdown = Some(shutdown);
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
@@ -53,12 +62,13 @@ impl Application for Capture {
         Ok(())
     }
 
-    fn recv(
+    async fn recv(
         &mut self,
         message: Message,
         _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         self.message = Some(message);
+        self.shutdown.as_mut().unwrap().send(()).await;
         Ok(())
     }
 }

@@ -11,6 +11,9 @@ pub struct ProtocolContext {
     pub info: Control,
 }
 
+// Change ProtocolContext to hold a bunch of channels rather than explicit
+// handles to different protocols
+
 impl ProtocolContext {
     /// Create a new protocol context.
     pub(super) fn new(protocols: ProtocolMap) -> Self {
