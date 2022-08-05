@@ -42,7 +42,7 @@ mod shared_session;
 pub use shared_session::SharedSession;
 
 mod session;
-pub use session::{ControlFlow, Session};
+pub use session::Session;
 
 mod protocol_context;
 pub use protocol_context::ProtocolContext;

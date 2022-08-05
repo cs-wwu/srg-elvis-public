@@ -28,13 +28,3 @@ pub trait Session {
 
     fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 }
-
-/// Expresses what to do after a protocol is called on to run.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum ControlFlow {
-    /// Keep running the simulation
-    #[default]
-    Continue,
-    /// Stop running the simulation
-    EndSimulation,
-}
