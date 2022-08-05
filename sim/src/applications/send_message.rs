@@ -1,3 +1,5 @@
+use tokio::sync::mpsc::Sender;
+
 use crate::{
     core::{message::Message, Control, ProtocolContext, ProtocolId},
     protocols::{
@@ -31,7 +33,11 @@ impl SendMessage {
 impl Application for SendMessage {
     const ID: ProtocolId = ProtocolId::from_string("Send Message");
 
-    fn start(&mut self, mut context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(
+        &mut self,
+        mut context: ProtocolContext,
+        _shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
         // TODO(hardint): This should be some other IP address
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);

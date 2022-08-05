@@ -3,6 +3,7 @@ use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
+use tokio::sync::mpsc::Sender;
 
 /// A unique identifier for a [`Protocol`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -119,5 +120,9 @@ pub trait Protocol {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
-    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn start(
+        &mut self,
+        context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>>;
 }

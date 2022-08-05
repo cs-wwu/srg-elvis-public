@@ -1,6 +1,8 @@
 //! Utilities for running user-level programs in the context of a
 //! protocol-oriented simulation.
 
+use tokio::sync::mpsc::Sender;
+
 use crate::core::{
     message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession,
 };
@@ -21,7 +23,11 @@ pub trait Application {
 
     /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
     /// is not called in response to specific events.
-    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn start(
+        &mut self,
+        context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
@@ -93,7 +99,11 @@ impl<A: Application> Protocol for UserProcess<A> {
         self.application.recv(message, context)
     }
 
-    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        self.application.start(context)
+    fn start(
+        &mut self,
+        context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
+        self.application.start(context, shutdown)
     }
 }

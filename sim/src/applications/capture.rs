@@ -1,3 +1,5 @@
+use tokio::sync::mpsc::Sender;
+
 use crate::{
     core::{message::Message, Control, ProtocolContext, ProtocolId},
     protocols::{
@@ -13,9 +15,10 @@ use std::{
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Capture {
     message: Option<Message>,
+    shutdown: Option<Sender<()>>,
 }
 
 impl Capture {
@@ -38,7 +41,12 @@ impl Capture {
 impl Application for Capture {
     const ID: ProtocolId = ProtocolId::from_string("Capture");
 
-    fn start(&mut self, mut context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(
+        &mut self,
+        mut context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
+        self.shutdown = Some(shutdown);
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
@@ -59,6 +67,10 @@ impl Application for Capture {
         _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         self.message = Some(message);
+        let shutdown = self.shutdown.take().unwrap();
+        tokio::spawn(async move {
+            shutdown.send(()).await.unwrap();
+        });
         Ok(())
     }
 }

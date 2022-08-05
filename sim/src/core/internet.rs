@@ -1,3 +1,5 @@
+use tokio::sync::mpsc;
+
 use super::{Machine, Mtu, Network, NetworkId, SharedProtocol};
 use std::sync::{Arc, Mutex};
 
@@ -43,12 +45,14 @@ impl Internet {
     }
 
     /// Runs the simulation.
-    pub fn run(self) {
+    pub async fn run(self) {
+        let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
         for network in self.networks {
-            network.lock().unwrap().start();
+            network.lock().unwrap().start(shutdown_sender.clone());
         }
         for mut machine in self.machines {
-            machine.start();
+            machine.start(shutdown_sender.clone());
         }
+        shutdown_receiver.recv().await.unwrap();
     }
 }

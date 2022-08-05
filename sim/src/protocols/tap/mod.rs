@@ -113,7 +113,11 @@ impl Protocol for Tap {
         panic!("Cannot demux on a Tap")
     }
 
-    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(
+        &mut self,
+        context: ProtocolContext,
+        _shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
         let mut receivers = mem::replace(&mut self.receivers, Default::default());
         let senders = mem::replace(&mut self.senders, Default::default());
         let mut sessions = mem::replace(&mut self.sessions, Default::default());

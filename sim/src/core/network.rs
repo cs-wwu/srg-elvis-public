@@ -39,7 +39,7 @@ impl Network {
         }
     }
 
-    pub fn start(&mut self) {
+    pub fn start(&mut self, _shutdown: Sender<()>) {
         let mut receivers = mem::replace(&mut self.receivers, Default::default());
         let id = self.id;
         let mut senders = mem::replace(&mut self.senders, Default::default());
