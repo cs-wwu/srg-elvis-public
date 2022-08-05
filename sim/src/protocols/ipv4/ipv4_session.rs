@@ -6,7 +6,6 @@ use crate::{
     core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::udp::Udp,
 };
-use async_trait::async_trait;
 use std::error::Error;
 
 pub struct Ipv4Session {
@@ -29,9 +28,8 @@ impl Ipv4Session {
     }
 }
 
-#[async_trait]
 impl Session for Ipv4Session {
-    async fn send(
+    fn send(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,
@@ -53,7 +51,7 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
-    async fn receive(
+    fn receive(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,
@@ -63,12 +61,11 @@ impl Session for Ipv4Session {
             .expect("No such protocol")
             .lock()
             .unwrap()
-            .demux(message, context)
-            .await?;
+            .demux(message, context)?;
         Ok(())
     }
 
-    async fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

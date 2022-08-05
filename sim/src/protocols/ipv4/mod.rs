@@ -23,7 +23,6 @@ pub use ipv4_misc::{LocalAddress, RemoteAddress};
 
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
-use tokio::sync::mpsc::Sender;
 
 use super::tap::NetworkId;
 
@@ -135,11 +134,7 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn start(
-        &mut self,
-        _context: ProtocolContext,
-        _shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

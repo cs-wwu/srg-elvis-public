@@ -4,12 +4,10 @@
 use crate::core::{
     message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession,
 };
-use async_trait::async_trait;
 use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
-use tokio::sync::mpsc::Sender;
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -17,22 +15,17 @@ use tokio::sync::mpsc::Sender;
 /// [`Session`](crate::core::Session). It runs when messages come in over the
 /// network or when the containing machine awakens the
 /// application to give it time to run.
-#[async_trait]
 pub trait Application {
     /// A unique identifier for the application.
     const ID: ProtocolId;
 
     /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
     /// is not called in response to specific events.
-    async fn start(
-        &mut self,
-        context: ProtocolContext,
-        shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>>;
+    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    async fn recv(
+    fn recv(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,
@@ -69,8 +62,7 @@ impl<A: Application> UserProcess<A> {
     }
 }
 
-#[async_trait]
-impl<A: Application + Send> Protocol for UserProcess<A> {
+impl<A: Application> Protocol for UserProcess<A> {
     fn id(&self) -> ProtocolId {
         A::ID
     }
@@ -93,19 +85,15 @@ impl<A: Application + Send> Protocol for UserProcess<A> {
         panic!("Cannot listen on a user process")
     }
 
-    async fn demux(
+    fn demux(
         &mut self,
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        self.application.recv(message, context).await
+        self.application.recv(message, context)
     }
 
-    async fn start(
-        &mut self,
-        context: ProtocolContext,
-        shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
-        self.application.start(context, shutdown).await
+    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        self.application.start(context)
     }
 }

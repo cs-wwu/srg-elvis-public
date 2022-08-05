@@ -12,7 +12,6 @@ use std::{
 };
 
 mod udp_misc;
-use tokio::sync::mpsc::Sender;
 use udp_misc::UdpError;
 pub use udp_misc::{LocalPort, RemotePort};
 
@@ -153,11 +152,7 @@ impl Protocol for Udp {
         Ok(())
     }
 
-    fn start(
-        &mut self,
-        _context: ProtocolContext,
-        _shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

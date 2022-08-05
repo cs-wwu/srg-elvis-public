@@ -30,7 +30,7 @@ pub async fn default_simulation() {
         [network],
     );
 
-    internet.run().await;
+    internet.run();
     assert_eq!(
         capture.lock().unwrap().application().message().unwrap(),
         Message::new("Hello!")
