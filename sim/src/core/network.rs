@@ -40,9 +40,9 @@ impl Network {
     }
 
     pub fn start(&mut self, _shutdown: Sender<()>) {
-        let mut receivers = mem::replace(&mut self.receivers, Default::default());
+        let mut receivers = mem::take(&mut self.receivers);
         let id = self.id;
-        let mut senders = mem::replace(&mut self.senders, Default::default());
+        let mut senders = mem::take(&mut self.senders);
         tokio::spawn(async move {
             let mut futures: FuturesUnordered<_> = receivers
                 .iter_mut()
@@ -85,7 +85,7 @@ impl Network {
             sender: machine_sender,
             receiver: machine_receiver,
         };
-        machine.attach(info, self.id.into());
+        machine.attach(info, self.id);
     }
 }
 

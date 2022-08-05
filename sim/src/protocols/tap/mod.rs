@@ -118,9 +118,9 @@ impl Protocol for Tap {
         context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
-        let mut receivers = mem::replace(&mut self.receivers, Default::default());
-        let senders = mem::replace(&mut self.senders, Default::default());
-        let mut sessions = mem::replace(&mut self.sessions, Default::default());
+        let mut receivers = mem::take(&mut self.receivers);
+        let senders = mem::take(&mut self.senders);
+        let mut sessions = mem::take(&mut self.sessions);
         tokio::spawn(async move {
             let mut futures: FuturesUnordered<_> = receivers
                 .values_mut()
