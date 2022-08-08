@@ -118,7 +118,8 @@ impl Protocol for Tap {
         context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
-        // Receivers is not clone, but it is only used here so we take it
+        // Receivers is not Clone, but it is only used here once the internet
+        // simulation begins so we move it into the closure
         let mut receivers = mem::take(&mut self.receivers);
         let senders = self.senders.clone();
         let mut sessions = self.sessions.clone();
