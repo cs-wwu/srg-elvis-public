@@ -118,14 +118,18 @@ impl Protocol for Tap {
         context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
+        // Receivers is not clone, but it is only used here so we take it
         let mut receivers = mem::take(&mut self.receivers);
-        let senders = mem::take(&mut self.senders);
-        let mut sessions = mem::take(&mut self.sessions);
+        let senders = self.senders.clone();
+        let mut sessions = self.sessions.clone();
         tokio::spawn(async move {
+            // FuturesUnordered allows us to poll incoming messages from all
+            // networks
             let mut futures: FuturesUnordered<_> = receivers
                 .values_mut()
                 .map(|receiver| receiver.recv())
                 .collect();
+            // Take each incoming message and pass it up
             while let Some(Some(delivery)) = futures.next().await {
                 let mut context = context.clone();
                 let header = take_header(&delivery.message)
