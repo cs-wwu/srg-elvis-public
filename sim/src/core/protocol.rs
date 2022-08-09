@@ -1,8 +1,9 @@
-use super::{
-    control::make_key, message::Message, session::ControlFlow, Control, ProtocolContext,
-    SharedSession,
+use super::{control::make_key, message::Message, Control, ProtocolContext, SharedSession};
+use std::{
+    error::Error,
+    sync::{Arc, Mutex},
 };
-use std::{cell::RefCell, error::Error, rc::Rc};
+use tokio::sync::mpsc::Sender;
 
 /// A unique identifier for a [`Protocol`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -38,7 +39,7 @@ impl From<ProtocolId> for u64 {
 }
 
 /// A shared handle to a [`Protocol`].
-pub type RcProtocol = Rc<RefCell<dyn Protocol>>;
+pub type SharedProtocol = Arc<Mutex<dyn Protocol + Send + Sync>>;
 
 /// A member of a networking protocol stack.
 ///
@@ -119,11 +120,9 @@ pub trait Protocol {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
-    /// Called to allow the protocol to do some arbitrary work.
-    ///
-    /// Some work a protocol needs to do may not fit into receiving a message
-    /// from the network or sending a message from a user program. For example,
-    /// a TCP session may need to advertise window sizes or retransmit data. A
-    /// call to `awake` is its time to complete such tasks.
-    fn awake(&mut self, context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>>;
+    fn start(
+        &mut self,
+        context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>>;
 }

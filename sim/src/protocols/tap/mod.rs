@@ -1,21 +1,23 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    message::Message, Control, ControlFlow, Mtu, Network, Protocol, ProtocolContext, ProtocolId,
-    SharedSession,
+    message::Message, Control, Delivery, MachineId, Mtu, Postmarked, Protocol, ProtocolContext,
+    ProtocolId, SharedSession,
 };
 use std::{
-    cell::{Ref, RefCell},
     collections::{hash_map::Entry, HashMap},
     error::Error,
-    rc::Rc,
+    mem,
+    sync::{Arc, Mutex},
 };
 
 mod tap_misc;
-pub use tap_misc::NetworkIndex;
+use futures::{stream::FuturesUnordered, StreamExt};
+pub use tap_misc::{NetworkId, NetworkInfo};
 
 mod tap_session;
 use tap_session::TapSession;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use self::{tap_misc::TapError, tap_session::SessionId};
 
@@ -27,64 +29,45 @@ use self::{tap_misc::TapError, tap_session::SessionId};
 /// network, for example IPv4 or IPv6. The header is very simple, adding only a
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
-#[derive(Default)]
 pub struct Tap {
-    // TODO(hardint): Add an interface for accessing the MTUs
-    #[allow(dead_code)]
-    network_mtus: Vec<Mtu>,
-    sessions: HashMap<SessionId, Rc<RefCell<TapSession>>>,
+    receivers: HashMap<crate::core::NetworkId, Receiver<Delivery>>,
+    senders: HashMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
+    sessions: HashMap<SessionId, Arc<Mutex<TapSession>>>,
+    machine_id: MachineId,
 }
 
 impl Tap {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::new(0xdeadbeef);
+    pub const ID: ProtocolId = ProtocolId::from_string("Tap");
 
     /// Creates a new network tap.
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(machine_id: MachineId) -> Self {
+        Self {
+            receivers: Default::default(),
+            senders: Default::default(),
+            sessions: Default::default(),
+            machine_id,
+        }
     }
 
-    pub fn attach(&mut self, network: Ref<Network>) {
-        // TODO(hardint): Also store a channel to send on
-        self.network_mtus.push(network.mtu());
-    }
-
-    /// Gets a list of the pending, outgoing messages that have been sent on the
-    /// tap.
-    pub fn outgoing(&mut self) -> Vec<(NetworkIndex, Vec<Message>)> {
-        self.sessions
-            .values()
-            .map(|session| {
-                let mut session = session.borrow_mut();
-                (session.network(), session.outgoing())
-            })
-            .collect()
-    }
-
-    /// Delivers a message to the network for delivery up the protocol stack.
-    /// The tap will demux the message and forward it to the appropriate
-    /// protocol.
-    pub fn accept_incoming(
-        &mut self,
-        message: Message,
-        network: u8,
-        context: &mut ProtocolContext,
-    ) -> Result<(), TapError> {
-        let header = take_header(&message).ok_or(TapError::HeaderLength)?;
-        NetworkIndex::set(&mut context.info, network);
-        let message = message.slice(8..);
-        let session_id = SessionId::new(header, network.into());
-        let session = match self.sessions.entry(session_id) {
-            Entry::Occupied(entry) => entry.get().clone(),
+    pub fn attach(&mut self, network_info: NetworkInfo, network_id: crate::core::NetworkId) {
+        let NetworkInfo {
+            mtu,
+            sender,
+            receiver,
+        } = network_info;
+        match self.receivers.entry(network_id) {
+            Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
             Entry::Vacant(entry) => {
-                let session = Rc::new(RefCell::new(TapSession::new(header, network.into())));
-                entry.insert(session.clone());
-                session
+                entry.insert(receiver);
             }
-        };
-        let mut session = SharedSession::from(session);
-        session.receive(message, context)?;
-        Ok(())
+        }
+        match self.senders.entry(network_id) {
+            Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
+            Entry::Vacant(entry) => {
+                entry.insert((sender, mtu));
+            }
+        }
     }
 }
 
@@ -99,12 +82,17 @@ impl Protocol for Tap {
         participants: Control,
         _context: &mut ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        let network = NetworkIndex::get(&participants);
+        let network = NetworkId::get(&participants);
         let session_id = SessionId::new(upstream, network.into());
         match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone().into()),
             Entry::Vacant(entry) => {
-                let session = Rc::new(RefCell::new(TapSession::new(upstream, network.into())));
+                let sender = self.senders.get(&network).unwrap().0.clone();
+                let session = Arc::new(Mutex::new(TapSession::new(
+                    upstream,
+                    self.machine_id,
+                    sender,
+                )));
                 entry.insert(session.clone());
                 Ok(session.into())
             }
@@ -134,8 +122,51 @@ impl Protocol for Tap {
         panic!("Cannot demux on a Tap")
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(ControlFlow::Continue)
+    fn start(
+        &mut self,
+        context: ProtocolContext,
+        _shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
+        // Receivers is not Clone, but it is only used here once the internet
+        // simulation begins so we move it into the closure
+        let mut receivers = mem::take(&mut self.receivers);
+        let senders = self.senders.clone();
+        let mut sessions = self.sessions.clone();
+        let machine_id = self.machine_id;
+        tokio::spawn(async move {
+            // FuturesUnordered allows us to poll incoming messages from all
+            // networks
+            let mut futures: FuturesUnordered<_> = receivers
+                .values_mut()
+                .map(|receiver| receiver.recv())
+                .collect();
+            // Take each incoming message and pass it up
+            while let Some(Some(delivery)) = futures.next().await {
+                let mut context = context.clone();
+                let header = take_header(&delivery.message)
+                    .ok_or(TapError::HeaderLength)
+                    .unwrap();
+                NetworkId::set(&mut context.info, delivery.network);
+                let message = delivery.message.slice(8..);
+                let session_id = SessionId::new(header, delivery.network.into());
+                let session = match sessions.entry(session_id) {
+                    Entry::Occupied(entry) => entry.get().clone(),
+                    Entry::Vacant(entry) => {
+                        let sender = senders.get(&delivery.network).unwrap().0.clone();
+                        let session =
+                            Arc::new(Mutex::new(TapSession::new(header, machine_id, sender)));
+                        entry.insert(session.clone());
+                        session
+                    }
+                };
+                let mut session = SharedSession::from(session);
+                match session.receive(message, &mut context) {
+                    Ok(()) => {}
+                    Err(e) => println!("{}", e),
+                }
+            }
+        });
+        Ok(())
     }
 }
 

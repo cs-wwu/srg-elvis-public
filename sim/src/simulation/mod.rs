@@ -3,7 +3,7 @@
 /// sender sends one string to the receiver, and the contents are checked.
 use crate::{
     applications::{Capture, SendMessage},
-    core::{message::Message, Internet, RcProtocol},
+    core::{message::Message, Internet, SharedProtocol},
     protocols::{ipv4::Ipv4, udp::Udp},
 };
 
@@ -13,7 +13,7 @@ pub async fn default_simulation() {
 
     internet.machine(
         [
-            Udp::new_shared() as RcProtocol,
+            Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(),
             SendMessage::new_shared("Hello!"),
         ],
@@ -23,16 +23,16 @@ pub async fn default_simulation() {
     let capture = Capture::new_shared();
     internet.machine(
         [
-            Udp::new_shared() as RcProtocol,
+            Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(),
             capture.clone(),
         ],
         [network],
     );
 
-    internet.run();
+    internet.run().await;
     assert_eq!(
-        capture.borrow().application().message().unwrap(),
+        capture.lock().unwrap().application().message().unwrap(),
         Message::new("Hello!")
     );
 }

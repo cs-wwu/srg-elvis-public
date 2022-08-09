@@ -1,29 +1,29 @@
-use super::{tap_misc::TapError, NetworkIndex};
-use crate::core::{message::Message, ControlFlow, ProtocolContext, ProtocolId, Session};
-use std::{error::Error, mem};
+use tokio::sync::mpsc::Sender;
+
+use super::{tap_misc::TapError, NetworkId};
+use crate::core::{
+    message::Message, MachineId, PhysicalAddress, Postmarked, ProtocolContext, ProtocolId, Session,
+};
+use std::error::Error;
 
 #[derive(Clone)]
 pub struct TapSession {
-    network: NetworkIndex,
-    outgoing: Vec<Message>,
     upstream: ProtocolId,
+    machine_id: MachineId,
+    sender: Sender<Postmarked>,
 }
 
 impl TapSession {
-    pub(super) fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
+    pub(super) fn new(
+        upstream: ProtocolId,
+        machine_id: MachineId,
+        sender: Sender<Postmarked>,
+    ) -> Self {
         Self {
             upstream,
-            network,
-            outgoing: vec![],
+            machine_id,
+            sender,
         }
-    }
-
-    pub fn network(&self) -> NetworkIndex {
-        self.network
-    }
-
-    pub fn outgoing(&mut self) -> Vec<Message> {
-        mem::take(&mut self.outgoing)
     }
 }
 
@@ -34,7 +34,16 @@ impl Session for TapSession {
         _context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let message = message.with_header(&self.upstream.into_inner().to_be_bytes());
-        self.outgoing.push(message);
+        let postmarked = Postmarked {
+            message,
+            // TODO(hardint): Replace with correct destination
+            address: PhysicalAddress::Broadcast,
+            sender: self.machine_id,
+        };
+        let sender = self.sender.clone();
+        tokio::spawn(async move {
+            sender.send(postmarked).await.unwrap();
+        });
         Ok(())
     }
 
@@ -46,23 +55,23 @@ impl Session for TapSession {
         let protocol = context
             .protocol(self.upstream)
             .ok_or(TapError::NoSuchProtocol(self.upstream))?;
-        let mut protocol = protocol.borrow_mut();
+        let mut protocol = protocol.lock().unwrap();
         protocol.demux(message, context)
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(ControlFlow::Continue)
+    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
     upstream: ProtocolId,
-    network: NetworkIndex,
+    network: NetworkId,
 }
 
 impl SessionId {
-    pub fn new(upstream: ProtocolId, network: NetworkIndex) -> Self {
+    pub fn new(upstream: ProtocolId, network: NetworkId) -> Self {
         Self { upstream, network }
     }
 }

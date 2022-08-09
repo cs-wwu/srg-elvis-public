@@ -1,6 +1,6 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
-// Chunks are a newtype wrapper over `Rc<Vec<u8>>`. The allow message parts to
+// Chunks are a newtype wrapper over `Arc<Vec<u8>>`. The allow message parts to
 // be immutably shared between different machines. It is useful in the interface
 // for Message because it allows Message::new() and Message::with_header() to be
 // polymorphic over a variety of message data sources. The various From impls
@@ -9,12 +9,12 @@ use std::rc::Rc;
 /// A piece of a [Message](super::Message), either a message body or a
 /// header.
 #[derive(Debug)]
-pub struct Chunk(Rc<Vec<u8>>);
+pub struct Chunk(Arc<Vec<u8>>);
 
 impl Chunk {
     /// Returns a new chunk containing the given bytes.
     pub fn new(data: Vec<u8>) -> Self {
-        Self(Rc::new(data))
+        Self(Arc::new(data))
     }
 
     /// Returns the underlying bytes as slice.
@@ -31,7 +31,7 @@ impl Clone for Chunk {
 
 impl From<Vec<u8>> for Chunk {
     fn from(vector: Vec<u8>) -> Self {
-        Self(Rc::new(vector))
+        Self(Arc::new(vector))
     }
 }
 

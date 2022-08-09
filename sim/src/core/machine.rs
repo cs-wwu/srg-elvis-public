@@ -1,19 +1,16 @@
-use super::{
-    internet::MachineContext, network::PhysicalAddress, protocol::RcProtocol, ControlFlow, Network,
-    ProtocolContext, ProtocolId,
-};
-use crate::protocols::tap::Tap;
+use super::{protocol::SharedProtocol, NetworkId, ProtocolContext, ProtocolId};
+use crate::protocols::tap::{NetworkInfo, Tap};
 use std::{
-    cell::{Ref, RefCell},
     collections::{hash_map::Entry, HashMap},
     iter,
-    rc::Rc,
+    sync::{Arc, Mutex},
 };
+use tokio::sync::mpsc::Sender;
 
 /// An identifier for a particular [`Machine`] in the simulation.
 pub type MachineId = usize;
 
-pub(super) type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
+pub(super) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
 
 /// A networked computer in the simultation.
 ///
@@ -25,19 +22,19 @@ pub(super) type ProtocolMap = Rc<HashMap<ProtocolId, RcProtocol>>;
 pub struct Machine {
     id: MachineId,
     protocols: ProtocolMap,
-    tap: Rc<RefCell<Tap>>,
+    tap: Arc<Mutex<Tap>>,
 }
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
-    pub fn new<const S: usize>(protocols: [RcProtocol; S], id: MachineId) -> Self {
-        let tap = Rc::new(RefCell::new(Tap::new()));
+    pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>, id: MachineId) -> Self {
+        let tap = Arc::new(Mutex::new(Tap::new(id)));
         let mut map = HashMap::new();
         for protocol in protocols
             .into_iter()
-            .chain(iter::once(tap.clone() as RcProtocol))
+            .chain(iter::once(tap.clone() as SharedProtocol))
         {
-            let id = protocol.borrow().id();
+            let id = protocol.lock().unwrap().id();
             match map.entry(id) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
@@ -48,12 +45,12 @@ impl Machine {
         Self {
             id,
             tap,
-            protocols: Rc::new(map),
+            protocols: Arc::new(map),
         }
     }
 
-    pub fn attach(&mut self, network: Ref<Network>) {
-        self.tap.borrow_mut().attach(network);
+    pub fn attach(&mut self, info: NetworkInfo, network_id: NetworkId) {
+        self.tap.lock().unwrap().attach(info, network_id);
     }
 
     pub fn id(&self) -> MachineId {
@@ -62,51 +59,15 @@ impl Machine {
 
     /// Gives the machine time to process incoming messages and
     /// [`awake`](super::Protocol::awake) its protocols.
-    pub fn awake(&mut self, context: &mut MachineContext) -> ControlFlow {
-        let mut protocol_context = ProtocolContext::new(self.protocols.clone());
-
-        let mut control_flow = ControlFlow::Continue;
+    pub fn start(&mut self, shutdown: Sender<()>) {
+        let protocol_context = ProtocolContext::new(self.protocols.clone());
         for protocol in self.protocols.values() {
-            let flow = match protocol.borrow_mut().awake(&mut protocol_context) {
-                Ok(flow) => flow,
-                Err(e) => {
-                    eprintln!("{:?} -> {}", e, e);
-                    continue;
-                }
-            };
-            match flow {
-                ControlFlow::Continue => {}
-                ControlFlow::EndSimulation => control_flow = ControlFlow::EndSimulation,
-            }
+            protocol
+                .clone()
+                .lock()
+                .unwrap()
+                .start(protocol_context.clone(), shutdown.clone())
+                .unwrap()
         }
-
-        for message in context.pending() {
-            match self
-                .tap
-                .borrow_mut()
-                // TODO(hardint): We want to get the network number from pending()
-                .accept_incoming(message, 0, &mut protocol_context)
-            {
-                Ok(flow) => flow,
-                Err(e) => {
-                    eprintln!("{:?} -> {}", e, e);
-                    continue;
-                }
-            }
-        }
-
-        let outgoing: HashMap<_, _> = self.tap.borrow_mut().outgoing().into_iter().collect();
-        for (i, network) in context.networks().enumerate() {
-            if let Some(messages) = outgoing.get(&(i as u8).into()) {
-                for message in messages {
-                    network
-                        .borrow_mut()
-                        // TODO(hardint): Use the correct physical address
-                        .send(PhysicalAddress::Broadcast, message.clone());
-                }
-            }
-        }
-
-        control_flow
     }
 }

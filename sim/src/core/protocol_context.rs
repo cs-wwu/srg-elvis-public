@@ -1,4 +1,4 @@
-use super::{protocol::RcProtocol, Control, ProtocolId, ProtocolMap, SharedSession};
+use super::{protocol::SharedProtocol, Control, ProtocolId, ProtocolMap, SharedSession};
 
 /// Provides a [`Protocol`](super::Protocol) with information about its
 /// execution environment.
@@ -22,7 +22,7 @@ impl ProtocolContext {
     }
 
     /// Get a handle to the protocol identified by `id`.
-    pub fn protocol(&self, id: ProtocolId) -> Option<RcProtocol> {
+    pub fn protocol(&self, id: ProtocolId) -> Option<SharedProtocol> {
         self.protocols.get(&id).cloned()
     }
 

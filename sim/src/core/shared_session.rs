@@ -1,5 +1,8 @@
 use super::{Message, ProtocolContext, Session};
-use std::{cell::RefCell, error::Error, rc::Rc};
+use std::{
+    error::Error,
+    sync::{Arc, Mutex},
+};
 
 /// A shared handle to a [`Session`].
 ///
@@ -8,14 +11,14 @@ use std::{cell::RefCell, error::Error, rc::Rc};
 /// session is applied to the context.
 #[derive(Clone)]
 pub struct SharedSession {
-    session: Rc<RefCell<dyn Session>>,
+    session: Arc<Mutex<dyn Session + Send + Sync>>,
 }
 
 impl SharedSession {
     /// Creates a new shared session
-    pub fn new(session: impl Session + 'static) -> Self {
+    pub fn new(session: impl Session + Send + Sync + 'static) -> Self {
         Self {
-            session: Rc::new(RefCell::new(session)),
+            session: Arc::new(Mutex::new(session)),
         }
     }
 
@@ -27,7 +30,7 @@ impl SharedSession {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context.push_session(self.clone());
-        self.session.borrow_mut().send(message, context)?;
+        self.session.lock().unwrap().send(message, context)?;
         context.pop_session();
         Ok(())
     }
@@ -40,32 +43,23 @@ impl SharedSession {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context.push_session(self.clone());
-        self.session.borrow_mut().receive(message, context)?;
-        context.pop_session();
-        Ok(())
-    }
-
-    /// Updates the current session on the context and calls
-    /// [`awake`](Session::awake) on the underlying session.
-    pub fn awake(&mut self, context: &mut ProtocolContext) -> Result<(), Box<dyn Error>> {
-        context.push_session(self.clone());
-        self.session.borrow_mut().awake(context)?;
+        self.session.lock().unwrap().receive(message, context)?;
         context.pop_session();
         Ok(())
     }
 }
 
-impl From<Rc<RefCell<dyn Session>>> for SharedSession {
-    fn from(session: Rc<RefCell<dyn Session>>) -> Self {
+impl From<Arc<Mutex<dyn Session + Send + Sync>>> for SharedSession {
+    fn from(session: Arc<Mutex<dyn Session + Send + Sync>>) -> Self {
         Self { session }
     }
 }
 
-impl<T> From<Rc<RefCell<T>>> for SharedSession
+impl<T> From<Arc<Mutex<T>>> for SharedSession
 where
-    T: Session + 'static,
+    T: Session + Send + Sync + 'static,
 {
-    fn from(session: Rc<RefCell<T>>) -> Self {
+    fn from(session: Arc<Mutex<T>>) -> Self {
         Self { session }
     }
 }

@@ -36,13 +36,13 @@ pub mod message;
 pub use message::Message;
 
 mod protocol;
-pub use protocol::{Protocol, ProtocolId, RcProtocol};
+pub use protocol::{Protocol, ProtocolId, SharedProtocol};
 
 mod shared_session;
 pub use shared_session::SharedSession;
 
 mod session;
-pub use session::{ControlFlow, Session};
+pub use session::Session;
 
 mod protocol_context;
 pub use protocol_context::ProtocolContext;

@@ -2,17 +2,13 @@
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
 use crate::{
-    core::{
-        message::Message, Control, ControlFlow, Protocol, ProtocolContext, ProtocolId,
-        SharedSession,
-    },
+    core::{message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession},
     protocols::tap::Tap,
 };
 use std::{
-    cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     error::Error,
-    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
 mod ipv4_parsing;
@@ -27,8 +23,9 @@ pub use ipv4_misc::{LocalAddress, RemoteAddress};
 
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
+use tokio::sync::mpsc::Sender;
 
-use super::tap::NetworkIndex;
+use super::tap::NetworkId;
 
 /// An implementation of the Internet Protocol.
 #[derive(Default, Clone)]
@@ -47,8 +44,8 @@ impl Ipv4 {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared() -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::new()))
+    pub fn new_shared() -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self::new()))
     }
 }
 
@@ -70,11 +67,12 @@ impl Protocol for Ipv4 {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
                 // TODO(hardint): Actually pick the right network index
-                NetworkIndex::set(&mut participants, 0);
+                NetworkId::set(&mut participants, 0);
                 let tap_session = context
                     .protocol(Tap::ID)
                     .expect("No such protocol")
-                    .borrow_mut()
+                    .lock()
+                    .unwrap()
                     .open(Self::ID, participants, context)?;
                 let session = SharedSession::new(Ipv4Session::new(tap_session, upstream, key));
                 entry.insert(session.clone());
@@ -101,7 +99,8 @@ impl Protocol for Ipv4 {
         context
             .protocol(Tap::ID)
             .expect("No such protocol")
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .listen(Self::ID, participants, context)
     }
 
@@ -136,7 +135,11 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn awake(&mut self, _context: &mut ProtocolContext) -> Result<ControlFlow, Box<dyn Error>> {
-        Ok(ControlFlow::Continue)
+    fn start(
+        &mut self,
+        _context: ProtocolContext,
+        _shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
