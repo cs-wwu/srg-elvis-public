@@ -151,15 +151,6 @@ impl Protocol for Udp {
         session.receive(message, context)?;
         Ok(())
     }
-
-    // start() does nothing for UDP. Just use the default implementation
-    // fn start(
-    //     &mut self,
-    //     _context: ProtocolContext,
-    //     _shutdown: Sender<()>,
-    // ) -> Result<(), Box<dyn Error>> {
-    //     Ok(())
-    // }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

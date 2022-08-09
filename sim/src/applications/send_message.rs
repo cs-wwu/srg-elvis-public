@@ -1,5 +1,4 @@
 use tokio::sync::mpsc::Sender;
-use tokio::time::{sleep, Duration};
 
 use crate::{
     core::{message::Message, Control, ProtocolContext, ProtocolId},
@@ -50,12 +49,7 @@ impl Application for SendMessage {
             .lock()
             .unwrap()
             .open(Self::ID, participants, &mut context)?;
-        // Wait for one second to make sure that the server has started up
-        let text = <&str>::clone(&self.text);
-        tokio::spawn(async move {
-            sleep(Duration::from_millis(1000)).await;
-            session.send(Message::new(text), &mut context).unwrap();
-        });
+        session.send(Message::new(self.text), &mut context)?;
         Ok(())
     }
 

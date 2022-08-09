@@ -133,13 +133,4 @@ impl Protocol for Ipv4 {
         session.receive(message, context)?;
         Ok(())
     }
-
-    // start() does nothing for IPv4. Just inherit the default implementation.
-    // fn start(
-    //     &mut self,
-    //     _context: ProtocolContext,
-    //     _shutdown: Sender<()>,
-    // ) -> Result<(), Box<dyn Error>> {
-    //     Ok(())
-    // }
 }
