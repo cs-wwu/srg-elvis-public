@@ -1,8 +1,8 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    message::Message, Control, Delivery, Mtu, Postmarked, Protocol, ProtocolContext, ProtocolId,
-    SharedSession,
+    message::Message, Control, Delivery, MachineId, Mtu, Postmarked, Protocol, ProtocolContext,
+    ProtocolId, SharedSession,
 };
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -29,20 +29,25 @@ use self::{tap_misc::TapError, tap_session::SessionId};
 /// network, for example IPv4 or IPv6. The header is very simple, adding only a
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
-#[derive(Default)]
 pub struct Tap {
     receivers: HashMap<crate::core::NetworkId, Receiver<Delivery>>,
     senders: HashMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
     sessions: HashMap<SessionId, Arc<Mutex<TapSession>>>,
+    machine_id: MachineId,
 }
 
 impl Tap {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::new(0xdeadbeef);
+    pub const ID: ProtocolId = ProtocolId::from_string("Tap");
 
     /// Creates a new network tap.
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(machine_id: MachineId) -> Self {
+        Self {
+            receivers: Default::default(),
+            senders: Default::default(),
+            sessions: Default::default(),
+            machine_id,
+        }
     }
 
     pub fn attach(&mut self, network_info: NetworkInfo, network_id: crate::core::NetworkId) {
@@ -83,7 +88,11 @@ impl Protocol for Tap {
             Entry::Occupied(entry) => Ok(entry.get().clone().into()),
             Entry::Vacant(entry) => {
                 let sender = self.senders.get(&network).unwrap().0.clone();
-                let session = Arc::new(Mutex::new(TapSession::new(upstream, sender)));
+                let session = Arc::new(Mutex::new(TapSession::new(
+                    upstream,
+                    self.machine_id,
+                    sender,
+                )));
                 entry.insert(session.clone());
                 Ok(session.into())
             }
@@ -123,6 +132,7 @@ impl Protocol for Tap {
         let mut receivers = mem::take(&mut self.receivers);
         let senders = self.senders.clone();
         let mut sessions = self.sessions.clone();
+        let machine_id = self.machine_id;
         tokio::spawn(async move {
             // FuturesUnordered allows us to poll incoming messages from all
             // networks
@@ -143,7 +153,8 @@ impl Protocol for Tap {
                     Entry::Occupied(entry) => entry.get().clone(),
                     Entry::Vacant(entry) => {
                         let sender = senders.get(&delivery.network).unwrap().0.clone();
-                        let session = Arc::new(Mutex::new(TapSession::new(header, sender)));
+                        let session =
+                            Arc::new(Mutex::new(TapSession::new(header, machine_id, sender)));
                         entry.insert(session.clone());
                         session
                     }
