@@ -1,5 +1,3 @@
-use tokio::sync::mpsc::Sender;
-
 use crate::{
     core::{message::Message, Control, ProtocolContext, ProtocolId, SharedSession},
     protocols::{
@@ -12,23 +10,44 @@ use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
+use tokio::sync::mpsc::Sender;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Forward {
     outgoing: Option<SharedSession>,
+    local_ip: Ipv4Address,
+    remote_ip: Ipv4Address,
+    local_port: u16,
+    remote_port: u16,
 }
 
 impl Forward {
     /// Creates a new capture.
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(
+        local_ip: Ipv4Address,
+        remote_ip: Ipv4Address,
+        local_port: u16,
+        remote_port: u16,
+    ) -> Self {
+        Self {
+            outgoing: Default::default(),
+            local_ip,
+            remote_ip,
+            local_port,
+            remote_port,
+        }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared() -> Arc<Mutex<UserProcess<Self>>> {
-        UserProcess::new_shared(Self::new())
+    pub fn new_shared(
+        local_ip: Ipv4Address,
+        remote_ip: Ipv4Address,
+        local_port: u16,
+        remote_port: u16,
+    ) -> Arc<Mutex<UserProcess<Self>>> {
+        UserProcess::new_shared(Self::new(local_ip, remote_ip, local_port, remote_port))
     }
 }
 
@@ -41,15 +60,13 @@ impl Application for Forward {
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        LocalPort::set(&mut participants, 0xdeadu16);
-        RemotePort::set(&mut participants, 0xbeefu16);
+        LocalAddress::set(&mut participants, self.local_ip);
+        RemoteAddress::set(&mut participants, self.remote_ip);
+        LocalPort::set(&mut participants, self.local_port);
+        RemotePort::set(&mut participants, self.remote_port);
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         let mut udp = udp.lock().unwrap();
         self.outgoing = Some(udp.open(Self::ID, participants.clone(), &mut context)?);
-        LocalPort::set(&mut participants, 0xbeefu16);
-        RemotePort::set(&mut participants, 0xdeadu16);
         udp.listen(Self::ID, participants, &mut context)?;
         Ok(())
     }
