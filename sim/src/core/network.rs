@@ -61,7 +61,10 @@ impl Network {
                         Entry::Vacant(_) => panic!("No machine found with that ID"),
                     },
                     PhysicalAddress::Broadcast => {
-                        for sender in senders.values_mut() {
+                        for sender in senders
+                            .iter_mut()
+                            .filter_map(|(&id, sender)| (id != next.sender).then_some(sender))
+                        {
                             sender.send(delivery.clone()).await.unwrap();
                         }
                     }
@@ -102,6 +105,7 @@ pub enum PhysicalAddress {
 pub struct Postmarked {
     pub message: Message,
     pub address: PhysicalAddress,
+    pub sender: MachineId,
 }
 
 #[derive(Debug, Clone)]

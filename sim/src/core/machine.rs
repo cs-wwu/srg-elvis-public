@@ -28,7 +28,7 @@ pub struct Machine {
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
     pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>, id: MachineId) -> Self {
-        let tap = Arc::new(Mutex::new(Tap::new()));
+        let tap = Arc::new(Mutex::new(Tap::new(id)));
         let mut map = HashMap::new();
         for protocol in protocols
             .into_iter()

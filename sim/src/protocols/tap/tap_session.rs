@@ -2,19 +2,28 @@ use tokio::sync::mpsc::Sender;
 
 use super::{tap_misc::TapError, NetworkId};
 use crate::core::{
-    message::Message, PhysicalAddress, Postmarked, ProtocolContext, ProtocolId, Session,
+    message::Message, MachineId, PhysicalAddress, Postmarked, ProtocolContext, ProtocolId, Session,
 };
 use std::error::Error;
 
 #[derive(Clone)]
 pub struct TapSession {
-    sender: Sender<Postmarked>,
     upstream: ProtocolId,
+    machine_id: MachineId,
+    sender: Sender<Postmarked>,
 }
 
 impl TapSession {
-    pub(super) fn new(upstream: ProtocolId, sender: Sender<Postmarked>) -> Self {
-        Self { upstream, sender }
+    pub(super) fn new(
+        upstream: ProtocolId,
+        machine_id: MachineId,
+        sender: Sender<Postmarked>,
+    ) -> Self {
+        Self {
+            upstream,
+            machine_id,
+            sender,
+        }
     }
 }
 
@@ -29,6 +38,7 @@ impl Session for TapSession {
             message,
             // TODO(hardint): Replace with correct destination
             address: PhysicalAddress::Broadcast,
+            sender: self.machine_id,
         };
         let sender = self.sender.clone();
         tokio::spawn(async move {
