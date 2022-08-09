@@ -122,6 +122,9 @@ impl Protocol for Tap {
         panic!("Cannot demux on a Tap")
     }
 
+    /// Start the tap running. This spawns a task that reads
+    /// messages from receivers, and forwards the messages to the
+    /// recipients.
     fn start(
         &mut self,
         context: ProtocolContext,
