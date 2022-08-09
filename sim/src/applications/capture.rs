@@ -1,10 +1,8 @@
-use tokio::sync::mpsc::Sender;
-
 use crate::{
     core::{message::Message, Control, ProtocolContext, ProtocolId},
     protocols::{
-        ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort, Udp},
+        ipv4::{Ipv4Address, LocalAddress},
+        udp::{LocalPort, Udp},
         user_process::{Application, UserProcess},
     },
 };
@@ -12,24 +10,32 @@ use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
+use tokio::sync::mpsc::Sender;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Capture {
     message: Option<Message>,
     shutdown: Option<Sender<()>>,
+    ip_address: Ipv4Address,
+    port: u16,
 }
 
 impl Capture {
     /// Creates a new capture.
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(ip_address: Ipv4Address, port: u16) -> Self {
+        Self {
+            message: None,
+            shutdown: None,
+            ip_address,
+            port,
+        }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared() -> Arc<Mutex<UserProcess<Self>>> {
-        UserProcess::new_shared(Self::new())
+    pub fn new_shared(ip_address: Ipv4Address, port: u16) -> Arc<Mutex<UserProcess<Self>>> {
+        UserProcess::new_shared(Self::new(ip_address, port))
     }
 
     /// Gets the message that was received.
@@ -48,10 +54,8 @@ impl Application for Capture {
     ) -> Result<(), Box<dyn Error>> {
         self.shutdown = Some(shutdown);
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        LocalPort::set(&mut participants, 0xbeefu16);
-        RemotePort::set(&mut participants, 0xdeadu16);
+        LocalAddress::set(&mut participants, self.ip_address);
+        LocalPort::set(&mut participants, self.port);
         context
             .protocol(Udp::ID)
             .expect("No such protocol")

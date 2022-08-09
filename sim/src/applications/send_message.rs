@@ -16,17 +16,45 @@ use std::{
 /// An application that sends a single message over the network.
 pub struct SendMessage {
     text: &'static str,
+    local_ip: Ipv4Address,
+    remote_ip: Ipv4Address,
+    local_port: u16,
+    remote_port: u16,
 }
 
 impl SendMessage {
     /// Creates a new send message application.
-    pub fn new(text: &'static str) -> Self {
-        Self { text }
+    pub fn new(
+        text: &'static str,
+        local_ip: Ipv4Address,
+        remote_ip: Ipv4Address,
+        local_port: u16,
+        remote_port: u16,
+    ) -> Self {
+        Self {
+            text,
+            local_ip,
+            remote_ip,
+            local_port,
+            remote_port,
+        }
     }
 
     /// Creates a new send message application behind a shared handle.
-    pub fn new_shared(text: &'static str) -> Arc<Mutex<UserProcess<Self>>> {
-        UserProcess::new_shared(Self::new(text))
+    pub fn new_shared(
+        text: &'static str,
+        local_ip: Ipv4Address,
+        remote_ip: Ipv4Address,
+        local_port: u16,
+        remote_port: u16,
+    ) -> Arc<Mutex<UserProcess<Self>>> {
+        UserProcess::new_shared(Self::new(
+            text,
+            local_ip,
+            remote_ip,
+            local_port,
+            remote_port,
+        ))
     }
 }
 
@@ -39,11 +67,10 @@ impl Application for SendMessage {
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
-        // TODO(hardint): This should be some other IP address
-        LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        LocalPort::set(&mut participants, 0xdeadu16);
-        RemotePort::set(&mut participants, 0xbeefu16);
+        LocalAddress::set(&mut participants, self.local_ip);
+        RemoteAddress::set(&mut participants, self.remote_ip);
+        LocalPort::set(&mut participants, self.local_port);
+        RemotePort::set(&mut participants, self.remote_port);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let mut session = protocol
             .lock()

@@ -4,7 +4,10 @@
 use crate::{
     applications::{Capture, SendMessage},
     core::{message::Message, Internet, SharedProtocol},
-    protocols::{ipv4::Ipv4, udp::Udp},
+    protocols::{
+        ipv4::{Ipv4, Ipv4Address},
+        udp::Udp,
+    },
 };
 
 pub async fn default_simulation() {
@@ -15,12 +18,18 @@ pub async fn default_simulation() {
         [
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(),
-            SendMessage::new_shared("Hello!"),
+            SendMessage::new_shared(
+                "Hello!",
+                Ipv4Address::LOCALHOST,
+                [123, 45, 67, 89].into(),
+                0xdead,
+                0xbeef,
+            ),
         ],
         [network],
     );
 
-    let capture = Capture::new_shared();
+    let capture = Capture::new_shared([123, 45, 67, 89].into(), 0xbeef);
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,
