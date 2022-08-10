@@ -25,6 +25,8 @@ jobs:
       run: cargo clippy
     - name: Run rustdoc
       run: cargo doc --target-dir docs
-    - name: Save auto generated documentation
+    - name: git add
       run: git add docs
+    - name: git commit 
+      run: git commit -m "Auto saving documentation"
       
