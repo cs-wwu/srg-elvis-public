@@ -25,3 +25,5 @@ jobs:
       run: cargo clippy
     - name: Run rustdoc
       run: cargo doc --target-dir docs
+    - name: Save auto generated documentation
+      run: git add docs
