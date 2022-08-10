@@ -1,6 +1,8 @@
 name: basic-ci
 on:
-  push
+  push: 
+    tags-ignore: 
+      - auto
 
 env:
   CARGO_TERM_COLOR: always
@@ -23,3 +25,7 @@ jobs:
       run: cargo clippy
     - name: Run rustdoc
       run: cargo doc --target-dir docs
+    -name: Save auto generated documentation
+      run: git add docs
+      run: git commit -m "Auto updating docs"
+      run: git push auto 
