@@ -28,4 +28,4 @@ jobs:
     - name: Save auto generated documentation
       run: git add docs
       run: git commit -m "Added auto generated docs"
-      run: git push 
+      
