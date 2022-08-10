@@ -29,4 +29,6 @@ jobs:
       run: git add docs
     - name: git commit 
       run: git commit -m "Auto saving documentation"
+    - name: git push
+      run: git push
       
