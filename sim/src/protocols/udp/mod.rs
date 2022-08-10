@@ -54,7 +54,7 @@ impl Protocol for Udp {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
         let identifier = SessionId {
             local_port: LocalPort::try_from(&participants).unwrap(),
@@ -86,7 +86,7 @@ impl Protocol for Udp {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let identifier = ListenId {
             port: LocalPort::try_from(&participants).unwrap(),
@@ -105,7 +105,7 @@ impl Protocol for Udp {
     fn demux(
         &mut self,
         message: Message,
-        context: &mut ProtocolContext,
+        mut context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();

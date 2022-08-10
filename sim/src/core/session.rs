@@ -12,19 +12,12 @@ use std::error::Error;
 pub trait Session {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    fn send(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
+    fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 
     /// Takes an incoming message and decides which protocol to send it to for
     /// further processing.
-    fn receive(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
+    fn receive(&mut self, message: Message, context: ProtocolContext)
+        -> Result<(), Box<dyn Error>>;
 
     fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 }

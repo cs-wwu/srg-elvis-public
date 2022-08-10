@@ -56,7 +56,7 @@ impl Application for Forward {
 
     fn start(
         &mut self,
-        mut context: ProtocolContext,
+        context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
@@ -66,16 +66,14 @@ impl Application for Forward {
         RemotePort::set(&mut participants, self.remote_port);
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         let mut udp = udp.lock().unwrap();
-        self.outgoing = Some(udp.open(Self::ID, participants.clone(), &mut context)?);
-        udp.listen(Self::ID, participants, &mut context)?;
+        // I guess these clones are the price we pay for passing ProtocolContext
+        // by value
+        self.outgoing = Some(udp.open(Self::ID, participants.clone(), context.clone())?);
+        udp.listen(Self::ID, participants, context)?;
         Ok(())
     }
 
-    fn recv(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         println!(
             "{:?}, {:?}, {:?}, {:?}",
             self.local_ip, self.remote_ip, self.local_port, self.remote_port

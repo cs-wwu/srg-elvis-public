@@ -28,11 +28,7 @@ impl TapSession {
 }
 
 impl Session for TapSession {
-    fn send(
-        &mut self,
-        message: Message,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         let message = message.with_header(&self.upstream.into_inner().to_be_bytes());
         let postmarked = Postmarked {
             message,
@@ -51,7 +47,7 @@ impl Session for TapSession {
     fn receive(
         &mut self,
         message: Message,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         println!("Receiving");
         let protocol = context

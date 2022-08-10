@@ -68,7 +68,7 @@ impl Protocol for Ipv4 {
         &mut self,
         upstream: ProtocolId,
         mut participants: Control,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
         let local = LocalAddress::try_from(&participants).unwrap();
         let remote = RemoteAddress::try_from(&participants).unwrap();
@@ -95,7 +95,7 @@ impl Protocol for Ipv4 {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let local = LocalAddress::try_from(&participants).unwrap();
         match self.listen_bindings.entry(local) {
@@ -117,7 +117,7 @@ impl Protocol for Ipv4 {
     fn demux(
         &mut self,
         message: Message,
-        context: &mut ProtocolContext,
+        mut context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let header = Ipv4Header::from_bytes(message.iter())?;
         let remote = RemoteAddress::from(header.source);

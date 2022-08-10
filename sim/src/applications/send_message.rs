@@ -63,7 +63,7 @@ impl Application for SendMessage {
 
     fn start(
         &mut self,
-        mut context: ProtocolContext,
+        context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
@@ -75,16 +75,12 @@ impl Application for SendMessage {
         let mut session = protocol
             .lock()
             .unwrap()
-            .open(Self::ID, participants, &mut context)?;
-        session.send(Message::new(self.text), &mut context)?;
+            .open(Self::ID, participants, context.clone())?;
+        session.send(Message::new(self.text), context)?;
         Ok(())
     }
 
-    fn recv(
-        &mut self,
-        _message: Message,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn recv(&mut self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

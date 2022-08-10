@@ -61,15 +61,11 @@ impl Application for Capture {
             .expect("No such protocol")
             .lock()
             .unwrap()
-            .listen(Self::ID, participants, &mut context)?;
+            .listen(Self::ID, participants, context)?;
         Ok(())
     }
 
-    fn recv(
-        &mut self,
-        message: Message,
-        _context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn recv(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         self.message = Some(message);
         let shutdown = self.shutdown.take().unwrap();
         tokio::spawn(async move {

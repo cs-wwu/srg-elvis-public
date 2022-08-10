@@ -15,11 +15,7 @@ pub(super) struct UdpSession {
 }
 
 impl Session for UdpSession {
-    fn send(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         let id = self.identifier;
         let header = build_udp_header(
             self.identifier.local_address.into(),
@@ -36,7 +32,7 @@ impl Session for UdpSession {
     fn receive(
         &mut self,
         message: Message,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context
             .protocol(self.upstream)

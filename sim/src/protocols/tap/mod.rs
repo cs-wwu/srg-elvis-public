@@ -80,7 +80,7 @@ impl Protocol for Tap {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        _context: &mut ProtocolContext,
+        _context: ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
         let network = NetworkId::get(&participants);
         let session_id = SessionId::new(upstream, network.into());
@@ -103,7 +103,7 @@ impl Protocol for Tap {
         &mut self,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: &mut ProtocolContext,
+        _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // This is a no-op because nobody can call open_passive on us anyway
         Ok(())
@@ -112,7 +112,7 @@ impl Protocol for Tap {
     fn demux(
         &mut self,
         _message: Message,
-        _context: &mut ProtocolContext,
+        _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no
         // protocols under this one that would ask Tap to demux a message and
@@ -160,7 +160,7 @@ impl Protocol for Tap {
                     }
                 };
                 let mut session = SharedSession::from(session);
-                match session.receive(message, &mut context) {
+                match session.receive(message, context) {
                     Ok(()) => {}
                     Err(e) => println!("{}", e),
                 }

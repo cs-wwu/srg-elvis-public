@@ -31,11 +31,7 @@ pub trait Application {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn recv(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
+    fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 }
 
 /// A user-level process that sits at the top of the networking stack.
@@ -77,7 +73,7 @@ impl<A: Application> Protocol for UserProcess<A> {
         &mut self,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: &mut ProtocolContext,
+        _context: ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
         panic!("Cannot active open on a user process")
     }
@@ -86,16 +82,14 @@ impl<A: Application> Protocol for UserProcess<A> {
         &mut self,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: &mut ProtocolContext,
+        _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         panic!("Cannot listen on a user process")
     }
 
-    fn demux(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn demux(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+        // TODO(hardint): Complete receipt in a separate task to allow the
+        // protocol stack locks to be released
         self.application.recv(message, context)
     }
 

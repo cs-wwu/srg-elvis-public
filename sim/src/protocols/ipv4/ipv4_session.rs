@@ -29,11 +29,7 @@ impl Ipv4Session {
 }
 
 impl Session for Ipv4Session {
-    fn send(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
             Udp::ID => ProtocolNumber::Udp,
@@ -54,7 +50,7 @@ impl Session for Ipv4Session {
     fn receive(
         &mut self,
         message: Message,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context
             .protocol(self.upstream)

@@ -71,7 +71,7 @@ pub trait Protocol {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>>;
 
     /// Listen for new connections.
@@ -93,7 +93,7 @@ pub trait Protocol {
         &mut self,
         upstream: ProtocolId,
         participants: Control,
-        context: &mut ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
     /// Identifies the session that a message belongs to and forwards the
@@ -114,11 +114,7 @@ pub trait Protocol {
     ///   asked to receive the message by calling [`listen`](Protocol::listen)
     ///   at an earlier time. If so, a new session should be created.
     /// - Call [`receive`](super::Session::receive) on the selected session.
-    fn demux(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
+    fn demux(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 
     fn start(
         &mut self,

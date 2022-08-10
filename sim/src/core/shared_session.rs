@@ -27,11 +27,10 @@ impl SharedSession {
     pub fn send(
         &mut self,
         message: Message,
-        context: &mut ProtocolContext,
+        mut context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context.push_session(self.clone());
         self.session.lock().unwrap().send(message, context)?;
-        context.pop_session();
         Ok(())
     }
 
@@ -40,11 +39,10 @@ impl SharedSession {
     pub fn receive(
         &mut self,
         message: Message,
-        context: &mut ProtocolContext,
+        mut context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context.push_session(self.clone());
         self.session.lock().unwrap().receive(message, context)?;
-        context.pop_session();
         Ok(())
     }
 }
