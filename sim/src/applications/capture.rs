@@ -49,7 +49,7 @@ impl Application for Capture {
 
     fn start(
         &mut self,
-        mut context: ProtocolContext,
+        context: ProtocolContext,
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         self.shutdown = Some(shutdown);

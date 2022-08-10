@@ -36,9 +36,4 @@ impl ProtocolContext {
     pub(super) fn push_session(&mut self, session: SharedSession) {
         self.session_stack.push(session)
     }
-
-    /// Remove the topmost currently executing [`Session`](super::Session)s.
-    pub(super) fn pop_session(&mut self) {
-        self.session_stack.pop();
-    }
 }
