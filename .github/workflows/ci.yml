@@ -1,8 +1,8 @@
 name: basic-ci
 on:
   push: 
-    tags-ignore: 
-      - 'auto'
+    paths-ignore:
+      - 'docs/**'
 
 env:
   CARGO_TERM_COLOR: always
@@ -28,4 +28,4 @@ jobs:
     -name: Save auto generated documentation
       run: git add docs
       run: git commit -m "Auto updating docs"
-      run: git push auto 
+      run: git push
