@@ -2,7 +2,7 @@ name: basic-ci
 on:
   push: 
     paths-ignore:
-      - 'docs/**'
+      - 'sim/docs/**'
 
 env:
   CARGO_TERM_COLOR: always
