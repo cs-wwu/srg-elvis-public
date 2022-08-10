@@ -1,4 +1,4 @@
-name: basic-ci
+name: basic-ci-1
 on:
   push
 
