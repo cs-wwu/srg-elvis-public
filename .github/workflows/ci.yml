@@ -22,4 +22,4 @@ jobs:
     - name: Run clippy 
       run: cargo clippy
     - name: Run rustdoc
-      run: cargo doc --target-dir
+      run: cargo doc --target-dir docs
