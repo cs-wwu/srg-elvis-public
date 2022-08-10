@@ -1,6 +1,8 @@
 use tokio::sync::mpsc;
 
-use super::{Machine, Mtu, Network, NetworkId, SharedProtocol};
+use super::{Machine, Mtu, Network, SharedProtocol};
+
+pub type NetworkId = u32;
 
 /// The top-level container that controls the simulation.
 #[derive(Default)]

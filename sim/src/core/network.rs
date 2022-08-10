@@ -4,7 +4,7 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::protocols::tap::NetworkInfo;
 
-use super::{message::Message, Machine, MachineId};
+use super::{internet::NetworkId, message::Message, Machine, MachineId};
 use std::{
     collections::{hash_map::Entry, HashMap},
     hash::Hash,
@@ -12,8 +12,6 @@ use std::{
 
 /// A maximum transmission unit
 pub type Mtu = u32;
-
-pub type NetworkId = u32;
 
 /// A link-level connection between [`Machine`](super::Machine)s.
 ///

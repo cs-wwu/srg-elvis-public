@@ -1,44 +1,40 @@
 use elvis::{
     applications::{Capture, Forward, SendMessage},
-    core::{Internet, Message, SharedProtocol},
-    protocols::{ipv4::Ipv4, udp::Udp},
+    core::{Internet, Message, NetworkId, SharedProtocol},
+    protocols::{
+        ipv4::{IpToNetwork, Ipv4, Ipv4Address},
+        udp::Udp,
+    },
 };
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 10)]
+#[tokio::test]
 pub async fn telephone() {
     console_subscriber::init();
     let mut internet = Internet::new();
-    let network = internet.network(1500);
+    let end = 10;
+    for _ in 0..end {
+        internet.network(1500);
+    }
 
+    let (local, remote, table) = create_ip_table(0);
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(),
-            SendMessage::new_shared(
-                "Hello!",
-                0u32.to_be_bytes().into(),
-                1u32.to_be_bytes().into(),
-                0xbeef,
-                0xbeef,
-            ),
+            Ipv4::new_shared(table),
+            SendMessage::new_shared("Hello!", local, remote, 0xbeef, 0xbeef),
         ],
-        [network],
+        [0, 1],
     );
 
-    let end = 2;
-    for i in 1u32..end {
+    for i in 1u32..(end - 1) {
+        let (local, remote, table) = create_ip_table(i);
         internet.machine(
             [
                 Udp::new_shared() as SharedProtocol,
-                Ipv4::new_shared(),
-                Forward::new_shared(
-                    i.to_be_bytes().into(),
-                    (i + 1).to_be_bytes().into(),
-                    0xbeef,
-                    0xbeef,
-                ),
+                Ipv4::new_shared(table),
+                Forward::new_shared(local, remote, 0xbeef, 0xbeef),
             ],
-            [network],
+            [i, i + 1],
         );
     }
 
@@ -46,10 +42,14 @@ pub async fn telephone() {
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(),
+            Ipv4::new_shared(
+                [((end - 1).to_be_bytes().into(), end - 1)]
+                    .into_iter()
+                    .collect(),
+            ),
             capture.clone(),
         ],
-        [network],
+        [end - 1],
     );
 
     internet.run().await;
@@ -57,4 +57,13 @@ pub async fn telephone() {
         capture.lock().unwrap().application().message().unwrap(),
         Message::new("Hello!")
     );
+}
+
+fn create_ip_table(network: NetworkId) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
+    let local: Ipv4Address = network.to_be_bytes().into();
+    let remote: Ipv4Address = (network + 1).to_be_bytes().into();
+    let table = [(local, network), (remote, network + 1)]
+        .into_iter()
+        .collect();
+    (local, remote, table)
 }
