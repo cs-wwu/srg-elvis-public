@@ -2,7 +2,7 @@ name: basic-ci
 on:
   push: 
     tags-ignore: 
-      - auto
+      - 'auto'
 
 env:
   CARGO_TERM_COLOR: always
