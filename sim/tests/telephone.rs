@@ -54,8 +54,14 @@ pub async fn telephone() {
 
     internet.run().await;
     assert_eq!(
-        capture.lock().unwrap().application().message().unwrap(),
-        Message::new("Hello!")
+        capture
+            .lock()
+            .unwrap()
+            .application()
+            .lock()
+            .unwrap()
+            .message(),
+        Some(Message::new("Hello!"))
     );
 }
 

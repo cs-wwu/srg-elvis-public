@@ -42,14 +42,17 @@ pub trait Application {
 /// assigned to the generic type parameter `A`. Also unlike other protocols,
 /// user processes should not have higher-level protocols attempting to open
 /// connections on or listen through them.
+#[derive(Debug, Clone)]
 pub struct UserProcess<A: Application> {
-    application: A,
+    application: Arc<Mutex<A>>,
 }
 
 impl<A: Application> UserProcess<A> {
     /// Creates a new user process to run the given application.
     pub fn new(application: A) -> Self {
-        Self { application }
+        Self {
+            application: Arc::new(Mutex::new(application)),
+        }
     }
 
     /// Creates a new user process running the given application behind a shared
@@ -59,12 +62,12 @@ impl<A: Application> UserProcess<A> {
     }
 
     /// Gets the application the user process is running.
-    pub fn application(&self) -> &A {
-        &self.application
+    pub fn application(&self) -> Arc<Mutex<A>> {
+        self.application.clone()
     }
 }
 
-impl<A: Application> Protocol for UserProcess<A> {
+impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
     fn id(&self) -> ProtocolId {
         A::ID
     }
@@ -88,9 +91,14 @@ impl<A: Application> Protocol for UserProcess<A> {
     }
 
     fn demux(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        // TODO(hardint): Complete receipt in a separate task to allow the
-        // protocol stack locks to be released
-        self.application.recv(message, context)
+        let application = self.application.clone();
+        tokio::spawn(async move {
+            match application.lock().unwrap().recv(message, context) {
+                Ok(_) => {}
+                Err(e) => eprintln!("{}", e),
+            }
+        });
+        Ok(())
     }
 
     fn start(
@@ -98,6 +106,13 @@ impl<A: Application> Protocol for UserProcess<A> {
         context: ProtocolContext,
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
-        self.application.start(context, shutdown)
+        let application = self.application.clone();
+        tokio::spawn(async move {
+            match application.lock().unwrap().start(context, shutdown) {
+                Ok(_) => {}
+                Err(e) => eprintln!("{}", e),
+            }
+        });
+        Ok(())
     }
 }
