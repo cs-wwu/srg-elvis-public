@@ -1,4 +1,4 @@
-name: basic-ci-1
+name: basic-ci
 on:
   push
 
@@ -9,11 +9,12 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: ./sim
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      working-directory: ./sim
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
