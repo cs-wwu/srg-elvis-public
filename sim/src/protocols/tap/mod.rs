@@ -21,6 +21,8 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use self::{tap_misc::TapError, tap_session::SessionId};
 
+type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
+
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
 /// A tap sits at the bottom of a protocol stack and should be the first
@@ -31,8 +33,8 @@ use self::{tap_misc::TapError, tap_session::SessionId};
 /// message.
 pub struct Tap {
     receivers: HashMap<crate::core::NetworkId, Receiver<Delivery>>,
-    senders: HashMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
-    sessions: HashMap<SessionId, Arc<Mutex<TapSession>>>,
+    senders: ArcMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
+    sessions: ArcMap<SessionId, Arc<Mutex<TapSession>>>,
     machine_id: MachineId,
 }
 
@@ -62,7 +64,7 @@ impl Tap {
                 entry.insert(receiver);
             }
         }
-        match self.senders.entry(network_id) {
+        match self.senders.lock().unwrap().entry(network_id) {
             Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
             Entry::Vacant(entry) => {
                 entry.insert((sender, mtu));
@@ -84,10 +86,17 @@ impl Protocol for Tap {
     ) -> Result<SharedSession, Box<dyn Error>> {
         let network = NetworkId::get(&participants);
         let session_id = SessionId::new(upstream, network.into());
-        match self.sessions.entry(session_id) {
+        match self.sessions.lock().unwrap().entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone().into()),
             Entry::Vacant(entry) => {
-                let sender = self.senders.get(&network).unwrap().0.clone();
+                let sender = self
+                    .senders
+                    .lock()
+                    .unwrap()
+                    .get(&network)
+                    .unwrap()
+                    .0
+                    .clone();
                 let session = Arc::new(Mutex::new(TapSession::new(
                     upstream,
                     self.machine_id,
@@ -131,7 +140,7 @@ impl Protocol for Tap {
         // simulation begins so we move it into the closure
         let mut receivers = mem::take(&mut self.receivers);
         let senders = self.senders.clone();
-        let mut sessions = self.sessions.clone();
+        let sessions = self.sessions.clone();
         let machine_id = self.machine_id;
         tokio::spawn(async move {
             // FuturesUnordered allows us to poll incoming messages from all
@@ -149,10 +158,16 @@ impl Protocol for Tap {
                 NetworkId::set(&mut context.info, delivery.network);
                 let message = delivery.message.slice(8..);
                 let session_id = SessionId::new(header, delivery.network.into());
-                let session = match sessions.entry(session_id) {
+                let session = match sessions.lock().unwrap().entry(session_id) {
                     Entry::Occupied(entry) => entry.get().clone(),
                     Entry::Vacant(entry) => {
-                        let sender = senders.get(&delivery.network).unwrap().0.clone();
+                        let sender = senders
+                            .lock()
+                            .unwrap()
+                            .get(&delivery.network)
+                            .unwrap()
+                            .0
+                            .clone();
                         let session =
                             Arc::new(Mutex::new(TapSession::new(header, machine_id, sender)));
                         entry.insert(session.clone());
