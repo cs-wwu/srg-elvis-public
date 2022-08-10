@@ -27,11 +27,14 @@ use tokio::sync::mpsc::Sender;
 
 use super::tap::NetworkId;
 
+pub type IpToNetwork = HashMap<Ipv4Address, crate::core::NetworkId>;
+
 /// An implementation of the Internet Protocol.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Ipv4 {
     listen_bindings: HashMap<LocalAddress, ProtocolId>,
     sessions: HashMap<SessionId, SharedSession>,
+    network_for_ip: IpToNetwork,
 }
 
 impl Ipv4 {
@@ -39,15 +42,22 @@ impl Ipv4 {
     pub const ID: ProtocolId = ProtocolId::new(4);
 
     /// Creates a new instance of the protocol.
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(network_for_ip: IpToNetwork) -> Self {
+        Self {
+            listen_bindings: Default::default(),
+            sessions: Default::default(),
+            network_for_ip,
+        }
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new()))
+    pub fn new_shared(network_for_ip: IpToNetwork) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self::new(network_for_ip)))
     }
 }
+
+// TODO(hardint): Add a static IP lookup table in the constructor so that
+// messages can be sent to the correct network
 
 impl Protocol for Ipv4 {
     fn id(&self) -> ProtocolId {
@@ -66,8 +76,8 @@ impl Protocol for Ipv4 {
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
-                // TODO(hardint): Actually pick the right network index
-                NetworkId::set(&mut participants, 0);
+                let network_id = self.network_for_ip.get(&remote.into_inner()).unwrap();
+                NetworkId::set(&mut participants, *network_id);
                 let tap_session = context
                     .protocol(Tap::ID)
                     .expect("No such protocol")
