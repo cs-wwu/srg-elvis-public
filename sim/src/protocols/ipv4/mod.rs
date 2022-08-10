@@ -27,14 +27,15 @@ use tokio::sync::mpsc::Sender;
 
 use super::tap::NetworkId;
 
+type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
 pub type IpToNetwork = HashMap<Ipv4Address, crate::core::NetworkId>;
 
 /// An implementation of the Internet Protocol.
 #[derive(Clone)]
 pub struct Ipv4 {
-    listen_bindings: HashMap<LocalAddress, ProtocolId>,
-    sessions: HashMap<SessionId, SharedSession>,
-    network_for_ip: IpToNetwork,
+    listen_bindings: ArcMap<LocalAddress, ProtocolId>,
+    sessions: ArcMap<SessionId, SharedSession>,
+    network_for_ip: Arc<Mutex<IpToNetwork>>,
 }
 
 impl Ipv4 {
@@ -46,7 +47,7 @@ impl Ipv4 {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            network_for_ip,
+            network_for_ip: Arc::new(Mutex::new(network_for_ip)),
         }
     }
 
@@ -73,11 +74,19 @@ impl Protocol for Ipv4 {
         let local = LocalAddress::try_from(&participants).unwrap();
         let remote = RemoteAddress::try_from(&participants).unwrap();
         let key = SessionId { local, remote };
-        match self.sessions.entry(key) {
+        match self.sessions.lock().unwrap().entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
-                let network_id = self.network_for_ip.get(&remote.into_inner()).unwrap();
-                NetworkId::set(&mut participants, *network_id);
+                // Add a scope so that the lock is freed asap
+                let network_id = {
+                    *self
+                        .network_for_ip
+                        .lock()
+                        .unwrap()
+                        .get(&remote.into_inner())
+                        .unwrap()
+                };
+                NetworkId::set(&mut participants, network_id);
                 let tap_session = context
                     .protocol(Tap::ID)
                     .expect("No such protocol")
@@ -98,7 +107,7 @@ impl Protocol for Ipv4 {
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let local = LocalAddress::try_from(&participants).unwrap();
-        match self.listen_bindings.entry(local) {
+        match self.listen_bindings.lock().unwrap().entry(local) {
             Entry::Occupied(_) => Err(Ipv4Error::BindingExists(local))?,
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
@@ -126,9 +135,9 @@ impl Protocol for Ipv4 {
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
         let message = message.slice(header.ihl as usize * 4..);
-        let mut session = match self.sessions.entry(identifier) {
+        let mut session = match self.sessions.lock().unwrap().entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => match self.listen_bindings.get(&local) {
+            Entry::Vacant(entry) => match self.listen_bindings.lock().unwrap().get(&local) {
                 Some(&binding) => {
                     let session = SharedSession::new(Ipv4Session::new(
                         context.current_session().expect("No current session"),
