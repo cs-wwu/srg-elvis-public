@@ -73,7 +73,7 @@ impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
     }
 
     fn open(
-        &mut self,
+        &self,
         _upstream: ProtocolId,
         _participants: Control,
         _context: ProtocolContext,
@@ -82,7 +82,7 @@ impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
     }
 
     fn listen(
-        &mut self,
+        &self,
         _upstream: ProtocolId,
         _participants: Control,
         _context: ProtocolContext,
@@ -90,7 +90,7 @@ impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
         panic!("Cannot listen on a user process")
     }
 
-    fn demux(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();
         tokio::spawn(async move {
             match application.lock().unwrap().recv(message, context) {
@@ -101,11 +101,7 @@ impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
         Ok(())
     }
 
-    fn start(
-        &mut self,
-        context: ProtocolContext,
-        shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn start(&self, context: ProtocolContext, shutdown: Sender<()>) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();
         tokio::spawn(async move {
             match application.lock().unwrap().start(context, shutdown) {

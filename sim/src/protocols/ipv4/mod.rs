@@ -66,7 +66,7 @@ impl Protocol for Ipv4 {
     }
 
     fn open(
-        &mut self,
+        &self,
         upstream: ProtocolId,
         mut participants: Control,
         context: ProtocolContext,
@@ -101,7 +101,7 @@ impl Protocol for Ipv4 {
     }
 
     fn listen(
-        &mut self,
+        &self,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -123,11 +123,7 @@ impl Protocol for Ipv4 {
             .listen(Self::ID, participants, context)
     }
 
-    fn demux(
-        &mut self,
-        message: Message,
-        mut context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn demux(&self, message: Message, mut context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         let header = Ipv4Header::from_bytes(message.iter())?;
         let remote = RemoteAddress::from(header.source);
         let local = LocalAddress::from(header.destination);
@@ -155,7 +151,7 @@ impl Protocol for Ipv4 {
     }
 
     fn start(
-        &mut self,
+        &self,
         _context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {

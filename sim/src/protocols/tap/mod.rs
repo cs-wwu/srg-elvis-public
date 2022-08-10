@@ -7,7 +7,6 @@ use crate::core::{
 use std::{
     collections::{hash_map::Entry, HashMap},
     error::Error,
-    mem,
     sync::{Arc, Mutex},
 };
 
@@ -21,6 +20,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use self::{tap_misc::TapError, tap_session::SessionId};
 
+// TODO(hardint): I think this can just Rc once we get rid of SharedProtocol and SharedSession
 type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
@@ -32,7 +32,7 @@ type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
 pub struct Tap {
-    receivers: HashMap<crate::core::NetworkId, Receiver<Delivery>>,
+    receivers: Arc<Mutex<Option<HashMap<crate::core::NetworkId, Receiver<Delivery>>>>>,
     senders: ArcMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
     sessions: ArcMap<SessionId, Arc<Mutex<TapSession>>>,
     machine_id: MachineId,
@@ -45,7 +45,7 @@ impl Tap {
     /// Creates a new network tap.
     pub fn new(machine_id: MachineId) -> Self {
         Self {
-            receivers: Default::default(),
+            receivers: Arc::new(Mutex::new(Some(Default::default()))),
             senders: Default::default(),
             sessions: Default::default(),
             machine_id,
@@ -58,7 +58,16 @@ impl Tap {
             sender,
             receiver,
         } = network_info;
-        match self.receivers.entry(network_id) {
+        // This unwrap is fine because we do not take receivers until
+        // Internet::start()
+        match self
+            .receivers
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .entry(network_id)
+        {
             Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
             Entry::Vacant(entry) => {
                 entry.insert(receiver);
@@ -79,7 +88,7 @@ impl Protocol for Tap {
     }
 
     fn open(
-        &mut self,
+        &self,
         upstream: ProtocolId,
         participants: Control,
         _context: ProtocolContext,
@@ -109,7 +118,7 @@ impl Protocol for Tap {
     }
 
     fn listen(
-        &mut self,
+        &self,
         _upstream: ProtocolId,
         _participants: Control,
         _context: ProtocolContext,
@@ -118,11 +127,7 @@ impl Protocol for Tap {
         Ok(())
     }
 
-    fn demux(
-        &mut self,
-        _message: Message,
-        _context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn demux(&self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no
         // protocols under this one that would ask Tap to demux a message and
         // because, semantically, demux chooses one of its own sessions to
@@ -131,14 +136,10 @@ impl Protocol for Tap {
         panic!("Cannot demux on a Tap")
     }
 
-    fn start(
-        &mut self,
-        context: ProtocolContext,
-        _shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn start(&self, context: ProtocolContext, _shutdown: Sender<()>) -> Result<(), Box<dyn Error>> {
         // Receivers is not Clone, but it is only used here once the internet
         // simulation begins so we move it into the closure
-        let mut receivers = mem::take(&mut self.receivers);
+        let mut receivers = self.receivers.lock().unwrap().take().unwrap();
         let senders = self.senders.clone();
         let sessions = self.sessions.clone();
         let machine_id = self.machine_id;

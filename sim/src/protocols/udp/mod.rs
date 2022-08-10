@@ -53,7 +53,7 @@ impl Protocol for Udp {
     }
 
     fn open(
-        &mut self,
+        &self,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -85,7 +85,7 @@ impl Protocol for Udp {
     }
 
     fn listen(
-        &mut self,
+        &self,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -111,11 +111,7 @@ impl Protocol for Udp {
             .listen(Self::ID, participants, context)
     }
 
-    fn demux(
-        &mut self,
-        message: Message,
-        mut context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn demux(&self, message: Message, mut context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
         let header = UdpHeader::from_bytes_ipv4(
@@ -163,7 +159,7 @@ impl Protocol for Udp {
     }
 
     fn start(
-        &mut self,
+        &self,
         _context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {

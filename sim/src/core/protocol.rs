@@ -68,7 +68,7 @@ pub trait Protocol {
     /// remote_address}`. A UDP or TCP protocol might require the attributes
     /// `{local_address, local_port, remote_address, remote_port}`.
     fn open(
-        &mut self,
+        &self,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -90,7 +90,7 @@ pub trait Protocol {
     /// demultiplexing the message. Similarly, a UDP or TCP protocol would want
     /// its participant set to include {local_address, local_port}.
     fn listen(
-        &mut self,
+        &self,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -114,11 +114,7 @@ pub trait Protocol {
     ///   asked to receive the message by calling [`listen`](Protocol::listen)
     ///   at an earlier time. If so, a new session should be created.
     /// - Call [`receive`](super::Session::receive) on the selected session.
-    fn demux(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
 
-    fn start(
-        &mut self,
-        context: ProtocolContext,
-        shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>>;
+    fn start(&self, context: ProtocolContext, shutdown: Sender<()>) -> Result<(), Box<dyn Error>>;
 }
