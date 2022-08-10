@@ -9,7 +9,6 @@ use elvis::{
 
 #[tokio::test]
 pub async fn telephone() {
-    console_subscriber::init();
     let mut internet = Internet::new();
     let end = 10;
     for _ in 0..end {

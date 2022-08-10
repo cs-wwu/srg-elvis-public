@@ -13,7 +13,6 @@ futures = "0.3"
 criterion = { version = "0.3", features = ["async_tokio"] }
 anyhow = "1.0"
 etherparse = "0.10"
-console-subscriber = "0.1"
 
 [[bench]]
 name = "internet"
