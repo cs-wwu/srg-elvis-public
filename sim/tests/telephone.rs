@@ -4,7 +4,9 @@ use elvis::{
     protocols::{ipv4::Ipv4, udp::Udp},
 };
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 10)]
 pub async fn telephone() {
+    console_subscriber::init();
     let mut internet = Internet::new();
     let network = internet.network(1500);
 
@@ -23,7 +25,8 @@ pub async fn telephone() {
         [network],
     );
 
-    for i in 1u32..10000001 {
+    let end = 2;
+    for i in 1u32..end {
         internet.machine(
             [
                 Udp::new_shared() as SharedProtocol,
@@ -39,7 +42,7 @@ pub async fn telephone() {
         );
     }
 
-    let capture = Capture::new_shared(1002u32.to_be_bytes().into(), 0xbeef);
+    let capture = Capture::new_shared(end.to_be_bytes().into(), 0xbeef);
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,

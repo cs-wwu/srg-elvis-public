@@ -76,6 +76,10 @@ impl Application for Forward {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
+        println!(
+            "{:?}, {:?}, {:?}, {:?}",
+            self.local_ip, self.remote_ip, self.local_port, self.remote_port
+        );
         self.outgoing.as_mut().unwrap().send(message, context)?;
         Ok(())
     }

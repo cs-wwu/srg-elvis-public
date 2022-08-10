@@ -1,0 +1,3 @@
+[build]
+# Support for telemetry
+rustflags = ["--cfg", "tokio_unstable"]

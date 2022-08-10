@@ -49,6 +49,7 @@ impl Network {
                 .map(|receiver| receiver.recv())
                 .collect();
             while let Some(Some(next)) = futures.next().await {
+                println!("Network got message");
                 let delivery = Delivery {
                     message: next.message,
                     network: id,

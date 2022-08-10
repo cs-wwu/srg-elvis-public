@@ -43,6 +43,7 @@ impl Session for TapSession {
         let sender = self.sender.clone();
         tokio::spawn(async move {
             sender.send(postmarked).await.unwrap();
+            println!("Sending");
         });
         Ok(())
     }
@@ -52,6 +53,7 @@ impl Session for TapSession {
         message: Message,
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
+        println!("Receiving");
         let protocol = context
             .protocol(self.upstream)
             .ok_or(TapError::NoSuchProtocol(self.upstream))?;
