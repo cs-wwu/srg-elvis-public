@@ -6,7 +6,7 @@ use crate::{
     core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
     protocols::udp::Udp,
 };
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 pub struct Ipv4Session {
     upstream: ProtocolId,
@@ -29,7 +29,11 @@ impl Ipv4Session {
 }
 
 impl Session for Ipv4Session {
-    fn send(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn send(
+        self: Arc<Self>,
+        message: Message,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
             Udp::ID => ProtocolNumber::Udp,
@@ -43,25 +47,23 @@ impl Session for Ipv4Session {
         )
         .build()?;
         let message = message.with_header(header);
-        self.downstream.send(message, context)?;
+        self.downstream.clone().send(message, context)?;
         Ok(())
     }
 
     fn receive(
-        &mut self,
+        self: Arc<Self>,
         message: Message,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
-            .lock()
-            .unwrap()
-            .demux(message, context)?;
+            .demux(message, self, context)?;
         Ok(())
     }
 
-    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(self: Arc<Self>, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

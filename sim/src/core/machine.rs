@@ -3,7 +3,7 @@ use crate::protocols::tap::{NetworkInfo, Tap};
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 use tokio::sync::mpsc::Sender;
 
@@ -22,20 +22,19 @@ pub(super) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
 pub struct Machine {
     id: MachineId,
     protocols: ProtocolMap,
-    tap: Arc<Mutex<Tap>>,
+    tap: Arc<Tap>,
 }
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
     pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>, id: MachineId) -> Self {
-        let tap = Arc::new(Mutex::new(Tap::new(id)));
+        let tap = Arc::new(Tap::new(id));
         let mut map = HashMap::new();
         for protocol in protocols
             .into_iter()
             .chain(iter::once(tap.clone() as SharedProtocol))
         {
-            let id = protocol.lock().unwrap().id();
-            match map.entry(id) {
+            match map.entry(protocol.clone().id()) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
                     entry.insert(protocol);
@@ -50,7 +49,7 @@ impl Machine {
     }
 
     pub fn attach(&mut self, info: NetworkInfo, network_id: NetworkId) {
-        self.tap.lock().unwrap().attach(info, network_id);
+        self.tap.clone().attach(info, network_id);
     }
 
     pub fn id(&self) -> MachineId {
@@ -64,8 +63,6 @@ impl Machine {
         for protocol in self.protocols.values() {
             protocol
                 .clone()
-                .lock()
-                .unwrap()
                 .start(protocol_context.clone(), shutdown.clone())
                 .unwrap()
         }

@@ -2,7 +2,9 @@
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
 use crate::{
-    core::{message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession},
+    core::{
+        message::Message, Control, Protocol, ProtocolContext, ProtocolId, Session, SharedSession,
+    },
     protocols::tap::Tap,
 };
 use std::{
@@ -34,7 +36,7 @@ pub type IpToNetwork = HashMap<Ipv4Address, crate::core::NetworkId>;
 #[derive(Clone)]
 pub struct Ipv4 {
     listen_bindings: ArcMap<LocalAddress, ProtocolId>,
-    sessions: ArcMap<SessionId, SharedSession>,
+    sessions: ArcMap<SessionId, Arc<Ipv4Session>>,
     network_for_ip: Arc<Mutex<IpToNetwork>>,
 }
 
@@ -52,8 +54,8 @@ impl Ipv4 {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared(network_for_ip: IpToNetwork) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new(network_for_ip)))
+    pub fn new_shared(network_for_ip: IpToNetwork) -> Arc<Self> {
+        Arc::new(Self::new(network_for_ip))
     }
 }
 
@@ -61,12 +63,12 @@ impl Ipv4 {
 // messages can be sent to the correct network
 
 impl Protocol for Ipv4 {
-    fn id(&self) -> ProtocolId {
+    fn id(self: Arc<Self>) -> ProtocolId {
         Self::ID
     }
 
     fn open(
-        &self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         mut participants: Control,
         context: ProtocolContext,
@@ -87,13 +89,12 @@ impl Protocol for Ipv4 {
                         .unwrap()
                 };
                 NetworkId::set(&mut participants, network_id);
-                let tap_session = context
-                    .protocol(Tap::ID)
-                    .expect("No such protocol")
-                    .lock()
-                    .unwrap()
-                    .open(Self::ID, participants, context)?;
-                let session = SharedSession::new(Ipv4Session::new(tap_session, upstream, key));
+                let tap_session = context.protocol(Tap::ID).expect("No such protocol").open(
+                    Self::ID,
+                    participants,
+                    context,
+                )?;
+                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -101,7 +102,7 @@ impl Protocol for Ipv4 {
     }
 
     fn listen(
-        &self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -118,12 +119,15 @@ impl Protocol for Ipv4 {
         context
             .protocol(Tap::ID)
             .expect("No such protocol")
-            .lock()
-            .unwrap()
             .listen(Self::ID, participants, context)
     }
 
-    fn demux(&self, message: Message, mut context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn demux(
+        self: Arc<Self>,
+        message: Message,
+        caller: SharedSession,
+        mut context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         let header = Ipv4Header::from_bytes(message.iter())?;
         let remote = RemoteAddress::from(header.source);
         let local = LocalAddress::from(header.destination);
@@ -131,15 +135,11 @@ impl Protocol for Ipv4 {
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
         let message = message.slice(header.ihl as usize * 4..);
-        let mut session = match self.sessions.lock().unwrap().entry(identifier) {
+        let session = match self.sessions.lock().unwrap().entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => match self.listen_bindings.lock().unwrap().get(&local) {
                 Some(&binding) => {
-                    let session = SharedSession::new(Ipv4Session::new(
-                        context.current_session().expect("No current session"),
-                        binding,
-                        identifier,
-                    ));
+                    let session = Arc::new(Ipv4Session::new(caller, binding, identifier));
                     entry.insert(session.clone());
                     session
                 }
@@ -151,7 +151,7 @@ impl Protocol for Ipv4 {
     }
 
     fn start(
-        &self,
+        self: Arc<Self>,
         _context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {

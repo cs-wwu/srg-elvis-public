@@ -16,8 +16,8 @@ use tokio::sync::mpsc::Sender;
 /// simulation.
 #[derive(Debug, Clone)]
 pub struct Capture {
-    message: Option<Message>,
-    shutdown: Option<Sender<()>>,
+    message: Arc<Mutex<Option<Message>>>,
+    shutdown: Arc<Mutex<Option<Sender<()>>>>,
     ip_address: Ipv4Address,
     port: u16,
 }
@@ -26,21 +26,21 @@ impl Capture {
     /// Creates a new capture.
     pub fn new(ip_address: Ipv4Address, port: u16) -> Self {
         Self {
-            message: None,
-            shutdown: None,
+            message: Default::default(),
+            shutdown: Default::default(),
             ip_address,
             port,
         }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared(ip_address: Ipv4Address, port: u16) -> Arc<Mutex<UserProcess<Self>>> {
+    pub fn new_shared(ip_address: Ipv4Address, port: u16) -> Arc<UserProcess<Self>> {
         UserProcess::new_shared(Self::new(ip_address, port))
     }
 
     /// Gets the message that was received.
     pub fn message(&self) -> Option<Message> {
-        self.message.clone()
+        self.message.lock().unwrap().clone()
     }
 }
 
@@ -48,28 +48,31 @@ impl Application for Capture {
     const ID: ProtocolId = ProtocolId::from_string("Capture");
 
     fn start(
-        &mut self,
+        self: Arc<Self>,
         context: ProtocolContext,
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
-        self.shutdown = Some(shutdown);
+        *self.shutdown.lock().unwrap() = Some(shutdown);
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, self.ip_address);
         LocalPort::set(&mut participants, self.port);
         context
             .protocol(Udp::ID)
             .expect("No such protocol")
-            .lock()
-            .unwrap()
             .listen(Self::ID, participants, context)?;
         Ok(())
     }
 
-    fn recv(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        self.message = Some(message);
-        let shutdown = self.shutdown.take().unwrap();
-        tokio::spawn(async move {
-            shutdown.send(()).await.unwrap();
+    fn recv(
+        self: Arc<Self>,
+        message: Message,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
+        *self.message.lock().unwrap() = Some(message);
+        self.shutdown.lock().unwrap().take().map(|shutdown| {
+            tokio::spawn(async move {
+                shutdown.send(()).await.unwrap();
+            });
         });
         Ok(())
     }

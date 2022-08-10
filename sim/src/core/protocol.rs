@@ -1,9 +1,11 @@
-use super::{control::make_key, message::Message, Control, ProtocolContext, SharedSession};
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
+use super::{
+    control::make_key, message::Message, session::SharedSession, Control, ProtocolContext,
 };
+use std::{error::Error, sync::Arc};
 use tokio::sync::mpsc::Sender;
+
+/// A shared handle to a [`Protocol`].
+pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
 
 /// A unique identifier for a [`Protocol`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -38,9 +40,6 @@ impl From<ProtocolId> for u64 {
     }
 }
 
-/// A shared handle to a [`Protocol`].
-pub type SharedProtocol = Arc<Mutex<dyn Protocol + Send + Sync>>;
-
 /// A member of a networking protocol stack.
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
@@ -51,7 +50,7 @@ pub trait Protocol {
     // a method to learn about a Tap's MTU.
 
     /// Returns a unique identifier for the protocol.
-    fn id(&self) -> ProtocolId;
+    fn id(self: Arc<Self>) -> ProtocolId;
 
     /// Actively open a new network connection.
     ///
@@ -68,7 +67,7 @@ pub trait Protocol {
     /// remote_address}`. A UDP or TCP protocol might require the attributes
     /// `{local_address, local_port, remote_address, remote_port}`.
     fn open(
-        &self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -90,7 +89,7 @@ pub trait Protocol {
     /// demultiplexing the message. Similarly, a UDP or TCP protocol would want
     /// its participant set to include {local_address, local_port}.
     fn listen(
-        &self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -114,7 +113,16 @@ pub trait Protocol {
     ///   asked to receive the message by calling [`listen`](Protocol::listen)
     ///   at an earlier time. If so, a new session should be created.
     /// - Call [`receive`](super::Session::receive) on the selected session.
-    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn demux(
+        self: Arc<Self>,
+        message: Message,
+        caller: SharedSession,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>>;
 
-    fn start(&self, context: ProtocolContext, shutdown: Sender<()>) -> Result<(), Box<dyn Error>>;
+    fn start(
+        self: Arc<Self>,
+        context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>>;
 }

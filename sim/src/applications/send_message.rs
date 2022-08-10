@@ -8,10 +8,7 @@ use crate::{
         user_process::{Application, UserProcess},
     },
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::{error::Error, sync::Arc};
 
 /// An application that sends a single message over the network.
 pub struct SendMessage {
@@ -47,7 +44,7 @@ impl SendMessage {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
-    ) -> Arc<Mutex<UserProcess<Self>>> {
+    ) -> Arc<UserProcess<Self>> {
         UserProcess::new_shared(Self::new(
             text,
             local_ip,
@@ -62,7 +59,7 @@ impl Application for SendMessage {
     const ID: ProtocolId = ProtocolId::from_string("Send Message");
 
     fn start(
-        &mut self,
+        self: Arc<Self>,
         context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
@@ -72,15 +69,16 @@ impl Application for SendMessage {
         LocalPort::set(&mut participants, self.local_port);
         RemotePort::set(&mut participants, self.remote_port);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
-        let mut session = protocol
-            .lock()
-            .unwrap()
-            .open(Self::ID, participants, context.clone())?;
+        let mut session = protocol.open(Self::ID, participants, context.clone())?;
         session.send(Message::new(self.text), context)?;
         Ok(())
     }
 
-    fn recv(&mut self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn recv(
+        self: Arc<Self>,
+        _message: Message,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

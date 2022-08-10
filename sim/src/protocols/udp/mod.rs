@@ -2,7 +2,9 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
-    core::{message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession},
+    core::{
+        message::Message, Control, Protocol, ProtocolContext, ProtocolId, Session, SharedSession,
+    },
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
 };
 use std::{
@@ -29,7 +31,7 @@ type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
 #[derive(Default, Clone)]
 pub struct Udp {
     listen_bindings: ArcMap<ListenId, ProtocolId>,
-    sessions: ArcMap<SessionId, SharedSession>,
+    sessions: ArcMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
@@ -42,18 +44,18 @@ impl Udp {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new()))
+    pub fn new_shared() -> Arc<Self> {
+        Arc::new(Self::new())
     }
 }
 
 impl Protocol for Udp {
-    fn id(&self) -> ProtocolId {
+    fn id(self: Arc<Self>) -> ProtocolId {
         Self::ID
     }
 
     fn open(
-        &self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -67,13 +69,12 @@ impl Protocol for Udp {
         match self.sessions.lock().unwrap().entry(identifier) {
             Entry::Occupied(_) => Err(UdpError::SessionExists)?,
             Entry::Vacant(entry) => {
-                let downstream = context
-                    .protocol(Ipv4::ID)
-                    .expect("No such protocol")
-                    .lock()
-                    .unwrap()
-                    .open(Self::ID, participants, context)?;
-                let session = SharedSession::new(UdpSession {
+                let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
+                    Self::ID,
+                    participants,
+                    context,
+                )?;
+                let session = Arc::new(UdpSession {
                     upstream,
                     downstream,
                     identifier,
@@ -85,7 +86,7 @@ impl Protocol for Udp {
     }
 
     fn listen(
-        &self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: ProtocolContext,
@@ -106,12 +107,15 @@ impl Protocol for Udp {
         context
             .protocol(Ipv4::ID)
             .expect("No such protocol")
-            .lock()
-            .unwrap()
             .listen(Self::ID, participants, context)
     }
 
-    fn demux(&self, message: Message, mut context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn demux(
+        self: Arc<Self>,
+        message: Message,
+        caller: SharedSession,
+        mut context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
         let header = UdpHeader::from_bytes_ipv4(
@@ -142,9 +146,9 @@ impl Protocol for Udp {
                 };
                 match self.listen_bindings.lock().unwrap().entry(listen_id) {
                     Entry::Occupied(listen_entry) => {
-                        let session = SharedSession::new(UdpSession {
+                        let session = Arc::new(UdpSession {
                             upstream: *listen_entry.get(),
-                            downstream: context.current_session().expect("No current session"),
+                            downstream: caller,
                             identifier: session_id,
                         });
                         session_entry.insert(session.clone());
@@ -159,7 +163,7 @@ impl Protocol for Udp {
     }
 
     fn start(
-        &self,
+        self: Arc<Self>,
         _context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {

@@ -6,10 +6,7 @@ use tokio::sync::mpsc::Sender;
 use crate::core::{
     message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::{error::Error, sync::Arc};
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -24,14 +21,18 @@ pub trait Application {
     /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
     /// is not called in response to specific events.
     fn start(
-        &mut self,
+        self: Arc<Self>,
         context: ProtocolContext,
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn recv(
+        self: Arc<Self>,
+        message: Message,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>>;
 }
 
 /// A user-level process that sits at the top of the networking stack.
@@ -43,37 +44,37 @@ pub trait Application {
 /// user processes should not have higher-level protocols attempting to open
 /// connections on or listen through them.
 #[derive(Debug, Clone)]
-pub struct UserProcess<A: Application> {
-    application: Arc<Mutex<A>>,
+pub struct UserProcess<A: Application + Send + Sync + 'static> {
+    application: Arc<A>,
 }
 
-impl<A: Application> UserProcess<A> {
+impl<A: Application + Send + Sync + 'static> UserProcess<A> {
     /// Creates a new user process to run the given application.
     pub fn new(application: A) -> Self {
         Self {
-            application: Arc::new(Mutex::new(application)),
+            application: Arc::new(application),
         }
     }
 
     /// Creates a new user process running the given application behind a shared
     /// handle.
-    pub fn new_shared(application: A) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new(application)))
+    pub fn new_shared(application: A) -> Arc<Self> {
+        Arc::new(Self::new(application))
     }
 
     /// Gets the application the user process is running.
-    pub fn application(&self) -> Arc<Mutex<A>> {
+    pub fn application(&self) -> Arc<A> {
         self.application.clone()
     }
 }
 
-impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
-    fn id(&self) -> ProtocolId {
+impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
+    fn id(self: Arc<Self>) -> ProtocolId {
         A::ID
     }
 
     fn open(
-        &self,
+        self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
         _context: ProtocolContext,
@@ -82,7 +83,7 @@ impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
     }
 
     fn listen(
-        &self,
+        self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
         _context: ProtocolContext,
@@ -90,10 +91,15 @@ impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
         panic!("Cannot listen on a user process")
     }
 
-    fn demux(&self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn demux(
+        self: Arc<Self>,
+        message: Message,
+        _caller: SharedSession,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();
         tokio::spawn(async move {
-            match application.lock().unwrap().recv(message, context) {
+            match application.recv(message, context) {
                 Ok(_) => {}
                 Err(e) => eprintln!("{}", e),
             }
@@ -101,10 +107,14 @@ impl<A: Application + Send + 'static> Protocol for UserProcess<A> {
         Ok(())
     }
 
-    fn start(&self, context: ProtocolContext, shutdown: Sender<()>) -> Result<(), Box<dyn Error>> {
+    fn start(
+        self: Arc<Self>,
+        context: ProtocolContext,
+        shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();
         tokio::spawn(async move {
-            match application.lock().unwrap().start(context, shutdown) {
+            match application.start(context, shutdown) {
                 Ok(_) => {}
                 Err(e) => eprintln!("{}", e),
             }

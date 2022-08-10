@@ -4,7 +4,7 @@ use super::{tap_misc::TapError, NetworkId};
 use crate::core::{
     message::Message, MachineId, PhysicalAddress, Postmarked, ProtocolContext, ProtocolId, Session,
 };
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 #[derive(Clone)]
 pub struct TapSession {
@@ -28,7 +28,11 @@ impl TapSession {
 }
 
 impl Session for TapSession {
-    fn send(&mut self, message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn send(
+        self: Arc<Self>,
+        message: Message,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         let message = message.with_header(&self.upstream.into_inner().to_be_bytes());
         let postmarked = Postmarked {
             message,
@@ -45,7 +49,7 @@ impl Session for TapSession {
     }
 
     fn receive(
-        &mut self,
+        self: Arc<Self>,
         message: Message,
         context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
@@ -53,11 +57,10 @@ impl Session for TapSession {
         let protocol = context
             .protocol(self.upstream)
             .ok_or(TapError::NoSuchProtocol(self.upstream))?;
-        let mut protocol = protocol.lock().unwrap();
-        protocol.demux(message, context)
+        protocol.demux(message, self, context)
     }
 
-    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(self: Arc<Self>, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

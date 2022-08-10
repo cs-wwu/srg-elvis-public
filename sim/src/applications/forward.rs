@@ -16,7 +16,7 @@ use tokio::sync::mpsc::Sender;
 /// simulation.
 #[derive(Clone)]
 pub struct Forward {
-    outgoing: Option<SharedSession>,
+    outgoing: Arc<Mutex<Option<SharedSession>>>,
     local_ip: Ipv4Address,
     remote_ip: Ipv4Address,
     local_port: u16,
@@ -46,7 +46,7 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
-    ) -> Arc<Mutex<UserProcess<Self>>> {
+    ) -> Arc<UserProcess<Self>> {
         UserProcess::new_shared(Self::new(local_ip, remote_ip, local_port, remote_port))
     }
 }
@@ -55,7 +55,7 @@ impl Application for Forward {
     const ID: ProtocolId = ProtocolId::from_string("Forward");
 
     fn start(
-        &mut self,
+        self: Arc<Self>,
         context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
@@ -65,20 +65,30 @@ impl Application for Forward {
         LocalPort::set(&mut participants, self.local_port);
         RemotePort::set(&mut participants, self.remote_port);
         let udp = context.protocol(Udp::ID).expect("No such protocol");
-        let mut udp = udp.lock().unwrap();
-        // I guess these clones are the price we pay for passing ProtocolContext
-        // by value
-        self.outgoing = Some(udp.open(Self::ID, participants.clone(), context.clone())?);
+        *self.outgoing.lock().unwrap() = Some(udp.clone().open(
+            Self::ID,
+            // I guess these clones are the price we pay for passing ProtocolContext
+            // by value
+            participants.clone(),
+            context.clone(),
+        )?);
         udp.listen(Self::ID, participants, context)?;
         Ok(())
     }
 
-    fn recv(&mut self, message: Message, context: ProtocolContext) -> Result<(), Box<dyn Error>> {
-        println!(
-            "{:?}, {:?}, {:?}, {:?}",
-            self.local_ip, self.remote_ip, self.local_port, self.remote_port
-        );
-        self.outgoing.as_mut().unwrap().send(message, context)?;
+    fn recv(
+        self: Arc<Self>,
+        message: Message,
+        context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
+        self.outgoing
+            .clone()
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone()
+            .send(message, context)?;
         Ok(())
     }
 }

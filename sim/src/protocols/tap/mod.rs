@@ -2,7 +2,7 @@
 
 use crate::core::{
     message::Message, Control, Delivery, MachineId, Mtu, Postmarked, Protocol, ProtocolContext,
-    ProtocolId, SharedSession,
+    ProtocolId, Session, SharedSession,
 };
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -34,7 +34,7 @@ type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
 pub struct Tap {
     receivers: Arc<Mutex<Option<HashMap<crate::core::NetworkId, Receiver<Delivery>>>>>,
     senders: ArcMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
-    sessions: ArcMap<SessionId, Arc<Mutex<TapSession>>>,
+    sessions: ArcMap<SessionId, Arc<TapSession>>,
     machine_id: MachineId,
 }
 
@@ -52,7 +52,7 @@ impl Tap {
         }
     }
 
-    pub fn attach(&mut self, network_info: NetworkInfo, network_id: crate::core::NetworkId) {
+    pub fn attach(self: Arc<Self>, network_info: NetworkInfo, network_id: crate::core::NetworkId) {
         let NetworkInfo {
             mtu,
             sender,
@@ -83,12 +83,12 @@ impl Tap {
 }
 
 impl Protocol for Tap {
-    fn id(&self) -> ProtocolId {
+    fn id(self: Arc<Self>) -> ProtocolId {
         Self::ID
     }
 
     fn open(
-        &self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         _context: ProtocolContext,
@@ -96,7 +96,7 @@ impl Protocol for Tap {
         let network = NetworkId::get(&participants);
         let session_id = SessionId::new(upstream, network.into());
         match self.sessions.lock().unwrap().entry(session_id) {
-            Entry::Occupied(entry) => Ok(entry.get().clone().into()),
+            Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
                 let sender = self
                     .senders
@@ -106,19 +106,15 @@ impl Protocol for Tap {
                     .unwrap()
                     .0
                     .clone();
-                let session = Arc::new(Mutex::new(TapSession::new(
-                    upstream,
-                    self.machine_id,
-                    sender,
-                )));
+                let session = Arc::new(TapSession::new(upstream, self.machine_id, sender));
                 entry.insert(session.clone());
-                Ok(session.into())
+                Ok(session)
             }
         }
     }
 
     fn listen(
-        &self,
+        self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
         _context: ProtocolContext,
@@ -127,7 +123,12 @@ impl Protocol for Tap {
         Ok(())
     }
 
-    fn demux(&self, _message: Message, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn demux(
+        self: Arc<Self>,
+        _message: Message,
+        caller: SharedSession,
+        _context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no
         // protocols under this one that would ask Tap to demux a message and
         // because, semantically, demux chooses one of its own sessions to
@@ -136,7 +137,11 @@ impl Protocol for Tap {
         panic!("Cannot demux on a Tap")
     }
 
-    fn start(&self, context: ProtocolContext, _shutdown: Sender<()>) -> Result<(), Box<dyn Error>> {
+    fn start(
+        self: Arc<Self>,
+        context: ProtocolContext,
+        _shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
         // Receivers is not Clone, but it is only used here once the internet
         // simulation begins so we move it into the closure
         let mut receivers = self.receivers.lock().unwrap().take().unwrap();
@@ -169,13 +174,11 @@ impl Protocol for Tap {
                             .unwrap()
                             .0
                             .clone();
-                        let session =
-                            Arc::new(Mutex::new(TapSession::new(header, machine_id, sender)));
+                        let session = Arc::new(TapSession::new(header, machine_id, sender));
                         entry.insert(session.clone());
                         session
                     }
                 };
-                let mut session = SharedSession::from(session);
                 match session.receive(message, context) {
                     Ok(()) => {}
                     Err(e) => println!("{}", e),

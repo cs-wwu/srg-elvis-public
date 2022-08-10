@@ -38,11 +38,8 @@ pub use message::Message;
 mod protocol;
 pub use protocol::{Protocol, ProtocolId, SharedProtocol};
 
-mod shared_session;
-pub use shared_session::SharedSession;
-
 mod session;
-pub use session::Session;
+pub use session::{Session, SharedSession};
 
 mod protocol_context;
 pub use protocol_context::ProtocolContext;
