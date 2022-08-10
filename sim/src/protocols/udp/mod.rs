@@ -10,7 +10,6 @@ use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
-use tokio::sync::mpsc::Sender;
 
 mod udp_misc;
 use udp_misc::UdpError;
@@ -150,14 +149,6 @@ impl Protocol for Udp {
             }
         };
         session.receive(message, context)?;
-        Ok(())
-    }
-
-    fn start(
-        &mut self,
-        _context: ProtocolContext,
-        _shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

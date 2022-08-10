@@ -120,9 +120,14 @@ pub trait Protocol {
         context: &mut ProtocolContext,
     ) -> Result<(), Box<dyn Error>>;
 
+    /// Start the protocol running. This may spawn tasks and timers
+    /// that the protocol needs to run.
+    /// The default implementation is a no-op.
     fn start(
         &mut self,
-        context: ProtocolContext,
-        shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>>;
+        _context: ProtocolContext,
+        _shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
 }
