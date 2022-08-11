@@ -1,5 +1,7 @@
-use super::{protocol::SharedProtocol, NetworkId, ProtocolContext, ProtocolId};
-use crate::protocols::tap::{NetworkInfo, Tap};
+use super::{
+    internet::NetworkInfo, protocol::SharedProtocol, NetworkId, ProtocolContext, ProtocolId,
+};
+use crate::protocols::tap::{Delivery, Tap};
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
@@ -27,8 +29,12 @@ pub struct Machine {
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
-    pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>, id: MachineId) -> Self {
-        let tap = Arc::new(Tap::new(id));
+    pub fn new(
+        protocols: impl IntoIterator<Item = SharedProtocol>,
+        id: MachineId,
+    ) -> (Self, Sender<Delivery>) {
+        let (tap, sender) = Tap::new(id);
+        let tap = Arc::new(tap);
         let mut map = HashMap::new();
         for protocol in protocols
             .into_iter()
@@ -41,15 +47,16 @@ impl Machine {
                 }
             }
         }
-        Self {
+        let machine = Self {
             id,
             tap,
             protocols: Arc::new(map),
-        }
+        };
+        (machine, sender)
     }
 
-    pub fn attach(&mut self, info: NetworkInfo, network_id: NetworkId) {
-        self.tap.clone().attach(info, network_id);
+    pub fn attach(&mut self, network_id: NetworkId, info: Arc<NetworkInfo>) {
+        self.tap.clone().attach(network_id, info);
     }
 
     pub fn id(&self) -> MachineId {

@@ -1,29 +1,59 @@
-use tokio::sync::mpsc::Sender;
-
-use super::{tap_misc::TapError, NetworkId};
-use crate::core::{
-    message::Message, MachineId, PhysicalAddress, Postmarked, ProtocolContext, ProtocolId, Session,
+use super::{
+    tap_misc::{Delivery, FirstResponder, TapError},
+    NetworkId,
 };
+use crate::core::{message::Message, MachineId, NetworkInfo, ProtocolContext, ProtocolId, Session};
+use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
 
 #[derive(Clone)]
 pub struct TapSession {
-    upstream: ProtocolId,
     machine_id: MachineId,
-    sender: Sender<Postmarked>,
+    /// For now, we're just ignoring non-broadcast delivery options. If a
+    /// message goes to a network, just send it to every machine on the network.
+    /// It's inefficient, but we'll improve it when DHCP or something of the
+    /// sort is incorporated.
+    networks: DashMap<crate::core::NetworkId, Arc<NetworkInfo>>,
 }
 
 impl TapSession {
-    pub(super) fn new(
-        upstream: ProtocolId,
-        machine_id: MachineId,
-        sender: Sender<Postmarked>,
-    ) -> Self {
+    pub(super) fn new(machine_id: MachineId) -> Self {
         Self {
-            upstream,
             machine_id,
-            sender,
+            networks: Default::default(),
         }
+    }
+
+    pub fn attach(
+        self: Arc<Self>,
+        network_id: crate::core::NetworkId,
+        network_info: Arc<NetworkInfo>,
+    ) {
+        match self.networks.entry(network_id) {
+            Entry::Occupied(_) => {
+                panic!("Tried to attach same network twice");
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(network_info);
+            }
+        }
+    }
+
+    pub(super) fn receive_delivery(
+        self: Arc<Self>,
+        delivery: Delivery,
+        mut context: ProtocolContext,
+    ) -> Result<(), Box<dyn Error>> {
+        let first_responder: FirstResponder = take_header(&delivery.message)
+            .ok_or(TapError::HeaderLength)
+            .unwrap()
+            .into();
+        first_responder.apply(&mut context.info);
+        let network_id: NetworkId = delivery.network.into();
+        network_id.apply(&mut context.info);
+        let message = delivery.message.slice(8..);
+        let protocol = context.protocol(first_responder.into()).unwrap();
+        protocol.demux(message, self, context)
     }
 }
 
@@ -31,33 +61,31 @@ impl Session for TapSession {
     fn send(
         self: Arc<Self>,
         message: Message,
-        _context: ProtocolContext,
+        context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        let message = message.with_header(&self.upstream.into_inner().to_be_bytes());
-        let postmarked = Postmarked {
-            message,
-            // TODO(hardint): Replace with correct destination
-            address: PhysicalAddress::Broadcast,
+        let network_id = NetworkId::try_from(&context.info)?;
+        let first_responder = FirstResponder::try_from(&context.info)?;
+        let message = message.with_header(first_responder.into_inner().to_be_bytes().to_vec());
+        let delivery = Delivery {
+            message: message,
             sender: self.machine_id,
+            network: network_id,
         };
-        let sender = self.sender.clone();
         tokio::spawn(async move {
-            sender.send(postmarked).await.unwrap();
-            println!("Sending");
+            let network = self.networks.get(&network_id.into_inner()).unwrap();
+            for sender in network.senders.iter() {
+                sender.send(delivery.clone()).await.unwrap();
+            }
         });
         Ok(())
     }
 
     fn receive(
         self: Arc<Self>,
-        message: Message,
-        context: ProtocolContext,
+        _message: Message,
+        _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        println!("Receiving");
-        let protocol = context
-            .protocol(self.upstream)
-            .ok_or(TapError::NoSuchProtocol(self.upstream))?;
-        protocol.demux(message, self, context)
+        panic!("Use Tap::receive_delivery() instead");
     }
 
     fn start(self: Arc<Self>, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
@@ -65,14 +93,19 @@ impl Session for TapSession {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct SessionId {
-    upstream: ProtocolId,
-    network: NetworkId,
-}
-
-impl SessionId {
-    pub fn new(upstream: ProtocolId, network: NetworkId) -> Self {
-        Self { upstream, network }
-    }
+fn take_header(message: &Message) -> Option<ProtocolId> {
+    let mut iter = message.iter();
+    Some(
+        u64::from_be_bytes([
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+            iter.next()?,
+        ])
+        .into(),
+    )
 }
