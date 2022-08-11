@@ -65,7 +65,6 @@ impl Application for Forward {
         LocalPort::set(&mut participants, self.local_port);
         RemotePort::set(&mut participants, self.remote_port);
         let udp = context.protocol(Udp::ID).expect("No such protocol");
-        // Drop the lock ASAP
         {
             *self.outgoing.lock().unwrap() = Some(udp.clone().open(
                 Self::ID,

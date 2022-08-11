@@ -53,7 +53,6 @@ impl Application for Capture {
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         {
-            // Drop the lock asap
             *self.shutdown.lock().unwrap() = Some(shutdown);
         }
         let mut participants = Control::new();
