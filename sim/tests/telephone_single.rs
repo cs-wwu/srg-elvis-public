@@ -1,6 +1,6 @@
 use elvis::{
     applications::{Capture, Forward, SendMessage},
-    core::{Internet, Message, NetworkId, SharedProtocol},
+    core::{Internet, Message, SharedProtocol},
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,
@@ -8,12 +8,10 @@ use elvis::{
 };
 
 #[tokio::test]
-pub async fn telephone() {
+pub async fn telephone_single_network() {
     let mut internet = Internet::new();
     let end = 10;
-    for _ in 0..end {
-        internet.network(1500);
-    }
+    internet.network(1500);
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine(
@@ -33,20 +31,19 @@ pub async fn telephone() {
                 Ipv4::new_shared(table),
                 Forward::new_shared(local, remote, 0xbeef, 0xbeef),
             ],
-            [i, i + 1],
+            [0],
         );
     }
 
-    let last_network = end - 1;
-    let local = last_network.to_be_bytes().into();
+    let local = (end - 1).to_be_bytes().into();
     let capture = Capture::new_shared(local, 0xbeef);
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared([(local, last_network)].into_iter().collect()),
+            Ipv4::new_shared([(local, 0)].into_iter().collect()),
             capture.clone(),
         ],
-        [last_network],
+        [0],
     );
 
     internet.run().await;
@@ -56,11 +53,9 @@ pub async fn telephone() {
     );
 }
 
-fn create_ip_table(network: NetworkId) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
-    let local: Ipv4Address = network.to_be_bytes().into();
-    let remote: Ipv4Address = (network + 1).to_be_bytes().into();
-    let table = [(local, network), (remote, network + 1)]
-        .into_iter()
-        .collect();
+fn create_ip_table(i: u32) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
+    let local: Ipv4Address = i.to_be_bytes().into();
+    let remote: Ipv4Address = (i + 1).to_be_bytes().into();
+    let table = [(local, 0), (remote, 0)].into_iter().collect();
     (local, remote, table)
 }
