@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: elvis-docs
+          repository: RobinPreble/elvis-docs
           ref: 'main'
           token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
       - name: setup git config
