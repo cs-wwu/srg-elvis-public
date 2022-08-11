@@ -65,13 +65,16 @@ impl Application for Forward {
         LocalPort::set(&mut participants, self.local_port);
         RemotePort::set(&mut participants, self.remote_port);
         let udp = context.protocol(Udp::ID).expect("No such protocol");
-        *self.outgoing.lock().unwrap() = Some(udp.clone().open(
-            Self::ID,
-            // I guess these clones are the price we pay for passing ProtocolContext
-            // by value
-            participants.clone(),
-            context.clone(),
-        )?);
+        // Drop the lock ASAP
+        {
+            *self.outgoing.lock().unwrap() = Some(udp.clone().open(
+                Self::ID,
+                // I guess these clones are the price we pay for passing ProtocolContext
+                // by value
+                participants.clone(),
+                context.clone(),
+            )?);
+        }
         udp.listen(Self::ID, participants, context)?;
         Ok(())
     }
