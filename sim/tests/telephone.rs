@@ -15,17 +15,17 @@ pub async fn telephone() {
         internet.network(1500);
     }
 
-    let (local, remote, table) = create_ip_table(0);
+    let remote = 0u32.to_be_bytes().into();
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(table),
-            SendMessage::new_shared("Hello!", local, remote, 0xbeef, 0xbeef),
+            Ipv4::new_shared([(remote, 0)].into_iter().collect()),
+            SendMessage::new_shared("Hello!", Ipv4Address::LOCALHOST, remote, 0xbeef, 0xbeef),
         ],
-        [0, 1],
+        [0],
     );
 
-    for i in 1u32..(end - 1) {
+    for i in 0u32..(end - 1) {
         let (local, remote, table) = create_ip_table(i);
         internet.machine(
             [
@@ -37,18 +37,16 @@ pub async fn telephone() {
         );
     }
 
-    let capture = Capture::new_shared(end.to_be_bytes().into(), 0xbeef);
+    let last_network = end - 1;
+    let local = last_network.to_be_bytes().into();
+    let capture = Capture::new_shared(local, 0xbeef);
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(
-                [((end - 1).to_be_bytes().into(), end - 1)]
-                    .into_iter()
-                    .collect(),
-            ),
+            Ipv4::new_shared([(local, last_network)].into_iter().collect()),
             capture.clone(),
         ],
-        [end - 1],
+        [last_network],
     );
 
     internet.run().await;
