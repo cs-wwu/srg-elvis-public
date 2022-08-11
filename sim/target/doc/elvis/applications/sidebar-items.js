@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Capture","An application that stores the first message it receives and then exits the simulation."],["SendMessage","An application that sends a single message over the network."]]});
