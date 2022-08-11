@@ -4,15 +4,16 @@ use crate::core::{
     message::Message, Control, Delivery, MachineId, Mtu, Postmarked, Protocol, ProtocolContext,
     ProtocolId, Session, SharedSession,
 };
+use dashmap::{mapref::entry::Entry, DashMap};
+use futures::{stream::FuturesUnordered, StreamExt};
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::HashMap,
     error::Error,
     ops::DerefMut,
     sync::{Arc, Mutex},
 };
 
 mod tap_misc;
-use futures::{stream::FuturesUnordered, StreamExt};
 pub use tap_misc::{NetworkId, NetworkInfo};
 
 mod tap_session;
@@ -20,9 +21,6 @@ use tap_session::TapSession;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use self::{tap_misc::TapError, tap_session::SessionId};
-
-// TODO(hardint): I think this can just Rc once we get rid of SharedProtocol and SharedSession
-type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
@@ -34,8 +32,8 @@ type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
 /// message.
 pub struct Tap {
     receivers: Arc<Mutex<HashMap<crate::core::NetworkId, Receiver<Delivery>>>>,
-    senders: ArcMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
-    sessions: ArcMap<SessionId, Arc<TapSession>>,
+    senders: DashMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
+    sessions: DashMap<SessionId, Arc<TapSession>>,
     machine_id: MachineId,
 }
 
@@ -59,15 +57,15 @@ impl Tap {
             sender,
             receiver,
         } = network_info;
-        // This unwrap is fine because we do not take receivers until
-        // Internet::start()
         match self.receivers.lock().unwrap().entry(network_id) {
-            Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
-            Entry::Vacant(entry) => {
+            std::collections::hash_map::Entry::Occupied(_) => {
+                panic!("Tried attaching the same network twice")
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
                 entry.insert(receiver);
             }
         }
-        match self.senders.lock().unwrap().entry(network_id) {
+        match self.senders.entry(network_id) {
             Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
             Entry::Vacant(entry) => {
                 entry.insert((sender, mtu));
@@ -89,17 +87,10 @@ impl Protocol for Tap {
     ) -> Result<SharedSession, Box<dyn Error>> {
         let network = NetworkId::get(&participants);
         let session_id = SessionId::new(upstream, network.into());
-        match self.sessions.lock().unwrap().entry(session_id) {
+        match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let sender = self
-                    .senders
-                    .lock()
-                    .unwrap()
-                    .get(&network)
-                    .unwrap()
-                    .0
-                    .clone();
+                let sender = self.senders.get(&network).unwrap().0.clone();
                 let session = Arc::new(TapSession::new(upstream, self.machine_id, sender));
                 entry.insert(session.clone());
                 Ok(session)
@@ -158,16 +149,10 @@ impl Protocol for Tap {
                 NetworkId::set(&mut context.info, delivery.network);
                 let message = delivery.message.slice(8..);
                 let session_id = SessionId::new(header, delivery.network.into());
-                let session = match sessions.lock().unwrap().entry(session_id) {
+                let session = match sessions.entry(session_id) {
                     Entry::Occupied(entry) => entry.get().clone(),
                     Entry::Vacant(entry) => {
-                        let sender = senders
-                            .lock()
-                            .unwrap()
-                            .get(&delivery.network)
-                            .unwrap()
-                            .0
-                            .clone();
+                        let sender = senders.get(&delivery.network).unwrap().0.clone();
                         let session = Arc::new(TapSession::new(header, machine_id, sender));
                         entry.insert(session.clone());
                         session
