@@ -30,7 +30,7 @@ jobs:
     - name: setup bot email
       run: git config user.email "<>"
     - name: git add
-      run: git add target
+      run: git add target -f
     - name: git commit 
       run: git commit -m "Auto saving documentation"
     - name: git push
