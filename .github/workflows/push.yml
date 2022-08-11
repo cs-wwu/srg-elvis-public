@@ -7,14 +7,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      with:
-        repository: <repo name>
-        ref: 'master'
-        token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
-    - name: setup git config
-      run: |
-        git config user.name "GitHub Actions Bot"
-        git config user.email "<>"
-    - <make changes and commit >
-    - run: git push origin master
+        with:
+          repository: elvis-docs
+          ref: 'main'
+          token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+      - name: setup git config
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+      - run: git push origin master
   
