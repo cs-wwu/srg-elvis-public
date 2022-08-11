@@ -7,11 +7,8 @@ use crate::{
     },
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
 };
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use dashmap::{mapref::entry::Entry, DashMap};
+use std::{error::Error, sync::Arc};
 use tokio::sync::mpsc::Sender;
 
 mod udp_misc;
@@ -25,13 +22,11 @@ use self::udp_parsing::UdpHeader;
 
 mod udp_parsing;
 
-type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
-
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: ArcMap<ListenId, ProtocolId>,
-    sessions: ArcMap<SessionId, Arc<UdpSession>>,
+    listen_bindings: DashMap<ListenId, ProtocolId>,
+    sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
@@ -66,7 +61,7 @@ impl Protocol for Udp {
             local_address: LocalAddress::try_from(&participants).unwrap(),
             remote_address: RemoteAddress::try_from(&participants).unwrap(),
         };
-        match self.sessions.lock().unwrap().entry(identifier) {
+        match self.sessions.entry(identifier) {
             Entry::Occupied(_) => Err(UdpError::SessionExists)?,
             Entry::Vacant(entry) => {
                 let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
@@ -96,13 +91,7 @@ impl Protocol for Udp {
             address: LocalAddress::try_from(&participants).unwrap(),
         };
 
-        // Scope so that the lock is freed asap
-        {
-            self.listen_bindings
-                .lock()
-                .unwrap()
-                .insert(identifier, upstream);
-        }
+        self.listen_bindings.insert(identifier, upstream);
 
         context
             .protocol(Ipv4::ID)
@@ -134,7 +123,7 @@ impl Protocol for Udp {
         local_port.apply(&mut context.info);
         remote_port.apply(&mut context.info);
         let message = message.slice(8..);
-        let session = match self.sessions.lock().unwrap().entry(session_id) {
+        let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
                 session
@@ -144,7 +133,7 @@ impl Protocol for Udp {
                     address: local_address,
                     port: local_port,
                 };
-                match self.listen_bindings.lock().unwrap().entry(listen_id) {
+                match self.listen_bindings.entry(listen_id) {
                     Entry::Occupied(listen_entry) => {
                         let session = Arc::new(UdpSession {
                             upstream: *listen_entry.get(),
