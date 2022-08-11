@@ -134,7 +134,7 @@ impl Protocol for Udp {
         local_port.apply(&mut context.info);
         remote_port.apply(&mut context.info);
         let message = message.slice(8..);
-        let mut session = match self.sessions.lock().unwrap().entry(session_id) {
+        let session = match self.sessions.lock().unwrap().entry(session_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
                 session

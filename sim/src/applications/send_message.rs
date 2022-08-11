@@ -69,7 +69,7 @@ impl Application for SendMessage {
         LocalPort::set(&mut participants, self.local_port);
         RemotePort::set(&mut participants, self.remote_port);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
-        let mut session = protocol.open(Self::ID, participants, context.clone())?;
+        let session = protocol.open(Self::ID, participants, context.clone())?;
         session.send(Message::new(self.text), context)?;
         Ok(())
     }

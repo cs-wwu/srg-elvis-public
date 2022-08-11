@@ -7,6 +7,7 @@ use crate::core::{
 use std::{
     collections::{hash_map::Entry, HashMap},
     error::Error,
+    ops::DerefMut,
     sync::{Arc, Mutex},
 };
 
@@ -32,7 +33,7 @@ type ArcMap<K, V> = Arc<Mutex<HashMap<K, V>>>;
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
 pub struct Tap {
-    receivers: Arc<Mutex<Option<HashMap<crate::core::NetworkId, Receiver<Delivery>>>>>,
+    receivers: Arc<Mutex<HashMap<crate::core::NetworkId, Receiver<Delivery>>>>,
     senders: ArcMap<crate::core::NetworkId, (Sender<Postmarked>, Mtu)>,
     sessions: ArcMap<SessionId, Arc<TapSession>>,
     machine_id: MachineId,
@@ -45,7 +46,7 @@ impl Tap {
     /// Creates a new network tap.
     pub fn new(machine_id: MachineId) -> Self {
         Self {
-            receivers: Arc::new(Mutex::new(Some(Default::default()))),
+            receivers: Arc::new(Mutex::new(Default::default())),
             senders: Default::default(),
             sessions: Default::default(),
             machine_id,
@@ -60,14 +61,7 @@ impl Tap {
         } = network_info;
         // This unwrap is fine because we do not take receivers until
         // Internet::start()
-        match self
-            .receivers
-            .lock()
-            .unwrap()
-            .as_mut()
-            .unwrap()
-            .entry(network_id)
-        {
+        match self.receivers.lock().unwrap().entry(network_id) {
             Entry::Occupied(_) => panic!("Tried attaching the same network twice"),
             Entry::Vacant(entry) => {
                 entry.insert(receiver);
@@ -126,7 +120,7 @@ impl Protocol for Tap {
     fn demux(
         self: Arc<Self>,
         _message: Message,
-        caller: SharedSession,
+        _caller: SharedSession,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no
@@ -144,7 +138,7 @@ impl Protocol for Tap {
     ) -> Result<(), Box<dyn Error>> {
         // Receivers is not Clone, but it is only used here once the internet
         // simulation begins so we move it into the closure
-        let mut receivers = self.receivers.lock().unwrap().take().unwrap();
+        let mut receivers = std::mem::take(self.receivers.lock().unwrap().deref_mut());
         let senders = self.senders.clone();
         let sessions = self.sessions.clone();
         let machine_id = self.machine_id;

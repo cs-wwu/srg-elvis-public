@@ -69,11 +69,9 @@ impl Application for Capture {
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         *self.message.lock().unwrap() = Some(message);
-        self.shutdown.lock().unwrap().take().map(|shutdown| {
-            tokio::spawn(async move {
+        if let Some(shutdown) = self.shutdown.lock().unwrap().take() { tokio::spawn(async move {
                 shutdown.send(()).await.unwrap();
-            });
-        });
+            }); }
         Ok(())
     }
 }
