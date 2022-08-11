@@ -1,7 +1,8 @@
 name: basic-ci
 on:
   push: 
-    paths-ignore:
+    #paths-ignore:
+    paths:
       - 'sim/target/**'
 
 env:
