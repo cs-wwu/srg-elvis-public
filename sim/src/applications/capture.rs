@@ -52,7 +52,10 @@ impl Application for Capture {
         context: ProtocolContext,
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
-        *self.shutdown.lock().unwrap() = Some(shutdown);
+        {
+            // Drop the lock asap
+            *self.shutdown.lock().unwrap() = Some(shutdown);
+        }
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, self.ip_address);
         LocalPort::set(&mut participants, self.port);
@@ -68,10 +71,14 @@ impl Application for Capture {
         message: Message,
         _context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
-        *self.message.lock().unwrap() = Some(message);
-        if let Some(shutdown) = self.shutdown.lock().unwrap().take() { tokio::spawn(async move {
+        {
+            *self.message.lock().unwrap() = Some(message);
+        }
+        if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
+            tokio::spawn(async move {
                 shutdown.send(()).await.unwrap();
-            }); }
+            });
+        }
         Ok(())
     }
 }
