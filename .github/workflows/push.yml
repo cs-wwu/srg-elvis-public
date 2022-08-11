@@ -1,0 +1,20 @@
+on:
+  push
+  
+jobs:
+  push:
+    name: Pass input and secrets to my-action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      with:
+        repository: <repo name>
+        ref: 'master'
+        token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+    - name: setup git config
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "<>"
+    - <make changes and commit >
+    - run: git push origin master
+  
