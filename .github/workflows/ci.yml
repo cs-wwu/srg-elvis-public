@@ -32,4 +32,3 @@ jobs:
         git add target -f
         git commit -m "Auto saving documentation"
         git push
-      
