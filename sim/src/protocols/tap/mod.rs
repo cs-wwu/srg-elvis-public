@@ -11,7 +11,7 @@ use std::{
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
 mod tap_misc;
-pub use tap_misc::{Delivery, NetworkId};
+pub use tap_misc::*;
 
 mod tap_session;
 use tap_session::TapSession;

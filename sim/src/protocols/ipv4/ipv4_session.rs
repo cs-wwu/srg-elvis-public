@@ -1,10 +1,13 @@
 use super::{
     ipv4_parsing::{Ipv4HeaderBuilder, ProtocolNumber},
-    LocalAddress, RemoteAddress,
+    Ipv4, LocalAddress, RemoteAddress,
 };
 use crate::{
     core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
-    protocols::udp::Udp,
+    protocols::{
+        tap::{FirstResponder, NetworkId},
+        udp::Udp,
+    },
 };
 use std::{error::Error, sync::Arc};
 
@@ -12,6 +15,7 @@ pub struct Ipv4Session {
     upstream: ProtocolId,
     downstream: SharedSession,
     identifier: SessionId,
+    network_id: NetworkId,
 }
 
 impl Ipv4Session {
@@ -19,11 +23,13 @@ impl Ipv4Session {
         downstream: SharedSession,
         upstream: ProtocolId,
         identifier: SessionId,
+        network_id: NetworkId,
     ) -> Self {
         Self {
             upstream,
             downstream,
             identifier,
+            network_id,
         }
     }
 }
@@ -32,7 +38,7 @@ impl Session for Ipv4Session {
     fn send(
         self: Arc<Self>,
         message: Message,
-        context: ProtocolContext,
+        mut context: ProtocolContext,
     ) -> Result<(), Box<dyn Error>> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
@@ -46,6 +52,8 @@ impl Session for Ipv4Session {
             length as u16,
         )
         .build()?;
+        self.network_id.apply(&mut context.info);
+        FirstResponder::set(&mut context.info, Ipv4::ID.into());
         let message = message.with_header(header);
         self.downstream.clone().send(message, context)?;
         Ok(())

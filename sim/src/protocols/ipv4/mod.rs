@@ -24,7 +24,7 @@ mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 use tokio::sync::mpsc::Sender;
 
-use super::tap::NetworkId;
+use super::tap::{FirstResponder, NetworkId};
 
 pub type IpToNetwork = DashMap<Ipv4Address, crate::core::NetworkId>;
 
@@ -33,7 +33,7 @@ pub type IpToNetwork = DashMap<Ipv4Address, crate::core::NetworkId>;
 pub struct Ipv4 {
     listen_bindings: DashMap<LocalAddress, ProtocolId>,
     sessions: DashMap<SessionId, Arc<Ipv4Session>>,
-    network_for_ip: IpToNetwork,
+    ip_to_network: IpToNetwork,
 }
 
 impl Ipv4 {
@@ -45,7 +45,7 @@ impl Ipv4 {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            network_for_ip,
+            ip_to_network: network_for_ip,
         }
     }
 
@@ -66,7 +66,7 @@ impl Protocol for Ipv4 {
     fn open(
         self: Arc<Self>,
         upstream: ProtocolId,
-        mut participants: Control,
+        participants: Control,
         context: ProtocolContext,
     ) -> Result<SharedSession, Box<dyn Error>> {
         let local = LocalAddress::try_from(&participants).unwrap();
@@ -75,14 +75,18 @@ impl Protocol for Ipv4 {
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
-                let network_id = { *self.network_for_ip.get(&remote.into_inner()).unwrap() };
-                NetworkId::set(&mut participants, network_id);
+                let network_id = { *self.ip_to_network.get(&remote.into_inner()).unwrap() };
                 let tap_session = context.protocol(Tap::ID).expect("No such protocol").open(
                     Self::ID,
                     participants,
                     context,
                 )?;
-                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key));
+                let session = Arc::new(Ipv4Session::new(
+                    tap_session,
+                    upstream,
+                    key,
+                    network_id.into(),
+                ));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -127,7 +131,8 @@ impl Protocol for Ipv4 {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => match self.listen_bindings.get(&local) {
                 Some(binding) => {
-                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier));
+                    let network = NetworkId::try_from(&context.info)?;
+                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
                     entry.insert(session.clone());
                     session
                 }
