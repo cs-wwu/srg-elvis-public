@@ -1,3 +1,5 @@
+//! The [`Internet`] and supporting types.
+
 use super::{machine::MachineId, protocol::SharedProtocol, Machine};
 use crate::protocols::tap::Delivery;
 use std::sync::Arc;
