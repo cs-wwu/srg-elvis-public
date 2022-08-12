@@ -1,6 +1,9 @@
+//! The [`Session`] trait and supporting types.
+
 use super::{protocol::Context, Message};
 use std::{error::Error, sync::Arc};
 
+/// A shared handle to a [`Session`]
 pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 
 /// Holds the state for a particular connection.
