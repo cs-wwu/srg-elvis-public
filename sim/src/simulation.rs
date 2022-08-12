@@ -13,6 +13,10 @@ use crate::{
     },
 };
 
+/// Runs a basic simulation.
+///
+/// In this simulation, a machine sends a message to another machine over a
+/// single network. The simulation ends when the message is received.
 pub async fn default_simulation() {
     let mut internet = Internet::new();
     let network = internet.network(1500);
