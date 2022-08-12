@@ -61,7 +61,7 @@ impl Internet {
                 .get_mut(network_id.into_inner() as usize)
                 .unwrap();
             network.machines.push(machine_id);
-            network.info.senders.push(sender.clone());
+            network.info.senders.push((machine_id, sender.clone()));
         }
         self.machines.push(machine);
     }
@@ -95,7 +95,7 @@ pub(crate) struct NetworkInfo {
     #[allow(dead_code)]
     pub mtu: Mtu,
     /// The channels to send on corresponding to each machine on the network
-    pub senders: Vec<Sender<Delivery>>,
+    pub senders: Vec<(MachineId, Sender<Delivery>)>,
 }
 
 impl NetworkInfo {
