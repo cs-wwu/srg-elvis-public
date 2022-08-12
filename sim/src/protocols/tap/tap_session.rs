@@ -3,7 +3,7 @@ use super::{
     NetworkId,
 };
 use crate::core::{
-    internet::{NetworkIndex, NetworkInfo},
+    internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,
     protocol::ProtocolId,
@@ -13,13 +13,13 @@ use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
 
 #[derive(Clone)]
-pub struct TapSession {
+pub(crate) struct TapSession {
     machine_id: MachineId,
     /// For now, we're just ignoring non-broadcast delivery options. If a
     /// message goes to a network, just send it to every machine on the network.
     /// It's inefficient, but we'll improve it when DHCP or something of the
     /// sort is incorporated.
-    networks: DashMap<NetworkIndex, Arc<NetworkInfo>>,
+    networks: DashMap<NetworkHandle, Arc<NetworkInfo>>,
 }
 
 impl TapSession {
@@ -30,7 +30,7 @@ impl TapSession {
         }
     }
 
-    pub fn attach(self: Arc<Self>, network_id: NetworkIndex, network_info: Arc<NetworkInfo>) {
+    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: Arc<NetworkInfo>) {
         match self.networks.entry(network_id) {
             Entry::Occupied(_) => {
                 panic!("Tried to attach same network twice");
@@ -76,7 +76,10 @@ impl Session for TapSession {
             network: network_id,
         };
         tokio::spawn(async move {
-            let network = self.networks.get(&network_id.into_inner()).unwrap();
+            let network = self
+                .networks
+                .get(&NetworkHandle::new(network_id.into_inner()))
+                .unwrap();
             for sender in network.senders.iter() {
                 sender.send(delivery.clone()).await.unwrap();
             }

@@ -1,5 +1,5 @@
 use super::{
-    internet::{NetworkIndex, NetworkInfo},
+    internet::{NetworkHandle, NetworkInfo},
     protocol::{ProtocolId, SharedProtocol},
     ProtocolContext,
 };
@@ -56,7 +56,7 @@ impl Machine {
         (machine, sender)
     }
 
-    pub fn attach(&mut self, network_id: NetworkIndex, info: Arc<NetworkInfo>) {
+    pub fn attach(&mut self, network_id: NetworkHandle, info: Arc<NetworkInfo>) {
         self.tap.clone().attach(network_id, info);
     }
 

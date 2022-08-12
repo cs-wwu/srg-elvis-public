@@ -15,7 +15,7 @@ pub async fn default_simulation() {
     let mut internet = Internet::new();
     let network = internet.network(1500);
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToNetwork = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: IpToNetwork = [(capture_ip_address, network)].into_iter().collect();
 
     internet.machine(
         [

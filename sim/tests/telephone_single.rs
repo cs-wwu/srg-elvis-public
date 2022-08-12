@@ -1,6 +1,6 @@
 use elvis::{
     applications::{Capture, Forward, SendMessage},
-    core::{protocol::SharedProtocol, Internet, Message},
+    core::{internet::NetworkHandle, protocol::SharedProtocol, Internet, Message},
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,
@@ -11,27 +11,27 @@ use elvis::{
 pub async fn telephone_single_network() {
     let mut internet = Internet::new();
     let end = 10;
-    internet.network(1500);
+    let network = internet.network(1500);
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared([(remote, 0)].into_iter().collect()),
+            Ipv4::new_shared([(remote, network)].into_iter().collect()),
             SendMessage::new_shared("Hello!", remote, 0xbeef),
         ],
-        [0],
+        [network],
     );
 
     for i in 0u32..(end - 1) {
-        let (local, remote, table) = create_ip_table(i);
+        let (local, remote, table) = create_ip_table(i, network);
         internet.machine(
             [
                 Udp::new_shared() as SharedProtocol,
                 Ipv4::new_shared(table),
                 Forward::new_shared(local, remote, 0xbeef, 0xbeef),
             ],
-            [0],
+            [network],
         );
     }
 
@@ -40,10 +40,10 @@ pub async fn telephone_single_network() {
     internet.machine(
         [
             Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared([(local, 0)].into_iter().collect()),
+            Ipv4::new_shared([(local, network)].into_iter().collect()),
             capture.clone(),
         ],
-        [0],
+        [network],
     );
 
     internet.run().await;
@@ -53,9 +53,9 @@ pub async fn telephone_single_network() {
     );
 }
 
-fn create_ip_table(i: u32) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
+fn create_ip_table(i: u32, network: NetworkHandle) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
     let local: Ipv4Address = i.to_be_bytes().into();
     let remote: Ipv4Address = (i + 1).to_be_bytes().into();
-    let table = [(local, 0), (remote, 0)].into_iter().collect();
+    let table = [(local, network), (remote, network)].into_iter().collect();
     (local, remote, table)
 }

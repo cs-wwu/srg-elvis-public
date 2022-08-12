@@ -3,7 +3,6 @@ use crate::core::{
         self,
         value::{from_impls, make_key},
     },
-    internet::NetworkIndex,
     machine::MachineId,
     protocol::ProtocolId,
     Message,
@@ -14,8 +13,8 @@ use thiserror::Error as ThisError;
 const NETWORK_INDEX_KEY: u64 = make_key("Tap Network Index");
 /// A [`control::Value`] for which network to send on or which a message was
 /// received from.
-pub type NetworkId = control::Value<NETWORK_INDEX_KEY, NetworkIndex>;
-from_impls!(NetworkId, NetworkIndex);
+pub type NetworkId = control::Value<NETWORK_INDEX_KEY, u32>;
+from_impls!(NetworkId, u32);
 
 const FIRST_RESPONDER_KEY: u64 = make_key("First responder");
 /// A [`control::Value`] for which network to send on or which a message was

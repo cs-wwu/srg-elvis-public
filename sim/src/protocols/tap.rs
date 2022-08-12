@@ -1,7 +1,7 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    internet::{NetworkIndex, NetworkInfo},
+    internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,
     protocol::ProtocolId,
@@ -28,7 +28,7 @@ use tap_session::TapSession;
 /// network, for example IPv4 or IPv6. The header is very simple, adding only a
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
-pub struct Tap {
+pub(crate) struct Tap {
     receiver: Arc<Mutex<Option<Receiver<Delivery>>>>,
     session: Arc<TapSession>,
 }
@@ -47,7 +47,7 @@ impl Tap {
         (tap, sender)
     }
 
-    pub fn attach(self: Arc<Self>, network_id: NetworkIndex, network_info: Arc<NetworkInfo>) {
+    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: Arc<NetworkInfo>) {
         self.session.clone().attach(network_id, network_info);
     }
 }

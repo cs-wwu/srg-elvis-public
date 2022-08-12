@@ -3,8 +3,21 @@ use crate::protocols::tap::Delivery;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, Sender};
 
-/// An identifier for a particular network in an [`Internet`].
-pub type NetworkIndex = u32;
+/// A unique identifier for a network on an [`Internet`].
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct NetworkHandle(u32);
+
+impl NetworkHandle {
+    /// Creates a new network handle.
+    pub(crate) fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    /// Gets the raw network ID
+    pub(crate) fn into_inner(self) -> u32 {
+        self.0
+    }
+}
 
 /// A network maximum transmission unit.
 ///
@@ -25,10 +38,10 @@ impl Internet {
     }
 
     /// Adds a network to the simulation and returns a handle to it.
-    pub fn network(&mut self, mtu: Mtu) -> NetworkIndex {
+    pub fn network(&mut self, mtu: Mtu) -> NetworkHandle {
         let id = self.networks.len();
         self.networks.push(Network::new(mtu));
-        id as NetworkIndex
+        NetworkHandle(id.try_into().unwrap())
     }
 
     /// Adds a machine to the simulation with the given protocols and attached
@@ -36,12 +49,15 @@ impl Internet {
     pub fn machine(
         &mut self,
         protocols: impl IntoIterator<Item = SharedProtocol>,
-        networks: impl IntoIterator<Item = NetworkIndex>,
+        networks: impl IntoIterator<Item = NetworkHandle>,
     ) {
         let machine_id = self.machines.len();
         let (machine, sender) = Machine::new(protocols, machine_id);
         for network_id in networks.into_iter() {
-            let network = self.networks.get_mut(network_id as usize).unwrap();
+            let network = self
+                .networks
+                .get_mut(network_id.into_inner() as usize)
+                .unwrap();
             network.machines.push(machine_id);
             network.info.senders.push(sender.clone());
         }
@@ -53,8 +69,10 @@ impl Internet {
         // TODO(hardint): Parallelize
         for (network_id, network) in self.networks.into_iter().enumerate() {
             for machine_id in network.machines {
-                self.machines[machine_id]
-                    .attach(network_id as NetworkIndex, Arc::new(network.info.clone()))
+                self.machines[machine_id].attach(
+                    NetworkHandle::new(network_id as u32),
+                    Arc::new(network.info.clone()),
+                )
             }
         }
         let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
