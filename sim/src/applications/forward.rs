@@ -12,19 +12,23 @@ use std::{
 };
 use tokio::sync::mpsc::Sender;
 
-/// An application that stores the first message it receives and then exits the
-/// simulation.
+/// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]
 pub struct Forward {
+    /// The session on which we send any messages we receive
     outgoing: Arc<Mutex<Option<SharedSession>>>,
+    /// The IP address for incoming messages
     local_ip: Ipv4Address,
+    /// The IP address for outgoing messages
     remote_ip: Ipv4Address,
+    /// The port number for incoming messages
     local_port: u16,
+    /// The port number for outgoing messages
     remote_port: u16,
 }
 
 impl Forward {
-    /// Creates a new capture.
+    /// Creates a new forwarding application.
     pub fn new(
         local_ip: Ipv4Address,
         remote_ip: Ipv4Address,
@@ -40,7 +44,7 @@ impl Forward {
         }
     }
 
-    /// Creates a new capture behind a shared handle.
+    /// Creates a new forwarding application behind a shared handle.
     pub fn new_shared(
         local_ip: Ipv4Address,
         remote_ip: Ipv4Address,
@@ -68,8 +72,7 @@ impl Application for Forward {
         {
             *self.outgoing.lock().unwrap() = Some(udp.clone().open(
                 Self::ID,
-                // I guess these clones are the price we pay for passing ProtocolContext
-                // by value
+                // TODO(hardint): Can these clones be cheaper?
                 participants.clone(),
                 context.clone(),
             )?);
