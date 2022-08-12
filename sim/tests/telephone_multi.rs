@@ -1,6 +1,6 @@
 use elvis::{
     applications::{Capture, Forward, SendMessage},
-    core::{Internet, Message, NetworkId, SharedProtocol},
+    core::{Internet, Message, NetworkIndex, SharedProtocol},
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,
@@ -56,7 +56,7 @@ pub async fn telephone_multi_network() {
     );
 }
 
-fn create_ip_table(network: NetworkId) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
+fn create_ip_table(network: NetworkIndex) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
     let local: Ipv4Address = network.to_be_bytes().into();
     let remote: Ipv4Address = (network + 1).to_be_bytes().into();
     let table = [(local, network), (remote, network + 1)]

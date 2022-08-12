@@ -1,5 +1,5 @@
 use super::{
-    internet::NetworkInfo, protocol::SharedProtocol, NetworkId, ProtocolContext, ProtocolId,
+    internet::NetworkInfo, protocol::SharedProtocol, NetworkIndex, ProtocolContext, ProtocolId,
 };
 use crate::protocols::tap::{Delivery, Tap};
 use std::{
@@ -53,7 +53,7 @@ impl Machine {
         (machine, sender)
     }
 
-    pub fn attach(&mut self, network_id: NetworkId, info: Arc<NetworkInfo>) {
+    pub fn attach(&mut self, network_id: NetworkIndex, info: Arc<NetworkInfo>) {
         self.tap.clone().attach(network_id, info);
     }
 

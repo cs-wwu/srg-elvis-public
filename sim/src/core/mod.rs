@@ -45,7 +45,7 @@ mod protocol_context;
 pub use protocol_context::ProtocolContext;
 
 mod internet;
-pub use internet::{Internet, NetworkId, NetworkInfo};
+pub use internet::{Internet, NetworkIndex, NetworkInfo};
 
 mod machine;
 pub(crate) use machine::*;

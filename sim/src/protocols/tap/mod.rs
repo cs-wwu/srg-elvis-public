@@ -1,8 +1,8 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    message::Message, Control, MachineId, NetworkInfo, Protocol, ProtocolContext, ProtocolId,
-    Session, SharedSession,
+    message::Message, Control, MachineId, NetworkIndex, NetworkInfo, Protocol, ProtocolContext,
+    ProtocolId, Session, SharedSession,
 };
 use std::{
     error::Error,
@@ -43,11 +43,7 @@ impl Tap {
         (tap, sender)
     }
 
-    pub fn attach(
-        self: Arc<Self>,
-        network_id: crate::core::NetworkId,
-        network_info: Arc<NetworkInfo>,
-    ) {
+    pub fn attach(self: Arc<Self>, network_id: NetworkIndex, network_info: Arc<NetworkInfo>) {
         self.session.clone().attach(network_id, network_info);
     }
 }

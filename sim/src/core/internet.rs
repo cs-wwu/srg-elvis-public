@@ -3,7 +3,7 @@ use crate::protocols::tap::Delivery;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, Sender};
 
-pub type NetworkId = u32;
+pub type NetworkIndex = u32;
 pub type Mtu = u32;
 
 /// The top-level container that controls the simulation.
@@ -20,10 +20,10 @@ impl Internet {
     }
 
     /// Adds a network to the simulation and returns a handle to it.
-    pub fn network(&mut self, mtu: Mtu) -> NetworkId {
+    pub fn network(&mut self, mtu: Mtu) -> NetworkIndex {
         let id = self.networks.len();
         self.networks.push(Network::new(mtu));
-        id as NetworkId
+        id as NetworkIndex
     }
 
     /// Adds a machine to the simulation with the given protocols and attached
@@ -31,7 +31,7 @@ impl Internet {
     pub fn machine(
         &mut self,
         protocols: impl IntoIterator<Item = SharedProtocol>,
-        networks: impl IntoIterator<Item = NetworkId>,
+        networks: impl IntoIterator<Item = NetworkIndex>,
     ) {
         let machine_id = self.machines.len();
         let (machine, sender) = Machine::new(protocols, machine_id);
@@ -49,7 +49,7 @@ impl Internet {
         for (network_id, network) in self.networks.into_iter().enumerate() {
             for machine_id in network.machines {
                 self.machines[machine_id]
-                    .attach(network_id as NetworkId, Arc::new(network.info.clone()))
+                    .attach(network_id as NetworkIndex, Arc::new(network.info.clone()))
             }
         }
         let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);

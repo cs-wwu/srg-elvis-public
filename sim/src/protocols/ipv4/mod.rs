@@ -3,7 +3,8 @@
 
 use crate::{
     core::{
-        message::Message, Control, Protocol, ProtocolContext, ProtocolId, Session, SharedSession,
+        message::Message, Control, NetworkIndex, Protocol, ProtocolContext, ProtocolId, Session,
+        SharedSession,
     },
     protocols::tap::Tap,
 };
@@ -24,9 +25,9 @@ mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 use tokio::sync::mpsc::Sender;
 
-use super::tap::{NetworkId};
+use super::tap::NetworkId;
 
-pub type IpToNetwork = DashMap<Ipv4Address, crate::core::NetworkId>;
+pub type IpToNetwork = DashMap<Ipv4Address, NetworkIndex>;
 
 /// An implementation of the Internet Protocol.
 #[derive(Clone)]

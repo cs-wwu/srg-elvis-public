@@ -2,7 +2,9 @@ use super::{
     tap_misc::{Delivery, FirstResponder, TapError},
     NetworkId,
 };
-use crate::core::{message::Message, MachineId, NetworkInfo, ProtocolContext, ProtocolId, Session};
+use crate::core::{
+    message::Message, MachineId, NetworkIndex, NetworkInfo, ProtocolContext, ProtocolId, Session,
+};
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
 
@@ -13,7 +15,7 @@ pub struct TapSession {
     /// message goes to a network, just send it to every machine on the network.
     /// It's inefficient, but we'll improve it when DHCP or something of the
     /// sort is incorporated.
-    networks: DashMap<crate::core::NetworkId, Arc<NetworkInfo>>,
+    networks: DashMap<NetworkIndex, Arc<NetworkInfo>>,
 }
 
 impl TapSession {
@@ -24,11 +26,7 @@ impl TapSession {
         }
     }
 
-    pub fn attach(
-        self: Arc<Self>,
-        network_id: crate::core::NetworkId,
-        network_info: Arc<NetworkInfo>,
-    ) {
+    pub fn attach(self: Arc<Self>, network_id: NetworkIndex, network_info: Arc<NetworkInfo>) {
         match self.networks.entry(network_id) {
             Entry::Occupied(_) => {
                 panic!("Tried to attach same network twice");
