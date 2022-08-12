@@ -1,10 +1,11 @@
 //! The [`Protocol`] trait and supporting types.
 
-use super::{
-    control::value::make_key, message::Message, session::SharedSession, Control, ProtocolContext,
-};
+use super::{control::value::make_key, message::Message, session::SharedSession, Control};
 use std::{error::Error, sync::Arc};
 use tokio::sync::mpsc::Sender;
+
+mod protocol_context;
+pub use protocol_context::ProtocolContext;
 
 /// A shared handle to a [`Protocol`].
 pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;

@@ -6,8 +6,8 @@ use crate::core::{
     internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,
-    protocol::ProtocolId,
-    ProtocolContext, Session,
+    protocol::{ProtocolContext, ProtocolId},
+    Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};

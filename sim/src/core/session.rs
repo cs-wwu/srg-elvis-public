@@ -1,4 +1,4 @@
-use super::{Message, ProtocolContext};
+use super::{protocol::ProtocolContext, Message};
 use std::{error::Error, sync::Arc};
 
 pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;

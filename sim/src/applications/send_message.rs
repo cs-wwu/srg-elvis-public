@@ -1,5 +1,9 @@
 use crate::{
-    core::{message::Message, protocol::ProtocolId, Control, ProtocolContext},
+    core::{
+        message::Message,
+        protocol::{ProtocolContext, ProtocolId},
+        Control,
+    },
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort, Udp},

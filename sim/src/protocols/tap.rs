@@ -4,9 +4,9 @@ use crate::core::{
     internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,
-    protocol::ProtocolId,
+    protocol::{ProtocolContext, ProtocolId},
     session::SharedSession,
-    Control, Protocol, ProtocolContext, Session,
+    Control, Protocol, Session,
 };
 use std::{
     error::Error,

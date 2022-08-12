@@ -1,8 +1,5 @@
-use super::{
-    machine::ProtocolMap,
-    protocol::{ProtocolId, SharedProtocol},
-    Control,
-};
+use super::{ProtocolId, SharedProtocol};
+use crate::core::{machine::ProtocolMap, Control};
 
 /// Provides a [`Protocol`](super::Protocol) with information about its
 /// execution environment.
@@ -16,7 +13,7 @@ pub struct ProtocolContext {
 
 impl ProtocolContext {
     /// Create a new protocol context.
-    pub(super) fn new(protocols: ProtocolMap) -> Self {
+    pub(crate) fn new(protocols: ProtocolMap) -> Self {
         Self {
             protocols,
             info: Control::new(),

@@ -41,9 +41,6 @@ pub use protocol::Protocol;
 pub mod session;
 pub use session::Session;
 
-pub mod protocol_context;
-pub use protocol_context::ProtocolContext;
-
 pub mod internet;
 pub use internet::Internet;
 

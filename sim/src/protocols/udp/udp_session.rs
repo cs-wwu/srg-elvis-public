@@ -4,7 +4,10 @@ use super::{
 };
 use crate::{
     core::{
-        message::Message, protocol::ProtocolId, session::SharedSession, ProtocolContext, Session,
+        message::Message,
+        protocol::{ProtocolContext, ProtocolId},
+        session::SharedSession,
+        Session,
     },
     protocols::ipv4::{LocalAddress, RemoteAddress},
 };
