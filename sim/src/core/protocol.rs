@@ -123,6 +123,11 @@ pub trait Protocol {
         context: Context,
     ) -> Result<(), Box<dyn Error>>;
 
-    fn start(self: Arc<Self>, context: Context, shutdown: Sender<()>)
-        -> Result<(), Box<dyn Error>>;
+    fn start(
+        self: Arc<Self>,
+        _context: Context,
+        _shutdown: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
 }

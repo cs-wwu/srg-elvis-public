@@ -6,8 +6,9 @@ use crate::{
     },
     protocols::{
         ipv4::{Ipv4Address, LocalAddress},
-        udp::{LocalPort, Udp},
+        udp::LocalPort,
         user_process::{Application, UserProcess},
+        Udp,
     },
 };
 use std::{
