@@ -35,17 +35,17 @@ pub use control::Control;
 pub mod message;
 pub use message::Message;
 
-mod protocol;
-pub use protocol::{Protocol, ProtocolId, SharedProtocol};
+pub mod protocol;
+pub use protocol::Protocol;
 
-mod session;
-pub use session::{Session, SharedSession};
+pub mod session;
+pub use session::Session;
 
-mod protocol_context;
+pub mod protocol_context;
 pub use protocol_context::ProtocolContext;
 
-mod internet;
-pub use internet::{Internet, NetworkIndex, NetworkInfo};
+pub mod internet;
+pub use internet::Internet;
 
-mod machine;
-pub(crate) use machine::*;
+pub(crate) mod machine;
+pub(crate) use machine::Machine;

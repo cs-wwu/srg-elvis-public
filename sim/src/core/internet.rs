@@ -1,4 +1,4 @@
-use super::{Machine, MachineId, SharedProtocol};
+use super::{machine::MachineId, protocol::SharedProtocol, Machine};
 use crate::protocols::tap::Delivery;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, Sender};

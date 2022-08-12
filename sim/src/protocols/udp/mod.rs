@@ -3,7 +3,8 @@
 
 use crate::{
     core::{
-        message::Message, Control, Protocol, ProtocolContext, ProtocolId, Session, SharedSession,
+        message::Message, protocol::ProtocolId, session::SharedSession, Control, Protocol,
+        ProtocolContext, Session,
     },
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
 };

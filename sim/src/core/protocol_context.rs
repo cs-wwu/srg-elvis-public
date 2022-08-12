@@ -1,4 +1,8 @@
-use super::{protocol::SharedProtocol, Control, ProtocolId, ProtocolMap};
+use super::{
+    machine::ProtocolMap,
+    protocol::{ProtocolId, SharedProtocol},
+    Control,
+};
 
 /// Provides a [`Protocol`](super::Protocol) with information about its
 /// execution environment.

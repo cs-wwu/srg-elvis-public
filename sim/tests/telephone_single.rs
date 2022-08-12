@@ -1,6 +1,6 @@
 use elvis::{
     applications::{Capture, Forward, SendMessage},
-    core::{Internet, Message, SharedProtocol},
+    core::{protocol::SharedProtocol, Internet, Message},
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,

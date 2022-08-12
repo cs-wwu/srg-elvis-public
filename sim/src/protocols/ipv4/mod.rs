@@ -3,8 +3,8 @@
 
 use crate::{
     core::{
-        message::Message, Control, NetworkIndex, Protocol, ProtocolContext, ProtocolId, Session,
-        SharedSession,
+        internet::NetworkIndex, message::Message, protocol::ProtocolId, session::SharedSession,
+        Control, Protocol, ProtocolContext, Session,
     },
     protocols::tap::Tap,
 };

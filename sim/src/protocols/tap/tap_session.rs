@@ -3,7 +3,11 @@ use super::{
     NetworkId,
 };
 use crate::core::{
-    message::Message, MachineId, NetworkIndex, NetworkInfo, ProtocolContext, ProtocolId, Session,
+    internet::{NetworkIndex, NetworkInfo},
+    machine::MachineId,
+    message::Message,
+    protocol::ProtocolId,
+    ProtocolContext, Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};

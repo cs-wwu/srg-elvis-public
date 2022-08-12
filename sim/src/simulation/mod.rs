@@ -4,7 +4,7 @@
 
 use crate::{
     applications::{Capture, SendMessage},
-    core::{message::Message, Internet, SharedProtocol},
+    core::{message::Message, protocol::SharedProtocol, Internet},
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,

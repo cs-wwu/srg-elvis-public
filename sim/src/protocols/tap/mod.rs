@@ -1,8 +1,12 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::core::{
-    message::Message, Control, MachineId, NetworkIndex, NetworkInfo, Protocol, ProtocolContext,
-    ProtocolId, Session, SharedSession,
+    internet::{NetworkIndex, NetworkInfo},
+    machine::MachineId,
+    message::Message,
+    protocol::ProtocolId,
+    session::SharedSession,
+    Control, Protocol, ProtocolContext, Session,
 };
 use std::{
     error::Error,

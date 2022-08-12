@@ -1,5 +1,7 @@
 use super::{
-    internet::NetworkInfo, protocol::SharedProtocol, NetworkIndex, ProtocolContext, ProtocolId,
+    internet::{NetworkIndex, NetworkInfo},
+    protocol::{ProtocolId, SharedProtocol},
+    ProtocolContext,
 };
 use crate::protocols::tap::{Delivery, Tap};
 use std::{

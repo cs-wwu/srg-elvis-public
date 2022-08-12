@@ -4,7 +4,8 @@
 use tokio::sync::mpsc::Sender;
 
 use crate::core::{
-    message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession,
+    message::Message, protocol::ProtocolId, session::SharedSession, Control, Protocol,
+    ProtocolContext,
 };
 use std::{error::Error, sync::Arc};
 

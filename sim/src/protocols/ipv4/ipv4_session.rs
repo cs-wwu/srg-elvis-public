@@ -3,7 +3,9 @@ use super::{
     Ipv4, LocalAddress, RemoteAddress,
 };
 use crate::{
-    core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
+    core::{
+        message::Message, protocol::ProtocolId, session::SharedSession, ProtocolContext, Session,
+    },
     protocols::{
         tap::{FirstResponder, NetworkId},
         udp::Udp,

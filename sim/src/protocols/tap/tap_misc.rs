@@ -1,6 +1,9 @@
 use crate::core::{
     control::{from_impls, make_key, ControlValue},
-    MachineId, Message, NetworkIndex, ProtocolId,
+    internet::NetworkIndex,
+    machine::MachineId,
+    protocol::ProtocolId,
+    Message,
 };
 use std::error::Error;
 use thiserror::Error as ThisError;
