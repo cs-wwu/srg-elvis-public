@@ -77,7 +77,7 @@ impl Internet {
         }
         let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
         // TODO(hardint): Maybe parallelize?
-        for mut machine in self.machines {
+        for machine in self.machines {
             machine.start(shutdown_sender.clone());
         }
         shutdown_receiver.recv().await.unwrap();

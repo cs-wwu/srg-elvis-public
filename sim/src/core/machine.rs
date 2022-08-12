@@ -62,7 +62,7 @@ impl Machine {
 
     /// Gives the machine time to process incoming messages and
     /// [`awake`](super::Protocol::awake) its protocols.
-    pub fn start(&mut self, shutdown: Sender<()>) {
+    pub fn start(self, shutdown: Sender<()>) {
         let protocol_context = ProtocolContext::new(self.protocols.clone());
         for protocol in self.protocols.values() {
             protocol
