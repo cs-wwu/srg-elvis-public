@@ -24,7 +24,7 @@ mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 use tokio::sync::mpsc::Sender;
 
-use super::tap::{FirstResponder, NetworkId};
+use super::tap::{NetworkId};
 
 pub type IpToNetwork = DashMap<Ipv4Address, crate::core::NetworkId>;
 
