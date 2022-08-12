@@ -1,5 +1,8 @@
 use super::ipv4_address::Ipv4Address;
-use crate::core::control::{from_impls, make_key, ControlValue};
+use crate::core::control::{
+    control_value::{from_impls, make_key},
+    ControlValue,
+};
 use thiserror::Error as ThisError;
 
 const LOCAL_ADDRESS_KEY: u64 = make_key("IPv4 Local Address");

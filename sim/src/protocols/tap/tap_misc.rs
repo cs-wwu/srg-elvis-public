@@ -1,5 +1,8 @@
 use crate::core::{
-    control::{from_impls, make_key, ControlValue},
+    control::{
+        control_value::{from_impls, make_key},
+        ControlValue,
+    },
     internet::NetworkIndex,
     machine::MachineId,
     protocol::ProtocolId,

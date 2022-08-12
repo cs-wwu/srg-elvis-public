@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-mod primitive;
-pub use primitive::{Primitive, PrimitiveError, PrimitiveKind};
+pub(crate) mod primitive;
+pub use primitive::Primitive;
 
-mod control_value;
-pub(crate) use control_value::{from_impls, make_key};
-pub use control_value::{ControlValue, ControlValueError};
+pub(crate) mod control_value;
+pub use control_value::ControlValue;
 
+/// A key for a [`Control`].
 pub type ControlKey = u64;
 
 /// A key-value store with which to exchange data between protocols.

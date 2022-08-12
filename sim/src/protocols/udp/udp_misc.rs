@@ -1,4 +1,7 @@
-use crate::core::control::{from_impls, make_key, ControlValue};
+use crate::core::control::{
+    control_value::{from_impls, make_key},
+    ControlValue,
+};
 use thiserror::Error as ThisError;
 
 const LOCAL_PORT_KEY: u64 = make_key("UDP Local Port");
