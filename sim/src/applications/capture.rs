@@ -16,9 +16,13 @@ use tokio::sync::mpsc::Sender;
 /// simulation.
 #[derive(Debug, Clone)]
 pub struct Capture {
+    /// The message that was received, if any
     message: Arc<Mutex<Option<Message>>>,
+    /// The channel we send on to shut down the simulation
     shutdown: Arc<Mutex<Option<Sender<()>>>>,
+    /// The address we listen for a message on
     ip_address: Ipv4Address,
+    /// The port we listen for a message on
     port: u16,
 }
 
