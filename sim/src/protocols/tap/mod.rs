@@ -94,7 +94,7 @@ impl Protocol for Tap {
         context: ProtocolContext,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
-        self.session.clone().start(context.clone());
+        self.session.clone().start(context.clone())?;
         let mut receiver = self.receiver.lock().unwrap().take().unwrap();
         tokio::spawn(async move {
             while let Some(delivery) = receiver.recv().await {

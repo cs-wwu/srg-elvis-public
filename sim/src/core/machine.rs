@@ -22,7 +22,6 @@ pub(super) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
 /// [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
-    id: MachineId,
     protocols: ProtocolMap,
     tap: Arc<Tap>,
 }
@@ -48,7 +47,6 @@ impl Machine {
             }
         }
         let machine = Self {
-            id,
             tap,
             protocols: Arc::new(map),
         };
@@ -57,10 +55,6 @@ impl Machine {
 
     pub fn attach(&mut self, network_id: NetworkId, info: Arc<NetworkInfo>) {
         self.tap.clone().attach(network_id, info);
-    }
-
-    pub fn id(&self) -> MachineId {
-        self.id
     }
 
     /// Gives the machine time to process incoming messages and

@@ -49,10 +49,12 @@ impl TapSession {
             .unwrap()
             .into();
         first_responder.apply(&mut context.info);
-        let network_id: NetworkId = delivery.network.into();
+        let network_id: NetworkId = delivery.network;
         network_id.apply(&mut context.info);
         let message = delivery.message.slice(8..);
-        let protocol = context.protocol(first_responder.into()).unwrap();
+        let protocol = context
+            .protocol(first_responder.into())
+            .ok_or_else(|| TapError::NoSuchProtocol(first_responder.into()))?;
         protocol.demux(message, self, context)
     }
 }
@@ -67,7 +69,7 @@ impl Session for TapSession {
         let first_responder = FirstResponder::try_from(&context.info)?;
         let message = message.with_header(first_responder.into_inner().to_be_bytes().to_vec());
         let delivery = Delivery {
-            message: message,
+            message,
             sender: self.machine_id,
             network: network_id,
         };
