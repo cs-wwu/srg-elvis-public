@@ -18,7 +18,7 @@ pub async fn telephone_single_network() {
         [
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared([(remote, 0)].into_iter().collect()),
-            SendMessage::new_shared("Hello!", Ipv4Address::LOCALHOST, remote, 0xbeef, 0xbeef),
+            SendMessage::new_shared("Hello!", remote, 0xbeef),
         ],
         [0],
     );

@@ -1,5 +1,3 @@
-use tokio::sync::mpsc::Sender;
-
 use crate::{
     core::{message::Message, Control, ProtocolContext, ProtocolId},
     protocols::{
@@ -9,49 +7,35 @@ use crate::{
     },
 };
 use std::{error::Error, sync::Arc};
+use tokio::sync::mpsc::Sender;
 
 /// An application that sends a single message over the network.
 pub struct SendMessage {
+    /// The text of the message to send
     text: &'static str,
-    local_ip: Ipv4Address,
-    remote_ip: Ipv4Address,
-    local_port: u16,
-    remote_port: u16,
+    /// The IP address to send to
+    ip: Ipv4Address,
+    /// The port to send on
+    port: u16,
 }
 
 impl SendMessage {
     /// Creates a new send message application.
-    pub fn new(
-        text: &'static str,
-        local_ip: Ipv4Address,
-        remote_ip: Ipv4Address,
-        local_port: u16,
-        remote_port: u16,
-    ) -> Self {
+    pub fn new(text: &'static str, remote_ip: Ipv4Address, remote_port: u16) -> Self {
         Self {
             text,
-            local_ip,
-            remote_ip,
-            local_port,
-            remote_port,
+            ip: remote_ip,
+            port: remote_port,
         }
     }
 
     /// Creates a new send message application behind a shared handle.
     pub fn new_shared(
         text: &'static str,
-        local_ip: Ipv4Address,
         remote_ip: Ipv4Address,
-        local_port: u16,
         remote_port: u16,
     ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(
-            text,
-            local_ip,
-            remote_ip,
-            local_port,
-            remote_port,
-        ))
+        UserProcess::new_shared(Self::new(text, remote_ip, remote_port))
     }
 }
 
@@ -64,10 +48,10 @@ impl Application for SendMessage {
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, self.local_ip);
-        RemoteAddress::set(&mut participants, self.remote_ip);
-        LocalPort::set(&mut participants, self.local_port);
-        RemotePort::set(&mut participants, self.remote_port);
+        LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
+        RemoteAddress::set(&mut participants, self.ip);
+        LocalPort::set(&mut participants, 0);
+        RemotePort::set(&mut participants, self.port);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, context.clone())?;
         session.send(Message::new(self.text), context)?;

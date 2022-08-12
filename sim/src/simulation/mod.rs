@@ -1,6 +1,7 @@
-/// Simulation specific functionality for Elvis. This module currently defines
-/// the default simulation, which creates a UDP sender and a UDP receiver. The
-/// sender sends one string to the receiver, and the contents are checked.
+//! Simulation specific functionality for Elvis. This module currently defines
+//! the default simulation, which creates a UDP sender and a UDP receiver. The
+//! sender sends one string to the receiver, and the contents are checked.
+
 use crate::{
     applications::{Capture, SendMessage},
     core::{message::Message, Internet, SharedProtocol},
@@ -20,13 +21,7 @@ pub async fn default_simulation() {
         [
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
-            SendMessage::new_shared(
-                "Hello!",
-                Ipv4Address::LOCALHOST,
-                capture_ip_address,
-                0xdead,
-                0xbeef,
-            ),
+            SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef),
         ],
         [network],
     );
