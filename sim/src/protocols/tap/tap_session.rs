@@ -6,7 +6,7 @@ use crate::core::{
     internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,
-    protocol::{ProtocolContext, ProtocolId},
+    protocol::{Context, ProtocolId},
     Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
@@ -44,7 +44,7 @@ impl TapSession {
     pub(super) fn receive_delivery(
         self: Arc<Self>,
         delivery: Delivery,
-        mut context: ProtocolContext,
+        mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let first_responder: FirstResponder = take_header(&delivery.message)
             .ok_or(TapError::HeaderLength)
@@ -62,11 +62,7 @@ impl TapSession {
 }
 
 impl Session for TapSession {
-    fn send(
-        self: Arc<Self>,
-        message: Message,
-        context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         let network_id = NetworkId::try_from(&context.info)?;
         let first_responder = FirstResponder::try_from(&context.info)?;
         let message = message.with_header(first_responder.into_inner().to_be_bytes().to_vec());
@@ -90,12 +86,12 @@ impl Session for TapSession {
     fn receive(
         self: Arc<Self>,
         _message: Message,
-        _context: ProtocolContext,
+        _context: Context,
     ) -> Result<(), Box<dyn Error>> {
         panic!("Use Tap::receive_delivery() instead");
     }
 
-    fn start(self: Arc<Self>, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(self: Arc<Self>, _context: Context) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

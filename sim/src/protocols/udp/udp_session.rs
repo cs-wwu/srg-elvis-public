@@ -5,7 +5,7 @@ use super::{
 use crate::{
     core::{
         message::Message,
-        protocol::{ProtocolContext, ProtocolId},
+        protocol::{Context, ProtocolId},
         session::SharedSession,
         Session,
     },
@@ -20,11 +20,7 @@ pub(super) struct UdpSession {
 }
 
 impl Session for UdpSession {
-    fn send(
-        self: Arc<Self>,
-        message: Message,
-        context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         let id = self.identifier;
         let header = build_udp_header(
             self.identifier.local_address.into(),
@@ -38,11 +34,7 @@ impl Session for UdpSession {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        message: Message,
-        context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
@@ -50,7 +42,7 @@ impl Session for UdpSession {
         Ok(())
     }
 
-    fn start(self: Arc<Self>, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(self: Arc<Self>, _context: Context) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

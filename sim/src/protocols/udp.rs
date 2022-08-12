@@ -4,7 +4,7 @@
 use crate::{
     core::{
         message::Message,
-        protocol::{ProtocolContext, ProtocolId},
+        protocol::{Context, ProtocolId},
         session::SharedSession,
         Control, Protocol, Session,
     },
@@ -56,7 +56,7 @@ impl Protocol for Udp {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: ProtocolContext,
+        context: Context,
     ) -> Result<SharedSession, Box<dyn Error>> {
         let identifier = SessionId {
             local_port: LocalPort::try_from(&participants).unwrap(),
@@ -87,7 +87,7 @@ impl Protocol for Udp {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: ProtocolContext,
+        context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let identifier = ListenId {
             port: LocalPort::try_from(&participants).unwrap(),
@@ -106,7 +106,7 @@ impl Protocol for Udp {
         self: Arc<Self>,
         message: Message,
         caller: SharedSession,
-        mut context: ProtocolContext,
+        mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
@@ -156,7 +156,7 @@ impl Protocol for Udp {
 
     fn start(
         self: Arc<Self>,
-        _context: ProtocolContext,
+        _context: Context,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())

@@ -5,7 +5,7 @@ use super::{
 use crate::{
     core::{
         message::Message,
-        protocol::{ProtocolContext, ProtocolId},
+        protocol::{Context, ProtocolId},
         session::SharedSession,
         Session,
     },
@@ -40,11 +40,7 @@ impl Ipv4Session {
 }
 
 impl Session for Ipv4Session {
-    fn send(
-        self: Arc<Self>,
-        message: Message,
-        mut context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, message: Message, mut context: Context) -> Result<(), Box<dyn Error>> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
             Udp::ID => ProtocolNumber::Udp,
@@ -64,11 +60,7 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        message: Message,
-        context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
@@ -76,7 +68,7 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
-    fn start(self: Arc<Self>, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(self: Arc<Self>, _context: Context) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

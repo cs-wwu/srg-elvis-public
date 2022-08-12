@@ -4,14 +4,14 @@ use crate::core::{machine::ProtocolMap, Control};
 /// Provides a [`Protocol`](super::Protocol) with information about its
 /// execution environment.
 #[derive(Clone)]
-pub struct ProtocolContext {
+pub struct Context {
     protocols: ProtocolMap,
     /// A key-value store for exchanging unstructured information between
     /// [`Protocol`](super::Protocol)s.
     pub info: Control,
 }
 
-impl ProtocolContext {
+impl Context {
     /// Create a new protocol context.
     pub(crate) fn new(protocols: ProtocolMap) -> Self {
         Self {

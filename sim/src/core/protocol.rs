@@ -4,8 +4,8 @@ use super::{control::value::make_key, message::Message, session::SharedSession, 
 use std::{error::Error, sync::Arc};
 use tokio::sync::mpsc::Sender;
 
-mod protocol_context;
-pub use protocol_context::ProtocolContext;
+mod context;
+pub use context::Context;
 
 /// A shared handle to a [`Protocol`].
 pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
@@ -73,7 +73,7 @@ pub trait Protocol {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: ProtocolContext,
+        context: Context,
     ) -> Result<SharedSession, Box<dyn Error>>;
 
     /// Listen for new connections.
@@ -95,7 +95,7 @@ pub trait Protocol {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: ProtocolContext,
+        context: Context,
     ) -> Result<(), Box<dyn Error>>;
 
     /// Identifies the session that a message belongs to and forwards the
@@ -120,12 +120,9 @@ pub trait Protocol {
         self: Arc<Self>,
         message: Message,
         caller: SharedSession,
-        context: ProtocolContext,
+        context: Context,
     ) -> Result<(), Box<dyn Error>>;
 
-    fn start(
-        self: Arc<Self>,
-        context: ProtocolContext,
-        shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>>;
+    fn start(self: Arc<Self>, context: Context, shutdown: Sender<()>)
+        -> Result<(), Box<dyn Error>>;
 }

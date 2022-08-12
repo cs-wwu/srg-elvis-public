@@ -1,7 +1,7 @@
 use crate::{
     core::{
         message::Message,
-        protocol::{ProtocolContext, ProtocolId},
+        protocol::{Context, ProtocolId},
         Control,
     },
     protocols::{
@@ -57,7 +57,7 @@ impl Application for Capture {
 
     fn start(
         self: Arc<Self>,
-        context: ProtocolContext,
+        context: Context,
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         {
@@ -73,11 +73,7 @@ impl Application for Capture {
         Ok(())
     }
 
-    fn recv(
-        self: Arc<Self>,
-        message: Message,
-        _context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn recv(self: Arc<Self>, message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
         {
             *self.message.lock().unwrap() = Some(message);
         }

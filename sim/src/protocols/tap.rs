@@ -4,7 +4,7 @@ use crate::core::{
     internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,
-    protocol::{ProtocolContext, ProtocolId},
+    protocol::{Context, ProtocolId},
     session::SharedSession,
     Control, Protocol, Session,
 };
@@ -61,7 +61,7 @@ impl Protocol for Tap {
         self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: ProtocolContext,
+        _context: Context,
     ) -> Result<SharedSession, Box<dyn Error>> {
         Ok(self.session.clone())
     }
@@ -70,7 +70,7 @@ impl Protocol for Tap {
         self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: ProtocolContext,
+        _context: Context,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
@@ -79,7 +79,7 @@ impl Protocol for Tap {
         self: Arc<Self>,
         _message: Message,
         _caller: SharedSession,
-        _context: ProtocolContext,
+        _context: Context,
     ) -> Result<(), Box<dyn Error>> {
         // We use accept_incoming instead of demux because there are no
         // protocols under this one that would ask Tap to demux a message and
@@ -91,7 +91,7 @@ impl Protocol for Tap {
 
     fn start(
         self: Arc<Self>,
-        context: ProtocolContext,
+        context: Context,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         self.session.clone().start(context.clone())?;

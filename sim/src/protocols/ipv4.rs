@@ -5,7 +5,7 @@ use crate::{
     core::{
         internet::NetworkHandle,
         message::Message,
-        protocol::{ProtocolContext, ProtocolId},
+        protocol::{Context, ProtocolId},
         session::SharedSession,
         Control, Protocol, Session,
     },
@@ -71,7 +71,7 @@ impl Protocol for Ipv4 {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: ProtocolContext,
+        context: Context,
     ) -> Result<SharedSession, Box<dyn Error>> {
         let local = LocalAddress::try_from(&participants).unwrap();
         let remote = RemoteAddress::try_from(&participants).unwrap();
@@ -101,7 +101,7 @@ impl Protocol for Ipv4 {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: ProtocolContext,
+        context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let local = LocalAddress::try_from(&participants).unwrap();
         match self.listen_bindings.entry(local) {
@@ -122,7 +122,7 @@ impl Protocol for Ipv4 {
         self: Arc<Self>,
         message: Message,
         caller: SharedSession,
-        mut context: ProtocolContext,
+        mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let header = Ipv4Header::from_bytes(message.iter())?;
         let remote = RemoteAddress::from(header.source);
@@ -149,7 +149,7 @@ impl Protocol for Ipv4 {
 
     fn start(
         self: Arc<Self>,
-        _context: ProtocolContext,
+        _context: Context,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())

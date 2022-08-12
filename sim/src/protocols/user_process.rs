@@ -5,7 +5,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::core::{
     message::Message,
-    protocol::{ProtocolContext, ProtocolId},
+    protocol::{Context, ProtocolId},
     session::SharedSession,
     Control, Protocol,
 };
@@ -23,19 +23,12 @@ pub trait Application {
 
     /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
     /// is not called in response to specific events.
-    fn start(
-        self: Arc<Self>,
-        context: ProtocolContext,
-        shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>>;
+    fn start(self: Arc<Self>, context: Context, shutdown: Sender<()>)
+        -> Result<(), Box<dyn Error>>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn recv(
-        self: Arc<Self>,
-        message: Message,
-        context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
+    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
 }
 
 /// A user-level process that sits at the top of the networking stack.
@@ -80,7 +73,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: ProtocolContext,
+        _context: Context,
     ) -> Result<SharedSession, Box<dyn Error>> {
         panic!("Cannot active open on a user process")
     }
@@ -89,7 +82,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: ProtocolContext,
+        _context: Context,
     ) -> Result<(), Box<dyn Error>> {
         panic!("Cannot listen on a user process")
     }
@@ -98,7 +91,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         self: Arc<Self>,
         message: Message,
         _caller: SharedSession,
-        context: ProtocolContext,
+        context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();
         tokio::spawn(async move {
@@ -112,7 +105,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
 
     fn start(
         self: Arc<Self>,
-        context: ProtocolContext,
+        context: Context,
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();

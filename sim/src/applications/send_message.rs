@@ -1,7 +1,7 @@
 use crate::{
     core::{
         message::Message,
-        protocol::{ProtocolContext, ProtocolId},
+        protocol::{Context, ProtocolId},
         Control,
     },
     protocols::{
@@ -48,7 +48,7 @@ impl Application for SendMessage {
 
     fn start(
         self: Arc<Self>,
-        context: ProtocolContext,
+        context: Context,
         _shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
@@ -62,11 +62,7 @@ impl Application for SendMessage {
         Ok(())
     }
 
-    fn recv(
-        self: Arc<Self>,
-        _message: Message,
-        _context: ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }
