@@ -1,3 +1,5 @@
+//! The [`Protocol`] trait and supporting types.
+
 use super::{
     control::value::make_key, message::Message, session::SharedSession, Control, ProtocolContext,
 };
