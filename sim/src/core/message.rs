@@ -1,3 +1,7 @@
+//! Byte collections with efficient operations for protocols.
+//!
+//! This module primarily implements the [`Message`] collection.
+
 use std::{fmt::Display, sync::Arc};
 
 mod chunk;

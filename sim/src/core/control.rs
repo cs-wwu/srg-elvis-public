@@ -1,3 +1,7 @@
+//! Types for exchanging data between protocols.
+//!
+//! This module primarily implements the [`Control`] key-value store.
+
 use std::collections::HashMap;
 
 pub(crate) mod primitive;
