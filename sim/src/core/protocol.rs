@@ -1,6 +1,5 @@
 use super::{
-    control::control_value::make_key, message::Message, session::SharedSession, Control,
-    ProtocolContext,
+    control::value::make_key, message::Message, session::SharedSession, Control, ProtocolContext,
 };
 use std::{error::Error, sync::Arc};
 use tokio::sync::mpsc::Sender;
