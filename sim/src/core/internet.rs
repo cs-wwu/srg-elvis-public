@@ -3,7 +3,12 @@ use crate::protocols::tap::Delivery;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, Sender};
 
+/// An identifier for a particular network in an [`Internet`].
 pub type NetworkIndex = u32;
+
+/// A network maximum transmission unit.
+///
+/// The largest number of bytes that can be sent over the network at once.
 pub type Mtu = u32;
 
 /// The top-level container that controls the simulation.
@@ -61,13 +66,20 @@ impl Internet {
     }
 }
 
+/// Information about a network.
 #[derive(Clone)]
-pub struct NetworkInfo {
+pub(crate) struct NetworkInfo {
+    // TODO(hardint): Add a way to access the MTU by other protocols
+    // TODO(hardint): Only allow messages up to `mtu` in size
+    /// The maximum transmission unit of the network
+    #[allow(dead_code)]
     pub mtu: Mtu,
+    /// The channels to send on corresponding to each machine on the network
     pub senders: Vec<Sender<Delivery>>,
 }
 
 impl NetworkInfo {
+    /// Creates a new network info with no connected machines.
     pub fn new(mtu: Mtu) -> Self {
         Self {
             mtu,
@@ -76,13 +88,18 @@ impl NetworkInfo {
     }
 }
 
+/// Full details about a network on the internet. Wraps [`NetworkInfo`] and adds
+/// additional information needed by the [`Internet`].
 #[derive(Clone)]
 struct Network {
+    /// The network info
     pub info: NetworkInfo,
+    /// The machines attached to the network
     pub machines: Vec<MachineId>,
 }
 
 impl Network {
+    /// Creates a new network.
     pub fn new(mtu: Mtu) -> Self {
         Self {
             info: NetworkInfo::new(mtu),

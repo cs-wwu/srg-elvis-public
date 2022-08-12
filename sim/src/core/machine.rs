@@ -12,9 +12,10 @@ use std::{
 use tokio::sync::mpsc::Sender;
 
 /// An identifier for a particular [`Machine`] in the simulation.
-pub type MachineId = usize;
+pub(crate) type MachineId = usize;
 
-pub(super) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
+/// A mapping of protocol IDs to protocols
+pub(crate) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
 
 /// A networked computer in the simultation.
 ///
@@ -23,7 +24,7 @@ pub(super) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
 /// [`Network`](super::Network)s. Each machine contains a set of
 /// [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
-pub struct Machine {
+pub(crate) struct Machine {
     protocols: ProtocolMap,
     tap: Arc<Tap>,
 }
