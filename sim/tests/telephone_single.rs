@@ -1,6 +1,7 @@
 use elvis::{
     applications::{Capture, Forward, SendMessage},
     core::{internet::NetworkHandle, protocol::SharedProtocol, Internet, Message},
+    networks::Reliable,
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,
@@ -11,7 +12,7 @@ use elvis::{
 pub async fn telephone_single_network() {
     let mut internet = Internet::new();
     let end = 10;
-    let network = internet.network(1500);
+    let network = internet.network(Reliable::new(1500));
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine(

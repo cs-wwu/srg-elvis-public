@@ -7,6 +7,7 @@
 use crate::{
     applications::{Capture, SendMessage},
     core::{message::Message, protocol::SharedProtocol, Internet},
+    networks::Reliable,
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,
@@ -19,7 +20,7 @@ use crate::{
 /// single network. The simulation ends when the message is received.
 pub async fn default_simulation() {
     let mut internet = Internet::new();
-    let network = internet.network(1500);
+    let network = internet.network(Reliable::new(1500));
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToNetwork = [(capture_ip_address, network)].into_iter().collect();
 
