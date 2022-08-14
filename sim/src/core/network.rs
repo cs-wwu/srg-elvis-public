@@ -3,6 +3,8 @@ use crate::protocols::tap::Delivery;
 use std::{error::Error, sync::Arc};
 use tokio::sync::mpsc::Sender;
 
+pub type SharedNetwork = Arc<dyn Network + Send + Sync + 'static>;
+
 pub trait Network {
     fn send(
         self: Arc<Self>,

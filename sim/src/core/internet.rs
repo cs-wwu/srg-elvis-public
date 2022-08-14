@@ -1,6 +1,10 @@
 //! The [`Internet`] and supporting types.
 
-use super::{network::Attachment, protocol::SharedProtocol, Machine};
+use super::{
+    network::{Attachment, SharedNetwork},
+    protocol::SharedProtocol,
+    Machine, Network,
+};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -20,11 +24,6 @@ impl NetworkHandle {
     }
 }
 
-/// A network maximum transmission unit.
-///
-/// The largest number of bytes that can be sent over the network at once.
-pub type Mtu = u32;
-
 /// The top-level container that controls the simulation.
 #[derive(Default)]
 pub struct Internet {
@@ -39,9 +38,9 @@ impl Internet {
     }
 
     /// Adds a network to the simulation and returns a handle to it.
-    pub fn network(&mut self, mtu: Mtu) -> NetworkHandle {
+    pub fn network(&mut self, network: impl Network + Send + Sync + 'static) -> NetworkHandle {
         let id = self.networks.len();
-        self.networks.push(NetworkInfo::new(mtu));
+        self.networks.push(NetworkInfo::new(Arc::new(network)));
         NetworkHandle(id.try_into().unwrap())
     }
 
@@ -89,20 +88,16 @@ impl Internet {
 /// Information about a network.
 #[derive(Clone)]
 pub(crate) struct NetworkInfo {
-    // TODO(hardint): Add a way to access the MTU by other protocols
-    // TODO(hardint): Only allow messages up to `mtu` in size
-    /// The maximum transmission unit of the network
-    #[allow(dead_code)]
-    pub mtu: Mtu,
+    network: SharedNetwork,
     /// The channels to send on corresponding to each machine on the network
     pub attachments: Vec<Attachment>,
 }
 
 impl NetworkInfo {
     /// Creates a new network info with no connected machines.
-    pub fn new(mtu: Mtu) -> Self {
+    pub fn new(network: SharedNetwork) -> Self {
         Self {
-            mtu,
+            network,
             attachments: vec![],
         }
     }
