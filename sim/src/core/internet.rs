@@ -30,7 +30,7 @@ pub type Mtu = u32;
 #[derive(Default)]
 pub struct Internet {
     machines: Vec<Machine>,
-    networks: Vec<Network>,
+    networks: Vec<NetworkInfo>,
 }
 
 impl Internet {
@@ -42,7 +42,7 @@ impl Internet {
     /// Adds a network to the simulation and returns a handle to it.
     pub fn network(&mut self, mtu: Mtu) -> NetworkHandle {
         let id = self.networks.len();
-        self.networks.push(Network::new(mtu));
+        self.networks.push(NetworkInfo::new(mtu));
         NetworkHandle(id.try_into().unwrap())
     }
 
@@ -60,25 +60,26 @@ impl Internet {
                 .networks
                 .get_mut(network_id.into_inner() as usize)
                 .unwrap();
-            network.machines.push(machine_id);
-            network.info.senders.push((machine_id, sender.clone()));
+            network.attachments.push(Attachment {
+                machine: machine_id,
+                sender: sender.clone(),
+            });
         }
         self.machines.push(machine);
     }
 
     /// Runs the simulation.
     pub async fn run(mut self) {
-        // TODO(hardint): Parallelize
         for (network_id, network) in self.networks.into_iter().enumerate() {
-            for machine_id in network.machines {
-                self.machines[machine_id].attach(
-                    NetworkHandle::new(network_id as u32),
-                    Arc::new(network.info.clone()),
-                )
+            let network = Arc::new(network);
+            for attachment in network.clone().attachments.iter() {
+                self.machines[attachment.machine].attach(
+                    NetworkHandle(network_id.try_into().unwrap()),
+                    network.clone(),
+                );
             }
         }
         let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
-        // TODO(hardint): Maybe parallelize?
         for machine in self.machines {
             machine.start(shutdown_sender.clone());
         }
@@ -95,7 +96,7 @@ pub(crate) struct NetworkInfo {
     #[allow(dead_code)]
     pub mtu: Mtu,
     /// The channels to send on corresponding to each machine on the network
-    pub senders: Vec<(MachineId, Sender<Delivery>)>,
+    pub attachments: Vec<Attachment>,
 }
 
 impl NetworkInfo {
@@ -103,27 +104,13 @@ impl NetworkInfo {
     pub fn new(mtu: Mtu) -> Self {
         Self {
             mtu,
-            senders: vec![],
+            attachments: vec![],
         }
     }
 }
 
-/// Full details about a network on the internet. Wraps [`NetworkInfo`] and adds
-/// additional information needed by the [`Internet`].
 #[derive(Clone)]
-struct Network {
-    /// The network info
-    pub info: NetworkInfo,
-    /// The machines attached to the network
-    pub machines: Vec<MachineId>,
-}
-
-impl Network {
-    /// Creates a new network.
-    pub fn new(mtu: Mtu) -> Self {
-        Self {
-            info: NetworkInfo::new(mtu),
-            machines: vec![],
-        }
-    }
+pub(crate) struct Attachment {
+    pub machine: MachineId,
+    pub sender: Sender<Delivery>,
 }
