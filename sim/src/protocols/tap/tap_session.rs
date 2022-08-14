@@ -72,17 +72,17 @@ impl Session for TapSession {
             network: network_id,
         };
         tokio::spawn(async move {
-            let network = self
+            let network_info = self
                 .networks
                 .get(&NetworkHandle::new(network_id.into_inner()))
-                .unwrap();
-            for attachment in network
-                .attachments
-                .iter()
-                .filter(|attachment| attachment.machine != self.machine_id)
-            {
-                attachment.sender.send(delivery.clone()).await.unwrap();
-            }
+                .unwrap()
+                .clone();
+            network_info
+                .network
+                .clone()
+                .send(delivery, network_info.attachments.as_slice())
+                .await
+                .unwrap()
         });
         Ok(())
     }
