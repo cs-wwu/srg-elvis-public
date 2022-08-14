@@ -38,5 +38,8 @@ pub use session::Session;
 pub mod internet;
 pub use internet::Internet;
 
+pub mod network;
+pub use network::Network;
+
 pub(crate) mod machine;
 pub(crate) use machine::Machine;
