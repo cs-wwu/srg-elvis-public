@@ -1,9 +1,8 @@
 //! The [`Internet`] and supporting types.
 
-use super::{machine::MachineId, protocol::SharedProtocol, Machine};
-use crate::protocols::tap::Delivery;
+use super::{network::Attachment, protocol::SharedProtocol, Machine};
 use std::sync::Arc;
-use tokio::sync::mpsc::{self, Sender};
+use tokio::sync::mpsc;
 
 /// A unique identifier for a network on an [`Internet`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -107,10 +106,4 @@ impl NetworkInfo {
             attachments: vec![],
         }
     }
-}
-
-#[derive(Clone)]
-pub(crate) struct Attachment {
-    pub machine: MachineId,
-    pub sender: Sender<Delivery>,
 }
