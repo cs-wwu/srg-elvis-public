@@ -88,7 +88,7 @@ impl Internet {
 /// Information about a network.
 #[derive(Clone)]
 pub(crate) struct NetworkInfo {
-    network: SharedNetwork,
+    pub network: SharedNetwork,
     /// The channels to send on corresponding to each machine on the network
     pub attachments: Vec<Attachment>,
 }

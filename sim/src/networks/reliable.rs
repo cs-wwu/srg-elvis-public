@@ -1,4 +1,11 @@
-use crate::core::Network;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use crate::{
+    core::{network::Attachment, Network},
+    protocols::tap::Delivery,
+};
 
 /// A network maximum transmission unit.
 ///
@@ -19,12 +26,19 @@ impl Reliable {
     }
 }
 
+#[async_trait]
 impl Network for Reliable {
-    fn send(
-        self: std::sync::Arc<Self>,
-        delivery: crate::protocols::tap::Delivery,
-        attachments: &[crate::core::network::Attachment],
+    async fn send(
+        self: Arc<Self>,
+        delivery: Delivery,
+        attachments: &[Attachment],
     ) -> Result<(), Box<dyn std::error::Error>> {
-        todo!()
+        for attachment in attachments
+            .iter()
+            .filter(|attachment| attachment.machine != delivery.sender)
+        {
+            attachment.sender.send(delivery.clone()).await.unwrap();
+        }
+        Ok(())
     }
 }
