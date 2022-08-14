@@ -76,10 +76,12 @@ impl Session for TapSession {
                 .networks
                 .get(&NetworkHandle::new(network_id.into_inner()))
                 .unwrap();
-            for sender in network.senders.iter().filter_map(|(machine_id, sender)| {
-                (*machine_id != self.machine_id).then_some(sender)
-            }) {
-                sender.send(delivery.clone()).await.unwrap();
+            for attachment in network
+                .attachments
+                .iter()
+                .filter(|attachment| attachment.machine != self.machine_id)
+            {
+                attachment.sender.send(delivery.clone()).await.unwrap();
             }
         });
         Ok(())
