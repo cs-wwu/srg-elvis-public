@@ -10,7 +10,7 @@ jobs:
         with:
           repository: cs-wwu/srg-elvis-docs
           ref: 'main'
-          #token:  ${{ secrets.BOT_KEY }}
+          ssh-private-key: ${{ secrets.BOT_KEY }}
       - name: setup git config
         run: |
           git config user.name "Bot"
