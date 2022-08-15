@@ -11,7 +11,7 @@ jobs:
         env:
           SSH_DEPLOY_KEY: ${{ secrets.BOT_KEY }}
         with:
-          source-directory: 'otarget'
+          source-directory: 'target'
           destination-github-username: 'cs-wwu'
           destination-repository-name: 'srg-elvis-docs'
           user-email: <>
