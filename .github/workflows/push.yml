@@ -13,7 +13,7 @@ jobs:
           token:  ${{ secrets.BOT_KEY }}
       - name: setup git config
         run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "<>"
-      - run: git push origin master
+          git config user.name "Bot"
+          git config user.email "bot@bot.com"
+      - run: git push origin main
   
