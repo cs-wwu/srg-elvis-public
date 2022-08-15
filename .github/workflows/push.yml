@@ -10,7 +10,7 @@ jobs:
         with:
           repository: RobinPreble/elvis-docs
           ref: 'main'
-          token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+          token:  ${{ secrets.BOT_KEY }}
       - name: setup git config
         run: |
           git config user.name "GitHub Actions Bot"
