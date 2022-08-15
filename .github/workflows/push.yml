@@ -6,20 +6,14 @@ jobs:
     name: Pass input and secrets to my-action
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH Keys and known_hosts
+      - name: Pushes to another repository
+        uses: cpina/github-action-push-to-another-repository@main
         env:
-          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
-        run: |
-          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
-          ssh-add - <<< "${{ secrets.BOT_KEY }}"
-      - uses: actions/checkout@v3
+          SSH_DEPLOY_KEY: ${{ secrets.BOT_KEY }}
         with:
-          repository: cs-wwu/srg-elvis-docs
-          ref: 'main'
-          ssh-private-key: ${{ secrets.BOT_KEY }}
-      - name: setup git config
-        run: |
-          git config user.name "Bot"
-          git config user.email "bot@bot.com"
-      #- run: git push origin main
+          source-directory: 'otarget'
+          destination-github-username: 'cs-wwu'
+          destination-repository-name: 'srg-elvis-docs'
+          user-email: <>
+          target-branch: main
   
