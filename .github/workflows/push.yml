@@ -14,6 +14,6 @@ jobs:
           source-directory: 'target'
           destination-github-username: 'cs-wwu'
           destination-repository-name: 'srg-elvis-docs'
-          user-email: <>
+          user-email: bot@auto.com
           target-branch: main
   
