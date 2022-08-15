@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: RobinPreble/elvis-docs
+          repository: cs-wwu/srg-elvis-docs
           ref: 'main'
           token:  ${{ secrets.BOT_KEY }}
       - name: setup git config
