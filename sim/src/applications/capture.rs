@@ -73,9 +73,7 @@ impl Application for Capture {
     }
 
     fn recv(self: Arc<Self>, message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
-        {
-            *self.message.lock().unwrap() = Some(message);
-        }
+        *self.message.lock().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
             tokio::spawn(async move {
                 shutdown.send(()).await.unwrap();
