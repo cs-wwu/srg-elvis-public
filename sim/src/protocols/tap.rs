@@ -47,7 +47,7 @@ impl Tap {
         (tap, sender)
     }
 
-    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: Arc<NetworkInfo>) {
+    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: NetworkInfo) {
         self.session.clone().attach(network_id, network_info);
     }
 }

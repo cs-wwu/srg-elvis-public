@@ -55,7 +55,7 @@ impl Machine {
         (machine, sender)
     }
 
-    pub fn attach(&mut self, network_id: NetworkHandle, info: Arc<NetworkInfo>) {
+    pub fn attach(&mut self, network_id: NetworkHandle, info: NetworkInfo) {
         self.tap.clone().attach(network_id, info);
     }
 
