@@ -100,7 +100,10 @@ impl Message {
         loop {
             match self.stack.as_ref() {
                 WrappedMessage::Header(chunk, rest) => {
-                    if self.start > chunk.len() {
+                    let len = chunk.len();
+                    if self.start > len {
+                        self.start -= len;
+                        self.end -= len;
                         self.stack = rest.clone();
                     } else {
                         break;

@@ -107,6 +107,7 @@ impl Protocol for Udp {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
+        println!("{}", message);
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
         let header = UdpHeader::from_bytes_ipv4(

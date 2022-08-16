@@ -123,6 +123,7 @@ impl Protocol for Ipv4 {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
+        println!("{}", message);
         let header = Ipv4Header::from_bytes(message.iter())?;
         let remote = RemoteAddress::from(header.source);
         let local = LocalAddress::from(header.destination);
