@@ -69,7 +69,15 @@ impl Message {
 
     fn prepend_inner(&mut self, header: Chunk) {
         self.end += header.len();
-        self.stack = Arc::new(WrappedMessage::Header(header, self.stack.clone()));
+        match self.start {
+            0 => {
+                self.stack = Arc::new(WrappedMessage::Header(header, self.stack.clone()));
+            }
+            n => {
+                self.start = 0;
+                self.stack = Arc::new(WrappedMessage::Sliced(header, self.stack.clone(), n));
+            }
+        }
     }
 
     /// Creates a slice of the message for the given range. All Rust range types
@@ -96,18 +104,21 @@ impl Message {
             self.end = self.start + len;
         }
         loop {
-            match self.stack.as_ref() {
-                WrappedMessage::Header(chunk, rest) => {
-                    let len = chunk.len();
-                    if self.start >= len {
-                        self.start -= len;
-                        self.end -= len;
-                        self.stack = rest.clone();
-                    } else {
-                        break;
-                    }
+            let (chunk, rest) = match self.stack.as_ref() {
+                WrappedMessage::Header(chunk, rest) => (chunk, rest),
+                WrappedMessage::Sliced(chunk, rest, start) => {
+                    self.start += start;
+                    (chunk, rest)
                 }
                 WrappedMessage::Body(_) => break,
+            };
+            let len = chunk.len();
+            if self.start >= len {
+                self.start -= len;
+                self.end -= len;
+                self.stack = rest.clone();
+            } else {
+                break;
             }
         }
     }
@@ -152,6 +163,7 @@ impl Eq for Message {}
 /// A cons list of message parts.
 #[derive(Debug, Clone)]
 enum WrappedMessage {
+    Sliced(Chunk, Arc<WrappedMessage>, usize),
     Header(Chunk, Arc<WrappedMessage>),
     Body(Chunk),
 }
