@@ -26,6 +26,8 @@ pub use message_bytes::MessageBytes;
 /// for composing, sending, and splitting byte sequences.
 #[derive(Debug, Clone)]
 pub struct Message {
+    start: usize,
+    end: usize,
     stack: Arc<WrappedMessage>,
 }
 
@@ -44,6 +46,8 @@ impl Message {
 
     fn new_inner(body: Chunk) -> Self {
         Self {
+            start: 0,
+            end: body.len(),
             stack: Arc::new(WrappedMessage::Body(body)),
         }
     }
@@ -54,17 +58,25 @@ impl Message {
     ///
     /// ```
     /// # use elvis::core::message::{Message, Chunk};
-    /// let message = Message::new(b"Body").with_header(b"Header");
+    /// let mut message = Message::new(b"Body");
+    /// message.prepend(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
-    pub fn with_header(&self, header: impl Into<Chunk>) -> Self {
-        self.with_header_inner(header.into())
+    pub fn prepend(&mut self, header: impl Into<Chunk>) {
+        self.prepend_inner(header.into());
     }
 
-    fn with_header_inner(&self, header: Chunk) -> Self {
-        Self {
-            stack: Arc::new(WrappedMessage::Header(header, self.stack.clone())),
+    fn prepend_inner(&mut self, header: Chunk) {
+        self.end += header.len();
+        match self.start {
+            0 => {
+                self.stack = Arc::new(WrappedMessage::Header(header, self.stack.clone()));
+            }
+            n => {
+                self.start = 0;
+                self.stack = Arc::new(WrappedMessage::Sliced(header, self.stack.clone(), n));
+            }
         }
     }
 
@@ -75,28 +87,48 @@ impl Message {
     ///
     /// ```
     /// # use elvis::core::message::{Message, Chunk};
-    /// let message = Message::new(b"Body").with_header(b"Header");
-    /// let sliced = message.slice(3..8);
-    /// assert!(sliced.iter().eq(b"derBo".iter().cloned()));
-    /// let sliced = message.slice(..8);
-    /// assert!(sliced.iter().eq(b"HeaderBo".iter().cloned()));
-    /// let sliced = message.slice(3..);
-    /// assert!(sliced.iter().eq(b"derBody".iter().cloned()));
+    /// let mut message = Message::new(b"Body");
+    /// message.prepend(b"Header");
+    /// message.slice(3..8);
+    /// assert!(message.iter().eq(b"derBo".iter().cloned()));
     /// ```
-    pub fn slice(&self, range: impl Into<SliceRange>) -> Self {
+    pub fn slice(&mut self, range: impl Into<SliceRange>) {
         self.slice_inner(range.into())
     }
 
-    fn slice_inner(&self, range: SliceRange) -> Self {
-        let start = range.start();
-        let end = range.end();
-        Self {
-            stack: Arc::new(WrappedMessage::Slice {
-                start,
-                length: end - start,
-                message: self.stack.clone(),
-            }),
+    fn slice_inner(&mut self, range: SliceRange) {
+        let (start, len) = range.start_and_len();
+        assert!(start + len.unwrap_or(0) <= self.len());
+        self.start += start;
+        if let Some(len) = len {
+            self.end = self.start + len;
         }
+        loop {
+            let (chunk, rest) = match self.stack.as_ref() {
+                WrappedMessage::Header(chunk, rest) => (chunk, rest),
+                WrappedMessage::Sliced(chunk, rest, start) => {
+                    self.start += start;
+                    (chunk, rest)
+                }
+                WrappedMessage::Body(_) => break,
+            };
+            let len = chunk.len();
+            if self.start >= len {
+                self.start -= len;
+                self.end -= len;
+                self.stack = rest.clone();
+            } else {
+                break;
+            }
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.end - self.start
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Returns an iterator over the bytes of the entire message.
@@ -105,12 +137,13 @@ impl Message {
     ///
     /// ```
     /// # use elvis::core::message::{Message, Chunk};
-    /// let message = Message::new(b"Body").with_header(b"Header");
+    /// let mut message = Message::new(b"Body");
+    /// message.prepend(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
     pub fn iter(&self) -> MessageBytes {
-        MessageBytes::new(self.stack.clone())
+        MessageBytes::new(self.stack.clone(), self.start, self.len())
     }
 }
 
@@ -134,11 +167,7 @@ impl Eq for Message {}
 /// A cons list of message parts.
 #[derive(Debug, Clone)]
 enum WrappedMessage {
-    Slice {
-        start: usize,
-        length: usize,
-        message: Arc<WrappedMessage>,
-    },
+    Sliced(Chunk, Arc<WrappedMessage>, usize),
     Header(Chunk, Arc<WrappedMessage>),
     Body(Chunk),
 }

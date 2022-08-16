@@ -8,7 +8,7 @@ use elvis::{
 };
 
 #[tokio::test]
-pub async fn telephone_single_network() {
+pub async fn telephone_single() {
     let mut internet = Internet::new();
     let end = 10;
     let network = internet.network(1500);

@@ -12,26 +12,15 @@ pub enum SliceRange {
 }
 
 impl SliceRange {
-    /// Returns the inclusive lower bound of the range.
-    pub fn start(&self) -> usize {
+    pub fn start_and_len(&self) -> (usize, Option<usize>) {
         use SliceRange::*;
         match self {
-            RangeFull(_) | RangeTo(_) | RangeToInclusive(_) => 0,
-            Range(range) => range.start,
-            RangeFrom(range) => range.start,
-            RangeInclusive(range) => *range.start(),
-        }
-    }
-
-    /// Returns the exclusive upper bound of the range.
-    pub fn end(&self) -> usize {
-        use SliceRange::*;
-        match self {
-            RangeFrom(_) | RangeFull(_) => usize::MAX,
-            Range(range) => range.end,
-            RangeTo(range) => range.end,
-            RangeToInclusive(range) => range.end + 1,
-            RangeInclusive(range) => range.end() + 1,
+            Range(range) => (range.start, Some(range.len())),
+            RangeFrom(range) => (range.start, None),
+            RangeFull(_) => (0, None),
+            RangeInclusive(range) => (*range.start(), Some(range.end() + 1 - range.start())),
+            RangeTo(range) => (0, Some(range.end)),
+            RangeToInclusive(range) => (0, Some(range.end + 1)),
         }
     }
 }

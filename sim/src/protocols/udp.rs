@@ -103,7 +103,7 @@ impl Protocol for Udp {
 
     fn demux(
         self: Arc<Self>,
-        message: Message,
+        mut message: Message,
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
@@ -124,7 +124,7 @@ impl Protocol for Udp {
         };
         local_port.apply(&mut context.info);
         remote_port.apply(&mut context.info);
-        let message = message.slice(8..);
+        message.slice(8..);
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
