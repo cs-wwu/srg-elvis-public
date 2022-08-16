@@ -5,10 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use std::{error::Error, sync::Arc};
 
-/// A network maximum transmission unit.
-///
-/// The largest number of bytes that can be sent over the network at once.
-pub type Mtu = u32;
+use super::Mtu;
 
 pub struct Reliable {
     // TODO(hardint): Add a way to access the MTU by other protocols
