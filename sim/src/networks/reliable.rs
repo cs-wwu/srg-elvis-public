@@ -28,10 +28,7 @@ impl Network for Reliable {
         delivery: Delivery,
         attachments: &[Attachment],
     ) -> Result<(), Box<dyn Error>> {
-        for attachment in attachments
-            .iter()
-            .filter(|attachment| attachment.machine != delivery.sender)
-        {
+        for attachment in attachments {
             attachment.sender.send(delivery.clone()).await.unwrap();
         }
         Ok(())
