@@ -19,7 +19,7 @@ pub(crate) struct TapSession {
     /// message goes to a network, just send it to every machine on the network.
     /// It's inefficient, but we'll improve it when DHCP or something of the
     /// sort is incorporated.
-    networks: DashMap<NetworkHandle, Arc<NetworkInfo>>,
+    networks: DashMap<NetworkHandle, NetworkInfo>,
 }
 
 impl TapSession {
@@ -30,7 +30,7 @@ impl TapSession {
         }
     }
 
-    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: Arc<NetworkInfo>) {
+    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: NetworkInfo) {
         match self.networks.entry(network_id) {
             Entry::Occupied(_) => {
                 panic!("Tried to attach same network twice");
