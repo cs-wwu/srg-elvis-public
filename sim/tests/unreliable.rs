@@ -11,7 +11,7 @@ use elvis::{
 #[tokio::test]
 pub async fn unreliable() {
     let mut internet = Internet::new();
-    let network = internet.network(Unreliable::new());
+    let network = internet.network(Unreliable::new(0.5));
     let tester_ip: Ipv4Address = [0, 0, 0, 0].into();
     let forward_ip: Ipv4Address = [0, 0, 0, 1].into();
     let ip_table: IpToNetwork = [(tester_ip, network), (forward_ip, network)]
