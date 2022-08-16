@@ -11,14 +11,14 @@ use std::{
 
 pub struct Unreliable {
     rng: Arc<Mutex<SmallRng>>,
-    failure_rate: f64,
+    success_rate: f64,
 }
 
 impl Unreliable {
-    pub fn new(failure_rate: f64) -> Self {
+    pub fn new(success_rate: f64) -> Self {
         Self {
             rng: Arc::new(Mutex::new(SmallRng::seed_from_u64(0xBAD5EED))),
-            failure_rate,
+            success_rate,
         }
     }
 }
@@ -30,11 +30,10 @@ impl Network for Unreliable {
         delivery: Delivery,
         attachments: &[Attachment],
     ) -> Result<(), Box<dyn Error>> {
-        for attachment in attachments.iter().filter(|attachment| {
-            attachment.machine != delivery.sender
-                && self.rng.lock().unwrap().gen_bool(self.failure_rate)
-        }) {
-            attachment.sender.send(delivery.clone()).await.unwrap();
+        for attachment in attachments {
+            if self.rng.lock().unwrap().gen_bool(self.success_rate) {
+                attachment.sender.send(delivery.clone()).await.unwrap();
+            }
         }
         Ok(())
     }
