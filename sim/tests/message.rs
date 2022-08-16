@@ -21,7 +21,7 @@ fn mixed_operations() {
 }
 
 #[test]
-fn mixed_operations_2() {
+fn sliced_chunk() {
     let mut message = Message::new(b"Hello, world");
     message.slice(7..);
     message.prepend(b"Header ");

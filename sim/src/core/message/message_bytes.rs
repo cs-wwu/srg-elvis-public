@@ -29,38 +29,27 @@ impl Iterator for MessageBytes {
             return None;
         }
 
-        match self.stack.as_ref() {
-            WrappedMessage::Sliced(chunk, rest, start) => match chunk.as_slice().get(self.i) {
-                Some(byte) => {
-                    self.i += 1;
-                    self.length -= 1;
-                    Some(*byte)
-                }
-                None => {
-                    self.i = *start;
-                    self.stack = rest.clone();
-                    self.next()
-                }
-            },
-
-            WrappedMessage::Header(chunk, rest) => match chunk.as_slice().get(self.i) {
-                Some(byte) => {
-                    self.i += 1;
-                    self.length -= 1;
-                    Some(*byte)
-                }
-                None => {
-                    self.i = 0;
-                    self.stack = rest.clone();
-                    self.next()
-                }
-            },
-
+        let (chunk, rest, start) = match self.stack.as_ref() {
+            WrappedMessage::Sliced(chunk, rest, start) => (chunk, rest, *start),
+            WrappedMessage::Header(chunk, rest) => (chunk, rest, 0),
             WrappedMessage::Body(chunk) => {
                 let out = chunk.as_slice().get(self.i).cloned();
                 self.i += 1;
                 self.length -= 1;
-                out
+                return out;
+            }
+        };
+
+        match chunk.as_slice().get(self.i) {
+            Some(byte) => {
+                self.i += 1;
+                self.length -= 1;
+                Some(*byte)
+            }
+            None => {
+                self.i = start;
+                self.stack = rest.clone();
+                self.next()
             }
         }
     }
