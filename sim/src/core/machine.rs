@@ -1,16 +1,20 @@
-use super::{protocol::SharedProtocol, NetworkId, ProtocolContext, ProtocolId};
-use crate::protocols::tap::{NetworkInfo, Tap};
+use super::{
+    internet::{NetworkHandle, NetworkInfo},
+    protocol::{Context, ProtocolId, SharedProtocol},
+};
+use crate::protocols::tap::{Delivery, Tap};
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 use tokio::sync::mpsc::Sender;
 
 /// An identifier for a particular [`Machine`] in the simulation.
-pub type MachineId = usize;
+pub(crate) type MachineId = usize;
 
-pub(super) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
+/// A mapping of protocol IDs to protocols
+pub(crate) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
 
 /// A networked computer in the simultation.
 ///
@@ -19,53 +23,49 @@ pub(super) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
 /// [`Network`](super::Network)s. Each machine contains a set of
 /// [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
-pub struct Machine {
-    id: MachineId,
+pub(crate) struct Machine {
     protocols: ProtocolMap,
-    tap: Arc<Mutex<Tap>>,
+    tap: Arc<Tap>,
 }
 
 impl Machine {
     /// Creates a new machine containing the `tap` and other `protocols`.
-    pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>, id: MachineId) -> Self {
-        let tap = Arc::new(Mutex::new(Tap::new(id)));
+    pub fn new(
+        protocols: impl IntoIterator<Item = SharedProtocol>,
+        id: MachineId,
+    ) -> (Self, Sender<Delivery>) {
+        let (tap, sender) = Tap::new(id);
+        let tap = Arc::new(tap);
         let mut map = HashMap::new();
         for protocol in protocols
             .into_iter()
             .chain(iter::once(tap.clone() as SharedProtocol))
         {
-            let id = protocol.lock().unwrap().id();
-            match map.entry(id) {
+            match map.entry(protocol.clone().id()) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
                     entry.insert(protocol);
                 }
             }
         }
-        Self {
-            id,
+        let machine = Self {
             tap,
             protocols: Arc::new(map),
-        }
+        };
+        (machine, sender)
     }
 
-    pub fn attach(&mut self, info: NetworkInfo, network_id: NetworkId) {
-        self.tap.lock().unwrap().attach(info, network_id);
-    }
-
-    pub fn id(&self) -> MachineId {
-        self.id
+    pub fn attach(&mut self, network_id: NetworkHandle, info: Arc<NetworkInfo>) {
+        self.tap.clone().attach(network_id, info);
     }
 
     /// Gives the machine time to process incoming messages and
     /// [`awake`](super::Protocol::awake) its protocols.
-    pub fn start(&mut self, shutdown: Sender<()>) {
-        let protocol_context = ProtocolContext::new(self.protocols.clone());
+    pub fn start(self, shutdown: Sender<()>) {
+        let protocol_context = Context::new(self.protocols.clone());
         for protocol in self.protocols.values() {
             protocol
                 .clone()
-                .lock()
-                .unwrap()
                 .start(protocol_context.clone(), shutdown.clone())
                 .unwrap()
         }

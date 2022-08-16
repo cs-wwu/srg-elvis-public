@@ -1,13 +1,17 @@
+//! Types for exchanging data between protocols.
+//!
+//! This module primarily implements the [`Control`] key-value store.
+
 use std::collections::HashMap;
 
-mod primitive;
-pub use primitive::{Primitive, PrimitiveError, PrimitiveKind};
+pub(crate) mod primitive;
+pub use primitive::Primitive;
 
-mod control_value;
-pub(crate) use control_value::{from_impls, make_key};
-pub use control_value::{ControlValue, ControlValueError};
+pub(crate) mod value;
+pub use value::Value;
 
-pub type ControlKey = u64;
+/// A key for a [`Control`].
+pub type Key = u64;
 
 /// A key-value store with which to exchange data between protocols.
 ///
@@ -16,7 +20,7 @@ pub type ControlKey = u64;
 /// configuration for opening a session. A control facilitates passing such
 /// information.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Control(HashMap<ControlKey, Primitive>);
+pub struct Control(HashMap<Key, Primitive>);
 
 impl Control {
     /// Creates a new control.
@@ -27,7 +31,7 @@ impl Control {
     /// A builder function that adds the given key-value pair to the control.
     ///
     /// See [`insert`](Self::insert) for more details.
-    pub fn with(mut self, key: ControlKey, value: impl Into<Primitive>) -> Self {
+    pub fn with(mut self, key: Key, value: impl Into<Primitive>) -> Self {
         self.insert_inner(key, value.into());
         self
     }
@@ -37,16 +41,16 @@ impl Control {
     /// `value` can be any numeric primitive of universally-defined size, such
     /// as an `i16` or a `u64`. `usize` and `isize` are not allowed because
     /// their sizes are platform-dependent.
-    pub fn insert(&mut self, key: ControlKey, value: impl Into<Primitive>) {
+    pub fn insert(&mut self, key: Key, value: impl Into<Primitive>) {
         self.insert_inner(key, value.into())
     }
 
-    fn insert_inner(&mut self, key: ControlKey, value: Primitive) {
+    fn insert_inner(&mut self, key: Key, value: Primitive) {
         self.0.insert(key, value);
     }
 
     /// Gets the value for the given key.
-    pub fn get(&self, key: ControlKey) -> Option<Primitive> {
+    pub fn get(&self, key: Key) -> Option<Primitive> {
         self.0.get(&key).cloned()
     }
 }

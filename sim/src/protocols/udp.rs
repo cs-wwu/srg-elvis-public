@@ -2,14 +2,16 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
-    core::{message::Message, Control, Protocol, ProtocolContext, ProtocolId, SharedSession},
+    core::{
+        message::Message,
+        protocol::{Context, ProtocolId},
+        session::SharedSession,
+        Control, Protocol, Session,
+    },
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
 };
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use dashmap::{mapref::entry::Entry, DashMap};
+use std::{error::Error, sync::Arc};
 
 mod udp_misc;
 use udp_misc::UdpError;
@@ -25,8 +27,8 @@ mod udp_parsing;
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: HashMap<ListenId, ProtocolId>,
-    sessions: HashMap<SessionId, SharedSession>,
+    listen_bindings: DashMap<ListenId, ProtocolId>,
+    sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
@@ -39,21 +41,21 @@ impl Udp {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new()))
+    pub fn new_shared() -> Arc<Self> {
+        Arc::new(Self::new())
     }
 }
 
 impl Protocol for Udp {
-    fn id(&self) -> ProtocolId {
+    fn id(self: Arc<Self>) -> ProtocolId {
         Self::ID
     }
 
     fn open(
-        &mut self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: &mut ProtocolContext,
+        context: Context,
     ) -> Result<SharedSession, Box<dyn Error>> {
         let identifier = SessionId {
             local_port: LocalPort::try_from(&participants).unwrap(),
@@ -64,13 +66,12 @@ impl Protocol for Udp {
         match self.sessions.entry(identifier) {
             Entry::Occupied(_) => Err(UdpError::SessionExists)?,
             Entry::Vacant(entry) => {
-                let downstream = context
-                    .protocol(Ipv4::ID)
-                    .expect("No such protocol")
-                    .lock()
-                    .unwrap()
-                    .open(Self::ID, participants, context)?;
-                let session = SharedSession::new(UdpSession {
+                let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
+                    Self::ID,
+                    participants,
+                    context,
+                )?;
+                let session = Arc::new(UdpSession {
                     upstream,
                     downstream,
                     identifier,
@@ -82,29 +83,29 @@ impl Protocol for Udp {
     }
 
     fn listen(
-        &mut self,
+        self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: &mut ProtocolContext,
+        context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let identifier = ListenId {
             port: LocalPort::try_from(&participants).unwrap(),
             address: LocalAddress::try_from(&participants).unwrap(),
         };
+
         self.listen_bindings.insert(identifier, upstream);
 
         context
             .protocol(Ipv4::ID)
             .expect("No such protocol")
-            .lock()
-            .unwrap()
             .listen(Self::ID, participants, context)
     }
 
     fn demux(
-        &mut self,
+        self: Arc<Self>,
         message: Message,
-        context: &mut ProtocolContext,
+        caller: SharedSession,
+        mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
@@ -124,7 +125,7 @@ impl Protocol for Udp {
         local_port.apply(&mut context.info);
         remote_port.apply(&mut context.info);
         let message = message.slice(8..);
-        let mut session = match self.sessions.entry(session_id) {
+        let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
                 session
@@ -136,9 +137,9 @@ impl Protocol for Udp {
                 };
                 match self.listen_bindings.entry(listen_id) {
                     Entry::Occupied(listen_entry) => {
-                        let session = SharedSession::new(UdpSession {
+                        let session = Arc::new(UdpSession {
                             upstream: *listen_entry.get(),
-                            downstream: context.current_session().expect("No current session"),
+                            downstream: caller,
                             identifier: session_id,
                         });
                         session_entry.insert(session.clone());

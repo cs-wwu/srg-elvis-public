@@ -3,10 +3,15 @@ use super::{
     udp_parsing::build_udp_header,
 };
 use crate::{
-    core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
+    core::{
+        message::Message,
+        protocol::{Context, ProtocolId},
+        session::SharedSession,
+        Session,
+    },
     protocols::ipv4::{LocalAddress, RemoteAddress},
 };
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 pub(super) struct UdpSession {
     pub upstream: ProtocolId,
@@ -15,11 +20,7 @@ pub(super) struct UdpSession {
 }
 
 impl Session for UdpSession {
-    fn send(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         let id = self.identifier;
         let header = build_udp_header(
             self.identifier.local_address.into(),
@@ -29,25 +30,19 @@ impl Session for UdpSession {
             message.iter(),
         )?;
         let message = message.with_header(header);
-        self.downstream.send(message, context)?;
+        self.downstream.clone().send(message, context)?;
         Ok(())
     }
 
-    fn receive(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
-            .lock()
-            .unwrap()
-            .demux(message, context)?;
+            .demux(message, self, context)?;
         Ok(())
     }
 
-    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(self: Arc<Self>, _context: Context) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

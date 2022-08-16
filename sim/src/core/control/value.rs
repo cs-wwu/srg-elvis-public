@@ -19,9 +19,9 @@ use thiserror::Error as ThisError;
 /// wrap. The second generic parameter is a `const` generic that specifies the
 /// key to use on that control.
 #[derive(Debug, Clone, Copy)]
-pub struct ControlValue<const K: u64, V>(V);
+pub struct Value<const K: u64, V>(V);
 
-impl<const K: u64, V> TryFrom<&Control> for ControlValue<K, V>
+impl<const K: u64, V> TryFrom<&Control> for Value<K, V>
 where
     V: TryFrom<Primitive>,
 {
@@ -34,7 +34,7 @@ where
     }
 }
 
-impl<const K: u64, V> ControlValue<K, V>
+impl<const K: u64, V> Value<K, V>
 where
     V: Into<Primitive>,
 {
@@ -49,7 +49,7 @@ where
     }
 }
 
-impl<const K: u64, V> ControlValue<K, V> {
+impl<const K: u64, V> Value<K, V> {
     /// Create a new control value to wrap the `value`.
     pub fn new(value: V) -> Self {
         Self(value)
@@ -61,7 +61,7 @@ impl<const K: u64, V> ControlValue<K, V> {
     }
 }
 
-impl<const K: u64, V> ControlValue<K, V>
+impl<const K: u64, V> Value<K, V>
 where
     V: TryFrom<Primitive>,
     <V as TryFrom<Primitive>>::Error: std::fmt::Debug,
@@ -71,7 +71,7 @@ where
     }
 }
 
-impl<const K: u64, V> PartialEq for ControlValue<K, V>
+impl<const K: u64, V> PartialEq for Value<K, V>
 where
     V: PartialEq,
 {
@@ -80,9 +80,9 @@ where
     }
 }
 
-impl<const K: u64, V> Eq for ControlValue<K, V> where V: PartialEq {}
+impl<const K: u64, V> Eq for Value<K, V> where V: PartialEq {}
 
-impl<const K: u64, V> Hash for ControlValue<K, V>
+impl<const K: u64, V> Hash for Value<K, V>
 where
     V: Hash,
 {
@@ -91,7 +91,7 @@ where
     }
 }
 
-impl<const K: u64, V> Display for ControlValue<K, V>
+impl<const K: u64, V> Display for Value<K, V>
 where
     V: Display,
 {

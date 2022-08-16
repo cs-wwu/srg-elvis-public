@@ -1,5 +1,10 @@
-use super::{Message, ProtocolContext};
-use std::error::Error;
+//! The [`Session`] trait and supporting types.
+
+use super::{protocol::Context, Message};
+use std::{error::Error, sync::Arc};
+
+/// A shared handle to a [`Session`]
+pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 
 /// Holds the state for a particular connection.
 ///
@@ -12,19 +17,11 @@ use std::error::Error;
 pub trait Session {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    fn send(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
+    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
 
     /// Takes an incoming message and decides which protocol to send it to for
     /// further processing.
-    fn receive(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>>;
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
 
-    fn start(&mut self, context: ProtocolContext) -> Result<(), Box<dyn Error>>;
+    fn start(self: Arc<Self>, context: Context) -> Result<(), Box<dyn Error>>;
 }

@@ -8,7 +8,7 @@ async fn internet() {
 fn criterion_benchmark(c: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     c.bench_function("UDP/IPv4 delivery", |b| {
-        b.to_async(&runtime).iter(|| internet())
+        b.to_async(&runtime).iter(internet)
     });
 }
 

@@ -1,22 +1,27 @@
 use crate::core::{
-    control::{from_impls, make_key, ControlValue},
-    Delivery, Mtu, Postmarked, ProtocolId,
+    control::{
+        self,
+        value::{from_impls, make_key},
+    },
+    machine::MachineId,
+    protocol::ProtocolId,
+    Message,
 };
 use std::error::Error;
 use thiserror::Error as ThisError;
-use tokio::sync::mpsc::{Receiver, Sender};
 
 const NETWORK_INDEX_KEY: u64 = make_key("Tap Network Index");
-/// A [`ControlValue`] for which network to send on or which a message was
+/// A [`control::Value`] for which network to send on or which a message was
 /// received from.
-pub type NetworkId = ControlValue<NETWORK_INDEX_KEY, crate::core::NetworkId>;
-from_impls!(NetworkId, crate::core::NetworkId);
+pub type NetworkId = control::Value<NETWORK_INDEX_KEY, u32>;
+from_impls!(NetworkId, u32);
 
-pub struct NetworkInfo {
-    pub mtu: Mtu,
-    pub sender: Sender<Postmarked>,
-    pub receiver: Receiver<Delivery>,
-}
+const FIRST_RESPONDER_KEY: u64 = make_key("First responder");
+/// A [`control::Value`] for which network to send on or which a message was
+/// received from.
+pub type FirstResponder = control::Value<FIRST_RESPONDER_KEY, u64>;
+from_impls!(FirstResponder, u64);
+from_impls!(FirstResponder, ProtocolId);
 
 #[derive(Debug, ThisError)]
 pub enum TapError {
@@ -26,4 +31,11 @@ pub enum TapError {
     NoSuchProtocol(ProtocolId),
     #[error("{0}")]
     Other(#[from] Box<dyn Error>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Delivery {
+    pub message: Message,
+    pub network: NetworkId,
+    pub sender: MachineId,
 }

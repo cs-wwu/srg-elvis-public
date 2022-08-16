@@ -1,17 +1,26 @@
 use super::{
     ipv4_parsing::{Ipv4HeaderBuilder, ProtocolNumber},
-    LocalAddress, RemoteAddress,
+    Ipv4, LocalAddress, RemoteAddress,
 };
 use crate::{
-    core::{message::Message, ProtocolContext, ProtocolId, Session, SharedSession},
-    protocols::udp::Udp,
+    core::{
+        message::Message,
+        protocol::{Context, ProtocolId},
+        session::SharedSession,
+        Session,
+    },
+    protocols::{
+        tap::{FirstResponder, NetworkId},
+        udp::Udp,
+    },
 };
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 pub struct Ipv4Session {
     upstream: ProtocolId,
     downstream: SharedSession,
     identifier: SessionId,
+    network_id: NetworkId,
 }
 
 impl Ipv4Session {
@@ -19,21 +28,19 @@ impl Ipv4Session {
         downstream: SharedSession,
         upstream: ProtocolId,
         identifier: SessionId,
+        network_id: NetworkId,
     ) -> Self {
         Self {
             upstream,
             downstream,
             identifier,
+            network_id,
         }
     }
 }
 
 impl Session for Ipv4Session {
-    fn send(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, message: Message, mut context: Context) -> Result<(), Box<dyn Error>> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
             Udp::ID => ProtocolNumber::Udp,
@@ -46,26 +53,22 @@ impl Session for Ipv4Session {
             length as u16,
         )
         .build()?;
+        self.network_id.apply(&mut context.info);
+        FirstResponder::set(&mut context.info, Ipv4::ID.into());
         let message = message.with_header(header);
-        self.downstream.send(message, context)?;
+        self.downstream.clone().send(message, context)?;
         Ok(())
     }
 
-    fn receive(
-        &mut self,
-        message: Message,
-        context: &mut ProtocolContext,
-    ) -> Result<(), Box<dyn Error>> {
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
-            .lock()
-            .unwrap()
-            .demux(message, context)?;
+            .demux(message, self, context)?;
         Ok(())
     }
 
-    fn start(&mut self, _context: ProtocolContext) -> Result<(), Box<dyn Error>> {
+    fn start(self: Arc<Self>, _context: Context) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }

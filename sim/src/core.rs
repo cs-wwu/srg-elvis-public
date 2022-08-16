@@ -23,35 +23,20 @@
 //!
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
-/// Types for exchanging data between protocols.
-///
-/// This module primarily implements the [`Control`] key-value store.
 pub mod control;
 pub use control::Control;
 
-/// Byte collections with efficient operations for protocols.
-///
-/// This module primarily implements the [`Message`] collection.
 pub mod message;
 pub use message::Message;
 
-mod protocol;
-pub use protocol::{Protocol, ProtocolId, SharedProtocol};
+pub mod protocol;
+pub use protocol::Protocol;
 
-mod shared_session;
-pub use shared_session::SharedSession;
-
-mod session;
+pub mod session;
 pub use session::Session;
 
-mod protocol_context;
-pub use protocol_context::ProtocolContext;
-
-mod internet;
+pub mod internet;
 pub use internet::Internet;
 
-mod machine;
-pub(crate) use machine::*;
-
-mod network;
-pub(crate) use network::*;
+pub(crate) mod machine;
+pub(crate) use machine::Machine;
