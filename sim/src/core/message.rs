@@ -58,7 +58,8 @@ impl Message {
     ///
     /// ```
     /// # use elvis::core::message::{Message, Chunk};
-    /// let message = Message::new(b"Body").with_header(b"Header");
+    /// let mut message = Message::new(b"Body");
+    /// message.prepend(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
@@ -78,13 +79,10 @@ impl Message {
     ///
     /// ```
     /// # use elvis::core::message::{Message, Chunk};
-    /// let message = Message::new(b"Body").with_header(b"Header");
-    /// let sliced = message.slice(3..8);
-    /// assert!(sliced.iter().eq(b"derBo".iter().cloned()));
-    /// let sliced = message.slice(..8);
-    /// assert!(sliced.iter().eq(b"HeaderBo".iter().cloned()));
-    /// let sliced = message.slice(3..);
-    /// assert!(sliced.iter().eq(b"derBody".iter().cloned()));
+    /// let mut message = Message::new(b"Body");
+    /// message.prepend(b"Header");
+    /// message.slice(3..8);
+    /// assert!(message.iter().eq(b"derBo".iter().cloned()));
     /// ```
     pub fn slice(&mut self, range: impl Into<SliceRange>) {
         self.slice_inner(range.into())
@@ -101,7 +99,7 @@ impl Message {
             match self.stack.as_ref() {
                 WrappedMessage::Header(chunk, rest) => {
                     let len = chunk.len();
-                    if self.start > len {
+                    if self.start >= len {
                         self.start -= len;
                         self.end -= len;
                         self.stack = rest.clone();
@@ -124,7 +122,8 @@ impl Message {
     ///
     /// ```
     /// # use elvis::core::message::{Message, Chunk};
-    /// let message = Message::new(b"Body").with_header(b"Header");
+    /// let mut message = Message::new(b"Body");
+    /// message.prepend(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```

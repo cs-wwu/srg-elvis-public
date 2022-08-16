@@ -46,7 +46,6 @@ impl TapSession {
         mut delivery: Delivery,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
-        println!("{}", delivery.message);
         let first_responder: FirstResponder = take_header(&delivery.message)
             .ok_or(TapError::HeaderLength)
             .unwrap()
