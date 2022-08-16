@@ -94,12 +94,10 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();
-        tokio::spawn(async move {
-            match application.recv(message, context) {
-                Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
-            }
-        });
+        match application.recv(message, context) {
+            Ok(_) => {}
+            Err(e) => eprintln!("{}", e),
+        }
         Ok(())
     }
 
@@ -109,12 +107,10 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();
-        tokio::spawn(async move {
-            match application.start(context, shutdown) {
-                Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
-            }
-        });
+        match application.start(context, shutdown) {
+            Ok(_) => {}
+            Err(e) => eprintln!("{}", e),
+        }
         Ok(())
     }
 }

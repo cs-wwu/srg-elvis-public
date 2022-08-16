@@ -71,6 +71,7 @@ impl Session for TapSession {
             sender: self.machine_id,
             network: network_id,
         };
+        println!("Tap session");
         tokio::spawn(async move {
             let network = self
                 .networks

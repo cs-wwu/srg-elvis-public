@@ -61,9 +61,7 @@ impl Application for Capture {
         context: Context,
         shutdown: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
-        {
-            *self.shutdown.lock().unwrap() = Some(shutdown);
-        }
+        *self.shutdown.lock().unwrap() = Some(shutdown);
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, self.ip_address);
         LocalPort::set(&mut participants, self.port);
