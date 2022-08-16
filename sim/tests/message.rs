@@ -20,11 +20,11 @@ fn mixed_operations() {
     assert!(message.iter().eq(expected.iter().cloned()));
 }
 
-// #[test]
-// fn mixed_operations_2() {
-//     let mut message = Message::new(b"Hello, world");
-//     message.slice(7..);
-//     message.prepend(b"Header ");
-//     let expected = b"Header world";
-//     assert!(message.iter().eq(expected.iter().cloned()));
-// }
+#[test]
+fn mixed_operations_2() {
+    let mut message = Message::new(b"Hello, world");
+    message.slice(7..);
+    message.prepend(b"Header ");
+    let expected = b"Header world";
+    assert!(message.iter().eq(expected.iter().cloned()));
+}
