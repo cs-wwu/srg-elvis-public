@@ -20,7 +20,7 @@ pub(super) struct UdpSession {
 }
 
 impl Session for UdpSession {
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         let id = self.identifier;
         let header = build_udp_header(
             self.identifier.local_address.into(),
@@ -29,7 +29,7 @@ impl Session for UdpSession {
             id.remote_port.into(),
             message.iter(),
         )?;
-        let message = message.with_header(header);
+        message.prepend(header);
         self.downstream.clone().send(message, context)?;
         Ok(())
     }

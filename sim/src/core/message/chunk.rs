@@ -21,6 +21,10 @@ impl Chunk {
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
     }
+
+    pub fn len(&self) -> usize {
+        self.as_slice().len()
+    }
 }
 
 impl Clone for Chunk {

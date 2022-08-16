@@ -119,7 +119,7 @@ impl Protocol for Ipv4 {
 
     fn demux(
         self: Arc<Self>,
-        message: Message,
+        mut message: Message,
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
@@ -129,7 +129,7 @@ impl Protocol for Ipv4 {
         let identifier = SessionId { local, remote };
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
-        let message = message.slice(header.ihl as usize * 4..);
+        message.slice(header.ihl as usize * 4..);
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => match self.listen_bindings.get(&local) {

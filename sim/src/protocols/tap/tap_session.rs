@@ -43,7 +43,7 @@ impl TapSession {
 
     pub(super) fn receive_delivery(
         self: Arc<Self>,
-        delivery: Delivery,
+        mut delivery: Delivery,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
         let first_responder: FirstResponder = take_header(&delivery.message)
@@ -53,19 +53,19 @@ impl TapSession {
         first_responder.apply(&mut context.info);
         let network_id: NetworkId = delivery.network;
         network_id.apply(&mut context.info);
-        let message = delivery.message.slice(8..);
+        delivery.message.slice(8..);
         let protocol = context
             .protocol(first_responder.into())
             .ok_or_else(|| TapError::NoSuchProtocol(first_responder.into()))?;
-        protocol.demux(message, self, context)
+        protocol.demux(delivery.message, self, context)
     }
 }
 
 impl Session for TapSession {
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         let network_id = NetworkId::try_from(&context.info)?;
         let first_responder = FirstResponder::try_from(&context.info)?;
-        let message = message.with_header(first_responder.into_inner().to_be_bytes().to_vec());
+        message.prepend(first_responder.into_inner().to_be_bytes().to_vec());
         let delivery = Delivery {
             message,
             sender: self.machine_id,

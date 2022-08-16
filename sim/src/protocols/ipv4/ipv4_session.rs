@@ -40,7 +40,11 @@ impl Ipv4Session {
 }
 
 impl Session for Ipv4Session {
-    fn send(self: Arc<Self>, message: Message, mut context: Context) -> Result<(), Box<dyn Error>> {
+    fn send(
+        self: Arc<Self>,
+        mut message: Message,
+        mut context: Context,
+    ) -> Result<(), Box<dyn Error>> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
             Udp::ID => ProtocolNumber::Udp,
@@ -55,7 +59,7 @@ impl Session for Ipv4Session {
         .build()?;
         self.network_id.apply(&mut context.info);
         FirstResponder::set(&mut context.info, Ipv4::ID.into());
-        let message = message.with_header(header);
+        message.prepend(header);
         self.downstream.clone().send(message, context)?;
         Ok(())
     }
