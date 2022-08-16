@@ -3,9 +3,17 @@ use crate::{
     protocols::tap::Delivery,
 };
 use async_trait::async_trait;
-use std::{error::Error, sync::Arc};
+use std::{error::Error, sync::Arc, time::Duration};
 
-pub struct Latent {}
+pub struct Latent {
+    latency: Duration,
+}
+
+impl Latent {
+    pub fn new(latency: Duration) -> Self {
+        Self { latency }
+    }
+}
 
 #[async_trait]
 impl Network for Latent {
@@ -14,6 +22,11 @@ impl Network for Latent {
         delivery: Delivery,
         attachments: &[Attachment],
     ) -> Result<(), Box<dyn Error>> {
-        todo!()
+        // This does not block other sends on this network, just this one
+        tokio::time::sleep(self.latency).await;
+        for attachment in attachments {
+            attachment.sender.send(delivery.clone()).await.unwrap();
+        }
+        Ok(())
     }
 }
