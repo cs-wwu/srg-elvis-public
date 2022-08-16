@@ -10,7 +10,7 @@ use elvis::{
 #[tokio::test]
 pub async fn telephone_multi() {
     let mut internet = Internet::new();
-    let end = 10000;
+    let end = 1000;
     let networks: Vec<_> = (0..end).map(|_| internet.network(1500)).collect();
 
     let remote = 0u32.to_be_bytes().into();
