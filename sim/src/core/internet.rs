@@ -1,6 +1,7 @@
 //! The [`Internet`] and supporting types.
 
 use super::{
+    machine::MachineId,
     network::{Attachment, SharedNetwork},
     protocol::SharedProtocol,
     Machine, Network,
@@ -69,11 +70,10 @@ impl Internet {
     /// Runs the simulation.
     pub async fn run(mut self) {
         for (network_id, network) in self.networks.into_iter().enumerate() {
-            let network = Arc::new(network);
             for attachment in network.clone().attachments.iter() {
                 self.machines[attachment.machine].attach(
                     NetworkHandle(network_id.try_into().unwrap()),
-                    network.clone(),
+                    network.without_machine(attachment.machine),
                 );
             }
         }
@@ -99,6 +99,18 @@ impl NetworkInfo {
         Self {
             network,
             attachments: vec![],
+        }
+    }
+
+    pub fn without_machine(&self, machine: MachineId) -> Self {
+        Self {
+            network: self.network.clone(),
+            attachments: self
+                .attachments
+                .iter()
+                .filter(|&attachment| attachment.machine != machine)
+                .cloned()
+                .collect(),
         }
     }
 }

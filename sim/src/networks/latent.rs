@@ -14,12 +14,6 @@ impl Network for Latent {
         delivery: Delivery,
         attachments: &[Attachment],
     ) -> Result<(), Box<dyn Error>> {
-        for attachment in attachments
-            .iter()
-            .filter(|attachment| attachment.machine != delivery.sender)
-        {
-            attachment.sender.send(delivery.clone()).await.unwrap();
-        }
-        Ok(())
+        todo!()
     }
 }
