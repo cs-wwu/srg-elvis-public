@@ -91,10 +91,7 @@ impl Application for UnreliableTester {
 
     fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
         *self.last_receipt.lock().unwrap() = SystemTime::now();
-        {
-            let mut lock = self.receipt_count.lock().unwrap();
-            *lock = *lock + 1;
-        }
+        *self.receipt_count.lock().unwrap() += 1;
         Ok(())
     }
 }
