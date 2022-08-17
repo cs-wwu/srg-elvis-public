@@ -3,7 +3,7 @@
 
 use tokio::sync::mpsc::Sender;
 
-use crate::core::{
+use crate::{
     message::Message,
     protocol::{Context, ProtocolId},
     session::SharedSession,

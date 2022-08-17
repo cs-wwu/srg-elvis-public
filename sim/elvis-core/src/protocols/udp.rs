@@ -2,13 +2,11 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
-    core::{
-        message::Message,
-        protocol::{Context, ProtocolId},
-        session::SharedSession,
-        Control, Protocol, Session,
-    },
+    message::Message,
+    protocol::{Context, ProtocolId},
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
+    session::SharedSession,
+    Control, Protocol, Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};

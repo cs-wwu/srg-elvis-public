@@ -2,7 +2,7 @@ use super::{
     tap_misc::{Delivery, FirstResponder, TapError},
     NetworkId,
 };
-use crate::core::{
+use crate::{
     internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,

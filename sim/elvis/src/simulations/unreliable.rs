@@ -1,11 +1,12 @@
 use crate::applications::{Forward, UnreliableTester};
 use elvis_core::{
-    core::{protocol::SharedProtocol, Internet},
     networks::Unreliable,
+    protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4Address},
         Ipv4, Udp,
     },
+    Internet,
 };
 
 pub async fn unreliable() {

@@ -1,4 +1,4 @@
-use elvis_core::core::message::Message;
+use elvis_core::message::Message;
 
 #[test]
 fn multi_slice() {

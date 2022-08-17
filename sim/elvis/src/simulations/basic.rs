@@ -6,12 +6,14 @@
 
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
-    core::{message::Message, protocol::SharedProtocol, Internet},
+    message::Message,
     networks::Reliable,
+    protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,
     },
+    Internet,
 };
 
 /// Runs a basic simulation.

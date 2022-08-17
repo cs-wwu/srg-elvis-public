@@ -3,13 +3,11 @@ use super::{
     udp_parsing::build_udp_header,
 };
 use crate::{
-    core::{
-        message::Message,
-        protocol::{Context, ProtocolId},
-        session::SharedSession,
-        Session,
-    },
+    message::Message,
+    protocol::{Context, ProtocolId},
     protocols::ipv4::{LocalAddress, RemoteAddress},
+    session::SharedSession,
+    Session,
 };
 use std::{error::Error, sync::Arc};
 

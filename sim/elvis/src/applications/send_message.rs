@@ -1,14 +1,12 @@
 use elvis_core::{
-    core::{
-        message::Message,
-        protocol::{Context, ProtocolId},
-        Control,
-    },
+    message::Message,
+    protocol::{Context, ProtocolId},
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort, Udp},
         user_process::{Application, UserProcess},
     },
+    Control,
 };
 use std::{error::Error, sync::Arc};
 use tokio::sync::mpsc::Sender;

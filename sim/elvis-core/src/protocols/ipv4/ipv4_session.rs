@@ -3,16 +3,14 @@ use super::{
     Ipv4, LocalAddress, RemoteAddress,
 };
 use crate::{
-    core::{
-        message::Message,
-        protocol::{Context, ProtocolId},
-        session::SharedSession,
-        Session,
-    },
+    message::Message,
+    protocol::{Context, ProtocolId},
     protocols::{
         tap::{FirstResponder, NetworkId},
         udp::Udp,
     },
+    session::SharedSession,
+    Session,
 };
 use std::{error::Error, sync::Arc};
 

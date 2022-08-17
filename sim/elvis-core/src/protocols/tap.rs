@@ -1,6 +1,6 @@
 //! The base-level protocol that communicates directly with networks.
 
-use crate::core::{
+use crate::{
     internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,

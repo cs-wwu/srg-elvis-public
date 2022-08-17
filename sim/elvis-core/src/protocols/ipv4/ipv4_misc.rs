@@ -1,5 +1,5 @@
 use super::ipv4_address::Ipv4Address;
-use crate::core::control::{
+use crate::control::{
     self,
     value::{from_impls, make_key},
 };

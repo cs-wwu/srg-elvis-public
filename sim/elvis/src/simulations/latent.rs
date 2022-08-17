@@ -1,11 +1,12 @@
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
-    core::{protocol::SharedProtocol, Internet, Message},
     networks::Latent,
+    protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4Address},
         Ipv4, Udp,
     },
+    Internet, Message,
 };
 use std::time::Duration;
 

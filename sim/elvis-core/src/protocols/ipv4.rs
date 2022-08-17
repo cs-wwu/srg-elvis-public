@@ -2,14 +2,12 @@
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
 use crate::{
-    core::{
-        internet::NetworkHandle,
-        message::Message,
-        protocol::{Context, ProtocolId},
-        session::SharedSession,
-        Control, Protocol, Session,
-    },
+    internet::NetworkHandle,
+    message::Message,
+    protocol::{Context, ProtocolId},
     protocols::tap::Tap,
+    session::SharedSession,
+    Control, Protocol, Session,
 };
 use std::{error::Error, sync::Arc};
 

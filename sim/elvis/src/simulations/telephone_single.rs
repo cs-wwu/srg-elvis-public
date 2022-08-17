@@ -1,11 +1,13 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    core::{internet::NetworkHandle, protocol::SharedProtocol, Internet, Message},
+    internet::NetworkHandle,
     networks::Reliable,
+    protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
         udp::Udp,
     },
+    Internet, Message,
 };
 
 pub async fn telephone_single() {

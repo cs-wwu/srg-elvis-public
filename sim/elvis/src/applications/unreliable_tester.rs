@@ -1,14 +1,12 @@
 use elvis_core::{
-    core::{
-        protocol::{Context, ProtocolId},
-        Control, Message,
-    },
+    protocol::{Context, ProtocolId},
     protocols::{
         ipv4::{LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort},
         user_process::Application,
         Udp, UserProcess,
     },
+    Control, Message,
 };
 use std::{
     error::Error,

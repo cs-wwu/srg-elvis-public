@@ -1,4 +1,4 @@
-use crate::core::control::{primitive::PrimitiveError, Primitive};
+use crate::control::{primitive::PrimitiveError, Primitive};
 use std::fmt::{self, Display};
 
 /// Represents an address used by the [`Ipv4`](super::Ipv4) protocol.
