@@ -1,5 +1,5 @@
+use elvis::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    applications::{Capture, Forward, SendMessage},
     core::{internet::NetworkHandle, protocol::SharedProtocol, Internet, Message},
     networks::Reliable,
     protocols::{

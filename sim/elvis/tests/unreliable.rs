@@ -1,5 +1,5 @@
+use elvis::applications::{Forward, UnreliableTester};
 use elvis_core::{
-    applications::{Forward, UnreliableTester},
     core::{protocol::SharedProtocol, Internet},
     networks::Unreliable,
     protocols::{

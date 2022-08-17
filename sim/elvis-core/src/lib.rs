@@ -11,7 +11,6 @@
 //!   sandboxed environment with built-in diagnostics to monitor effects such as
 //!   congestion and dropped packets.
 
-pub mod applications;
 pub mod core;
 pub mod networks;
 pub mod protocols;

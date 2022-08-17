@@ -1,4 +1,4 @@
-use crate::{
+use elvis_core::{
     core::{
         protocol::{Context, ProtocolId},
         Control, Message,
