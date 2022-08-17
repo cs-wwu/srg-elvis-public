@@ -1,0 +1,15 @@
+[package]
+name = "elvis-core"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "1.0"
+const-fnv1a-hash = "1.0"
+tokio = { version = "1.20", features = ["rt", "rt-multi-thread", "time", "macros", "signal", "sync"] }
+dashmap = "5.3"
+async-trait = "0.1"
+
+[dev-dependencies]
+anyhow = "1.0"
+etherparse = "0.10"

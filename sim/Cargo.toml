@@ -1,21 +1,6 @@
-[package]
-name = "elvis"
-version = "0.2.0"
-edition = "2021"
+[workspace]
 
-[dependencies]
-thiserror = "1.0"
-const-fnv1a-hash = "1.0"
-tokio = { version = "1.20", features = ["rt", "rt-multi-thread", "time", "macros", "signal", "sync"] }
-dashmap = "5.3"
-async-trait = "0.1"
-rand = { version = "0.8", features = ["small_rng"] }
-
-[dev-dependencies]
-criterion = { version = "0.3", features = ["async_tokio"] }
-anyhow = "1.0"
-etherparse = "0.10"
-
-[[bench]]
-name = "internet"
-harness = false
+members = [
+    "elvis-core",
+    "elvis",
+]
