@@ -1,4 +1,4 @@
-use elvis::applications::{Forward, UnreliableTester};
+use crate::applications::{Forward, UnreliableTester};
 use elvis_core::{
     core::{protocol::SharedProtocol, Internet},
     networks::Unreliable,
@@ -8,7 +8,6 @@ use elvis_core::{
     },
 };
 
-#[tokio::test]
 pub async fn unreliable() {
     let mut internet = Internet::new();
     let network = internet.network(Unreliable::new(0.5));

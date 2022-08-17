@@ -1,4 +1,4 @@
-use elvis::applications::{Capture, Forward, SendMessage};
+use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
     core::{internet::NetworkHandle, protocol::SharedProtocol, Internet, Message},
     networks::Reliable,
@@ -8,7 +8,6 @@ use elvis_core::{
     },
 };
 
-#[tokio::test]
 pub async fn telephone_multi() {
     let mut internet = Internet::new();
     let end = 1000;
