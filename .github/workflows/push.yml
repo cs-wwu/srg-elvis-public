@@ -4,16 +4,22 @@ on:
 jobs:
   push:
     name: Pass input and secrets to my-action
-    runs-on: ubuntu-latest
+  runs-on: ubuntu-latest
     steps:
       - name: Pushes to another repository
-        uses: cpina/github-action-push-to-another-repository@main
         env:
-          SSH_DEPLOY_KEY: ${{ secrets.BOT_KEY }}
-        with:
-          source-directory: 'target'
-          destination-github-username: 'cs-wwu'
-          destination-repository-name: 'srg-elvis-docs'
-          user-email: bot@auto.com
-          target-branch: main
+          GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
+        run: |
+          git clone https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
+          
+          cd srg-elvis-docs
+          
+          git config user.name "github-actions-bot"
+          git config user.email "bot@placeholder.com"
+
+          touch test-file.txt
+          git add test-file.txt
+          git commit -m "try adding new file"
+          git config --unset-all http.https://github.com/.extraheader
+          git push
   
