@@ -15,4 +15,3 @@ pub mod applications;
 pub mod core;
 pub mod networks;
 pub mod protocols;
-pub mod simulation;

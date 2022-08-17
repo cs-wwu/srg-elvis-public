@@ -1,3 +1,6 @@
 [workspace]
 
-members = [ "elvis-core" ]
+members = [
+    "elvis-core",
+    "elvis",
+]

@@ -4,7 +4,7 @@
 //! the default simulation, which creates a UDP sender and a UDP receiver. The
 //! sender sends one string to the receiver, and the contents are checked.
 
-use crate::{
+use elvis_core::{
     applications::{Capture, SendMessage},
     core::{message::Message, protocol::SharedProtocol, Internet},
     networks::Reliable,

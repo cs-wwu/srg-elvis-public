@@ -1,4 +1,4 @@
-use elvis::{
+use elvis_core::{
     applications::{Capture, SendMessage},
     core::{protocol::SharedProtocol, Internet, Message},
     networks::Latent,

@@ -1,4 +1,4 @@
-use elvis::{
+use elvis_core::{
     applications::{Forward, UnreliableTester},
     core::{protocol::SharedProtocol, Internet},
     networks::Unreliable,

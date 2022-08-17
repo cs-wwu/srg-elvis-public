@@ -37,7 +37,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use elvis::core::message::Message;
+    /// # use elvis_core::core::message::Message;
     /// let message = Message::new(b"Body");
     /// ```
     pub fn new(body: impl Into<Chunk>) -> Self {
@@ -57,7 +57,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use elvis::core::message::{Message, Chunk};
+    /// # use elvis_core::core::message::{Message, Chunk};
     /// let mut message = Message::new(b"Body");
     /// message.prepend(b"Header");
     /// let expected = b"HeaderBody";
@@ -86,7 +86,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use elvis::core::message::{Message, Chunk};
+    /// # use elvis_core::core::message::{Message, Chunk};
     /// let mut message = Message::new(b"Body");
     /// message.prepend(b"Header");
     /// message.slice(3..8);
@@ -136,7 +136,7 @@ impl Message {
     /// # Examples
     ///
     /// ```
-    /// # use elvis::core::message::{Message, Chunk};
+    /// # use elvis_core::core::message::{Message, Chunk};
     /// let mut message = Message::new(b"Body");
     /// message.prepend(b"Header");
     /// let expected = b"HeaderBody";
