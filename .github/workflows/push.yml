@@ -3,23 +3,23 @@ on:
   
 jobs:
   push:
-    name: Pass input and secrets to my-action
-  runs-on: ubuntu-latest
-  steps:
-  - name: Pushes to another repository
-  env:
-    GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
-  run: |
-    git clone https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
+  
+    runs-on: ubuntu-latest
+    steps:
+    - name: Pushes to another repository
+      env:
+        GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
+      run: |
+        git clone https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
           
-    cd srg-elvis-docs
+        cd srg-elvis-docs
           
-    git config user.name "github-actions-bot"
-    git config user.email "bot@placeholder.com"
+        git config user.name "github-actions-bot"
+        git config user.email "bot@placeholder.com"
 
-    touch test-file.txt
-    git add test-file.txt
-    git commit -m "try adding new file"
-    git config --unset-all http.https://github.com/.extraheader
-    git push
+        touch test-file.txt
+        git add test-file.txt
+        git commit -m "try adding new file"
+        git config --unset-all http.https://github.com/.extraheader
+        git push
   
