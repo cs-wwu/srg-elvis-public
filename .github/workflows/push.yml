@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./sim
+        working-directory: sim
     steps:
     - name: Run rustdoc
       run: cargo doc --target-dir target
