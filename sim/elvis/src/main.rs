@@ -1,6 +1,5 @@
-use std::env;
-
 use elvis::simulations;
+use std::env;
 
 /// Without arguments, main runs the default simulation
 #[tokio::main]
