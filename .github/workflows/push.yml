@@ -20,6 +20,6 @@ jobs:
         touch test-file.txt
         git add test-file.txt
         git commit -m "try adding new file"
-        git config --unset-all http.https://github.com/.extraheader
+        #git config --unset-all http.https://github.com/.extraheader
         git push
   
