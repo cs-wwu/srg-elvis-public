@@ -6,20 +6,13 @@ jobs:
   
     runs-on: ubuntu-latest
     steps:
+    - name: Run rustdoc
+      run: cargo doc --target-dir target
     - name: Pushes to another repository
       env:
         GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
       run: |
-        git clone https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
-          
-        cd srg-elvis-docs
-          
-        git config user.name "github-actions-bot"
-        git config user.email "bot@placeholder.com"
-
-        touch test-file.txt
-        git add test-file.txt
-        git commit -m "try adding new file"
-        #git config --unset-all http.https://github.com/.extraheader
-        git push
+        git remote add docs-repo https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
+        git add target -f 
+        git push docs-repo 
   
