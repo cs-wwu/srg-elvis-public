@@ -15,12 +15,14 @@ jobs:
         working-directory: ./sim
     steps:
     - uses: actions/checkout@v3
-    - name: Run rustdoc
-      run: cargo doc --target-dir target
+    #- name: Run rustdoc
+     # run: cargo doc --target-dir target
     - name: Pushes to another repository
       env:
         GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
       run: |
+        git config user.name "github-actions-bot"
+        git config user.email "bot@placeholder.com"
         git remote add docs-repo https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
         git add target -f 
         git push docs-repo 
