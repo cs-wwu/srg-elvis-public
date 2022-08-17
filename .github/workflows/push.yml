@@ -23,8 +23,8 @@ jobs:
       run: |
         git config user.name "github-actions-bot"
         git config user.email "bot@placeholder.com"
-        git remote add docs-repo https://github.com/cs-wwu/srg-elvis-docs
+        git remote add docs-repo https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
         git add target -f 
+        git config --unset-all http.https://github.com/.extraheader
         git push docs-repo 
-
   
