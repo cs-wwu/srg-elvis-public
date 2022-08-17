@@ -1,6 +1,8 @@
-use crate::applications::{Capture, SendMessage};
-use elvis_core::{
+use crate::{
+    applications::{Capture, SendMessage},
     networks::Latent,
+};
+use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4Address},

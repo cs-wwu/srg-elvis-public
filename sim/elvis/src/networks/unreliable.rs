@@ -1,5 +1,8 @@
-use crate::{network::Attachment, protocols::tap::Delivery, Network};
 use async_trait::async_trait;
+use elvis_core::{
+    network::{Attachment, Delivery},
+    Network,
+};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use std::{
     error::Error,

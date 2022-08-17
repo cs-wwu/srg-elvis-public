@@ -4,6 +4,7 @@ use crate::{
     internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,
+    network::Delivery,
     protocol::{Context, ProtocolId},
     session::SharedSession,
     Control, Protocol, Session,

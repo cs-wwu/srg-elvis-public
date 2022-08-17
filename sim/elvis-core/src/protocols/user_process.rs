@@ -14,7 +14,7 @@ use std::{error::Error, sync::Arc};
 /// A program being run in a [`UserProcess`].
 ///
 /// An application is similar to a stripped-down
-/// [`Session`](crate::core::Session). It runs when messages come in over the
+/// [`Session`](crate::Session). It runs when messages come in over the
 /// network or when the containing machine awakens the
 /// application to give it time to run.
 pub trait Application {

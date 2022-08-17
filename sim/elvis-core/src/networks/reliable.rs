@@ -1,4 +1,7 @@
-use crate::{network::Attachment, protocols::tap::Delivery, Network};
+use crate::{
+    network::{Attachment, Delivery},
+    Network,
+};
 use async_trait::async_trait;
 use std::{error::Error, sync::Arc};
 

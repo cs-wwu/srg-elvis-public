@@ -1,6 +1,8 @@
-use crate::applications::{Forward, UnreliableTester};
-use elvis_core::{
+use crate::{
+    applications::{Forward, UnreliableTester},
     networks::Unreliable,
+};
+use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4Address},

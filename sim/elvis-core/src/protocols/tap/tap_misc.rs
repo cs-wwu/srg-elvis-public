@@ -3,9 +3,7 @@ use crate::{
         self,
         value::{from_impls, make_key},
     },
-    machine::MachineId,
     protocol::ProtocolId,
-    Message,
 };
 use std::error::Error;
 use thiserror::Error as ThisError;
@@ -31,11 +29,4 @@ pub enum TapError {
     NoSuchProtocol(ProtocolId),
     #[error("{0}")]
     Other(#[from] Box<dyn Error>),
-}
-
-#[derive(Debug, Clone)]
-pub struct Delivery {
-    pub message: Message,
-    pub network: NetworkId,
-    pub sender: MachineId,
 }

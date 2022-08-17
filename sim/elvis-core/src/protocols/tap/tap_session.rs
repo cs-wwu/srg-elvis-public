@@ -1,11 +1,12 @@
 use super::{
-    tap_misc::{Delivery, FirstResponder, TapError},
+    tap_misc::{FirstResponder, TapError},
     NetworkId,
 };
 use crate::{
     internet::{NetworkHandle, NetworkInfo},
     machine::MachineId,
     message::Message,
+    network::Delivery,
     protocol::{Context, ProtocolId},
     Session,
 };

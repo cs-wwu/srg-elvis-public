@@ -5,9 +5,3 @@ pub type Mtu = u32;
 
 mod reliable;
 pub use reliable::Reliable;
-
-mod unreliable;
-pub use unreliable::Unreliable;
-
-mod latent;
-pub use latent::Latent;

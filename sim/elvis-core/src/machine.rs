@@ -2,7 +2,7 @@ use super::{
     internet::{NetworkHandle, NetworkInfo},
     protocol::{Context, ProtocolId, SharedProtocol},
 };
-use crate::protocols::tap::{Delivery, Tap};
+use crate::{network::Delivery, protocols::tap::Tap};
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
