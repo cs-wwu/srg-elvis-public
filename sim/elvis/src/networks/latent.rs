@@ -5,11 +5,18 @@ use elvis_core::{
 };
 use std::{error::Error, sync::Arc, time::Duration};
 
+/// A network that takes some amount of time to transfer messages through.
+///
+/// Note that this is different from low bandwidth. Messages can be sent at an
+/// arbitrarily high rate, but there is a delay before they arrive.
 pub struct Latent {
+    /// The amount of time between when a message is sent and when it is
+    /// delivered.
     latency: Duration,
 }
 
 impl Latent {
+    /// Creates a new instance of the network with the given latency.
     pub fn new(latency: Duration) -> Self {
         Self { latency }
     }
