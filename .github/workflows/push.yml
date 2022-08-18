@@ -19,12 +19,12 @@ jobs:
     - name: Run rustdoc
       run: cargo doc --target-dir target
     - name: Pushes to another repository
+      uses: nkoppel/push-files-to-another-repository@1.1.0
       env:
         GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
-      run: |
-        git config user.name "github-actions-bot"
-        git config user.email "bot@placeholder.com"
-        git add target -f 
-        git commit -m "Saving auto generated documentation"
-        git config --unset-all http.https://github.com/.extraheader
-        git push --repo=https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs --force --prune
+      with: 
+        source-files: 'sim/target/'
+        destination-username: 'cs-wwu'
+        destination-repository: 'srg-elvis-docs'
+        destination-branch: 'main'
+        commit-username: 'github actions bot'
