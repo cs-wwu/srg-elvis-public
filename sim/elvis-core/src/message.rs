@@ -123,10 +123,12 @@ impl Message {
         }
     }
 
+    /// The length of the message.
     pub fn len(&self) -> usize {
         self.end - self.start
     }
 
+    /// Whether the message contains no bytes.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
