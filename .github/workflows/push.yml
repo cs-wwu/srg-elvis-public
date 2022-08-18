@@ -16,17 +16,15 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0
-    #- name: Run rustdoc
-     # run: cargo doc --target-dir target
+    - name: Run rustdoc
+      run: cargo doc --target-dir target
     - name: Pushes to another repository
       env:
         GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
       run: |
         git config user.name "github-actions-bot"
         git config user.email "bot@placeholder.com"
-        git remote add docs-repo https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
-        git fetch origin
         git add target -f 
+        git commit -m "Saving auto generated documentation"
         git config --unset-all http.https://github.com/.extraheader
-        git push docs-repo 
-  
+        git push --repo=https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs --prune
