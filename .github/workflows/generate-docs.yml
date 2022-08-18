@@ -1,11 +1,12 @@
 name: get-docs
-on: workflow_call
+on:
+  push
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  docs:
+  push-docs:
     runs-on: ubuntu-latest
     defaults:
       run:
