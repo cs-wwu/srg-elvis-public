@@ -22,7 +22,7 @@ jobs:
       uses: nkoppel/push-files-to-another-repository@v1.1.1
 
       env:
-        GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
+        API_TOKEN_GITHUB: ${{ secrets.BOT_KEY }}
       with: 
         source-files: 'sim/target/'
         destination-username: 'cs-wwu'
