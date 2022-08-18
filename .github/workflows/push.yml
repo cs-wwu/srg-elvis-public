@@ -28,4 +28,3 @@ jobs:
         destination-username: 'cs-wwu'
         destination-repository: 'srg-elvis-docs'
         destination-branch: 'main'
-        commit-username: 'github actions bot'
