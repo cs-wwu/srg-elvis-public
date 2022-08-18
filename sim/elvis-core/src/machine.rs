@@ -1,5 +1,5 @@
 use super::{
-    internet::{NetworkHandle, NetworkInfo},
+    internet::NetworkHandle,
     protocol::{Context, ProtocolId, SharedProtocol},
 };
 use crate::{network::Delivery, protocols::tap::Tap};
@@ -55,8 +55,8 @@ impl Machine {
         (machine, sender)
     }
 
-    pub fn attach(&mut self, network_id: NetworkHandle, info: NetworkInfo) {
-        self.tap.clone().attach(network_id, info);
+    pub fn attach(&mut self, network_id: NetworkHandle, sender: Sender<Delivery>) {
+        self.tap.clone().attach(network_id, sender);
     }
 
     /// Gives the machine time to process incoming messages and

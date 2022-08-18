@@ -1,13 +1,10 @@
-use async_trait::async_trait;
 use elvis_core::{
     network::{Attachment, Delivery},
     Network,
 };
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::{self, Sender};
 
 pub struct Unreliable {
     rng: Arc<Mutex<SmallRng>>,
@@ -23,18 +20,18 @@ impl Unreliable {
     }
 }
 
-#[async_trait]
 impl Network for Unreliable {
-    async fn send(
-        self: Arc<Self>,
-        delivery: Delivery,
-        attachments: &[Attachment],
-    ) -> Result<(), Box<dyn Error>> {
-        for attachment in attachments {
-            if self.rng.lock().unwrap().gen_bool(self.success_rate) {
-                attachment.sender.send(delivery.clone()).await.unwrap();
+    fn start(self: Box<Self>, attachments: Arc<[Attachment]>) -> Sender<Delivery> {
+        let (sender, mut receiver) = mpsc::channel::<Delivery>(16);
+        tokio::spawn(async move {
+            while let Some(delivery) = receiver.recv().await {
+                for attachment in attachments.iter() {
+                    if self.rng.lock().unwrap().gen_bool(self.success_rate) {
+                        attachment.sender.send(delivery.clone()).await.unwrap();
+                    }
+                }
             }
-        }
-        Ok(())
+        });
+        sender
     }
 }

@@ -1,9 +1,9 @@
-use async_trait::async_trait;
 use elvis_core::{
     network::{Attachment, Delivery},
     Network,
 };
-use std::{error::Error, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
+use tokio::sync::mpsc::{self, Sender};
 
 pub struct Latent {
     latency: Duration,
@@ -15,18 +15,17 @@ impl Latent {
     }
 }
 
-#[async_trait]
 impl Network for Latent {
-    async fn send(
-        self: Arc<Self>,
-        delivery: Delivery,
-        attachments: &[Attachment],
-    ) -> Result<(), Box<dyn Error>> {
-        // This does not block other sends on this network, just this one
-        tokio::time::sleep(self.latency).await;
-        for attachment in attachments {
-            attachment.sender.send(delivery.clone()).await.unwrap();
-        }
-        Ok(())
+    fn start(self: Box<Self>, attachments: Arc<[Attachment]>) -> Sender<Delivery> {
+        let (sender, mut receiver) = mpsc::channel::<Delivery>(16);
+        tokio::spawn(async move {
+            while let Some(delivery) = receiver.recv().await {
+                tokio::time::sleep(self.latency).await;
+                for attachment in attachments.iter() {
+                    attachment.sender.send(delivery.clone()).await.unwrap();
+                }
+            }
+        });
+        sender
     }
 }

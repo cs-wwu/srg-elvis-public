@@ -1,11 +1,6 @@
 //! The [`Internet`] and supporting types.
 
-use super::{
-    machine::MachineId,
-    network::{Attachment, SharedNetwork},
-    protocol::SharedProtocol,
-    Machine, Network,
-};
+use super::{network::Attachment, protocol::SharedProtocol, Machine, Network};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -39,9 +34,9 @@ impl Internet {
     }
 
     /// Adds a network to the simulation and returns a handle to it.
-    pub fn network(&mut self, network: impl Network + Send + Sync + 'static) -> NetworkHandle {
+    pub fn network(&mut self, network: impl Network + 'static) -> NetworkHandle {
         let id = self.networks.len();
-        self.networks.push(NetworkInfo::new(Arc::new(network)));
+        self.networks.push(NetworkInfo::new(network));
         NetworkHandle(id.try_into().unwrap())
     }
 
@@ -69,11 +64,17 @@ impl Internet {
 
     /// Runs the simulation.
     pub async fn run(mut self) {
-        for (network_id, network) in self.networks.into_iter().enumerate() {
-            for attachment in network.clone().attachments.iter() {
+        for (network_id, network_info) in self.networks.into_iter().enumerate() {
+            let NetworkInfo {
+                network,
+                attachments,
+            } = network_info;
+            let attachments: Arc<[_]> = attachments.into();
+            let sender = network.start(attachments.clone());
+            for attachment in attachments.iter() {
                 self.machines[attachment.machine].attach(
                     NetworkHandle(network_id.try_into().unwrap()),
-                    network.without_machine(attachment.machine),
+                    sender.clone(),
                 );
             }
         }
@@ -86,31 +87,18 @@ impl Internet {
 }
 
 /// Information about a network.
-#[derive(Clone)]
-pub(crate) struct NetworkInfo {
-    pub network: SharedNetwork,
+struct NetworkInfo {
+    pub network: Box<dyn Network>,
     /// The channels to send on corresponding to each machine on the network
     pub attachments: Vec<Attachment>,
 }
 
 impl NetworkInfo {
     /// Creates a new network info with no connected machines.
-    pub fn new(network: SharedNetwork) -> Self {
+    pub fn new(network: impl Network + 'static) -> Self {
         Self {
-            network,
+            network: Box::new(network),
             attachments: vec![],
-        }
-    }
-
-    pub fn without_machine(&self, machine: MachineId) -> Self {
-        Self {
-            network: self.network.clone(),
-            attachments: self
-                .attachments
-                .iter()
-                .filter(|&attachment| attachment.machine != machine)
-                .cloned()
-                .collect(),
         }
     }
 }
