@@ -29,19 +29,20 @@ pub(crate) struct Machine {
 }
 
 impl Machine {
-    /// Creates a new machine containing the `tap` and other `protocols`.
+    /// Creates a new machine containing the given `protocols`. Returns the
+    /// machine and a channel which can be used to send messages to the machine.
     pub fn new(
         protocols: impl IntoIterator<Item = SharedProtocol>,
         id: MachineId,
     ) -> (Self, Sender<Delivery>) {
         let (tap, sender) = Tap::new(id);
         let tap = Arc::new(tap);
-        let mut map = HashMap::new();
+        let mut protocols_map = HashMap::new();
         for protocol in protocols
             .into_iter()
             .chain(iter::once(tap.clone() as SharedProtocol))
         {
-            match map.entry(protocol.clone().id()) {
+            match protocols_map.entry(protocol.clone().id()) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
                     entry.insert(protocol);
@@ -50,17 +51,18 @@ impl Machine {
         }
         let machine = Self {
             tap,
-            protocols: Arc::new(map),
+            protocols: Arc::new(protocols_map),
         };
         (machine, sender)
     }
 
+    /// Attaches the machine to the given network.
     pub fn attach(&mut self, network_id: NetworkHandle, info: NetworkInfo) {
         self.tap.clone().attach(network_id, info);
     }
 
-    /// Gives the machine time to process incoming messages and
-    /// [`awake`](super::Protocol::awake) its protocols.
+    /// Tells the machine time to [`start()`](super::Protocol::start) its
+    /// protocols and begin participating in the simulation.
     pub fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
         let protocol_context = Context::new(self.protocols.clone());
         for protocol in self.protocols.values() {
@@ -75,6 +77,7 @@ impl Machine {
         }
     }
 
+    /// The number of protocols in the machine.
     pub fn protocol_count(&self) -> usize {
         self.protocols.len()
     }
