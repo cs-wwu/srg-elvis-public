@@ -33,7 +33,9 @@ use tap_session::TapSession;
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
 pub(crate) struct Tap {
+    /// The channel on which to receive messages sent to this machine.
     receiver: Arc<Mutex<Option<Receiver<Delivery>>>>,
+    /// The session used for sending messages from this machine.
     session: Arc<TapSession>,
 }
 
@@ -51,6 +53,7 @@ impl Tap {
         (tap, sender)
     }
 
+    /// Attach this machine to the given network.
     pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: NetworkInfo) {
         self.session.clone().attach(network_id, network_info);
     }
@@ -99,9 +102,12 @@ impl Protocol for Tap {
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
+        // Move the channel into the task. It cannot not be accessed from
+        // `self` after this point.
         let mut receiver = self.receiver.lock().unwrap().take().unwrap();
         tokio::spawn(async move {
             initialized.wait().await;
+            // Repeatedly receive messages and pass them up the stack
             while let Some(delivery) = receiver.recv().await {
                 match self
                     .session
