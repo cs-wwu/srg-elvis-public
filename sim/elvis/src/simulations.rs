@@ -1,3 +1,5 @@
+//! Various prebuilt simulation setups for testing, benchmarking, and examples.
+
 mod basic;
 pub use basic::basic;
 
