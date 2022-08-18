@@ -1,6 +1,5 @@
 name: push-to-docs-repo
-on:
-  push
+on: workflow_call
 
 env:
   CARGO_TERM_COLOR: always
