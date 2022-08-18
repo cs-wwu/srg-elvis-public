@@ -13,7 +13,10 @@ use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
-use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::{
+    mpsc::{self, Receiver, Sender},
+    Barrier,
+};
 
 mod tap_misc;
 pub use tap_misc::*;
@@ -94,10 +97,12 @@ impl Protocol for Tap {
         self: Arc<Self>,
         context: Context,
         _shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
         self.session.clone().start(context.clone())?;
         let mut receiver = self.receiver.lock().unwrap().take().unwrap();
         tokio::spawn(async move {
+            initialized.wait().await;
             while let Some(delivery) = receiver.recv().await {
                 match self
                     .session
