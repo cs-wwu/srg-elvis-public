@@ -48,6 +48,6 @@ pub async fn unreliable() {
     // We use a consistent random seed in Unreliable to decide whether a message
     // makes it. 23 happens to be the number that make it there and back with a
     // delivery probability of 50%.
-    assert!(tester.application().receipt_count() > 20);
-    assert!(tester.application().receipt_count() < 25);
+    const EXPECTED_RECEIPTS: u16 = 23;
+    assert_eq!(tester.application().receipt_count(), EXPECTED_RECEIPTS);
 }

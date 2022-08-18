@@ -28,7 +28,10 @@ impl Network for Latent {
         tokio::spawn(async move {
             while let Some(delivery) = receiver.recv().await {
                 tokio::time::sleep(self.latency).await;
-                for attachment in attachments.iter() {
+                for attachment in attachments
+                    .iter()
+                    .filter(|attachment| attachment.machine != delivery.sender)
+                {
                     attachment.sender.send(delivery.clone()).await.unwrap();
                 }
             }
