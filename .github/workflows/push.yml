@@ -19,7 +19,8 @@ jobs:
     - name: Run rustdoc
       run: cargo doc --target-dir target
     - name: Pushes to another repository
-      uses: nkoppel/push-files-to-another-repository@1.1.1
+      uses: nkoppel/push-files-to-another-repository@v1.1.1
+
       env:
         GITHUB_TOKEN: ${{ secrets.BOT_KEY }}
       with: 
