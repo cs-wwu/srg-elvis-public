@@ -2,7 +2,7 @@
 
 use super::{control::value::make_key, message::Message, session::SharedSession, Control};
 use std::{error::Error, sync::Arc};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, Barrier};
 
 mod context;
 pub use context::Context;
@@ -125,9 +125,8 @@ pub trait Protocol {
 
     fn start(
         self: Arc<Self>,
-        _context: Context,
-        _shutdown: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
+        context: Context,
+        shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
+    ) -> Result<(), Box<dyn Error>>;
 }

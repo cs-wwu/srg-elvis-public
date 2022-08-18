@@ -8,7 +8,7 @@ use std::{
     iter,
     sync::Arc,
 };
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An identifier for a particular [`Machine`] in the simulation.
 pub(crate) type MachineId = usize;
@@ -61,13 +61,21 @@ impl Machine {
 
     /// Gives the machine time to process incoming messages and
     /// [`awake`](super::Protocol::awake) its protocols.
-    pub fn start(self, shutdown: Sender<()>) {
+    pub fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
         let protocol_context = Context::new(self.protocols.clone());
         for protocol in self.protocols.values() {
             protocol
                 .clone()
-                .start(protocol_context.clone(), shutdown.clone())
+                .start(
+                    protocol_context.clone(),
+                    shutdown.clone(),
+                    initialized.clone(),
+                )
                 .unwrap()
         }
+    }
+
+    pub fn protocol_count(&self) -> usize {
+        self.protocols.len()
     }
 }

@@ -13,7 +13,7 @@ use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
@@ -58,6 +58,7 @@ impl Application for Capture {
         self: Arc<Self>,
         context: Context,
         shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
         let mut participants = Control::new();
@@ -67,6 +68,9 @@ impl Application for Capture {
             .protocol(Udp::ID)
             .expect("No such protocol")
             .listen(Self::ID, participants, context)?;
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
         Ok(())
     }
 

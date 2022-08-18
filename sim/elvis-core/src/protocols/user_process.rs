@@ -1,8 +1,6 @@
 //! Utilities for running user-level programs in the context of a
 //! protocol-oriented simulation.
 
-use tokio::sync::mpsc::Sender;
-
 use crate::{
     message::Message,
     protocol::{Context, ProtocolId},
@@ -10,6 +8,7 @@ use crate::{
     Control, Protocol,
 };
 use std::{error::Error, sync::Arc};
+use tokio::sync::{mpsc::Sender, Barrier};
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -23,8 +22,12 @@ pub trait Application {
 
     /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
     /// is not called in response to specific events.
-    fn start(self: Arc<Self>, context: Context, shutdown: Sender<()>)
-        -> Result<(), Box<dyn Error>>;
+    fn start(
+        self: Arc<Self>,
+        context: Context,
+        shutdown: Sender<()>,
+        initialize: Arc<Barrier>,
+    ) -> Result<(), Box<dyn Error>>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
@@ -105,9 +108,10 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         self: Arc<Self>,
         context: Context,
         shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
         let application = self.application.clone();
-        match application.start(context, shutdown) {
+        match application.start(context, shutdown, initialized) {
             Ok(_) => {}
             Err(e) => eprintln!("{}", e),
         }

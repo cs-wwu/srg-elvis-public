@@ -9,7 +9,7 @@ use elvis_core::{
     Control,
 };
 use std::{error::Error, sync::Arc};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that sends a single message over the network.
 pub struct SendMessage {
@@ -48,6 +48,7 @@ impl Application for SendMessage {
         self: Arc<Self>,
         context: Context,
         _shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
@@ -56,7 +57,13 @@ impl Application for SendMessage {
         RemotePort::set(&mut participants, self.port);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, context.clone())?;
-        session.send(Message::new(self.text), context)?;
+        tokio::spawn(async move {
+            initialized.wait().await;
+            match session.send(Message::new(self.text), context) {
+                Ok(_) => {}
+                Err(e) => eprintln!("{}", e),
+            }
+        });
         Ok(())
     }
 

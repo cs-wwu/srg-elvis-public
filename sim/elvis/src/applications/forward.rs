@@ -13,7 +13,7 @@ use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]
@@ -65,6 +65,7 @@ impl Application for Forward {
         self: Arc<Self>,
         context: Context,
         _shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, self.local_ip);
@@ -79,6 +80,9 @@ impl Application for Forward {
             context.clone(),
         )?);
         udp.listen(Self::ID, participants, context)?;
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
         Ok(())
     }
 

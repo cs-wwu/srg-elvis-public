@@ -7,7 +7,7 @@ use super::{
     Machine, Network,
 };
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Barrier};
 
 /// A unique identifier for a network on an [`Internet`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -30,6 +30,7 @@ impl NetworkHandle {
 pub struct Internet {
     machines: Vec<Machine>,
     networks: Vec<NetworkInfo>,
+    protocol_count: usize,
 }
 
 impl Internet {
@@ -54,6 +55,7 @@ impl Internet {
     ) {
         let machine_id = self.machines.len();
         let (machine, sender) = Machine::new(protocols, machine_id);
+        self.protocol_count += machine.protocol_count();
         for network_id in networks.into_iter() {
             let network = self
                 .networks
@@ -78,8 +80,9 @@ impl Internet {
             }
         }
         let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
+        let initialized = Arc::new(Barrier::new(self.protocol_count));
         for machine in self.machines {
-            machine.start(shutdown_sender.clone());
+            machine.start(shutdown_sender.clone(), initialized.clone());
         }
         shutdown_receiver.recv().await.unwrap();
     }

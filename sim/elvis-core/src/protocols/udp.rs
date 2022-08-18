@@ -10,6 +10,7 @@ use crate::{
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
+use tokio::sync::{mpsc::Sender, Barrier};
 
 mod udp_misc;
 use udp_misc::UdpError;
@@ -148,6 +149,18 @@ impl Protocol for Udp {
             }
         };
         session.receive(message, context)?;
+        Ok(())
+    }
+
+    fn start(
+        self: Arc<Self>,
+        _context: Context,
+        _shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
+    ) -> Result<(), Box<dyn Error>> {
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
         Ok(())
     }
 }

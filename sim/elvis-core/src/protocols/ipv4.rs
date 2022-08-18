@@ -24,6 +24,7 @@ pub use ipv4_misc::{LocalAddress, RemoteAddress};
 
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
+use tokio::sync::{mpsc::Sender, Barrier};
 
 use super::tap::NetworkId;
 
@@ -141,6 +142,18 @@ impl Protocol for Ipv4 {
             },
         };
         session.receive(message, context)?;
+        Ok(())
+    }
+
+    fn start(
+        self: Arc<Self>,
+        _context: Context,
+        _shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
+    ) -> Result<(), Box<dyn Error>> {
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
         Ok(())
     }
 }

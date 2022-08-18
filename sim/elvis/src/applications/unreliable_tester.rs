@@ -13,7 +13,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, Barrier};
 
 pub struct UnreliableTester {
     shutdown: Arc<Mutex<Option<Sender<()>>>>,
@@ -52,6 +52,7 @@ impl Application for UnreliableTester {
         self: Arc<Self>,
         context: Context,
         shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
         *self.last_receipt.lock().unwrap() = SystemTime::now();
@@ -64,23 +65,30 @@ impl Application for UnreliableTester {
         udp.clone()
             .listen(Self::ID, participants.clone(), context.clone())?;
         let send_session = udp.clone().open(Self::ID, participants, context.clone())?;
-        for i in 0..100u32 {
-            send_session
-                .clone()
-                .send(Message::new(&i.to_be_bytes()), context.clone())?;
-        }
         tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_millis(50)).await;
-                let now = SystemTime::now();
-                let then = *self.last_receipt.lock().unwrap();
-                let duration = now.duration_since(then).unwrap();
-                if duration > Duration::from_millis(125) {
-                    tokio::spawn(async move {
-                        let shutdown = self.shutdown.lock().unwrap().as_ref().unwrap().clone();
-                        shutdown.send(()).await.unwrap()
-                    });
-                    break;
+            initialized.wait().await;
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                    let now = SystemTime::now();
+                    let then = *self.last_receipt.lock().unwrap();
+                    let duration = now.duration_since(then).unwrap();
+                    if duration > Duration::from_millis(25) {
+                        tokio::spawn(async move {
+                            let shutdown = self.shutdown.lock().unwrap().as_ref().unwrap().clone();
+                            shutdown.send(()).await.unwrap()
+                        });
+                        break;
+                    }
+                }
+            });
+            for i in 0..100u32 {
+                match send_session
+                    .clone()
+                    .send(Message::new(&i.to_be_bytes()), context.clone())
+                {
+                    Ok(_) => {}
+                    Err(e) => eprintln!("{}", e),
                 }
             }
         });
