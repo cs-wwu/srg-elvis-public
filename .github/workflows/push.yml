@@ -27,4 +27,4 @@ jobs:
         git add target -f 
         git commit -m "Saving auto generated documentation"
         git config --unset-all http.https://github.com/.extraheader
-        git push --repo=https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs --prune
+        git push --repo=https://user:$GITHUB_TOKEN@github.com/cs-wwu/srg-elvis-docs
