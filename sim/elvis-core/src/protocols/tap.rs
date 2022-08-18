@@ -7,7 +7,7 @@ use crate::{
     network::Delivery,
     protocol::{Context, ProtocolId},
     session::SharedSession,
-    Control, Protocol, Session,
+    Control, Protocol,
 };
 use std::{
     error::Error,
@@ -99,7 +99,6 @@ impl Protocol for Tap {
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
-        self.session.clone().start(context.clone())?;
         let mut receiver = self.receiver.lock().unwrap().take().unwrap();
         tokio::spawn(async move {
             initialized.wait().await;

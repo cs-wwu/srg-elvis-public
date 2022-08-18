@@ -95,10 +95,6 @@ impl Session for TapSession {
     ) -> Result<(), Box<dyn Error>> {
         panic!("Use Tap::receive_delivery() instead");
     }
-
-    fn start(self: Arc<Self>, _context: Context) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
 }
 
 fn take_header(message: &Message) -> Option<ProtocolId> {

@@ -22,6 +22,4 @@ pub trait Session {
     /// Takes an incoming message and decides which protocol to send it to for
     /// further processing.
     fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
-
-    fn start(self: Arc<Self>, context: Context) -> Result<(), Box<dyn Error>>;
 }

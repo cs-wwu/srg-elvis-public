@@ -69,10 +69,6 @@ impl Session for Ipv4Session {
             .demux(message, self, context)?;
         Ok(())
     }
-
-    fn start(self: Arc<Self>, _context: Context) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
