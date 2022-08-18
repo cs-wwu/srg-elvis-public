@@ -13,10 +13,6 @@ use slice_range::SliceRange;
 mod message_bytes;
 pub use message_bytes::MessageBytes;
 
-// TODO(hardint): Add support for appending messages
-// TODO(hardint): Add support for incorrectly transmitted bytes
-// TODO(hardint): Store length on the message
-
 /// A byte collection with efficient operations for implementing protocols.
 ///
 /// When writing a networking protocol, it is standard to append headers, remove
@@ -103,6 +99,10 @@ impl Message {
         if let Some(len) = len {
             self.end = self.start + len;
         }
+
+        // We may have sliced far enough into the message that headers toward
+        // the front are unreachable. While this is the case, continually remove
+        // leading headers.
         loop {
             let (chunk, rest) = match self.stack.as_ref() {
                 WrappedMessage::Header(chunk, rest) => (chunk, rest),
