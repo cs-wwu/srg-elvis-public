@@ -28,8 +28,11 @@ impl NetworkHandle {
 /// The top-level container that controls the simulation.
 #[derive(Default)]
 pub struct Internet {
+    /// The machines attached to the internet
     machines: Vec<Machine>,
+    /// The networks participating in the internet
     networks: Vec<NetworkInfo>,
+    /// The total number of protocols in all the machines on the internet
     protocol_count: usize,
 }
 
