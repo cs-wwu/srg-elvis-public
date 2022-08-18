@@ -25,7 +25,10 @@ impl Network for Unreliable {
         let (sender, mut receiver) = mpsc::channel::<Delivery>(16);
         tokio::spawn(async move {
             while let Some(delivery) = receiver.recv().await {
-                for attachment in attachments.iter() {
+                for attachment in attachments
+                    .iter()
+                    .filter(|attachment| attachment.machine != delivery.sender)
+                {
                     if self.rng.lock().unwrap().gen_bool(self.success_rate) {
                         attachment.sender.send(delivery.clone()).await.unwrap();
                     }
