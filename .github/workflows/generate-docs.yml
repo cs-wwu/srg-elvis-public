@@ -1,11 +1,10 @@
-name: push-to-docs-repo
 on: workflow_call
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  push-docs:
+  docs:
     runs-on: ubuntu-latest
     defaults:
       run:
