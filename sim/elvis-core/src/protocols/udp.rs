@@ -19,9 +19,8 @@ pub use udp_misc::{LocalPort, RemotePort};
 mod udp_session;
 use udp_session::{SessionId, UdpSession};
 
-use self::udp_parsing::UdpHeader;
-
 mod udp_parsing;
+use self::udp_parsing::UdpHeader;
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
@@ -165,8 +164,11 @@ impl Protocol for Udp {
     }
 }
 
+/// An identifier for listen bindings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ListenId {
+    /// The address being listened on
     address: LocalAddress,
+    /// The port being listened on
     port: LocalPort,
 }
