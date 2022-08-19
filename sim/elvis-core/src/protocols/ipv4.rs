@@ -71,12 +71,14 @@ impl Protocol for Ipv4 {
         participants: Control,
         context: Context,
     ) -> Result<SharedSession, Box<dyn Error>> {
+        // Extract identifying information from the participants list
         let local = LocalAddress::try_from(&participants).unwrap();
         let remote = RemoteAddress::try_from(&participants).unwrap();
         let key = SessionId { local, remote };
         match self.sessions.entry(key) {
             Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
             Entry::Vacant(entry) => {
+                // If the session does not exist, create it
                 let network_id = { *self.ip_to_network.get(&remote.into_inner()).unwrap() };
                 let tap_session = context.protocol(Tap::ID).expect("No such protocol").open(
                     Self::ID,
@@ -122,17 +124,21 @@ impl Protocol for Ipv4 {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
+        // Extract identifying information from the header and the context and
+        // add header information to the context
         let header = Ipv4Header::from_bytes(message.iter())?;
+        message.slice(header.ihl as usize * 4..);
         let remote = RemoteAddress::from(header.source);
         let local = LocalAddress::from(header.destination);
         let identifier = SessionId { local, remote };
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
-        message.slice(header.ihl as usize * 4..);
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => match self.listen_bindings.get(&local) {
                 Some(binding) => {
+                    // If the session does not exist but we have a listen
+                    // binding for it, create the session
                     let network = NetworkId::try_from(&context.info)?;
                     let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
                     entry.insert(session.clone());

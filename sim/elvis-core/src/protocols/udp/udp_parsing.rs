@@ -1,20 +1,28 @@
 use super::udp_misc::UdpError;
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 
+/// The number of bytes in a UDP header
 const HEADER_OCTETS: u16 = 8;
 
+/// Represents a UDP header, either one that was parsed or one we are going to
+/// serialize
 pub(super) struct UdpHeader {
+    /// The source port
     pub source: u16,
+    /// The destination port
     pub destination: u16,
     // TODO(hardint): Consider removing unused header parts. For now, it's nice having
     // these available for the tests.
+    /// The length of the UDP packet in bytes, including the header
     #[allow(dead_code)]
     pub length: u16,
+    /// The UDP checksum
     #[allow(dead_code)]
     pub checksum: u16,
 }
 
 impl UdpHeader {
+    /// Parses a UDP header from an iterator of bytes
     pub fn from_bytes_ipv4(
         mut bytes: impl Iterator<Item = u8>,
         source_address: Ipv4Address,
@@ -67,6 +75,7 @@ impl UdpHeader {
     }
 }
 
+/// Creates a serialized UDP packet header with the values provided
 pub(super) fn build_udp_header(
     source_address: Ipv4Address,
     source_port: u16,
@@ -99,6 +108,9 @@ pub(super) fn build_udp_header(
     Ok(out)
 }
 
+/// Gets the next two bytes at a `u16` from a byte iterator. If the `payload`
+/// contains an odd number of bytes, the last `u8` will be appended with the
+/// value zero.
 fn next_padded(payload: &mut impl Iterator<Item = u8>, checksum: &mut Checksum) -> u16 {
     let mut length = 0;
     while let Some(first) = payload.next() {

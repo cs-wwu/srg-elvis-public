@@ -1,5 +1,4 @@
-//! Basic user-level applications for utilities, logging, debugging, and other
-//! general purposes.
+//! User-level applications used to test protocols and networks.
 
 mod capture;
 pub use capture::Capture;

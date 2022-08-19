@@ -14,14 +14,20 @@ use crate::{
 };
 use std::{error::Error, sync::Arc};
 
+/// The session type for [`Ipv4`].
 pub struct Ipv4Session {
+    /// The protocol that we demux incoming messages to
     upstream: ProtocolId,
+    /// The session we mux outgoing messages to
     downstream: SharedSession,
+    /// The identifying information for this session
     identifier: SessionId,
+    /// The ID of the network to send on
     network_id: NetworkId,
 }
 
 impl Ipv4Session {
+    /// Creates a new IPv4 session
     pub(super) fn new(
         downstream: SharedSession,
         upstream: ProtocolId,
@@ -69,14 +75,13 @@ impl Session for Ipv4Session {
             .demux(message, self, context)?;
         Ok(())
     }
-
-    fn start(self: Arc<Self>, _context: Context) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
 }
 
+/// A set that uniquely identifies a given session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
+    /// The local address
     pub local: LocalAddress,
+    /// The remote address
     pub remote: RemoteAddress,
 }

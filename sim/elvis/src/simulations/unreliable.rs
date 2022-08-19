@@ -11,6 +11,11 @@ use elvis_core::{
     Internet,
 };
 
+/// Tests the [`Unreliable`] network type.
+///
+/// Two machines are attached to a network. The first sends 100 messages to the
+/// other. The second echos back any messages it receives. When all the messages
+/// have been delivered or dropped, the simulation ends.
 pub async fn unreliable() {
     let mut internet = Internet::new();
     let network = internet.network(Unreliable::new(0.5));

@@ -12,6 +12,11 @@ use elvis_core::{
 };
 use std::time::Duration;
 
+/// Runs a basic simulation using a network with latency.
+///
+/// This simulation is identical to [`basic`](super::basic()) except that it uses
+/// a [`Latent`] network instead of a
+/// [`Reliable`](elvis_core::networks::Reliable) one.
 pub async fn latent() {
     let mut internet = Internet::new();
     let network = internet.network(Latent::new(Duration::from_millis(250)));

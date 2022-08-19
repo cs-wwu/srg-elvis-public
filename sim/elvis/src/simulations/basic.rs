@@ -1,9 +1,3 @@
-//! Simulation specific functionality for Elvis.
-//!
-//! This module currently defines
-//! the default simulation, which creates a UDP sender and a UDP receiver. The
-//! sender sends one string to the receiver, and the contents are checked.
-
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,

@@ -10,6 +10,11 @@ use elvis_core::{
     Internet, Message,
 };
 
+/// Simulates a message being forwarded along across many networks.
+///
+/// A message is sent from one machine to another, each time being delivered
+/// across a different network. When the message reaches its destination, the
+/// simulation ends.
 pub async fn telephone_multi() {
     let mut internet = Internet::new();
     let end = 1000;

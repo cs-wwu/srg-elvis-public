@@ -5,29 +5,45 @@ use crate::protocols::utility::Checksum;
 // stuff is public and not all of it is being used internally, but we want to
 // have the APIs built out for future use.
 
+/// The number of `u32` words in a basic IPv4 header
 const BASE_WORDS: u8 = 5;
+/// The number of `u8` bytes in a basic IPv4 header
 const BASE_OCTETS: u16 = BASE_WORDS as u16 * 4;
+/// This is bitwise anded with the `u16` containing flags and fragment offset to
+/// extract the fragment offset part.
 const FRAGMENT_OFFSET_MASK: u16 = 0x1fff;
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct Ipv4Header {
+    /// Internet Header Length, the number of `u32` words in the IPv4 header
     pub ihl: u8,
+    /// The quality of service desired
     pub type_of_service: TypeOfService,
+    /// The length of the datagram in bytes
     pub total_length: u16,
+    /// Assigned by the sender to aid in assembling fragments
     pub identification: u16,
+    /// Where in the datagram this fragment belongs
     pub fragment_offset: u16,
+    /// Flags describing fragmentation properties
     pub flags: ControlFlags,
+    /// The number of remaining hops this datagram can take before being removed
     pub time_to_live: u8,
+    /// Indicates the next level protocol in the data portion of the datagram
     pub protocol: u8,
     // TODO(hardint): This isn't needed after parsing in main line code, but it is nice
     // for testing and for completeness. Consider whether it is worth removing.
+    /// The IPv4 header checksum
     pub checksum: u16,
+    /// The source address
     pub source: Ipv4Address,
+    /// The destination address
     pub destination: Ipv4Address,
 }
 
 impl Ipv4Header {
+    /// Parses a header from a byte iterator.
     pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, Ipv4Error> {
         let mut next =
             || -> Result<u8, Ipv4Error> { bytes.next().ok_or(Ipv4Error::HeaderTooShort) };
@@ -103,6 +119,7 @@ impl Ipv4Header {
     }
 }
 
+/// A builder for IPv4 headers. The fields align with those found on [`Ipv4Header`].
 pub(super) struct Ipv4HeaderBuilder {
     type_of_service: TypeOfService,
     payload_length: u16,
@@ -116,6 +133,7 @@ pub(super) struct Ipv4HeaderBuilder {
 }
 
 impl Ipv4HeaderBuilder {
+    /// Creates a new builder.
     pub fn new(
         source: Ipv4Address,
         destination: Ipv4Address,
@@ -135,30 +153,37 @@ impl Ipv4HeaderBuilder {
         }
     }
 
+    /// Sets the type of service
     #[allow(dead_code)]
     pub fn type_of_service(mut self, type_of_service: TypeOfService) -> Self {
         self.type_of_service = type_of_service;
         self
     }
 
+    /// Sets the identification field
     #[allow(dead_code)]
     pub fn identification(mut self, identification: u16) -> Self {
         self.identification = identification;
         self
     }
 
+    /// Sets the fragment offset field
     #[allow(dead_code)]
     pub fn fragment_offset(mut self, fragment_offset: u16) -> Self {
+        // TODO(hardint): Check that `fragment_offset` fits within the fragment
+        // offset mask
         self.fragment_offset = fragment_offset;
         self
     }
 
+    /// Sets the control flags
     #[allow(dead_code)]
     pub fn flags(mut self, flags: ControlFlags) -> Self {
         self.flags = flags;
         self
     }
 
+    /// Creates a serialized header from the configuration provided
     pub fn build(self) -> Result<Vec<u8>, Ipv4Error> {
         let mut checksum = Checksum::new();
 

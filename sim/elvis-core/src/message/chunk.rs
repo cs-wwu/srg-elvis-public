@@ -22,10 +22,12 @@ impl Chunk {
         self.0.as_slice()
     }
 
+    /// The number of bytes in the chunk.
     pub fn len(&self) -> usize {
         self.as_slice().len()
     }
 
+    /// Whether the chunk contains no bytes.
     pub fn is_empty(&self) -> bool {
         self.as_slice().is_empty()
     }

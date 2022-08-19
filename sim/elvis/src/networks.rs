@@ -1,3 +1,5 @@
+//! Various types of networks.
+
 mod unreliable;
 pub use unreliable::Unreliable;
 

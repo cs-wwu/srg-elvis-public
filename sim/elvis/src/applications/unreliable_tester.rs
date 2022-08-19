@@ -15,21 +15,34 @@ use std::{
 };
 use tokio::sync::{mpsc::Sender, Barrier};
 
+/// An application used for testing the
+/// [`Unreliable`](crate::networks::Unreliable) network type.
+///
+/// It sends 100 messages to another machine and counts how many responses it
+/// receives in return. The other machine will be running a
+/// [`Forward`](super::Forward) program that just sends back any messages sent
+/// to it.
 pub struct UnreliableTester {
+    /// The channel for ending the simulation
     shutdown: Arc<Mutex<Option<Sender<()>>>>,
+    /// The time the most recent message was received
     last_receipt: Arc<Mutex<SystemTime>>,
+    /// How many messages have been received
     receipt_count: Arc<Mutex<u16>>,
 }
 
 impl UnreliableTester {
+    /// Creates a new instance of the application
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Creates a new shared handle to an instance of the application.
     pub fn new_shared() -> Arc<UserProcess<Self>> {
         UserProcess::new_shared(Self::new())
     }
 
+    /// How many messages were received back in response.
     pub fn receipt_count(self: Arc<Self>) -> u16 {
         *self.receipt_count.lock().unwrap()
     }
@@ -54,6 +67,7 @@ impl Application for UnreliableTester {
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
+        // Synchronous initialization
         *self.shutdown.lock().unwrap() = Some(shutdown);
         *self.last_receipt.lock().unwrap() = SystemTime::now();
         let mut participants = Control::new();
@@ -65,9 +79,15 @@ impl Application for UnreliableTester {
         udp.clone()
             .listen(Self::ID, participants.clone(), context.clone())?;
         let send_session = udp.clone().open(Self::ID, participants, context.clone())?;
+
         tokio::spawn(async move {
             initialized.wait().await;
             tokio::spawn(async move {
+                // Repeatedly wait for five milliseconds until the most recently
+                // received message came in at least twenty-five milliseconds
+                // ago. When we haven't seen a message for a while, it indicates
+                // that all messages have either been delivered or been lost in
+                // transit and it's time to shut things down.
                 loop {
                     tokio::time::sleep(Duration::from_millis(5)).await;
                     let now = SystemTime::now();
@@ -82,6 +102,8 @@ impl Application for UnreliableTester {
                     }
                 }
             });
+
+            // Send 100 messages to our peer
             for i in 0..100u32 {
                 match send_session
                     .clone()
