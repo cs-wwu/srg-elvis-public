@@ -13,8 +13,10 @@ use crate::{
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
 
+/// The session type for a [`Tap`](super::Tap).
 #[derive(Clone)]
 pub(crate) struct TapSession {
+    /// The identifier for the machine this tap serves
     machine_id: MachineId,
     /// For now, we're just ignoring non-broadcast delivery options. If a
     /// message goes to a network, just send it to every machine on the network.
@@ -24,6 +26,7 @@ pub(crate) struct TapSession {
 }
 
 impl TapSession {
+    /// Creates a new Tap session
     pub(super) fn new(machine_id: MachineId) -> Self {
         Self {
             machine_id,
@@ -31,6 +34,7 @@ impl TapSession {
         }
     }
 
+    /// Attaches this Tap to the given network
     pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: NetworkInfo) {
         match self.networks.entry(network_id) {
             Entry::Occupied(_) => {
@@ -42,6 +46,8 @@ impl TapSession {
         }
     }
 
+    /// Receives a delivery from the network and passes it up the protocol
+    /// stack.
     pub(super) fn receive_delivery(
         self: Arc<Self>,
         mut delivery: Delivery,
@@ -97,6 +103,8 @@ impl Session for TapSession {
     }
 }
 
+/// Parses the Tap header from the message, which is just the ID of the protocol
+/// that should receive this message.
 fn take_header(message: &Message) -> Option<ProtocolId> {
     let mut iter = message.iter();
     Some(

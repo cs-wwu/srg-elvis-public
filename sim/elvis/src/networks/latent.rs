@@ -32,7 +32,13 @@ impl Network for Latent {
         // This does not block other sends on this network, just this one
         tokio::time::sleep(self.latency).await;
         for attachment in attachments {
-            attachment.sender.send(delivery.clone()).await.unwrap();
+            // We don't want to unwrap the send. It might be that the channel
+            // was closed as part of a graceful shutdown, which we should not
+            // crash in response to.
+            match attachment.sender.send(delivery.clone()).await {
+                Ok(_) => {}
+                Err(e) => eprintln!("{}", e),
+            }
         }
         Ok(())
     }

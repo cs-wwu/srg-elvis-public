@@ -38,7 +38,13 @@ impl Network for Unreliable {
     ) -> Result<(), Box<dyn Error>> {
         for attachment in attachments {
             if self.rng.lock().unwrap().gen_bool(self.success_rate) {
-                attachment.sender.send(delivery.clone()).await.unwrap();
+                // We don't want to unwrap here if a send fails. It might be
+                // that the simulation is shutting down and the receiver has
+                // closed the channel, which we should handle gracefully.
+                match attachment.sender.send(delivery.clone()).await {
+                    Ok(_) => {}
+                    Err(e) => eprintln!("{}", e),
+                }
             }
         }
         Ok(())

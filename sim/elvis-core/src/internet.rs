@@ -87,7 +87,9 @@ impl Internet {
         for machine in self.machines {
             machine.start(shutdown_sender.clone(), initialized.clone());
         }
-        shutdown_receiver.recv().await.unwrap();
+        // TODO(hardint): We need to tell all tasks to shut down and wait for
+        // them here before proceeding.
+        let _ = shutdown_receiver.recv().await.unwrap();
     }
 }
 
