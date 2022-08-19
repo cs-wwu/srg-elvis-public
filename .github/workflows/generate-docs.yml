@@ -1,0 +1,35 @@
+name: get-docs
+# program runs every time there is a push to the repository
+on:
+  push
+
+jobs:
+  get-docs:
+    runs-on: ubuntu-latest
+    # set the default working directory to sim so it can find the Cargo.toml file
+    defaults:
+      run:
+        working-directory: ./sim
+        
+    steps:
+    - uses: actions/checkout@v3
+    - name: Update local toolchain
+      run: |
+        rustup update
+        rustc --version
+    # run rustdoc and put the output in the target directory
+    - name: Run rustdoc
+      run: cargo doc --target-dir target
+    # use action from marketplace to save the auto generated documentation to the
+    # cs-wwu/srg-elvis-docs repository
+    - name: Save auto generated documentation
+      uses: nkoppel/push-files-to-another-repository@v1.1.0
+      # Provides access token
+      env:
+        API_TOKEN_GITHUB: ${{ secrets.BOT_KEY }}
+      with: 
+        source-files: 'sim/target/doc'
+        destination-username: 'cs-wwu'
+        destination-repository: 'srg-elvis-docs'
+        destination-branch: 'main'
+        commit-message: 'Auto saving documentation'
