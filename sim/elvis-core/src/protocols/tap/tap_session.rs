@@ -3,7 +3,7 @@ use super::{
     NetworkId,
 };
 use crate::{
-    internet::{NetworkHandle, NetworkInfo},
+    internet::NetworkHandle,
     machine::MachineId,
     message::Message,
     network::Delivery,
@@ -12,6 +12,7 @@ use crate::{
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
+use tokio::sync::mpsc::Sender;
 
 /// The session type for a [`Tap`](super::Tap).
 #[derive(Clone)]
@@ -22,7 +23,7 @@ pub(crate) struct TapSession {
     /// message goes to a network, just send it to every machine on the network.
     /// It's inefficient, but we'll improve it when DHCP or something of the
     /// sort is incorporated.
-    networks: DashMap<NetworkHandle, NetworkInfo>,
+    networks: DashMap<NetworkHandle, Sender<Delivery>>,
 }
 
 impl TapSession {
@@ -35,13 +36,13 @@ impl TapSession {
     }
 
     /// Attaches this Tap to the given network
-    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: NetworkInfo) {
+    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, sender: Sender<Delivery>) {
         match self.networks.entry(network_id) {
             Entry::Occupied(_) => {
                 panic!("Tried to attach same network twice");
             }
             Entry::Vacant(entry) => {
-                entry.insert(network_info);
+                entry.insert(sender);
             }
         }
     }
@@ -79,17 +80,12 @@ impl Session for TapSession {
             network: network_id,
         };
         tokio::spawn(async move {
-            let network_info = self
+            let sender = self
                 .networks
                 .get(&NetworkHandle::new(network_id.into_inner()))
                 .unwrap()
                 .clone();
-            network_info
-                .network
-                .clone()
-                .send(delivery, network_info.attachments.as_slice())
-                .await
-                .unwrap()
+            sender.send(delivery).await.unwrap()
         });
         Ok(())
     }

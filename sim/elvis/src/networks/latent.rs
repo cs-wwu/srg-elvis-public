@@ -1,9 +1,9 @@
-use async_trait::async_trait;
 use elvis_core::{
     network::{Attachment, Delivery},
     Network,
 };
-use std::{error::Error, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
+use tokio::sync::mpsc::{self, Sender};
 
 /// A network that takes some amount of time to transfer messages through.
 ///
@@ -22,24 +22,17 @@ impl Latent {
     }
 }
 
-#[async_trait]
 impl Network for Latent {
-    async fn send(
-        self: Arc<Self>,
-        delivery: Delivery,
-        attachments: &[Attachment],
-    ) -> Result<(), Box<dyn Error>> {
-        // This does not block other sends on this network, just this one
-        tokio::time::sleep(self.latency).await;
-        for attachment in attachments {
-            // We don't want to unwrap the send. It might be that the channel
-            // was closed as part of a graceful shutdown, which we should not
-            // crash in response to.
-            match attachment.sender.send(delivery.clone()).await {
-                Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
+    fn start(self: Box<Self>, attachments: Arc<[Attachment]>) -> Sender<Delivery> {
+        let (sender, mut receiver) = mpsc::channel::<Delivery>(16);
+        tokio::spawn(async move {
+            while let Some(delivery) = receiver.recv().await {
+                tokio::time::sleep(self.latency).await;
+                for attachment in attachments.iter() {
+                    attachment.sender.send(delivery.clone()).await.unwrap();
+                }
             }
-        }
-        Ok(())
+        });
+        sender
     }
 }

@@ -1,11 +1,10 @@
+use super::Mtu;
 use crate::{
     network::{Attachment, Delivery},
     Network,
 };
-use async_trait::async_trait;
-use std::{error::Error, sync::Arc};
-
-use super::Mtu;
+use std::sync::Arc;
+use tokio::sync::mpsc::{self, Sender};
 
 pub struct Reliable {
     // TODO(hardint): Add a way to access the MTU by other protocols
@@ -21,16 +20,16 @@ impl Reliable {
     }
 }
 
-#[async_trait]
 impl Network for Reliable {
-    async fn send(
-        self: Arc<Self>,
-        delivery: Delivery,
-        attachments: &[Attachment],
-    ) -> Result<(), Box<dyn Error>> {
-        for attachment in attachments {
-            attachment.sender.send(delivery.clone()).await.unwrap();
-        }
-        Ok(())
+    fn start(self: Box<Self>, attachments: Arc<[Attachment]>) -> Sender<Delivery> {
+        let (sender, mut receiver) = mpsc::channel::<Delivery>(16);
+        tokio::spawn(async move {
+            while let Some(delivery) = receiver.recv().await {
+                for attachment in attachments.iter() {
+                    attachment.sender.send(delivery.clone()).await.unwrap();
+                }
+            }
+        });
+        sender
     }
 }

@@ -1,11 +1,7 @@
-use crate::{protocols::tap::NetworkId, Message};
-
 use super::machine::MachineId;
-use async_trait::async_trait;
-use std::{error::Error, sync::Arc};
+use crate::{protocols::tap::NetworkId, Message};
+use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
-
-pub type SharedNetwork = Arc<dyn Network + Send + Sync + 'static>;
 
 #[derive(Debug, Clone)]
 pub struct Delivery {
@@ -14,13 +10,8 @@ pub struct Delivery {
     pub sender: MachineId,
 }
 
-#[async_trait]
 pub trait Network {
-    async fn send(
-        self: Arc<Self>,
-        delivery: Delivery,
-        attachments: &[Attachment],
-    ) -> Result<(), Box<dyn Error>>;
+    fn start(self: Box<Self>, attachments: Arc<[Attachment]>) -> Sender<Delivery>;
 }
 
 #[derive(Clone)]
