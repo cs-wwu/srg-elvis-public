@@ -13,6 +13,10 @@ jobs:
         
     steps:
     - uses: actions/checkout@v3
+    - name: Update local toolchain
+      run: |
+        rustup update
+        rustc --version
     # run rustdoc and put the output in the target directory
     - name: Run rustdoc
       run: cargo doc --target-dir target
