@@ -89,7 +89,7 @@ impl Internet {
         }
         // TODO(hardint): We need to tell all tasks to shut down and wait for
         // them here before proceeding.
-        let _ = shutdown_receiver.recv().await.unwrap();
+        shutdown_receiver.recv().await.unwrap();
     }
 }
 
