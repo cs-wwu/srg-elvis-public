@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Chunk","A piece of a Message, either a message body or a header."],["Message","A byte collection with efficient operations for implementing protocols."],["MessageBytes","An iterator over the bytes of a message"]]});

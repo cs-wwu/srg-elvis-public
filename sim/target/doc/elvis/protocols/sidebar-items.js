@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["ipv4","An implementation of Internet Protocol version 4."],["tap","The base-level protocol that communicates directly with networks."],["udp","An implementation of the User Datagram Protocol."],["user_process","Utilities for running user-level programs in the context of a protocol-oriented simulation."]]});

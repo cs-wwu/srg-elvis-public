@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Udp","An implementation of the User Datagram Protocol."]],"type":[["LocalPort","A [`ControlValue`] for the local port number."],["RemotePort","A [`ControlValue`] for the remote port number."]]});

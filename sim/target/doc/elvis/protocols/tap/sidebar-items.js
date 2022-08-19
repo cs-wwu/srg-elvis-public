@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["NetworkInfo",""],["Tap","Represents something akin to an Ethernet tap or a network interface card."]],"type":[["NetworkId","A [`ControlValue`] for which network to send on or which a message was received from."]]});

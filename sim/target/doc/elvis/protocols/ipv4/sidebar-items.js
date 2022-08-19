@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Ipv4","An implementation of the Internet Protocol."],["Ipv4Address","Represents an address used by the `Ipv4` protocol."]],"type":[["LocalAddress","A [`ControlValue`] for the local IPv4 address."],["RemoteAddress","A [`ControlValue`] for the remote IPv4 address."]]});
