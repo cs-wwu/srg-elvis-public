@@ -1,7 +1,7 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::{
-    internet::{NetworkHandle, NetworkInfo},
+    internet::NetworkHandle,
     machine::MachineId,
     message::Message,
     network::Delivery,
@@ -54,8 +54,8 @@ impl Tap {
     }
 
     /// Attach this machine to the given network.
-    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, network_info: NetworkInfo) {
-        self.session.clone().attach(network_id, network_info);
+    pub fn attach(self: Arc<Self>, network_id: NetworkHandle, sender: Sender<Delivery>) {
+        self.session.clone().attach(network_id, sender);
     }
 }
 
