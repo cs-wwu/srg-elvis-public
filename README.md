@@ -52,4 +52,4 @@ to public methods that you expose.
 
 # Contact
 *Elvis* administrators are [See-Mong Tan](mailto:see-mong.tan@wwu.edu), 
-[Tim Harding](mailto:hardint4@wwu.edu) and Robin Preble (prebler@wwu.edu).
+[Tim Harding](mailto:hardint4@wwu.edu) and [Robin Preble](mailto:prebler@wwu.edu).
