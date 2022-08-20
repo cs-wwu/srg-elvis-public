@@ -51,4 +51,5 @@ on your code with unit tests. Try and get as much coverage as possible, particul
 to public methods that you expose.
 
 # Contact
-*Elvis* administrators are [See-Mong Tan](mailto:see-mong.tan@wwu.edu) and [Tim Harding](mailto:hardint4@wwu.edu).
+*Elvis* administrators are [See-Mong Tan](mailto:see-mong.tan@wwu.edu), 
+[Tim Harding](mailto:hardint4@wwu.edu) and Robin Preble (prebler@wwu.edu).
