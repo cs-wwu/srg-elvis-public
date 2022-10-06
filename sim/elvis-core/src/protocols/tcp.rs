@@ -6,6 +6,8 @@ use crate::{
 use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc::Sender, Barrier};
 
+mod stolen;
+
 pub struct Tcp {}
 
 impl Tcp {
