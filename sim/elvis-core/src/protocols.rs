@@ -12,6 +12,3 @@ pub mod user_process;
 pub use user_process::UserProcess;
 
 mod utility;
-
-mod tcp;
-pub use tcp::Tcp;
