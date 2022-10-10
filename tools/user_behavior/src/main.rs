@@ -95,7 +95,7 @@ fn get_urls(html: &str) -> Vec<String> {
 //Paramter(s):      html: &str
 //Return Value:     Vec<String>
 //Description:      Return list of image urls that exist on html
-fn get_images(html: &str) -> Vec<String>{
+fn get_images(html: &str) -> Vec<String> {
     let document = Document::from(html);
     let found_images = document.find(Name("img"))
         .filter_map(|node| node.attr("src"))
@@ -113,9 +113,9 @@ fn get_images(html: &str) -> Vec<String>{
 //Parameter(s):     img_urls: &Vec<String>
 //Return Value:     N/A
 //Description:      Download images in img_urls
-fn download_img(img_urls: &Vec<String>){
+fn download_img(img_urls: &Vec<String>) {
     for img in img_urls{
-        let img_bytes = reqwest::blocking::get(img).unwrap().bytes().unwrap();
+        let _img_bytes = reqwest::blocking::get(img).unwrap().bytes().unwrap();
     }
 }
 
@@ -124,7 +124,7 @@ fn download_img(img_urls: &Vec<String>){
 //Parameter(s):     link: &str
 //Return Value:     Option<String>
 //Description:      Get all text on given page, if invalid page return nothing
-fn http_requester(link: &str) -> Option<String>{
+fn http_requester(link: &str) -> Option<String> {
     let client = reqwest::blocking::Client::new();
     let response = client.get(link).header("User-Agent", "Mozilla/5.0");
     
@@ -174,6 +174,7 @@ fn main() {
         let result_text = result.unwrap();
         let possible_urls: Vec<String> = get_urls(&result_text);
         let images: Vec<String> = get_images(&result_text);
+        download_img(&images);
  
         //get random url from possible_urls and assign it to cur_url
         //todo: errors on unwrap here sometimes, can't see any reason why yet because printing possible_urls results in good output
