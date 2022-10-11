@@ -17,8 +17,10 @@ use std::{
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 
-/// An application that stores the first message it receives and then exits the
-/// simulation.
+/// An application that sends a Time To Live (TTL) to 
+/// another machine from the first machine.
+/// The second machine will then send the TTL back minus 1.
+/// Once the TTL reaches 0 the program ends.
 #[derive(Clone)]
 pub struct PingPong {
     /// The channel we send on to shut down the simulation
