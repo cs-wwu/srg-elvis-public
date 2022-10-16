@@ -193,5 +193,4 @@ fn main() {
         rx.recv().unwrap();
         println!("User left page after {} seconds", duration_int);
     }
-    
 }
