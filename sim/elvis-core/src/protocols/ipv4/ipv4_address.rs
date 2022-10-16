@@ -20,8 +20,8 @@ impl Ipv4Address {
 
     /// Creates a new address. The number can be provided as a `[u8; 4]` or a
     /// `u32`.
-    pub fn new(address: impl Into<Self>) -> Self {
-        address.into()
+    pub const fn new(address: [u8; 4]) -> Self {
+        Self(address)
     }
 
     /// Gets the address as a `u32`.
