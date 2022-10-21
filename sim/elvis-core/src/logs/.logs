@@ -1,0 +1,2 @@
+This folder will contain any logs generated during the sim.
+Logs will be ignored by the git-ignore and not uploaded to github.
