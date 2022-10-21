@@ -1,7 +1,7 @@
 use tracing::{Level, event};
 use tracing_subscriber::{FmtSubscriber};
 use std::{sync::Arc};
-use std::fs::{OpenOptions};
+use std::fs::{OpenOptions, create_dir_all};
 use chrono;
 use super::protocols::ipv4::{Ipv4Address};
 
@@ -14,7 +14,11 @@ use super::protocols::ipv4::{Ipv4Address};
 /// Initializes the event protocol. Only should be called once when the sim starts.
 /// Allows for event! to be called and writes to a log file in elvis-core/src/logs.
 pub fn init_events(){
-    let file_path = format!("elvis-core/src/logs/debug-{}.log", chrono::offset::Local::now().format("%y-%m-%d"));
+    // TODO: Talk to tim abot file paths for cargo testing
+    let main_path = "./logs";
+    let dir = create_dir_all(main_path);
+    let _dir = match dir {Ok(dir) => dir,Err(error) => panic!("Error: {:?}",error),};
+    let file_path = format!("{}/debug-{}.log", main_path, chrono::offset::Local::now().format("%y-%m-%d"));
     let file = OpenOptions::new()
         .write(true)
         .append(true)
@@ -26,9 +30,12 @@ pub fn init_events(){
         .json()
         .finish();
     // set the global default so all events/logs go to the same subscriber and subsequently the same file
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    // TODO: Talk to tim on handling errors properly
+    match tracing::subscriber::set_global_default(subscriber){
+        Ok(sub) => sub,
+        Err(error) => println!("{:?}", error),
+    };
 }
-
 /// Message event handler.
 /// Used to log any messages sent. Captures the following data: 
 /// local_ip, remote_ip, local_port, remote_port, message_text
