@@ -17,7 +17,7 @@ pub fn init_events(){
     // TODO: Talk to tim abot file paths for cargo testing
     let main_path = "./logs";
     let dir = create_dir_all(main_path);
-    let _dir = match dir {Ok(dir) => dir,Err(error) => panic!("Error: {:?}",error),};
+    match dir {Ok(dir) => dir,Err(error) => panic!("Error: {:?}",error),};
     let file_path = format!("{}/debug-{}.log", main_path, chrono::offset::Local::now().format("%y-%m-%d"));
     let file = OpenOptions::new()
         .write(true)
