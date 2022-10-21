@@ -3,6 +3,7 @@
 use super::{network::Attachment, protocol::SharedProtocol, Machine, Network};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Barrier};
+use super::{logging::init_events};
 
 /// A unique identifier for a network on an [`Internet`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -69,6 +70,7 @@ impl Internet {
 
     /// Runs the simulation.
     pub async fn run(mut self) {
+        init_events();
         for (network_id, network_info) in self.networks.into_iter().enumerate() {
             let NetworkInfo {
                 network,
