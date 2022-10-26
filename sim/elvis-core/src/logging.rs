@@ -3,6 +3,8 @@ use tracing_subscriber::{FmtSubscriber};
 use std::{sync::Arc};
 use std::fs::{OpenOptions, create_dir_all};
 use chrono;
+use crate::Message;
+
 use super::protocols::ipv4::{Ipv4Address};
 
 /// Logging holds wrapper functions for logging events
@@ -41,4 +43,13 @@ pub fn init_events(){
 /// local_ip, remote_ip, local_port, remote_port, message_text
 pub fn message_event(local_ip: Ipv4Address, remote_ip: Ipv4Address, local_port: u16, remote_port: u16, message: &str){
     event!(target: "MESSAGE", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), remote_ip= format!("{:?}", remote_ip.to_bytes()), local_port= format!("{:x}", local_port), remote_port=format!("{:x}", remote_port), message=message);
+}
+
+
+/// Forward event handler.
+/// Used to log any messages Forwarded. Captures the following data: 
+/// local_ip, remote_ip, local_port, remote_port, message_text
+pub fn forward_event(local_ip: Ipv4Address, remote_ip: Ipv4Address, local_port: u16, remote_port: u16, message: Message){
+    // println!("{:#?}", message.iter());
+    event!(target: "FORWARD", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), remote_ip= format!("{:?}", remote_ip.to_bytes()), local_port= format!("{:x}", local_port), remote_port=format!("{:x}", remote_port), message=format!("{}", message));
 }

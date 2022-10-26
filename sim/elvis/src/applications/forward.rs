@@ -7,7 +7,7 @@ use elvis_core::{
         user_process::{Application, UserProcess},
     },
     session::SharedSession,
-    Control,
+    Control, logging::forward_event,
 };
 use std::{
     error::Error,
@@ -72,6 +72,7 @@ impl Application for Forward {
         RemoteAddress::set(&mut participants, self.remote_ip);
         LocalPort::set(&mut participants, self.local_port);
         RemotePort::set(&mut participants, self.remote_port);
+        
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         *self.outgoing.lock().unwrap() = Some(udp.clone().open(
             Self::ID,
@@ -87,6 +88,7 @@ impl Application for Forward {
     }
 
     fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+        forward_event(self.local_ip, self.remote_ip, self.local_port, self.remote_port, message.clone());
         self.outgoing
             .clone()
             .lock()
