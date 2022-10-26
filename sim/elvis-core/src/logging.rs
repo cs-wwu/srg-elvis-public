@@ -53,3 +53,12 @@ pub fn forward_event(local_ip: Ipv4Address, remote_ip: Ipv4Address, local_port: 
     // println!("{:#?}", message.iter());
     event!(target: "FORWARD", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), remote_ip= format!("{:?}", remote_ip.to_bytes()), local_port= format!("{:x}", local_port), remote_port=format!("{:x}", remote_port), message=format!("{}", message));
 }
+
+
+/// Capture event handler.
+/// Used to log any messages that get "captured" by a machine. Logs:
+/// local_ip, local_port, message_text
+pub fn capture_event(local_ip: Ipv4Address, local_port: u16,message: Message){
+    // println!("{:#?}", message.iter());
+    event!(target: "CAPTURE", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), local_port= format!("{:x}", local_port), message=format!("{}", message));
+}
