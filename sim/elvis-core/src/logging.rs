@@ -59,6 +59,14 @@ pub fn forward_event(local_ip: Ipv4Address, remote_ip: Ipv4Address, local_port: 
 /// Used to log any messages that get "captured" by a machine. Logs:
 /// local_ip, local_port, message_text
 pub fn capture_event(local_ip: Ipv4Address, local_port: u16,message: Message){
-    // println!("{:#?}", message.iter());
     event!(target: "CAPTURE", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), local_port= format!("{:x}", local_port), message=format!("{}", message));
+}
+
+/// Machine creation event handler.
+/// Used to log the creation of any machines added to the sim. Will log:
+/// machine_id
+/// This will eventually contain more info as the simulation evolves
+pub fn machine_creation_event(machine_id: usize){
+    println!("{}", machine_id);
+    event!(target: "MACHINE_CREATION", Level::INFO, machine_id=machine_id);
 }

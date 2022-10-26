@@ -1,5 +1,7 @@
 //! The [`Internet`] and supporting types.
 
+use crate::logging::machine_creation_event;
+
 use super::{network::Attachment, protocol::SharedProtocol, Machine, Network};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Barrier};
@@ -79,6 +81,8 @@ impl Internet {
             let attachments: Arc<[_]> = attachments.into();
             let sender = network.start(attachments.clone());
             for attachment in attachments.iter() {
+                //TODO: Jacob find better place to do this and the above logging init
+                machine_creation_event(attachment.machine);
                 self.machines[attachment.machine].attach(
                     NetworkHandle(network_id.try_into().unwrap()),
                     sender.clone(),
