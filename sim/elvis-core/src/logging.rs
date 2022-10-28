@@ -1,3 +1,5 @@
+//! Contains basic logging functions.
+
 use tracing::{Level, event};
 use tracing_subscriber::{FmtSubscriber};
 use std::{sync::Arc};
