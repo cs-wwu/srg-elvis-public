@@ -25,6 +25,7 @@ pub use ipv4_misc::{LocalAddress, RemoteAddress};
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 use tokio::sync::{mpsc::Sender, Barrier};
+use tracing::{span, Level};
 
 use super::tap::NetworkId;
 
@@ -124,6 +125,8 @@ impl Protocol for Ipv4 {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
+        let log = span!(Level::INFO, "IPv4 Demux");
+        let enter = log.enter();
         // Extract identifying information from the header and the context and
         // add header information to the context
         let header = Ipv4Header::from_bytes(message.iter())?;
@@ -133,6 +136,9 @@ impl Protocol for Ipv4 {
         let identifier = SessionId { local, remote };
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
+        drop(enter);
+        let log = span!(Level::INFO, "IPv4 Demux", %local, %remote);
+        let _enter = log.enter();
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => match self.listen_bindings.get(&local) {

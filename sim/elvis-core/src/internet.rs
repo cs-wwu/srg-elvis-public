@@ -1,11 +1,10 @@
 //! The [`Internet`] and supporting types.
 
-use crate::logging::machine_creation_event;
+// use crate::logging::machine_creation_event;
 
 use super::{network::Attachment, protocol::SharedProtocol, Machine, Network};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Barrier};
-use super::{logging::init_events};
 
 /// A unique identifier for a network on an [`Internet`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -66,13 +65,14 @@ impl Internet {
                 machine: machine_id,
                 sender: sender.clone(),
             });
+            //Logs the machine creation event
+            // machine_creation_event(machine_id);
         }
         self.machines.push(machine);
     }
 
     /// Runs the simulation.
     pub async fn run(mut self) {
-        init_events();
         for (network_id, network_info) in self.networks.into_iter().enumerate() {
             let NetworkInfo {
                 network,
@@ -81,8 +81,6 @@ impl Internet {
             let attachments: Arc<[_]> = attachments.into();
             let sender = network.start(attachments.clone());
             for attachment in attachments.iter() {
-                //TODO: Jacob find better place to do this and the above logging init
-                machine_creation_event(attachment.machine);
                 self.machines[attachment.machine].attach(
                     NetworkHandle(network_id.try_into().unwrap()),
                     sender.clone(),

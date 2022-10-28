@@ -15,7 +15,7 @@ use super::protocols::ipv4::{Ipv4Address};
 
 /// Initializes the event protocol. Only should be called once when the sim starts.
 /// Allows for event! to be called and writes to a log file in elvis-core/src/logs.
-pub fn init_events(){
+pub async fn init_events(){
     // TODO: Talk to tim abot file paths for cargo testing
     let main_path = "./logs";
     let dir = create_dir_all(main_path);
@@ -67,6 +67,5 @@ pub fn capture_event(local_ip: Ipv4Address, local_port: u16,message: Message){
 /// machine_id
 /// This will eventually contain more info as the simulation evolves
 pub fn machine_creation_event(machine_id: usize){
-    println!("{}", machine_id);
     event!(target: "MACHINE_CREATION", Level::INFO, machine_id=machine_id);
 }

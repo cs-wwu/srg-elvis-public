@@ -7,7 +7,8 @@ use elvis_core::{
         user_process::{Application, UserProcess},
         Udp,
     },
-    Control, logging::capture_event,
+    Control, 
+    // logging::capture_event,
 };
 use std::{
     error::Error,
@@ -75,7 +76,7 @@ impl Application for Capture {
     }
 
     fn recv(self: Arc<Self>, message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
-        capture_event(self.ip_address, self.port, message.clone());
+        // capture_event(self.ip_address, self.port, message.clone());
         *self.message.lock().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
             tokio::spawn(async move {
