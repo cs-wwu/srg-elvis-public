@@ -148,11 +148,11 @@ impl Message {
         MessageBytes::new(self.stack.clone(), self.start, self.len())
     }
 }
-//TODO: Jacob -- figure out with tim how to do his bytes and also a string -- for now leaving as string for logging
+
 impl Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in self.iter() {
-            write!(f, "{}", byte as char)?;
+            write!(f, "{:x} ", byte)?;
         }
         Ok(())
     }

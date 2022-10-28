@@ -7,7 +7,7 @@ use crate::{
     protocol::{Context, ProtocolId},
     protocols::ipv4::{LocalAddress, RemoteAddress},
     session::SharedSession,
-    Session,
+    Session, logging::{send_message_event, receive_message_event},
 };
 use std::{error::Error, sync::Arc};
 
@@ -27,12 +27,14 @@ impl Session for UdpSession {
             id.remote_port.into(),
             message.iter(),
         )?;
+        send_message_event(self.identifier.local_address.into(), self.identifier.remote_address.into(), id.local_port.into(), id.remote_port.into(), message.clone());
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
         Ok(())
     }
 
     fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+        receive_message_event(self.identifier.local_address.into(), self.identifier.remote_address.into(), self.identifier.local_port.into(), self.identifier.remote_port.into(), message.clone());
         context
             .protocol(self.upstream)
             .expect("No such protocol")

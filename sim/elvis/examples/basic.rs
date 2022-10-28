@@ -1,8 +1,7 @@
 use elvis::simulations::basic;
-// use elvis_core::{logging::init_events};
-use tracing_subscriber;
+use elvis_core::logging::init_events;
 #[tokio::main]
 async fn main() {
-    tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::default()).unwrap();
+    init_events();
     basic().await
 }

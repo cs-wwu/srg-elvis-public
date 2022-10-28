@@ -4,23 +4,23 @@ use std::{sync::Arc};
 use std::fs::{OpenOptions, create_dir_all};
 use chrono;
 use crate::Message;
+use crate::protocol::ProtocolId;
 
 use super::protocols::ipv4::{Ipv4Address};
 
 /// Logging holds wrapper functions for logging events
 /// Each function corresponds to a type of logging (messages, machine creation, etc..)
 /// These functions are meant to be called from inside elvis core in the core protocols
-
-//TODO: add more events, add start and end of sim to logs
+/// Messages will be logged as Bytes in Hex formatting for most convenient parsing
 
 /// Initializes the event protocol. Only should be called once when the sim starts.
 /// Allows for event! to be called and writes to a log file in elvis-core/src/logs.
-pub async fn init_events(){
-    // TODO: Talk to tim abot file paths for cargo testing
+/// During Tests -- cargo test -- logs will not be generated for the time being
+pub fn init_events(){
     let main_path = "./logs";
     let dir = create_dir_all(main_path);
     match dir {Ok(dir) => dir,Err(error) => panic!("Error: {:?}",error),};
-    let file_path = format!("{}/debug-{}.log", main_path, chrono::offset::Local::now().format("%y-%m-%d"));
+    let file_path = format!("{}/debug-{}.log", main_path, chrono::offset::Local::now().format("%y-%m-%d_%H-%M-%S"));
     let file = OpenOptions::new()
         .write(true)
         .append(true)
@@ -37,35 +37,28 @@ pub async fn init_events(){
         Ok(sub) => sub,
         Err(error) => println!("{:?}", error),
     };
+    
 }
-/// Message event handler.
+/// Send message event handler.
 /// Used to log any messages sent. Captures the following data: 
 /// local_ip, remote_ip, local_port, remote_port, message_text
-pub fn message_event(local_ip: Ipv4Address, remote_ip: Ipv4Address, local_port: u16, remote_port: u16, message: &str){
-    event!(target: "MESSAGE", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), remote_ip= format!("{:?}", remote_ip.to_bytes()), local_port= format!("{:x}", local_port), remote_port=format!("{:x}", remote_port), message=message);
+pub fn send_message_event(local_ip: Ipv4Address, remote_ip: Ipv4Address, local_port: u16, remote_port: u16, message: Message){
+    event!(target: "SEND_MESSAGE", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), remote_ip= format!("{:?}", remote_ip.to_bytes()), local_port= format!("{:x}", local_port), remote_port=format!("{:x}", remote_port), message=format!("{}", message));
 }
 
-
-/// Forward event handler.
-/// Used to log any messages Forwarded. Captures the following data: 
+/// Receive message event handler.
+/// Used to log any messages received. Captures the following data: 
 /// local_ip, remote_ip, local_port, remote_port, message_text
-pub fn forward_event(local_ip: Ipv4Address, remote_ip: Ipv4Address, local_port: u16, remote_port: u16, message: Message){
-    // println!("{:#?}", message.iter());
-    event!(target: "FORWARD", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), remote_ip= format!("{:?}", remote_ip.to_bytes()), local_port= format!("{:x}", local_port), remote_port=format!("{:x}", remote_port), message=format!("{}", message));
+pub fn receive_message_event(local_ip: Ipv4Address, remote_ip: Ipv4Address, local_port: u16, remote_port: u16, message: Message){
+    event!(target: "RECV_MESSAGE", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), remote_ip= format!("{:?}", remote_ip.to_bytes()), local_port= format!("{:x}", local_port), remote_port=format!("{:x}", remote_port), message=format!("{}", message));
 }
 
 
-/// Capture event handler.
-/// Used to log any messages that get "captured" by a machine. Logs:
-/// local_ip, local_port, message_text
-pub fn capture_event(local_ip: Ipv4Address, local_port: u16,message: Message){
-    event!(target: "CAPTURE", Level::INFO, local_ip = format!("{:?}", local_ip.to_bytes()), local_port= format!("{:x}", local_port), message=format!("{}", message));
-}
-
+// TODO: correlate the machine id's to IP's or protocols
 /// Machine creation event handler.
 /// Used to log the creation of any machines added to the sim. Will log:
-/// machine_id
+/// machine_id, list of all protocol id's associated with the machine
 /// This will eventually contain more info as the simulation evolves
-pub fn machine_creation_event(machine_id: usize){
-    event!(target: "MACHINE_CREATION", Level::INFO, machine_id=machine_id);
+pub fn machine_creation_event(machine_id: usize, protocol_ids: Vec<ProtocolId>){
+    event!(target: "MACHINE_CREATION", Level::INFO, machine_id=machine_id, protocol_ids = format!("{:?}", protocol_ids));
 }

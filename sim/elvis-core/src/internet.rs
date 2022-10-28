@@ -65,8 +65,6 @@ impl Internet {
                 machine: machine_id,
                 sender: sender.clone(),
             });
-            //Logs the machine creation event
-            // machine_creation_event(machine_id);
         }
         self.machines.push(machine);
     }

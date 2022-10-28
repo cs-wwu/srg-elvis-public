@@ -16,7 +16,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio::sync::{mpsc::Sender, Barrier};
-use tracing::{event, Level};
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]
 pub struct Forward {
@@ -90,8 +89,6 @@ impl Application for Forward {
     }
 
     fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
-        // forward_event(self.local_ip, self.remote_ip, self.local_port, self.remote_port, message.clone());
-        event!(Level::INFO, "Forwarding message");
         self.outgoing
             .clone()
             .lock()

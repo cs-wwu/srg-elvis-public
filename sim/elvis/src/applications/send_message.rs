@@ -6,8 +6,7 @@ use elvis_core::{
         udp::{LocalPort, RemotePort, Udp},
         user_process::{Application, UserProcess},
     },
-    Control,
-    // logging::message_event,
+    Control
 };
 use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -58,7 +57,6 @@ impl Application for SendMessage {
         RemotePort::set(&mut participants, self.port);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, context.clone())?;
-        // message_event(Ipv4Address::LOCALHOST, self.ip, 0, self.port, self.text);
         tokio::spawn(async move {
             initialized.wait().await;
             match session.send(Message::new(self.text), context) {

@@ -2,7 +2,7 @@ use super::{
     internet::NetworkHandle,
     protocol::{Context, ProtocolId, SharedProtocol},
 };
-use crate::{network::Delivery, protocols::tap::Tap};
+use crate::{network::Delivery, protocols::tap::Tap, logging::machine_creation_event};
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
@@ -38,6 +38,7 @@ impl Machine {
         let (tap, sender) = Tap::new(id);
         let tap = Arc::new(tap);
         let mut protocols_map = HashMap::new();
+        let mut protocol_ids = Vec::new();
         for protocol in protocols
             .into_iter()
             .chain(iter::once(tap.clone() as SharedProtocol))
@@ -45,10 +46,12 @@ impl Machine {
             match protocols_map.entry(protocol.clone().id()) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
+                    protocol_ids.push(protocol.clone().id());
                     entry.insert(protocol);
                 }
             }
         }
+        machine_creation_event(id, protocol_ids);
         let machine = Self {
             tap,
             protocols: Arc::new(protocols_map),
