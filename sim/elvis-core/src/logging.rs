@@ -1,4 +1,9 @@
 //! Contains basic logging functions.
+//!
+//! Logging holds wrapper functions for logging events
+//! Each function corresponds to a type of logging (messages, machine creation, etc..)
+//! These functions are meant to be called from inside elvis core in the core protocols
+//! Messages will be logged as Bytes in Hex formatting for most convenient parsing
 
 use tracing::{Level, event};
 use tracing_subscriber::{FmtSubscriber};
@@ -10,10 +15,7 @@ use crate::protocol::ProtocolId;
 
 use super::protocols::ipv4::{Ipv4Address};
 
-/// Logging holds wrapper functions for logging events
-/// Each function corresponds to a type of logging (messages, machine creation, etc..)
-/// These functions are meant to be called from inside elvis core in the core protocols
-/// Messages will be logged as Bytes in Hex formatting for most convenient parsing
+
 
 /// Initializes the event protocol. Only should be called once when the sim starts.
 /// Allows for event! to be called and writes to a log file in elvis-core/src/logs.
