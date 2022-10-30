@@ -61,3 +61,5 @@ pub(crate) mod machine;
 pub(crate) use machine::Machine;
 
 pub mod logging;
+
+pub mod cli;

@@ -1,8 +1,7 @@
 use elvis::simulations::telephone_single;
-use elvis_core::{logging::init_events};
+use elvis_core::cli::parse_cli;
 #[tokio::main]
 async fn main() {
-    init_events();
-    // tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::default()).unwrap();
+    parse_cli();
     telephone_single().await
 }

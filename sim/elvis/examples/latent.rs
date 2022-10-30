@@ -1,7 +1,7 @@
 use elvis::simulations::latent;
-use elvis_core::{logging::init_events};
+use elvis_core::cli::parse_cli;
 #[tokio::main]
 async fn main() {
-    init_events();
+    parse_cli();
     latent().await
 }
