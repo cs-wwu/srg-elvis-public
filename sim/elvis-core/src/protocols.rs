@@ -4,6 +4,7 @@ pub mod ipv4;
 pub use ipv4::Ipv4;
 
 pub(crate) mod tap;
+pub use tap::MACHINE_ID_KEY;
 
 pub mod udp;
 pub use udp::Udp;

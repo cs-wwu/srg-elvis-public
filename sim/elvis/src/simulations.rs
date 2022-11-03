@@ -17,3 +17,6 @@ pub use unreliable::unreliable;
 
 mod ping_pong;
 pub use ping_pong::ping_pong;
+
+mod print_machine_id;
+pub use print_machine_id::print_machine_id;

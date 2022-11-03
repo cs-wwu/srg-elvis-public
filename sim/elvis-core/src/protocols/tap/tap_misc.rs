@@ -22,6 +22,8 @@ pub type FirstResponder = control::Value<FIRST_RESPONDER_KEY, u64>;
 from_impls!(FirstResponder, u64);
 from_impls!(FirstResponder, ProtocolId);
 
+/// A key to use with [`Session::query`](crate::Session::query) to get the ID of
+/// the machine a session belongs to.
 pub const MACHINE_ID_KEY: Key = make_key("First responder");
 
 #[derive(Debug, ThisError)]
