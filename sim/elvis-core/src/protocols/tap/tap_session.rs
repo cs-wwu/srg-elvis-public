@@ -19,7 +19,7 @@ use tokio::sync::mpsc::Sender;
 #[derive(Clone)]
 pub(crate) struct TapSession {
     /// The identifier for the machine this tap serves
-    machine_id: MachineId,
+    pub machine_id: MachineId,
     /// For now, we're just ignoring non-broadcast delivery options. If a
     /// message goes to a network, just send it to every machine on the network.
     /// It's inefficient, but we'll improve it when DHCP or something of the

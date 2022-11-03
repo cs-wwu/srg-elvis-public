@@ -5,7 +5,7 @@ use elvis_core::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort},
         user_process::{Application, UserProcess},
-        Udp, MACHINE_ID_KEY,
+        Udp, MACHINE_ID_KEY, TAP_ID,
     },
     Control,
 };
@@ -41,12 +41,17 @@ impl Application for PrintMachineId {
         RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         LocalPort::set(&mut participants, 0);
         RemotePort::set(&mut participants, 0);
-        let session = context.protocol(Udp::ID).expect("No such protocol").open(
-            Self::ID,
-            participants,
-            context,
-        )?;
-        println!("Machine ID: {:?}", session.query(MACHINE_ID_KEY));
+        let session = context
+            .clone()
+            .protocol(Udp::ID)
+            .expect("No such protocol")
+            .open(Self::ID, participants, context.clone())?;
+        let tap = context.protocol(TAP_ID).expect("No such protocol");
+        println!(
+            "Machine ID: {:?}, {:?}",
+            session.query(MACHINE_ID_KEY),
+            tap.query(MACHINE_ID_KEY),
+        );
         tokio::spawn(async move {
             initialized.wait().await;
             let _ = shutdown.send(()).await;
