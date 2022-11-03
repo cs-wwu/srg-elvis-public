@@ -44,7 +44,7 @@ impl Application for Query {
         LocalPort::set(&mut participants, 0);
         RemotePort::set(&mut participants, 0);
         let session = context
-            .clone()
+            
             .protocol(Udp::ID)
             .expect("No such protocol")
             .open(Self::ID, participants, context.clone())?;
