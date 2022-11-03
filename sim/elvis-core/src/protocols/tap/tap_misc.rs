@@ -2,24 +2,27 @@ use crate::{
     control::{
         self,
         value::{from_impls, make_key},
+        Key,
     },
     protocol::ProtocolId,
 };
 use std::error::Error;
 use thiserror::Error as ThisError;
 
-const NETWORK_INDEX_KEY: u64 = make_key("Tap Network Index");
+const NETWORK_INDEX_KEY: Key = make_key("Tap Network Index");
 /// A [`control::Value`] for which network to send on or which a message was
 /// received from.
 pub type NetworkId = control::Value<NETWORK_INDEX_KEY, u32>;
 from_impls!(NetworkId, u32);
 
-const FIRST_RESPONDER_KEY: u64 = make_key("First responder");
+const FIRST_RESPONDER_KEY: Key = make_key("First responder");
 /// A [`control::Value`] for which network to send on or which a message was
 /// received from.
 pub type FirstResponder = control::Value<FIRST_RESPONDER_KEY, u64>;
 from_impls!(FirstResponder, u64);
 from_impls!(FirstResponder, ProtocolId);
+
+pub const MACHINE_ID_KEY: Key = make_key("First responder");
 
 #[derive(Debug, ThisError)]
 pub enum TapError {
@@ -27,6 +30,8 @@ pub enum TapError {
     HeaderLength,
     #[error("Could not find a protocol for the protocol ID: {0:?}")]
     NoSuchProtocol(ProtocolId),
+    #[error("Could not match the query key to a piece of information")]
+    NoSuchKey,
     #[error("{0}")]
     Other(#[from] Box<dyn Error>),
 }
