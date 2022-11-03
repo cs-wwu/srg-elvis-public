@@ -13,21 +13,23 @@ use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 #[derive(Debug, Clone)]
-pub struct PrintMachineId;
+pub struct Query {
+    id_recipient: Sender<u64>,
+}
 
-impl PrintMachineId {
+impl Query {
     /// Creates a new capture.
-    pub fn new() -> Self {
-        Self
+    pub fn new(id_recipient: Sender<u64>) -> Self {
+        Self { id_recipient }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared() -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new())
+    pub fn new_shared(id_recipient: Sender<u64>) -> Arc<UserProcess<Self>> {
+        UserProcess::new_shared(Self::new(id_recipient))
     }
 }
 
-impl Application for PrintMachineId {
+impl Application for Query {
     const ID: ProtocolId = ProtocolId::from_string("Print Machine ID");
 
     fn start(
@@ -47,13 +49,12 @@ impl Application for PrintMachineId {
             .expect("No such protocol")
             .open(Self::ID, participants, context.clone())?;
         let tap = context.protocol(TAP_ID).expect("No such protocol");
-        println!(
-            "Machine ID: {:?}, {:?}",
-            session.query(MACHINE_ID_KEY),
-            tap.query(MACHINE_ID_KEY),
-        );
+        let machine_id_session = session.query(MACHINE_ID_KEY).unwrap().ok_u64()?;
+        let machine_id_protocol = tap.query(MACHINE_ID_KEY).unwrap().ok_u64()?;
+        assert_eq!(machine_id_session, machine_id_protocol);
         tokio::spawn(async move {
             initialized.wait().await;
+            self.id_recipient.send(machine_id_session).await.unwrap();
             let _ = shutdown.send(()).await;
         });
         Ok(())

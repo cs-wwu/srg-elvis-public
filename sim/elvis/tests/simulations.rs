@@ -24,6 +24,6 @@ async fn unreliable() {
 }
 
 #[tokio::test]
-async fn print_machine_id() {
-    elvis::simulations::print_machine_id().await
+async fn query() {
+    elvis::simulations::query().await
 }

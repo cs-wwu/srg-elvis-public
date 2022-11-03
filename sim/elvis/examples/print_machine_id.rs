@@ -1,6 +1,6 @@
-use elvis::simulations::print_machine_id;
+use elvis::simulations::query;
 
 #[tokio::main]
 async fn main() {
-    print_machine_id().await
+    query().await
 }

@@ -15,5 +15,5 @@ pub use unreliable_tester::UnreliableTester;
 mod pingpong;
 pub use pingpong::PingPong;
 
-mod print_machine_id;
-pub use print_machine_id::PrintMachineId;
+mod query;
+pub use query::Query;
