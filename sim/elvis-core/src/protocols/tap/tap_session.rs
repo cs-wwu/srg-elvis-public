@@ -1,8 +1,9 @@
 use super::{
     tap_misc::{FirstResponder, TapError},
-    NetworkId,
+    NetworkId, MACHINE_ID_KEY,
 };
 use crate::{
+    control::{Key, Primitive},
     internet::NetworkHandle,
     machine::MachineId,
     message::Message,
@@ -18,7 +19,7 @@ use tokio::sync::mpsc::Sender;
 #[derive(Clone)]
 pub(crate) struct TapSession {
     /// The identifier for the machine this tap serves
-    machine_id: MachineId,
+    pub machine_id: MachineId,
     /// For now, we're just ignoring non-broadcast delivery options. If a
     /// message goes to a network, just send it to every machine on the network.
     /// It's inefficient, but we'll improve it when DHCP or something of the
@@ -96,6 +97,14 @@ impl Session for TapSession {
         _context: Context,
     ) -> Result<(), Box<dyn Error>> {
         panic!("Use Tap::receive_delivery() instead");
+    }
+
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+        // TODO(hardint): Add support for querying the MTU
+        match key {
+            MACHINE_ID_KEY => Ok(self.machine_id.into()),
+            _ => Err(TapError::NoSuchKey.into()),
+        }
     }
 }
 

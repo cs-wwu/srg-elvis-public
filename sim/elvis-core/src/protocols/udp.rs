@@ -2,6 +2,7 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
+    control::{Key, Primitive},
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
@@ -180,6 +181,10 @@ impl Protocol for Udp {
             initialized.wait().await;
         });
         Ok(())
+    }
+
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
+        panic!("Nothing to query on the UDP protocol")
     }
 }
 

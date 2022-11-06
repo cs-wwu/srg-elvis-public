@@ -3,6 +3,7 @@ use super::{
     udp_parsing::build_udp_header,
 };
 use crate::{
+    control::{Key, Primitive},
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::ipv4::{LocalAddress, RemoteAddress},
@@ -38,6 +39,10 @@ impl Session for UdpSession {
             .expect("No such protocol")
             .demux(message, self, context)?;
         Ok(())
+    }
+
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+        self.downstream.clone().query(key)
     }
 }
 

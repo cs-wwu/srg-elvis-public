@@ -1,4 +1,4 @@
-use super::{Control, Primitive};
+use super::{Control, Key, Primitive};
 use const_fnv1a_hash::fnv1a_hash_64;
 use std::{
     fmt::{self, Display},
@@ -19,7 +19,7 @@ use thiserror::Error as ThisError;
 /// wrap. The second generic parameter is a `const` generic that specifies the
 /// key to use on that control.
 #[derive(Debug, Clone, Copy)]
-pub struct Value<const K: u64, V>(V);
+pub struct Value<const K: Key, V>(V);
 
 impl<const K: u64, V> TryFrom<&Control> for Value<K, V>
 where

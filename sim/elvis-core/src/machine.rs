@@ -11,7 +11,7 @@ use std::{
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An identifier for a particular [`Machine`] in the simulation.
-pub(crate) type MachineId = usize;
+pub(crate) type MachineId = u64;
 
 /// A mapping of protocol IDs to protocols
 pub(crate) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;

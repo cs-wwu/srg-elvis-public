@@ -2,6 +2,7 @@
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
 use crate::{
+    control::{Key, Primitive},
     internet::NetworkHandle,
     message::Message,
     protocol::{Context, ProtocolId},
@@ -161,5 +162,9 @@ impl Protocol for Ipv4 {
             initialized.wait().await;
         });
         Ok(())
+    }
+
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
+        panic!("Nothing to query on IPv4")
     }
 }
