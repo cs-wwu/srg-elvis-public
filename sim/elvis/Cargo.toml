@@ -8,6 +8,7 @@ elvis-core = { path = "../elvis-core" }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread", "time", "macros", "signal", "sync"] }
 rand = { version = "0.8", features = ["small_rng"] }
 thiserror = "1.0"
+nom = "7"
 
 [dev-dependencies]
 criterion = { version = "0.3", features = [ "async_tokio", "html_reports" ] }
