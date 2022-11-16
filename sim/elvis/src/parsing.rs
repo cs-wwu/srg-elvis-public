@@ -1,4 +1,3 @@
 //various parsing methods
-
-mod parsing;
-pub use parsing::generate_sim;
+mod parser;
+pub use parser::generate_sim;

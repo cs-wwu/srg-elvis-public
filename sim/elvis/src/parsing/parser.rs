@@ -85,7 +85,7 @@ pub fn generate_sim(s: &str) {
     let mut machines: Vec<Machine> = Vec::new();
     for item in basic_schema.unwrap() {
         if item.dectype == DecType::Machine {
-            machines.push(parse_machine(item.options.unwrap().clone()));
+            machines.push(parse_machine(item.options.unwrap()));
         }
     }
     println!("{:?}", machines);
@@ -99,17 +99,17 @@ fn get_all_sections(s: &str) -> Result<Vec<Schema>, String> {
             let mut schemas: Vec<Schema> = vec![];
 
             // until we run out of information to get schemas for
-            while sec_safe.1 != "" {
+            while !sec_safe.1.is_empty() {
                 let schema = get_schema(sec_safe.1);
                 match schema {
                     Ok(t) => {
                         schemas.push(t);
                     }
-                    Err(e) => return Err(format!("{}", e)),
+                    Err(e) => return Err(e),
                 }
 
                 // only if there was more information to parse do we go into here
-                if sec_safe.0 != "" {
+                if !sec_safe.0.is_empty() {
                     sec = section(sec_safe.0);
                     match sec {
                         Ok(temp) => {
@@ -125,7 +125,7 @@ fn get_all_sections(s: &str) -> Result<Vec<Schema>, String> {
                     sec_safe.1 = "";
                 }
             }
-            return Ok(schemas);
+            Ok(schemas)
         }
 
         Err(e) => {
@@ -143,21 +143,21 @@ fn get_schema(s: &str) -> Result<Schema, String> {
 
     let temp = args.unwrap();
 
-    if temp.0 != "" {
-        return Err(format!("Improper Input for Schema at \"{}\"", temp.0).to_string());
+    if !temp.0.is_empty() {
+        return Err(format!("Improper Input for Schema at \"{}\"", temp.0));
     }
 
-    return Ok(Schema {
+    Ok(Schema {
         dectype: dec.unwrap().1,
         options: Some(temp.1),
-    });
+    })
 }
 
 /// grabs everything between brackets "[]"
 // TODO: add behavior to ignore spaces in here?
 fn section(input: &str) -> Res<&str, &str> {
     context("section", delimited(char('['), take_until("]"), char(']')))(input)
-        .map(|(next_input, res)| (next_input, res.into()))
+        .map(|(next_input, res)| (next_input, res))
 }
 
 /// grabs the type from the beginning of each section
@@ -196,7 +196,7 @@ fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
             delimited(char('\''), take_until("'"), char('\'')),
         )),
     )(input)
-    .map(|(next_input, res)| (next_input, res.into()))
+    .map(|(next_input, res)| (next_input, res))
 }
 
 ///Parse a machine
@@ -208,14 +208,14 @@ fn parse_machine<'a>(item: Vec<(&str, &'a str)>) -> Machine<'a> {
         if opt.0 == "name" {
             name = opt.1;
         } else if opt.0.contains("net-id") {
-            networks.push(opt.1.clone());
+            networks.push(opt.1);
         }
     }
-    return Machine {
+    Machine {
         name: Some(name),
         protocols: None,
         networks: Some(networks),
-    };
+    }
 }
 
 #[cfg(test)]
