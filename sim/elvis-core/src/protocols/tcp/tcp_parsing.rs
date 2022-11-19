@@ -41,7 +41,7 @@ impl TcpHeader {
         let data_offset = offset_reserved_control[0] >> 4;
         let control = Control::from(offset_reserved_control[1] & 0b11_1111);
 
-        if data_offset != 20 {
+        if data_offset != 5 {
             Err(TcpError::UnexpectedOptions)?
         }
 
@@ -54,13 +54,14 @@ impl TcpHeader {
         checksum.add_u16(urgent);
 
         let text_length = checksum.accumulate_remainder(&mut bytes);
+        let tcp_length = text_length + data_offset as u16 * 4;
 
         // Pseudo header stuff
         checksum.add_u32(src_address.into());
         checksum.add_u32(dst_address.into());
         // zero, TCP protocol number
         checksum.add_u8(0, 6);
-        checksum.add_u16(text_length);
+        checksum.add_u16(tcp_length);
 
         let checksum = checksum.as_u16();
         if expected_checksum == checksum {
@@ -89,43 +90,43 @@ pub struct Control(u8);
 impl Control {
     pub fn new(urg: bool, ack: bool, psh: bool, rst: bool, syn: bool, fin: bool) -> Self {
         Self(
-            urg as u8
-                | (ack as u8) << 1
-                | (psh as u8) << 2
-                | (rst as u8) << 3
-                | (syn as u8) << 4
-                | (fin as u8) << 5,
+            fin as u8
+                | (syn as u8) << 1
+                | (rst as u8) << 2
+                | (psh as u8) << 3
+                | (ack as u8) << 4
+                | (urg as u8) << 5,
         )
     }
 
     /// Urgent Pointer field significant
     pub fn urg(&self) -> bool {
-        self.0 & 0b1 == 1
+        (self.0 >> 5) & 0b1 == 1
     }
 
     /// Acknowledgment field significant
     pub fn ack(&self) -> bool {
-        (self.0 >> 1) & 0b1 == 1
+        (self.0 >> 4) & 0b1 == 1
     }
 
     /// Push Function
     pub fn psh(&self) -> bool {
-        (self.0 >> 2) & 0b1 == 1
+        (self.0 >> 3) & 0b1 == 1
     }
 
     /// Reset the connection
     pub fn rst(&self) -> bool {
-        (self.0 >> 3) & 0b1 == 1
+        (self.0 >> 2) & 0b1 == 1
     }
 
     /// Synchronize sequence numbers
     pub fn syn(&self) -> bool {
-        (self.0 >> 4) & 0b1 == 1
+        (self.0 >> 1) & 0b1 == 1
     }
 
     /// No more data from sender
     pub fn fin(&self) -> bool {
-        (self.0 >> 5) & 0b1 == 1
+        (self.0 >> 0) & 0b1 == 1
     }
 }
 
@@ -174,7 +175,11 @@ mod tests {
             expected.write(&mut serial)?;
             serial
         };
-        let actual = TcpHeader::from_bytes(serial.iter().cloned(), src_address, dst_address)?;
+        let actual = TcpHeader::from_bytes(
+            serial.into_iter().chain(payload.into_iter().cloned()),
+            src_address,
+            dst_address,
+        )?;
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.dst_port, dst_port);
@@ -184,6 +189,12 @@ mod tests {
         assert_eq!(actual.window, window);
         assert_eq!(actual.checksum, expected.checksum);
         assert_eq!(actual.urgent, 0);
+        assert!(!actual.control.urg());
+        assert!(actual.control.ack());
+        assert!(actual.control.psh());
+        assert!(!actual.control.rst());
+        assert!(!actual.control.syn());
+        assert!(!actual.control.fin());
         Ok(())
     }
 }
