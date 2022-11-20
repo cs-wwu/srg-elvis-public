@@ -5,17 +5,38 @@ const HEADER_WORDS: u16 = 5;
 const HEADER_OCTETS: u16 = HEADER_WORDS * 4;
 
 pub struct TcpHeader {
+    /// The source port number
     pub src_port: u16,
+    /// The destination port number
     pub dst_port: u16,
+    /// The sequence number of the first data octet in this segment (except when
+    /// SYN is present). If SYN is present the sequence number is the initial
+    /// sequence number (ISN) and the first data octet is ISN+1.
     pub sequence: u32,
+    // If the ACK control bit is set this field contains the value of the next
+    // sequence number the sender of the segment is expecting to receive. Once
+    // a connection is established this is always sent.
     pub acknowledgement: u32,
     pub control: Control,
+    /// The number of data octets beginning with the one indicated in the
+    /// acknowledgment field which the sender of this segment is willing to
+    /// accept.
     pub window: u16,
+    // TODO(hardint): This probably shouldn't be pub
+    /// The number of data octets beginning with the one indicated in the
+    /// acknowledgment field which the sender of this segment is willing to
+    /// accept. For internal use during testing.
     pub checksum: u16,
+    /// This field communicates the current value of the urgent pointer as a
+    /// positive offset from the sequence number in this segment. The urgent
+    /// pointer points to the sequence number of the octet following the urgent
+    /// data. This field is only be interpreted in segments with the URG
+    /// control bit set.
     pub urgent: u16,
 }
 
 impl TcpHeader {
+    /// Parses a serialized TCP header into its constituent fields.
     pub fn from_bytes(
         mut bytes: impl Iterator<Item = u8>,
         src_address: Ipv4Address,
@@ -87,6 +108,7 @@ impl TcpHeader {
     }
 }
 
+/// Used for building a serialized TCP header
 #[derive(Debug)]
 pub struct TcpHeaderBuilder {
     src_port: u16,
@@ -101,6 +123,7 @@ pub struct TcpHeaderBuilder {
 }
 
 impl TcpHeaderBuilder {
+    /// Initialize the TCP header with defaults and the given values
     pub fn new(
         src_port: u16,
         dst_port: u16,
@@ -122,51 +145,61 @@ impl TcpHeaderBuilder {
         }
     }
 
+    /// Set the acknowledgement number
     pub fn acknowledgement(mut self, acknowledgement: u32) -> Self {
         self.acknowledgement = acknowledgement;
         self
     }
 
+    /// Set the control bits
     pub fn control(mut self, control: Control) -> Self {
         self.control = control;
         self
     }
 
+    /// Set the urg bit up
     pub fn urg(mut self) -> Self {
         self.control.set_urg(true);
         self
     }
 
+    /// Set the ack bit up
     pub fn ack(mut self) -> Self {
         self.control.set_ack(true);
         self
     }
 
+    /// Set the psh bit up
     pub fn psh(mut self) -> Self {
         self.control.set_psh(true);
         self
     }
 
+    /// Set the rst bit up
     pub fn rst(mut self) -> Self {
         self.control.set_rst(true);
         self
     }
 
+    /// Set the syn bit up
     pub fn syn(mut self) -> Self {
         self.control.set_syn(true);
         self
     }
 
+    /// Set the fin bit up
     pub fn fin(mut self) -> Self {
         self.control.set_fin(true);
         self
     }
 
+    /// Set urgent pointer
     pub fn urgent(mut self, urgent: u16) -> Self {
         self.urgent = urgent;
         self
     }
 
+    /// Get the serialized header
     pub fn build(self, mut payload: impl Iterator<Item = u8>) -> Result<Vec<u8>, TcpError> {
         let mut checksum = Checksum::new();
         let length = checksum
@@ -205,6 +238,7 @@ impl TcpHeaderBuilder {
     }
 }
 
+/// The control bits of a TCP header
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct Control(u8);
 
