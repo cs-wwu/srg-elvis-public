@@ -52,7 +52,7 @@ impl UdpHeader {
         // [zero, UDP protocol number] from pseudo header
         checksum.add_u8(0, 17);
 
-        let bytes_consumed = next_padded(&mut bytes, &mut checksum) + 8;
+        let bytes_consumed = checksum.accumulate_remainder(&mut bytes) + 8;
 
         if bytes_consumed != length || bytes.next().is_some() {
             Err(UdpError::LengthMismatch)?
@@ -84,7 +84,7 @@ pub(super) fn build_udp_header(
     mut payload: impl Iterator<Item = u8>,
 ) -> Result<Vec<u8>, UdpError> {
     let mut checksum = Checksum::new();
-    let length = next_padded(&mut payload, &mut checksum);
+    let length = checksum.accumulate_remainder(&mut payload);
 
     let length = HEADER_OCTETS
         .checked_add(length)
@@ -100,33 +100,12 @@ pub(super) fn build_udp_header(
     checksum.add_u16(source_port);
     checksum.add_u16(destination_port);
 
-    let mut out = vec![];
+    let mut out = Vec::with_capacity(HEADER_OCTETS as usize);
     out.extend_from_slice(&source_port.to_be_bytes());
     out.extend_from_slice(&destination_port.to_be_bytes());
     out.extend_from_slice(&length.to_be_bytes());
     out.extend_from_slice(&checksum.as_u16().to_be_bytes());
     Ok(out)
-}
-
-/// Gets the next two bytes at a `u16` from a byte iterator. If the `payload`
-/// contains an odd number of bytes, the last `u8` will be appended with the
-/// value zero.
-fn next_padded(payload: &mut impl Iterator<Item = u8>, checksum: &mut Checksum) -> u16 {
-    let mut length = 0;
-    while let Some(first) = payload.next() {
-        let second = match payload.next() {
-            Some(second) => {
-                length += 2;
-                second
-            }
-            None => {
-                length += 1;
-                0
-            }
-        };
-        checksum.add_u8(first, second);
-    }
-    length
 }
 
 #[cfg(test)]
