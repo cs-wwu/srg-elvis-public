@@ -1,6 +1,8 @@
+use super::TcpError;
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 
-use super::TcpError;
+const HEADER_WORDS: u16 = 5;
+const HEADER_OCTETS: u16 = HEADER_WORDS * 4;
 
 pub struct TcpHeader {
     pub src_port: u16,
@@ -41,7 +43,8 @@ impl TcpHeader {
         let data_offset = offset_reserved_control[0] >> 4;
         let control = Control::from(offset_reserved_control[1] & 0b11_1111);
 
-        if data_offset != 5 {
+        if data_offset != HEADER_WORDS as u8 {
+            // TODO(hardint): Support optional headers
             Err(TcpError::UnexpectedOptions)?
         }
 
@@ -84,7 +87,125 @@ impl TcpHeader {
     }
 }
 
-#[derive(Debug, Default, Hash, PartialEq, Eq)]
+#[derive(Debug)]
+pub struct TcpHeaderBuilder {
+    src_port: u16,
+    dst_port: u16,
+    sequence: u32,
+    acknowledgement: u32,
+    control: Control,
+    window: u16,
+    urgent: u16,
+    src_address: Ipv4Address,
+    dst_address: Ipv4Address,
+}
+
+impl TcpHeaderBuilder {
+    pub fn new(
+        src_port: u16,
+        dst_port: u16,
+        src_address: Ipv4Address,
+        dst_address: Ipv4Address,
+        sequence: u32,
+        window: u16,
+    ) -> Self {
+        Self {
+            src_port,
+            dst_port,
+            src_address,
+            dst_address,
+            sequence,
+            window,
+            acknowledgement: 0,
+            urgent: 0,
+            control: Control::default(),
+        }
+    }
+
+    pub fn acknowledgement(mut self, acknowledgement: u32) -> Self {
+        self.acknowledgement = acknowledgement;
+        self
+    }
+
+    pub fn control(mut self, control: Control) -> Self {
+        self.control = control;
+        self
+    }
+
+    pub fn urg(mut self) -> Self {
+        self.control.set_urg(true);
+        self
+    }
+
+    pub fn ack(mut self) -> Self {
+        self.control.set_ack(true);
+        self
+    }
+
+    pub fn psh(mut self) -> Self {
+        self.control.set_psh(true);
+        self
+    }
+
+    pub fn rst(mut self) -> Self {
+        self.control.set_rst(true);
+        self
+    }
+
+    pub fn syn(mut self) -> Self {
+        self.control.set_syn(true);
+        self
+    }
+
+    pub fn fin(mut self) -> Self {
+        self.control.set_fin(true);
+        self
+    }
+
+    pub fn urgent(mut self, urgent: u16) -> Self {
+        self.urgent = urgent;
+        self
+    }
+
+    pub fn build(self, mut payload: impl Iterator<Item = u8>) -> Result<Vec<u8>, TcpError> {
+        let mut checksum = Checksum::new();
+        let length = checksum
+            .accumulate_remainder(&mut payload)
+            .checked_add(HEADER_OCTETS)
+            .ok_or(TcpError::OverlyLongPayload)?;
+
+        // Pseudo header
+        checksum.add_u32(self.src_address.into());
+        checksum.add_u32(self.dst_address.into());
+        checksum.add_u8(0, 6);
+        checksum.add_u16(length);
+
+        let data_offset = (HEADER_WORDS as u8) << 4;
+
+        // Header parts
+        checksum.add_u16(self.src_port);
+        checksum.add_u16(self.dst_port);
+        checksum.add_u32(self.sequence.to_be_bytes());
+        checksum.add_u32(self.acknowledgement.to_be_bytes());
+        checksum.add_u8(data_offset, self.control.into());
+        checksum.add_u16(self.window);
+        checksum.add_u16(self.urgent);
+
+        let mut out = Vec::with_capacity(HEADER_OCTETS as usize);
+        out.extend_from_slice(&self.src_port.to_be_bytes());
+        out.extend_from_slice(&self.dst_port.to_be_bytes());
+        out.extend_from_slice(&self.sequence.to_be_bytes());
+        out.extend_from_slice(&self.acknowledgement.to_be_bytes());
+        out.push(data_offset);
+        out.push(self.control.into());
+        out.extend_from_slice(&self.window.to_be_bytes());
+        out.extend_from_slice(&checksum.as_u16().to_be_bytes());
+        out.extend_from_slice(&self.urgent.to_be_bytes());
+        Ok(out)
+    }
+}
+
+#[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct Control(u8);
 
 impl Control {
@@ -101,32 +222,64 @@ impl Control {
 
     /// Urgent Pointer field significant
     pub fn urg(&self) -> bool {
-        (self.0 >> 5) & 0b1 == 1
+        self.bit(5)
+    }
+
+    pub fn set_urg(&mut self, state: bool) {
+        self.set_bit(5, state);
     }
 
     /// Acknowledgment field significant
     pub fn ack(&self) -> bool {
-        (self.0 >> 4) & 0b1 == 1
+        self.bit(4)
+    }
+
+    pub fn set_ack(&mut self, state: bool) {
+        self.set_bit(4, state);
     }
 
     /// Push Function
     pub fn psh(&self) -> bool {
-        (self.0 >> 3) & 0b1 == 1
+        self.bit(3)
+    }
+
+    pub fn set_psh(&mut self, state: bool) {
+        self.set_bit(3, state);
     }
 
     /// Reset the connection
     pub fn rst(&self) -> bool {
-        (self.0 >> 2) & 0b1 == 1
+        self.bit(2)
+    }
+
+    pub fn set_rst(&mut self, state: bool) {
+        self.set_bit(2, state);
     }
 
     /// Synchronize sequence numbers
     pub fn syn(&self) -> bool {
-        (self.0 >> 1) & 0b1 == 1
+        self.bit(1)
+    }
+
+    pub fn set_syn(&mut self, state: bool) {
+        self.set_bit(1, state);
     }
 
     /// No more data from sender
     pub fn fin(&self) -> bool {
-        (self.0 >> 0) & 0b1 == 1
+        self.bit(0)
+    }
+
+    pub fn set_fin(&mut self, state: bool) {
+        self.set_bit(0, state);
+    }
+
+    fn bit(&self, bit: u8) -> bool {
+        (self.0 >> bit) & 0b1 == 1
+    }
+
+    fn set_bit(&mut self, bit: u8, state: bool) {
+        self.0 = (self.0 & !(1 << bit)) | ((state as u8) << bit);
     }
 }
 
@@ -158,28 +311,35 @@ mod tests {
         let window = 1024;
         let acknowledgement = 10;
         let control = Control::new(false, true, true, false, false, false);
-        let mut expected = etherparse::TcpHeader::new(src_port, dst_port, sequence, window);
-        expected.acknowledgment_number = acknowledgement;
-        expected.ack = true;
-        expected.psh = true;
-        let ip_header = etherparse::Ipv4Header::new(
-            payload.len().try_into()?,
-            ttl,
-            etherparse::IpNumber::Tcp,
-            src_address.into(),
-            dst_address.into(),
-        );
-        expected.checksum = expected.calc_checksum_ipv4(&ip_header, payload)?;
+
+        let expected = {
+            let mut expected = etherparse::TcpHeader::new(src_port, dst_port, sequence, window);
+            expected.acknowledgment_number = acknowledgement;
+            expected.ack = true;
+            expected.psh = true;
+            let ip_header = etherparse::Ipv4Header::new(
+                payload.len().try_into()?,
+                ttl,
+                etherparse::IpNumber::Tcp,
+                src_address.into(),
+                dst_address.into(),
+            );
+            expected.checksum = expected.calc_checksum_ipv4(&ip_header, payload)?;
+            expected
+        };
+
         let serial = {
             let mut serial = vec![];
             expected.write(&mut serial)?;
             serial
         };
+
         let actual = TcpHeader::from_bytes(
             serial.into_iter().chain(payload.into_iter().cloned()),
             src_address,
             dst_address,
         )?;
+
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.dst_port, dst_port);
@@ -196,5 +356,81 @@ mod tests {
         assert!(!actual.control.syn());
         assert!(!actual.control.fin());
         Ok(())
+    }
+
+    #[test]
+    fn builds_packet() -> anyhow::Result<()> {
+        let payload = b"Hello, world!";
+        let ttl = 30;
+        let src_address = Ipv4Address::LOCALHOST;
+        let dst_address = Ipv4Address::SUBNET;
+        let src_port = 0xcafe;
+        let dst_port = 0xbabe;
+        let sequence = 123456789;
+        let window = 1024;
+        let acknowledgement = 10;
+
+        let expected = {
+            let mut expected = etherparse::TcpHeader::new(src_port, dst_port, sequence, window);
+            expected.acknowledgment_number = acknowledgement;
+            expected.ack = true;
+            expected.psh = true;
+            let ip_header = etherparse::Ipv4Header::new(
+                payload.len().try_into()?,
+                ttl,
+                etherparse::IpNumber::Tcp,
+                src_address.into(),
+                dst_address.into(),
+            );
+            expected.checksum = expected.calc_checksum_ipv4(&ip_header, payload)?;
+            expected
+        };
+
+        let expected = {
+            let mut serial = vec![];
+            expected.write(&mut serial)?;
+            serial
+        };
+
+        let actual = TcpHeaderBuilder::new(
+            src_port,
+            dst_port,
+            src_address,
+            dst_address,
+            sequence,
+            window,
+        )
+        .ack()
+        .psh()
+        .acknowledgement(acknowledgement)
+        .build(payload.into_iter().cloned())?;
+
+        assert_eq!(expected, actual);
+        Ok(())
+    }
+
+    #[test]
+    fn control_works() {
+        let control = Control::new(true, false, true, false, true, false);
+        assert!(control.urg());
+        assert!(!control.ack());
+        assert!(control.psh());
+        assert!(!control.rst());
+        assert!(control.syn());
+        assert!(!control.fin());
+
+        let control = {
+            let mut control = Control::default();
+            control.set_ack(true);
+            control.set_rst(true);
+            control.set_fin(true);
+            control
+        };
+        assert!(!control.urg());
+        assert!(control.ack());
+        assert!(!control.psh());
+        assert!(control.rst());
+        assert!(!control.syn());
+        assert!(control.fin());
     }
 }

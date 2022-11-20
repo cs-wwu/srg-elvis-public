@@ -12,4 +12,6 @@ pub enum TcpError {
     InvalidChecksum { actual: u16, expected: u16 },
     #[error("Data offset was different from that expected for a simple header")]
     UnexpectedOptions,
+    #[error("The TCP payload is longer than can fit into a single packet")]
+    OverlyLongPayload,
 }

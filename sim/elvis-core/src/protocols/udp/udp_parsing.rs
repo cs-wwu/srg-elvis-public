@@ -100,7 +100,7 @@ pub(super) fn build_udp_header(
     checksum.add_u16(source_port);
     checksum.add_u16(destination_port);
 
-    let mut out = vec![];
+    let mut out = Vec::with_capacity(HEADER_OCTETS as usize);
     out.extend_from_slice(&source_port.to_be_bytes());
     out.extend_from_slice(&destination_port.to_be_bytes());
     out.extend_from_slice(&length.to_be_bytes());
