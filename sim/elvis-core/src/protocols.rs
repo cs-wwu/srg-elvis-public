@@ -17,4 +17,6 @@ use crate::protocol::ProtocolId;
 
 mod utility;
 
+// TODO(hardint): Remove dead code allowance when possible
+#[allow(dead_code)]
 mod tcp;
