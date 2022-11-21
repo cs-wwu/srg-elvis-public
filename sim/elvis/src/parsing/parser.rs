@@ -305,6 +305,10 @@ fn networks_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i3
     let remaining_string;
 	match parsed_networks {
         Ok(net) => {
+			// TODO: check that dectype is network
+			if net.0 != DecType::Network{
+				return Err("Invalid type entry for networks".to_string());
+			}
 			dectype = net.0;
             options = net.1;
             remaining_string = net.2;
