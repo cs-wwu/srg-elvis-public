@@ -1,4 +1,4 @@
-use crate::{applications::{Capture, SendMessage}, parsing::generate_sim};
+use crate::{applications::{Capture, SendMessage}};
 use elvis_core::{
     message::Message,
     networks::Reliable,
@@ -38,9 +38,6 @@ pub async fn basic() {
         ],
         [network],
     );
-
-    let s: &str = "[Machine name='test' net-id='1' net-id2='4' net-id3='2'][Machine name='test' net-id='3' net-id2='2']";
-    generate_sim(s);
 
     internet.run().await;
     assert_eq!(

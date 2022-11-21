@@ -2,26 +2,13 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take_until},
     character::complete::char,
-    error::{context, VerboseError},
-    multi::many0,
+    error::{VerboseError, context},
     sequence::{delimited, preceded, separated_pair},
     IResult,
+    multi::many0,
 };
+use std::fs;
 
-// Temp testing usage
-// place:     
-//  let s: &str = "[Machine name='test' net-id='1' net-id2='4' net-id3='2'][Machine name='test' net-id='3' net-id2='2']";
-//  generate_sim(s);
-// in a sim file and import generate sim to test
-
-/// Core parsing struct
-/// Parsed inputs become a part of the overall Schema
-/// Then are parsed into their respective structs (Machine, Network, etc..)
-#[derive(Debug, PartialEq, Eq)]
-pub struct Schema<'a> {
-    dectype: DecType,
-    options: Option<Params<'a>>,
-}
 
 /// This is the type of creation we are working with
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -33,17 +20,74 @@ pub enum DecType {
     Machines,
     Machine,
     Protocols,
-    IPtype,
-    Commstd,
+    Protocol,
     Applications,
-    App,
+    Application,
 }
 
-// Each Param should be in the format x=y
-pub type Param<'a> = (&'a str, &'a str);
-pub type Params<'a> = Vec<Param<'a>>;
-
 type Res<T, U> = IResult<T, U, VerboseError<T>>;
+
+// Each Param should be in the format x=y
+type Param<'a> = (&'a str, &'a str);
+type Params<'a> = Vec<Param<'a>>;
+
+type Networks<'a> = Vec<Network<'a>>;
+type Protocols<'a> = Vec<Protocol<'a>>;
+type Applications<'a> = Vec<Application<'a>>;
+type Machines<'a> = Vec<Machine<'a>>;
+type IPs<'a> = Vec<IP<'a>>;
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Interfaces<'a> {
+    networks: Networks<'a>,
+    protocols: Protocols<'a>,
+    applications: Applications<'a>,
+}
+
+///Machine struct
+/// Holds core machine info before turning into code
+/// Contains the following info:
+/// name, list of protocols, list of networks
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Machine<'a> {
+    dectype: DecType,
+    options: Option<Params<'a>>,
+    interfaces: Interfaces<'a>
+}
+
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Network<'a> {
+    dectype: DecType,
+    options: Params<'a>,
+    ip: IPs<'a>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Protocol<'a> {
+    dectype: DecType,
+    options: Params<'a>
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct IP<'a> {
+    dectype: DecType,
+    options: Params<'a>
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Application<'a> {
+    dectype: DecType,
+    options: Params<'a>
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Sim<'a> {
+    networks: Networks<'a>,
+    machines: Machines<'a>
+}
+
+
 
 impl From<&str> for DecType {
     fn from(i: &str) -> Self {
@@ -55,114 +99,90 @@ impl From<&str> for DecType {
             "machines" => DecType::Machines,
             "machine" => DecType::Machine,
             "protocols" => DecType::Protocols,
-            "iptype" => DecType::IPtype,
-            "commstd" => DecType::Commstd,
+            "protocol" => DecType::Protocol,
             "applications" => DecType::Applications,
-            "app" => DecType::App,
+            "application" => DecType::Application,
             _ => unimplemented!("No other dec types supported"),
         }
     }
 }
-// Type specific structs
-
-///Machine struct
-/// Holds core machine info before turning into code
-/// Contains the following info:
-/// name, list of protocols, list of networks
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Machine<'a> {
-    name: Option<&'a str>,
-    protocols: Option<Params<'a>>,
-    networks: Option<Vec<&'a str>>,
-}
 
 // TODO: Will be configured to accept full files in the future
 /// main wrapper for parsing.
-/// Currently only accepts single line string inputs
-pub fn generate_sim(s: &str) {
-    // println!("{:?}", get_all_sections(s));
-    let basic_schema = get_all_sections(s);
-    let mut machines: Vec<Machine> = Vec::new();
-    for item in basic_schema.unwrap() {
-        if item.dectype == DecType::Machine {
-            machines.push(parse_machine(item.options.unwrap()));
-        }
-    }
-    println!("{:?}", machines);
+/// Currently accepts file paths in string form (CLI input needed in the future)
+pub fn generate_sim(file_path: &str) {
+    let contents = fs::read_to_string(file_path)
+        .expect("Should have been able to read the file");
+    // println!("contents: {:?}", contents);
+    core_parser(&contents);
+    // println!("{:?}", contents);
+    // let basic_schema = get_all_sections(&contents);
+    // println!("{:?}", basic_schema);
+    // println!("{:?}", machines);
 }
 
-/// Returns a vector of schemas from a list of correctly formatted declarations.
-fn get_all_sections(s: &str) -> Result<Vec<Schema>, String> {
-    let mut sec = section(s);
-    match sec {
-        Ok(mut sec_safe) => {
-            let mut schemas: Vec<Schema> = vec![];
+fn core_parser(s: &str) -> Result<Sim, String> {
+    let networks = Networks::new();
+    let machines = Machines::new();
 
-            // until we run out of information to get schemas for
-            while !sec_safe.1.is_empty() {
-                let schema = get_schema(sec_safe.1);
-                match schema {
-                    Ok(t) => {
-                        schemas.push(t);
-                    }
-                    Err(e) => return Err(e),
-                }
+    let num_tabs = 0;
+	//TODO: While loop
+    let res = general_parser(s);
 
-                // only if there was more information to parse do we go into here
-                if !sec_safe.0.is_empty() {
-                    sec = section(sec_safe.0);
-                    match sec {
-                        Ok(temp) => {
-                            sec_safe = temp;
-                        }
+    match res {
+        Ok(info) => {
+            let dectype = info.0;
+            let options = info.1;
+            let remaining_string = info.2;
 
-                        Err(e) => {
-                            return Err(format!("{}", e));
-                        }
-                    }
-                } else {
-                    // set it to this so the while loop fails
-                    sec_safe.1 = "";
-                }
-            }
-            Ok(schemas)
+            match dectype {
+				DecType::Template => {
+                    
+                },
+				DecType::Networks => {
+                    networks_parser(dectype, options, remaining_string, num_tabs + 1);
+                },
+				DecType::Network => {
+                    
+                },
+				DecType::IP => {
+                    
+                },
+				DecType::Machines => {
+                    
+                },
+				DecType::Machine => {
+                    
+                },
+				DecType::Protocols => {
+                    
+                },
+				DecType::Protocol => {
+                    
+                },
+				DecType::Applications => {
+                    
+                },
+				DecType::Application => {
+                    
+                },
+			}
         }
 
-        Err(e) => {
-            return Err(format!("{}", e));
+        Err(_e) => {
+            return Err("Parser failed".to_string());
         }
     }
-}
 
-/// Should get a single section (everything between brackets) as input.
-/// Will return a schema for that section.
-/// Errors on any remaining strings that it couldn't parse.
-fn get_schema(s: &str) -> Result<Schema, String> {
-    let dec = dectype(s);
-    let args = arguments(dec.clone().unwrap().0);
-
-    let temp = args.unwrap();
-
-    if !temp.0.is_empty() {
-        return Err(format!("Improper Input for Schema at \"{}\"", temp.0));
-    }
-
-    Ok(Schema {
-        dectype: dec.unwrap().1,
-        options: Some(temp.1),
+    Ok(Sim{
+        networks,
+        machines 
     })
-}
-
-/// grabs everything between brackets "[]"
-// TODO: add behavior to ignore spaces in here?
-fn section(input: &str) -> Res<&str, &str> {
-    context("section", delimited(char('['), take_until("]"), char(']')))(input)
-        .map(|(next_input, res)| (next_input, res))
 }
 
 /// grabs the type from the beginning of each section
 /// For example, would turn "Template name='test'" into having a dec type and the remainder of the string
-fn dectype(input: &str) -> Res<&str, DecType> {
+fn get_type(input: &str) -> Res<&str, DecType> {
     context(
         "dectype",
         alt((
@@ -174,12 +194,26 @@ fn dectype(input: &str) -> Res<&str, DecType> {
             tag_no_case("Machines"),
             tag_no_case("Machine"),
             tag_no_case("Protocols"),
-            tag_no_case("Commstd"),
+            tag_no_case("Protocol"),
             tag_no_case("Applications"),
-            tag_no_case("App"),
+            tag_no_case("Application"),
         )),
     )(input)
     .map(|(next_input, res)| (next_input, res.into()))
+}
+
+/// grabs everything between brackets "[]"
+// TODO: add behavior to ignore spaces in here?
+fn section(input: &str) -> Res<&str, &str> {
+    context(
+        "section", 
+        delimited(
+            char('['), 
+           take_until("]"), 
+            char(']')
+        )
+    )(input)
+    .map(|(next_input, res)| (next_input, res))
 }
 
 /// breaks down the arguments of our input
@@ -199,223 +233,99 @@ fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
     .map(|(next_input, res)| (next_input, res))
 }
 
-///Parse a machine
-fn parse_machine<'a>(item: Vec<(&str, &'a str)>) -> Machine<'a> {
-    let mut name: &str = "";
-    // let protocols: Params;
-    let mut networks: Vec<&'a str> = Vec::new();
-    for opt in item {
-        if opt.0 == "name" {
-            name = opt.1;
-        } else if opt.0.contains("net-id") {
-            networks.push(opt.1);
+fn networks_parser<'a>(dec: DecType, args: Params, s0: &'a str, num_tabs: i32) -> Result<(Networks<'a>, &'a str), String>{
+    // println!("{:?}", dec);
+    // println!("{:?}", args);
+    // println!("{:?}", s0);
+
+    let mut t = 0;
+    while t < num_tabs && s0.chars().nth(t as usize) == Some('\t') {
+        t+=1;
+    }
+    // next line doesn't have enough tabs thus a network isn't being declared
+    if t != num_tabs {
+        return Ok((vec![], s0));
+    }
+
+	let networks = Networks::new();
+	// TODO: While loop around this
+    let parsed_networks = general_parser(&s0[num_tabs as usize..]);
+    let dectype;
+    let options;
+    let remaining_string;
+	match parsed_networks {
+        Ok(net) => {
+			dectype = net.0;
+            options = net.1;
+            remaining_string = net.2;
+        }
+
+        Err(_e) => {
+            return Err("Could not parse inside of networks".to_string());
         }
     }
-    Machine {
-        name: Some(name),
-        protocols: None,
-        networks: Some(networks),
+
+    match dectype {
+        DecType::Network => {
+            // TODO
+			// network_parser();
+		}
+        _ => {
+            return Err("Not a network type".to_string());
+        }
     }
+
+
+    Err("err".to_string())
+
+    // return needed
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use nom::{
-        error::{ErrorKind, VerboseError, VerboseErrorKind},
-        Err as NomErr,
-    };
+fn general_parser(s: &str) -> Result<(DecType, Params, &str), String> {
+    let sec = section(s);
+    match sec {
+        // s0 = remaining string, s1 = string gotten by parsing
+        Ok((s0, s1)) => {
+            // parse what was inside of the section
+            let dec = get_type(s1);
+            let dectype;
+            let args;
+            match dec {
+                // s2 = (remaining string, dectype)
+                Ok(s2) => {
+                    dectype = s2.1;
+                    
+                    match arguments(s2.0) {
+                        Ok(a) => {
+                            args = a.1;
+                            if !a.0.is_empty() {
+                                return Err("Args format incorrect".to_string());
+                            }
+                        }
 
-    #[test]
-    fn test_dectype() {
-        // TODO: fix this behavior where it keeps the space before the next stuff
-        assert_eq!(
-            dectype("Template test='hello'"),
-            Ok((" test='hello'", DecType::Template))
-        );
-        assert_eq!(
-            dectype("Networks test='hello'"),
-            Ok((" test='hello'", DecType::Networks))
-        );
-        assert_eq!(
-            dectype("Network test='hello'"),
-            Ok((" test='hello'", DecType::Network))
-        );
-        assert_eq!(
-            dectype("IP test='hello'"),
-            Ok((" test='hello'", DecType::IP))
-        );
-        assert_eq!(
-            dectype("Machines test='hello'"),
-            Ok((" test='hello'", DecType::Machines))
-        );
-        assert_eq!(
-            dectype("Machine test='hello'"),
-            Ok((" test='hello'", DecType::Machine))
-        );
-        assert_eq!(
-            dectype("Protocols test='hello'"),
-            Ok((" test='hello'", DecType::Protocols))
-        );
-        assert_eq!(
-            dectype("IPtype test='hello'"),
-            Ok((" test='hello'", DecType::IPtype))
-        );
-        assert_eq!(
-            dectype("Commstd test='hello'"),
-            Ok((" test='hello'", DecType::Commstd))
-        );
-        assert_eq!(
-            dectype("Applications test='hello'"),
-            Ok((" test='hello'", DecType::Applications))
-        );
-        assert_eq!(
-            dectype("App test='hello'"),
-            Ok((" test='hello'", DecType::App))
-        );
-        assert_eq!(
-            dectype("Potato test='hi'"),
-            Err(NomErr::Error(VerboseError {
-                errors: vec![
-                    ("Potato test='hi'", VerboseErrorKind::Nom(ErrorKind::Tag)),
-                    ("Potato test='hi'", VerboseErrorKind::Nom(ErrorKind::Alt)),
-                    ("Potato test='hi'", VerboseErrorKind::Context("dectype")),
-                ]
-            }))
-        );
-    }
+                        Err(e) => {
+                            return Err(format!("{}", e));
+                        }
+                    }
 
-    #[test]
-    fn test_section() {
-        // two proper calls
-        assert_eq!(
-            section("[Template name='test']"),
-            Ok(("", "Template name='test'"))
-        );
-        assert_eq!(
-            section("[Template name='test'][Machine name='hellothere']"),
-            Ok(("[Machine name='hellothere']", "Template name='test'"))
-        );
-
-        // checks to make sure it errors when no brackets are present
-        assert_eq!(
-            section("Template name='test'"),
-            Err(NomErr::Error(VerboseError {
-                errors: vec![
-                    ("Template name='test'", VerboseErrorKind::Char('[')),
-                    ("Template name='test'", VerboseErrorKind::Context("section")),
-                ]
-            }))
-        );
-
-        //checks when just right bracket is missing
-        assert_eq!(
-            section("[Template name='test'"),
-            Err(NomErr::Error(VerboseError {
-                errors: vec![
-                    (
-                        "Template name='test'",
-                        VerboseErrorKind::Nom(ErrorKind::TakeUntil)
-                    ),
-                    (
-                        "[Template name='test'",
-                        VerboseErrorKind::Context("section")
-                    ),
-                ]
-            }))
-        );
-    }
-
-    #[test]
-    fn test_arguments() {
-        assert_eq!(
-            arguments(" name='test' again='test2' potato"),
-            Ok((" potato", vec![("name", "test"), ("again", "test2")]))
-        );
-        assert_eq!(arguments(" name='test'"), Ok(("", vec![("name", "test")])));
-        // assert_eq!(arguments(" test123"), Ok(("test123", vec![""])));
-
-        // TODO: are there any error cases?
-    }
-
-    #[test]
-    fn test_get_schema() {
-        // checks proper input to the function
-        let s: &str = "Machine name='test' net-id='potato' net-id2='potato'";
-        assert_eq!(
-            get_schema(s),
-            Ok(Schema {
-                dectype: DecType::Machine,
-                options: Some(vec![
-                    ("name", "test"),
-                    ("net-id", "potato"),
-                    ("net-id2", "potato")
-                ])
-            })
-        );
-
-        // checks another proper input to the function
-        let s: &str = "Machine";
-        assert_eq!(
-            get_schema(s),
-            Ok(Schema {
-                dectype: DecType::Machine,
-                options: Some(vec![])
-            })
-        );
-
-        // checks one variant of improper input to the function
-        let s: &str = "Machine test";
-        assert_eq!(
-            get_schema(s),
-            Err("Improper Input for Schema at \" test\"".to_string())
-        );
-
-        // checks another variant of improper input to the function
-        let s: &str = "Machine test='test1' anothertest";
-        assert_eq!(
-            get_schema(s),
-            Err("Improper Input for Schema at \" anothertest\"".to_string())
-        );
-    }
-
-    #[test]
-    fn test_get_all_sections() {
-        let s: &str = "[Machine name='test'][App id='1']";
-        assert_eq!(
-            get_all_sections(s),
-            Ok(vec![
-                Schema {
-                    dectype: DecType::Machine,
-                    options: Some(vec![("name", "test")])
-                },
-                Schema {
-                    dectype: DecType::App,
-                    options: Some(vec![("id", "1")])
+                    // at this point we have the dectype and the options (args) for said type
                 }
-            ])
-        );
 
-        // TODO: make this test case work (we need some way of ignoring spaces and new lines)
-        // let s: &str = "[Machine name='test'] \n [App id='1']";
-        // assert_eq!(
-        //     get_all_sections(s),
-        //     Ok(vec![
-        //         Schema{dectype: DecType::Machine, options: Some(vec![("name", "test")])},
-        //         Schema{dectype: DecType::App, options: Some(vec![("id", "1")])}
-        //     ])
-        // );
+                Err(e) => {
+                    return Err(format!("{}", e));
+                }
+            }
 
-        let s: &str = "[Machine name='test']App id='1']";
-        assert_eq!(
-            get_all_sections(s),
-            Err("Parsing Error: VerboseError { errors: [(\"App id='1']\", Char('[')), (\"App id='1']\", Context(\"section\"))] }".to_string())
-        );
+            // check to see if next thing is part of previous section
+            if s0.starts_with('\n') {
+                return Err("Not a new line after declaration".to_string());
+            }
+            
+            Ok((dectype, args, &s0[1..]))
+        }
 
-        let s: &str = "[Machine name='test' test][App id='1']";
-        assert_eq!(
-            get_all_sections(s),
-            Err("Improper Input for Schema at \" test\"".to_string())
-        );
+        Err(e) => {
+            return Err(format!("{}", e));
+        },
     }
 }
