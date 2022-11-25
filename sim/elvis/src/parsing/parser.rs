@@ -114,22 +114,33 @@ pub fn generate_sim(file_path: &str) {
     let contents = fs::read_to_string(file_path)
         .expect("Should have been able to read the file");
     // println!("contents: {:?}", );
-    println!("{:?}", core_parser(&contents.replace('\r', "")));
+    let fixed_string = contents.replace('\r', "");
+    let res = core_parser(&fixed_string, file_path);
+    match res {
+        Ok(s) => {
+            println!("{:?}", s);
+        }
+
+        Err(e) => {
+            println!("{}", e);
+        }
+    }
     // println!("{:?}", contents);
     // let basic_schema = get_all_sections(&contents);
     // println!("{:?}", basic_schema);
     // println!("{:?}", machines);
 }
 
-fn core_parser(s: &str) -> Result<Sim, String> {
+fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
     let mut networks = Networks::new();
     let mut machines = Machines::new();
 
     let num_tabs = 0;
     let mut remaining_string = s;
+    let mut line_num = 1;
 	//TODO: While loop
     while remaining_string != "" {
-        let res = general_parser(remaining_string);
+        let res = general_parser(remaining_string, &mut line_num);
         match res {
             Ok(info) => {
                 let dectype = info.0;
@@ -141,7 +152,7 @@ fn core_parser(s: &str) -> Result<Sim, String> {
                         
                     },
                     DecType::Networks => {
-                        let temp = networks_parser(dectype, options, &remaining_string, num_tabs + 1);
+                        let temp = networks_parser(dectype, options, &remaining_string, num_tabs + 1, &mut line_num);
                         match temp {
                             Ok(n) => {
                                 remaining_string = n.1;
@@ -149,44 +160,43 @@ fn core_parser(s: &str) -> Result<Sim, String> {
                                     networks.push(new_nets);
                                 }
 
-                                println!("{:?}", networks);
+                                println!("Networks: {:?}", networks);
+                                println!("Remaining string: \n{}", remaining_string);
                             }
 
                             Err(e) => {
-                                return Err(e);
+                                return Err(format!("Errors at {}:\n\n{}\n", file_path, e));
                             }
                         }
                     },
                     DecType::Network => {
-                        return Err("Cannot declare network here".to_string());
+                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Network));
                     },
                     DecType::IP => {
-                        return Err("Cannot declare IP here".to_string());
+                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::IP));
                     },
                     DecType::Machines => {
                         //TODO: change this
                         return Err("not actual error".to_string());
                     },
                     DecType::Machine => {
-                        return Err("Cannot declare machine here".to_string());
+                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Machine));
                     },
                     DecType::Protocols => {
-                        return Err("Cannot declare protocols here".to_string());
+                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Protocols));
                     },
                     DecType::Protocol => {
-                        return Err("Cannot declare protocol here".to_string());
+                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Protocol));
                     },
                     DecType::Applications => {
-                        return Err("Cannot declare applications here".to_string());
-                    },
+                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Applications));                    },
                     DecType::Application => {
-                        return Err("Cannot declare appliication here".to_string());
-                    },
+                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Application));                    },
                 }
             }
 
-            Err(_e) => {
-                return Err("Parser failed".to_string());
+            Err(e) => {
+                return Err(format!("Errors at {}:\n\n{}", file_path, e));
             }
         }
     }
@@ -235,7 +245,7 @@ fn section(input: &str) -> Res<&str, &str> {
 
 /// breaks down the arguments of our input
 /// For example, turns "name='test' net-id='testing'" into a vector of strings containing "name='test'" and "net-id='testing'"
-fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
+fn arguments<'a>(input: &'a str) -> Res<&str, Params> {
     context(
         "arguments",
         // many0(
@@ -250,7 +260,7 @@ fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
     .map(|(next_input, res)| (next_input, res))
 }
 
-fn general_parser(s: &str) -> Result<(DecType, Params, &str), String> {
+fn general_parser<'a>(s: &'a str, line_num: &mut i32) -> Result<(DecType, Params<'a>, &'a str), String> {
     let sec = section(s);
     match sec {
         // s0 = remaining string, s1 = string gotten by parsing
@@ -268,12 +278,12 @@ fn general_parser(s: &str) -> Result<(DecType, Params, &str), String> {
                         Ok(a) => {
                             args = a.1;
                             if !a.0.is_empty() {
-                                return Err("Args format incorrect".to_string());
+                                return Err(format!("Line {:?}: extra argument at '{}'\n", *line_num, s2.0))
                             }
                         }
 
                         Err(e) => {
-                            return Err(format!("{}", e));
+                            return Err(format!("Line {:?}: unable to parse arguments at '{}' due to {}\n", *line_num, s2.0, e));
                         }
                     }
 
@@ -288,10 +298,11 @@ fn general_parser(s: &str) -> Result<(DecType, Params, &str), String> {
             let mut num_new_line = 0;
             // check to see if next thing is part of previous section
             if !s0.starts_with('\n') {
-                return Err("Not a new line after declaration".to_string());
+                return Err(format!("Line {:?}: not a new line after declaration in '{}'\n", *line_num, s0));
             } else {
                 while s0.chars().nth(num_new_line) == Some('\n') {
                     num_new_line += 1;
+                    *line_num += 1;
                 }
             }
             
@@ -304,17 +315,18 @@ fn general_parser(s: &str) -> Result<(DecType, Params, &str), String> {
     }
 }
 
-fn networks_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32) -> Result<(Networks<'a>, &'a str), String>{
+fn networks_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32, line_num: &mut i32) -> Result<(Networks<'a>, &'a str), String>{
     // println!("{:?}", dec);
     // println!("{:?}", args);
     // println!("s0: {:?}", s0);
 	// println!("num tabs: {:?}", num_tabs);
     let mut networks = Networks::new();
     let mut remaining_string = s0;
+    let networks_line_num = line_num.clone() - 1;
 
     while remaining_string != "" {
         let mut t = 0;
-        while t < num_tabs && remaining_string.chars().nth(t as usize) == Some('\t') {
+        while remaining_string.chars().nth(t as usize) == Some('\t') {
             t+=1;
         }
         // next line doesn't have enough tabs thus a network isn't being declared
@@ -322,43 +334,38 @@ fn networks_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i3
             return Ok((networks, remaining_string));
         }
         
-        let parsed_networks = general_parser(&remaining_string[num_tabs as usize..]);
+        let parsed_networks = general_parser(&remaining_string[num_tabs as usize..], line_num);
         
         let dectype;
         let options;
         match parsed_networks {
             Ok(net) => {
-                // TODO: check that dectype is network
-                if net.0 != DecType::Network{
-                    return Err("Invalid type entry for networks".to_string());
-                }
                 dectype = net.0;
                 options = net.1;
                 remaining_string = net.2;
             }
 
-            Err(_e) => {
-                return Err("Could not parse inside of networks".to_string());
+            Err(e) => {
+                return Err(general_error(num_tabs, networks_line_num, DecType::Networks, format!("{}{}", num_tabs_to_string(num_tabs + 1), e)));
             }
         }
         // println!("{:?}", dectype);
         match dectype {
             DecType::Network => {
-                let net = network_parser(dectype, options, remaining_string, num_tabs+1);
+                let net = network_parser(dectype, options, remaining_string, num_tabs+1, line_num);
                 match net {
                     Ok(n) => {
-                        // println!("{:?}", n);
                         networks.push(n.0);
                         remaining_string = n.1;
                     }
                     Err(e) =>{
-                        return Err(e);
+                        return Err(format!("{}Line {:?}: Unable to parse inside of Networks due to: \n{}", num_tabs_to_string(num_tabs), networks_line_num, e));
                     }
                 }
                 
             }
             _ => {
-                return Err("Not a network type".to_string());
+                return Err(general_error(num_tabs, networks_line_num, DecType::Networks, format!("{}Line {:?}: expected type Network and got type {:?} instead.\n", num_tabs_to_string(num_tabs + 1), *line_num, dectype)));
             }
         }
     }
@@ -367,13 +374,14 @@ fn networks_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i3
 }
 
 
-fn network_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32) -> Result<(Network<'a>, &'a str), String>{
+fn network_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32, line_num: &mut i32) -> Result<(Network<'a>, &'a str), String>{
     
 	let mut t = 0;
 	let mut ips = IPs::new();
 	let mut network;
 	let mut remaining_string = s0;
-    while t < num_tabs && remaining_string.chars().nth(t as usize) == Some('\t') {
+    let network_line_num = line_num.clone() - 1;
+    while remaining_string.chars().nth(t as usize) == Some('\t') {
         t+=1;
     }
     // next line doesn't have enough tabs thus a network isn't being declared
@@ -381,19 +389,21 @@ fn network_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32
         return Err("Invalid formatting".to_string());
     }
 	
-	loop {
-		network = general_parser(&remaining_string[num_tabs as usize..]);
+	while remaining_string != "" {
+        let cur_line_num = line_num.clone();
+		network = general_parser(&remaining_string[num_tabs as usize..], line_num);
 		match network {
 			Ok(n) => {
 				if n.0 != DecType::IP {
-					return Err("invalid type entry into network".to_string());
+					return Err(general_error(num_tabs, network_line_num, DecType::Network, format!("{}Line {:?}: expected type IP and got type {:?} instead.\n", num_tabs_to_string(num_tabs+1), cur_line_num, n.0)));
 				}
 				ips.push(IP{dectype: n.0, options: n.1});
 				remaining_string = n.2;
 			}
 
 			Err(e) => {
-				return Err(e);
+                return Err(general_error(num_tabs, network_line_num, DecType::Network, e));
+				// return Err(format!("{}Line {:?}: Unable to parse inside of Network due to: \n{}{}", num_tabs_to_string(num_tabs), network_line_num, num_tabs_to_string(num_tabs + 1), e));
 			}
 		}
 
@@ -414,4 +424,20 @@ fn network_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32
 		options: args,
 		ip: ips,
 	}, remaining_string))
+}
+
+fn num_tabs_to_string(num_tabs: i32) -> String{
+    let mut temp = "".to_string();
+    let mut temp_num = 0;
+
+    while temp_num < num_tabs - 1 {
+        temp += "\t";
+        temp_num += 1;
+    }
+
+    return temp.to_string();
+}
+
+fn general_error(num_tabs: i32, line_num: i32, dec: DecType, msg: String) -> String {
+    format!("{}Line {:?}: Unable to parse inside of {:?} due to: \n{}", num_tabs_to_string(num_tabs), line_num, dec, msg)
 }
