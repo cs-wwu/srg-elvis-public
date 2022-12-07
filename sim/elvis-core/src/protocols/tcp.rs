@@ -1,10 +1,22 @@
-use super::ipv4::Ipv4Address;
+use self::{
+    tcp_parsing::TcpHeader,
+    tcp_session::{SessionId, Socket, TcpSession},
+};
+use super::{
+    ipv4::{LocalAddress, RemoteAddress},
+    Ipv4,
+};
 use crate::{
-    control::{Key, Primitive},
+    control::{
+        self,
+        value::{from_impls, make_key},
+        Key, Primitive,
+    },
     protocol::{Context, ProtocolId},
     session::SharedSession,
-    Control, Protocol,
+    Control, Message, Protocol, Session,
 };
+use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -12,10 +24,13 @@ use tokio::sync::{mpsc::Sender, Barrier};
 mod tcp_parsing;
 mod tcp_session;
 
-pub struct Tcp {}
+pub struct Tcp {
+    listen_bindings: DashMap<Socket, ProtocolId>,
+    sessions: DashMap<SessionId, Arc<TcpSession>>,
+}
 
 impl Tcp {
-    pub const ID: ProtocolId = ProtocolId::from_string("tcp");
+    pub const ID: ProtocolId = ProtocolId::new(6);
 }
 
 impl Protocol for Tcp {
@@ -25,11 +40,40 @@ impl Protocol for Tcp {
 
     fn open(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        _upstream: ProtocolId,
         participants: Control,
         context: Context,
     ) -> Result<SharedSession, Box<dyn Error>> {
-        todo!()
+        // Identify the session based on the participants. If any of the
+        // identifying information we need is not provided, that is a bug in one
+        // of the higher-up protocols and we should crash. Therefore, unwrapping
+        // is appropriate here.
+
+        let local = Socket {
+            address: LocalAddress::try_from(&participants).unwrap().into(),
+            port: LocalPort::try_from(&participants).unwrap().into(),
+        };
+
+        let remote = Socket {
+            address: RemoteAddress::try_from(&participants).unwrap().into(),
+            port: RemotePort::try_from(&participants).unwrap().into(),
+        };
+
+        let session_id = SessionId { local, remote };
+        match self.sessions.entry(session_id) {
+            Entry::Occupied(_) => Err(TcpError::SessionExists)?,
+            Entry::Vacant(entry) => {
+                // Create the session and save it
+                let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
+                    Self::ID,
+                    participants,
+                    context,
+                )?;
+                let session = Arc::new(TcpSession::new(session_id, downstream));
+                entry.insert(session.clone());
+                Ok(session)
+            }
+        }
     }
 
     fn listen(
@@ -38,127 +82,108 @@ impl Protocol for Tcp {
         participants: Control,
         context: Context,
     ) -> Result<(), Box<dyn Error>> {
-        todo!()
+        // Add the listen binding. If any of the identifying information is
+        // missing, that is a bug in the protocol that requested the listen and
+        // we should crash. Unwrapping serves the purpose.
+        let socket = Socket {
+            port: LocalPort::try_from(&participants).unwrap().into(),
+            address: LocalAddress::try_from(&participants).unwrap().into(),
+        };
+        self.listen_bindings.insert(socket, upstream);
+        // Ask lower-level protocols to add the binding as well
+        context
+            .protocol(Ipv4::ID)
+            .expect("No such protocol")
+            .listen(Self::ID, participants, context)
     }
 
     fn demux(
         self: Arc<Self>,
-        message: crate::Message,
+        mut message: Message,
         caller: SharedSession,
-        context: Context,
+        mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
-        todo!()
+        // Extract information from the context
+        let local_address = LocalAddress::try_from(&context.info).unwrap();
+        let remote_address = RemoteAddress::try_from(&context.info).unwrap();
+
+        // Parse the header
+        let header =
+            TcpHeader::from_bytes(message.iter(), remote_address.into(), local_address.into())?;
+        message.slice(20..);
+
+        let local = Socket {
+            address: local_address.into(),
+            port: header.dst_port,
+        };
+
+        let remote = Socket {
+            address: remote_address.into(),
+            port: header.src_port,
+        };
+
+        // Use the context and the header information to identify the session
+        let session_id = SessionId { local, remote };
+
+        // Add the header information to the context
+        LocalPort::new(local.port).apply(&mut context.info);
+        RemotePort::new(remote.port).apply(&mut context.info);
+
+        let session = match self.sessions.entry(session_id) {
+            Entry::Occupied(entry) => {
+                let session = entry.get().clone();
+                session
+            }
+            Entry::Vacant(session_entry) => {
+                match self.listen_bindings.entry(local) {
+                    Entry::Occupied(_listen_entry) => {
+                        // If we have a listen binding, create the session and
+                        // save it
+                        let session = Arc::new(TcpSession::new(session_id, caller));
+                        session_entry.insert(session.clone());
+                        session
+                    }
+                    Entry::Vacant(_) => Err(TcpError::MissingSession)?,
+                }
+            }
+        };
+        session.receive(message, context)?;
+        Ok(())
     }
 
     fn start(
         self: Arc<Self>,
-        context: Context,
-        shutdown: Sender<()>,
+        _context: Context,
+        _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>> {
-        todo!()
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
+        Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
-        todo!()
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
+        panic!("Nothing to query on the TCP protocol")
     }
 }
 
-enum ConnectionState {
-    /// Represents waiting for a connection request from any remote TCP and
-    /// port.
-    Listen,
-    /// Represents waiting for a matching connection request after having sent a
-    /// connection request.
-    SynSent,
-    /// Represents waiting for a confirming connection request acknowledgment
-    /// after having both received and sent a connection request.
-    SynReceived,
-    /// Represents an open connection, data received can be delivered to the
-    /// user. The normal state for the data transfer phase of the connection.
-    Established,
-    /// Represents waiting for a connection termination request from the remote
-    /// TCP, or an acknowledgment of the connection termination request
-    /// previously sent.
-    FinWait1,
-    /// Represents waiting for a connection termination request from the remote
-    /// TCP.
-    FinWait2,
-    /// Represents waiting for a connection termination request from the local
-    /// user.
-    CloseWait,
-    /// Represents waiting for a connection termination request acknowledgment
-    /// from the remote TCP.
-    Closing,
-    /// Represents waiting for an acknowledgment of the connection termination
-    /// request previously sent to the remote TCP (which includes an
-    /// acknowledgment of its connection termination request).
-    LastAck,
-    /// Represents waiting for enough time to pass to be sure the remote TCP
-    /// received the acknowledgment of its connection termination request.
-    TimeWait,
-}
+const LOCAL_PORT_KEY: Key = make_key("TCP Local Port");
+/// A [`control::Value`] for the local port number.
+pub type LocalPort = control::Value<LOCAL_PORT_KEY, u16>;
+from_impls!(LocalPort, u16);
 
-/// Uniquely identifies one end of a connection
-struct Socket {
-    address: Ipv4Address,
-    port: u16,
-}
-
-///            1         2          3          4
-///       ----------|----------|----------|----------
-///              SND.UNA    SND.NXT    SND.UNA
-///                                   +SND.WND
-///
-/// 1 - old sequence numbers which have been acknowledged
-/// 2 - sequence numbers of unacknowledged data
-/// 3 - sequence numbers allowed for new data transmission (send window)
-/// 4 - future sequence numbers which are not yet allowed
-struct SendSequenceSpace {
-    /// Unacknowledged
-    una: u32,
-    /// Next
-    nxt: u32,
-    /// Window
-    wnd: u16,
-    /// Segment sequence number used for last window update
-    wl1: u32,
-    /// Segment acknowledgment number used for last window update
-    wl2: u32,
-    /// Initial sequence number
-    iss: u32,
-}
-
-///                1          2          3
-///            ----------|----------|----------
-///                   RCV.NXT    RCV.NXT
-///                             +RCV.WND
-///
-/// 1 - old sequence numbers which have been acknowledged
-/// 2 - sequence numbers allowed for new reception
-/// 3 - future sequence numbers which are not yet allowed
-struct ReceiveSequenceSpace {
-    /// Next
-    nxt: u32,
-    /// Window
-    wnd: u16,
-    /// Initial receive sequence
-    irs: u32,
-}
-
-struct Tcb {
-    local_socket: Socket,
-    remote_socket: Socket,
-    send: SendSequenceSpace,
-    recv: ReceiveSequenceSpace,
-}
-
-fn is_between_wrapped(a: u32, b: u32, c: u32) -> bool {
-    (a < b && b < c) || (c < a && a < b) || (b < c && c < a)
-}
+const REMOTE_PORT_KEY: Key = make_key("TCP Remote Port");
+/// A [`control::Value`] for the remote port number.
+pub type RemotePort = control::Value<REMOTE_PORT_KEY, u16>;
+from_impls!(RemotePort, u16);
 
 #[derive(Debug, ThisError)]
 pub enum TcpError {
+    #[error("Tried to create an existing session")]
+    SessionExists,
+    #[error("Tried to demux with a missing session and no listen bindings")]
+    MissingSession,
     #[error("Too few bytes to constitute a TCP header")]
     HeaderTooShort,
     #[error(
