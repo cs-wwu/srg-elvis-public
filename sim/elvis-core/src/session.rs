@@ -22,7 +22,7 @@ pub trait Session {
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
 
     /// Takes an incoming message and decides which protocol to send it to for
-    /// further processing.
+    /// further processing. Called by the same protocol during demux.
     fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
 
     /// Gets a piece of information from some session in the protocol stack.

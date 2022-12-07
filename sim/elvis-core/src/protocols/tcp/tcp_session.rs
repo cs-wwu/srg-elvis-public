@@ -7,15 +7,15 @@ use crate::{
 };
 use std::{error::Error, sync::Arc};
 
-#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct TcpSession {
     state: State,
     send: SendSequenceSpace,
     recv: ReceiveSequenceSpace,
+    downstream: SharedSession,
 }
 
 impl TcpSession {
-    pub fn new(_id: SessionId, _downstream: SharedSession) -> Self {
+    pub fn open(_id: SessionId, _downstream: SharedSession) -> Self {
         todo!()
     }
 }
@@ -33,8 +33,9 @@ impl Session for TcpSession {
         todo!()
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
-        todo!()
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+        // TODO(hardint): Add queries
+        self.downstream.clone().query(key)
     }
 }
 
