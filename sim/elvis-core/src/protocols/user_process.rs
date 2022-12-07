@@ -10,6 +10,7 @@ use crate::{
 };
 use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc::Sender, Barrier};
+use tracing::error;
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -119,7 +120,8 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
-        panic!("Cannot query a user process")
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, ()> {
+        error!("No such key on a user process");
+        Err(())
     }
 }

@@ -11,6 +11,7 @@ use crate::{
     Control, Protocol, Session,
 };
 use std::{error::Error, sync::Arc};
+use tracing::error;
 
 mod ipv4_parsing;
 use dashmap::{mapref::entry::Entry, DashMap};
@@ -164,7 +165,8 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
-        panic!("Nothing to query on IPv4")
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, ()> {
+        error!("No such key on IPv4");
+        Err(())
     }
 }

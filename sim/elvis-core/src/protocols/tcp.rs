@@ -20,6 +20,7 @@ use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
+use tracing::error;
 
 mod tcp_parsing;
 mod tcp_session;
@@ -163,8 +164,9 @@ impl Protocol for Tcp {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
-        panic!("Nothing to query on the TCP protocol")
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, ()> {
+        error!("No such key on TCP");
+        Err(())
     }
 }
 

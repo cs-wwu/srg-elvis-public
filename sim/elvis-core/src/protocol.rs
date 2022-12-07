@@ -143,5 +143,5 @@ pub trait Protocol {
     ) -> Result<(), Box<dyn Error>>;
 
     /// Gets a piece of information from the protocol
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>>;
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()>;
 }

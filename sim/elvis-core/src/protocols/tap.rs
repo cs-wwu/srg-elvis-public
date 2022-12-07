@@ -24,6 +24,7 @@ pub use tap_misc::*;
 
 mod tap_session;
 use tap_session::TapSession;
+use tracing::error;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
@@ -123,11 +124,14 @@ impl Protocol for Tap {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()> {
         // TODO(hardint): Add support for querying the MTU
         match key {
             MACHINE_ID_KEY => Ok(self.session.machine_id.into()),
-            _ => Err(TapError::NoSuchKey.into()),
+            _ => {
+                error!("No such key on Tap");
+                Err(())
+            }
         }
     }
 }

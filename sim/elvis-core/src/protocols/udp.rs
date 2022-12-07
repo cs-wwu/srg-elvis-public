@@ -12,6 +12,7 @@ use crate::{
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc::Sender, Barrier};
+use tracing::error;
 
 mod udp_misc;
 use udp_misc::UdpError;
@@ -183,8 +184,9 @@ impl Protocol for Udp {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
-        panic!("Nothing to query on the UDP protocol")
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, ()> {
+        error!("No such key on UDP");
+        Err(())
     }
 }
 
