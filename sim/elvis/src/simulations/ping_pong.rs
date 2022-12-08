@@ -14,7 +14,7 @@ const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);
 
 /// Runs a basic PingPong simulation.
 ///
-/// In this simulation, two machines will send a Time To Live (TTL) message 
+/// In this simulation, two machines will send a Time To Live (TTL) message
 /// back and forth till the TTL reaches 0. TTL will be subtracted by 1 every time a machine reveives it.
 pub async fn ping_pong() {
     let mut internet = Internet::new();
@@ -27,7 +27,7 @@ pub async fn ping_pong() {
         [
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
-            PingPong::new_shared(true,  IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface),
+            PingPong::new_shared(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface),
         ],
         [network],
     );
