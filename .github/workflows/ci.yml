@@ -22,6 +22,8 @@ jobs:
       run: cargo test --verbose
     - name: Run clippy 
       run: cargo clippy
+    - name: Check formatting
+      run: cargo fmt --check
   # build and test on mac to check for bugs that only show up on that OS
   test-on-mac: 
     runs-on: macos-latest
