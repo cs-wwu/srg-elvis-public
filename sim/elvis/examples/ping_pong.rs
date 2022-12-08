@@ -1,8 +1,7 @@
-use elvis::simulations::ping_pong;
-use elvis_core::cli::parse_cli;
+use elvis::{cli::initialize_from_arguments, simulations::ping_pong};
 
 #[tokio::main]
 async fn main() {
-    parse_cli();
+    initialize_from_arguments();
     ping_pong().await
 }

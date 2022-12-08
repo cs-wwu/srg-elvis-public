@@ -1,8 +1,7 @@
-use elvis::simulations::latent;
-use elvis_core::cli::parse_cli;
+use elvis::{cli::initialize_from_arguments, simulations::latent};
 
 #[tokio::main]
 async fn main() {
-    parse_cli();
+    initialize_from_arguments();
     latent().await
 }

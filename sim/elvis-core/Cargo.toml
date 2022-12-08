@@ -9,9 +9,6 @@ const-fnv1a-hash = "1.0"
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread", "time", "macros", "signal", "sync"] }
 dashmap = "5.3"
 tracing = "0.1.37"
-tracing-subscriber = "0.2.0"
-chrono = "0.4"
-clap = { version = "4.0.18", features = ["derive"] }
 
 [dev-dependencies]
 anyhow = "1.0"

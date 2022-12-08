@@ -1,8 +1,7 @@
-use elvis::simulations::telephone_multi;
-use elvis_core::cli::parse_cli;
+use elvis::{cli::initialize_from_arguments, simulations::telephone_multi};
 
 #[tokio::main]
 async fn main() {
-    parse_cli();
+    initialize_from_arguments();
     telephone_multi().await
 }
