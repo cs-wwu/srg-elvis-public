@@ -6,7 +6,7 @@ use elvis_core::{
         udp::{LocalPort, RemotePort, Udp},
         user_process::{Application, UserProcess},
     },
-    Control
+    Control,
 };
 use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc::Sender, Barrier};

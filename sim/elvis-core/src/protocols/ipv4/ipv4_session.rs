@@ -11,7 +11,7 @@ use crate::{
         udp::Udp,
     },
     session::SharedSession,
-    Session
+    Session,
 };
 use std::{error::Error, sync::Arc};
 /// The session type for [`Ipv4`].

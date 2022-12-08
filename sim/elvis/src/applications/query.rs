@@ -43,11 +43,11 @@ impl Application for Query {
         RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         LocalPort::set(&mut participants, 0);
         RemotePort::set(&mut participants, 0);
-        let session = context
-            
-            .protocol(Udp::ID)
-            .expect("No such protocol")
-            .open(Self::ID, participants, context.clone())?;
+        let session = context.protocol(Udp::ID).expect("No such protocol").open(
+            Self::ID,
+            participants,
+            context.clone(),
+        )?;
         let tap = context.protocol(TAP_ID).expect("No such protocol");
         let machine_id_session = session.query(MACHINE_ID_KEY).unwrap().ok_u64()?;
         let machine_id_protocol = tap.query(MACHINE_ID_KEY).unwrap().ok_u64()?;
