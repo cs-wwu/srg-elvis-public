@@ -59,3 +59,5 @@ pub use network::Network;
 
 pub(crate) mod machine;
 pub(crate) use machine::Machine;
+
+pub(crate) mod logging;
