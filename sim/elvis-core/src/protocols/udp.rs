@@ -22,7 +22,6 @@ use udp_session::{SessionId, UdpSession};
 
 mod udp_parsing;
 use self::udp_parsing::UdpHeader;
-// use tracing::{span, Level};
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
@@ -114,10 +113,6 @@ impl Protocol for Udp {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
-        // TODO: old span code may be useful for future logging additions
-        // let log = span!(Level::INFO, "UDP Demux");
-        // let enter = log.enter();
-
         // Extract information from the context
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
@@ -139,11 +134,6 @@ impl Protocol for Udp {
             remote_address,
             remote_port,
         };
-
-        // TODO: old span code may be useful for future logging additions
-        // drop(enter);
-        // let log = span!(Level::INFO, "UDP Demux", %local_port, %remote_port);
-        // let _enter = log.enter();
 
         // Add the header information to the context
         local_port.apply(&mut context.info);

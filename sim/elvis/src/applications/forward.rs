@@ -7,9 +7,7 @@ use elvis_core::{
         user_process::{Application, UserProcess},
     },
     session::SharedSession,
-    Control, 
-    // logging::forward_event,
-    
+    Control,
 };
 use std::{
     error::Error,
@@ -73,7 +71,7 @@ impl Application for Forward {
         RemoteAddress::set(&mut participants, self.remote_ip);
         LocalPort::set(&mut participants, self.local_port);
         RemotePort::set(&mut participants, self.remote_port);
-        
+
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         *self.outgoing.lock().unwrap() = Some(udp.clone().open(
             Self::ID,

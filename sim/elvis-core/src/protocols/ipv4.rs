@@ -125,10 +125,6 @@ impl Protocol for Ipv4 {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), Box<dyn Error>> {
-        // TODO: other old span code
-        // let log = span!(Level::INFO, "IPv4 Demux");
-        // let enter = log.enter();
-
         // Extract identifying information from the header and the context and
         // add header information to the context
         let header = Ipv4Header::from_bytes(message.iter())?;
@@ -140,10 +136,6 @@ impl Protocol for Ipv4 {
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
 
-        // TODO: old span code may be useful for future logging additions
-        // drop(enter);
-        // let log = span!(Level::INFO, "IPv4 Demux", %local, %remote);
-        // let _enter = log.enter();
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => match self.listen_bindings.get(&local) {
