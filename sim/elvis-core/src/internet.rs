@@ -1,6 +1,6 @@
 //! The [`Internet`] and supporting types.
 
-// use crate::logging::machine_creation_event;
+use crate::machine::MachineId;
 
 use super::{network::Attachment, protocol::SharedProtocol, Machine, Network};
 use std::sync::Arc;
@@ -53,7 +53,7 @@ impl Internet {
         protocols: impl IntoIterator<Item = SharedProtocol>,
         networks: impl IntoIterator<Item = NetworkHandle>,
     ) {
-        let machine_id = self.machines.len();
+        let machine_id = self.machines.len() as MachineId;
         let (machine, sender) = Machine::new(protocols, machine_id);
         self.protocol_count += machine.protocol_count();
         for network_id in networks.into_iter() {
@@ -79,7 +79,7 @@ impl Internet {
             let attachments: Arc<[_]> = attachments.into();
             let sender = network.start(attachments.clone());
             for attachment in attachments.iter() {
-                self.machines[attachment.machine].attach(
+                self.machines[attachment.machine as usize].attach(
                     NetworkHandle(network_id.try_into().unwrap()),
                     sender.clone(),
                 );

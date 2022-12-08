@@ -3,6 +3,7 @@ use super::{
     Ipv4, LocalAddress, RemoteAddress,
 };
 use crate::{
+    control::{Key, Primitive},
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
@@ -73,6 +74,10 @@ impl Session for Ipv4Session {
             .expect("No such protocol")
             .demux(message, self, context)?;
         Ok(())
+    }
+
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+        self.downstream.clone().query(key)
     }
 }
 

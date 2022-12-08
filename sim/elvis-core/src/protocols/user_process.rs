@@ -2,6 +2,7 @@
 //! protocol-oriented simulation.
 
 use crate::{
+    control::{Key, Primitive},
     message::Message,
     protocol::{Context, ProtocolId},
     session::SharedSession,
@@ -116,5 +117,9 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
             Err(e) => eprintln!("{}", e),
         }
         Ok(())
+    }
+
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
+        panic!("Cannot query a user process")
     }
 }

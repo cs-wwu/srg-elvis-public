@@ -22,3 +22,8 @@ async fn telephone_single() {
 async fn unreliable() {
     elvis::simulations::unreliable().await
 }
+
+#[tokio::test]
+async fn query() {
+    elvis::simulations::query().await
+}

@@ -1,6 +1,7 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::{
+    control::{Key, Primitive},
     internet::NetworkHandle,
     machine::MachineId,
     message::Message,
@@ -120,5 +121,13 @@ impl Protocol for Tap {
             }
         });
         Ok(())
+    }
+
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+        // TODO(hardint): Add support for querying the MTU
+        match key {
+            MACHINE_ID_KEY => Ok(self.session.machine_id.into()),
+            _ => Err(TapError::NoSuchKey.into()),
+        }
     }
 }

@@ -2,7 +2,7 @@ use super::{
     internet::NetworkHandle,
     protocol::{Context, ProtocolId, SharedProtocol},
 };
-use crate::{network::Delivery, protocols::tap::Tap, logging::machine_creation_event};
+use crate::{logging::machine_creation_event, network::Delivery, protocols::tap::Tap};
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
@@ -11,7 +11,7 @@ use std::{
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An identifier for a particular [`Machine`] in the simulation.
-pub(crate) type MachineId = usize;
+pub(crate) type MachineId = u64;
 
 /// A mapping of protocol IDs to protocols
 pub(crate) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
@@ -51,7 +51,7 @@ impl Machine {
                 }
             }
         }
-        machine_creation_event(id, protocol_ids);
+        machine_creation_event(id as usize, protocol_ids);
         let machine = Self {
             tap,
             protocols: Arc::new(protocols_map),

@@ -1,5 +1,7 @@
 //! The [`Protocol`] trait and supporting types.
 
+use crate::control::{Key, Primitive};
+
 use super::{control::value::make_key, message::Message, session::SharedSession, Control};
 use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -139,4 +141,7 @@ pub trait Protocol {
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
     ) -> Result<(), Box<dyn Error>>;
+
+    /// Gets a piece of information from the protocol
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>>;
 }

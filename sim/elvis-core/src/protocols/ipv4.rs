@@ -2,6 +2,7 @@
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
 use crate::{
+    control::{Key, Primitive},
     internet::NetworkHandle,
     message::Message,
     protocol::{Context, ProtocolId},
@@ -127,7 +128,7 @@ impl Protocol for Ipv4 {
         // TODO: other old span code
         // let log = span!(Level::INFO, "IPv4 Demux");
         // let enter = log.enter();
-        
+
         // Extract identifying information from the header and the context and
         // add header information to the context
         let header = Ipv4Header::from_bytes(message.iter())?;
@@ -138,7 +139,7 @@ impl Protocol for Ipv4 {
 
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
-        
+
         // TODO: old span code may be useful for future logging additions
         // drop(enter);
         // let log = span!(Level::INFO, "IPv4 Demux", %local, %remote);
@@ -171,5 +172,9 @@ impl Protocol for Ipv4 {
             initialized.wait().await;
         });
         Ok(())
+    }
+
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
+        panic!("Nothing to query on IPv4")
     }
 }

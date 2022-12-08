@@ -1,5 +1,7 @@
 //! The [`Session`] trait and supporting types.
 
+use crate::control::{Key, Primitive};
+
 use super::{protocol::Context, Message};
 use std::{error::Error, sync::Arc};
 
@@ -22,4 +24,7 @@ pub trait Session {
     /// Takes an incoming message and decides which protocol to send it to for
     /// further processing.
     fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
+
+    /// Gets a piece of information from some session in the protocol stack.
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>>;
 }
