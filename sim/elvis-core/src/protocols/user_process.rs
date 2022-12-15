@@ -8,9 +8,8 @@ use crate::{
     session::SharedSession,
     Control, Protocol,
 };
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
-use tracing::error;
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -29,11 +28,11 @@ pub trait Application {
         context: Context,
         shutdown: Sender<()>,
         initialize: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), ()>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
+    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()>;
 }
 
 /// A user-level process that sits at the top of the networking stack.
@@ -79,7 +78,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, ()> {
         panic!("Cannot active open on a user process")
     }
 
@@ -88,7 +87,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         panic!("Cannot listen on a user process")
     }
 
@@ -97,13 +96,9 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         message: Message,
         _caller: SharedSession,
         context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         let application = self.application.clone();
-        match application.recv(message, context) {
-            Ok(_) => {}
-            Err(e) => eprintln!("{}", e),
-        }
-        Ok(())
+        application.recv(message, context)
     }
 
     fn start(
@@ -111,12 +106,9 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         let application = self.application.clone();
-        match application.start(context, shutdown, initialized) {
-            Ok(_) => {}
-            Err(e) => eprintln!("{}", e),
-        }
+        application.start(context, shutdown, initialized)?;
         Ok(())
     }
 

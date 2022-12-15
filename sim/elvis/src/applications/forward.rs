@@ -65,7 +65,7 @@ impl Application for Forward {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, self.local_ip);
         RemoteAddress::set(&mut participants, self.remote_ip);
@@ -86,7 +86,7 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
         self.outgoing
             .clone()
             .lock()
@@ -94,7 +94,6 @@ impl Application for Forward {
             .as_ref()
             .unwrap()
             .clone()
-            .send(message, context)?;
-        Ok(())
+            .send(message, context)
     }
 }

@@ -44,23 +44,26 @@ impl Ipv4Session {
 }
 
 impl Session for Ipv4Session {
-    fn send(
-        self: Arc<Self>,
-        mut message: Message,
-        mut context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), ()> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
             Udp::ID => ProtocolNumber::Udp,
             _ => panic!("Unknown upstream protocol"),
         };
-        let header = Ipv4HeaderBuilder::new(
+        let header = match Ipv4HeaderBuilder::new(
             self.identifier.local.into(),
             self.identifier.remote.into(),
             protocol_number,
             length as u16,
         )
-        .build()?;
+        .build()
+        {
+            Ok(header) => header,
+            Err(e) => {
+                tracing::error!("{}", e);
+                Err(())?
+            }
+        };
         self.network_id.apply(&mut context.info);
         FirstResponder::set(&mut context.info, Ipv4::ID.into());
         message.prepend(header);
@@ -68,15 +71,14 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, context)?;
-        Ok(())
+            .demux(message, self, context)
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()> {
         self.downstream.clone().query(key)
     }
 }

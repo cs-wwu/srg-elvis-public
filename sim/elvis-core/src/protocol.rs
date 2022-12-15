@@ -2,7 +2,7 @@
 
 use super::{control::value::make_key, message::Message, session::SharedSession, Control};
 use crate::control::{Key, Primitive};
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 
@@ -76,7 +76,7 @@ pub trait Protocol {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>>;
+    ) -> Result<SharedSession, ()>;
 
     /// Listen for new connections.
     ///
@@ -98,7 +98,7 @@ pub trait Protocol {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), ()>;
 
     /// Identifies the session that a message belongs to and forwards the
     /// message to it.
@@ -123,7 +123,7 @@ pub trait Protocol {
         message: Message,
         caller: SharedSession,
         context: Context,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), ()>;
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
@@ -140,7 +140,7 @@ pub trait Protocol {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), ()>;
 
     /// Gets a piece of information from the protocol
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;

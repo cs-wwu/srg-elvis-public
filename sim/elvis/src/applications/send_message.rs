@@ -49,7 +49,7 @@ impl Application for SendMessage {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         RemoteAddress::set(&mut participants, self.ip);
@@ -59,15 +59,12 @@ impl Application for SendMessage {
         let session = protocol.open(Self::ID, participants, context.clone())?;
         tokio::spawn(async move {
             initialized.wait().await;
-            match session.send(Message::new(self.text), context) {
-                Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
-            }
+            session.send(Message::new(self.text), context);
         });
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
+    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ()> {
         Ok(())
     }
 }

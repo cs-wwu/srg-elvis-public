@@ -10,9 +10,8 @@ use crate::{
     Control, Protocol, Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
-use tracing::error;
 
 mod udp_misc;
 use udp_misc::UdpError;
@@ -56,7 +55,7 @@ impl Protocol for Udp {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, ()> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
         // of the higher-up protocols and we should crash. Therefore, unwrapping
@@ -68,7 +67,10 @@ impl Protocol for Udp {
             remote_address: RemoteAddress::try_from(&participants).unwrap(),
         };
         match self.sessions.entry(identifier) {
-            Entry::Occupied(_) => Err(UdpError::SessionExists)?,
+            Entry::Occupied(_) => {
+                tracing::error!("Tried to create an existing session");
+                Err(())?
+            }
             Entry::Vacant(entry) => {
                 // Create the session and save it
                 let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
@@ -92,7 +94,7 @@ impl Protocol for Udp {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
@@ -113,17 +115,23 @@ impl Protocol for Udp {
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         // Extract information from the context
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
 
         // Parse the header
-        let header = UdpHeader::from_bytes_ipv4(
+        let header = match UdpHeader::from_bytes_ipv4(
             message.iter(),
             remote_address.into(),
             local_address.into(),
-        )?;
+        ) {
+            Ok(header) => header,
+            Err(e) => {
+                tracing::error!("{}", e);
+                Err(())?
+            }
+        };
         message.slice(8..);
 
         // Use the context and the header information to identify the session
@@ -164,7 +172,12 @@ impl Protocol for Udp {
                         session_entry.insert(session.clone());
                         session
                     }
-                    Entry::Vacant(_) => Err(UdpError::MissingSession)?,
+                    Entry::Vacant(_) => {
+                        tracing::error!(
+                            "Tried to demux with a missing session and no listen bindings"
+                        );
+                        Err(())?
+                    }
                 }
             }
         };
@@ -177,7 +190,7 @@ impl Protocol for Udp {
         _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         tokio::spawn(async move {
             initialized.wait().await;
         });

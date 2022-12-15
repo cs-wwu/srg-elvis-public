@@ -82,7 +82,7 @@ impl Application for PingPong {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
 
         let mut participants = Control::new();
@@ -112,8 +112,14 @@ impl Application for PingPong {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
-        let ttl = message.iter().next().ok_or(PingPongError::NoMessageBody)?;
+    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
+        let ttl = match message.iter().next() {
+            Some(ttl) => ttl,
+            None => {
+                tracing::error!("The message contained no TTL");
+                Err(())?
+            }
+        };
 
         if ttl % 2 == 0 {
             println!("Pong {}", ttl);
@@ -143,10 +149,4 @@ impl Application for PingPong {
         }
         Ok(())
     }
-}
-
-#[derive(Debug, ThisError)]
-pub enum PingPongError {
-    #[error("The message contained no ttl")]
-    NoMessageBody,
 }

@@ -66,7 +66,7 @@ impl Application for UnreliableTester {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         // Synchronous initialization
         *self.shutdown.lock().unwrap() = Some(shutdown);
         *self.last_receipt.lock().unwrap() = SystemTime::now();
@@ -110,14 +110,14 @@ impl Application for UnreliableTester {
                     .send(Message::new(&i.to_be_bytes()), context.clone())
                 {
                     Ok(_) => {}
-                    Err(e) => eprintln!("{}", e),
+                    Err(_) => tracing::error!("Failed to send"),
                 }
             }
         });
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
+    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ()> {
         *self.last_receipt.lock().unwrap() = SystemTime::now();
         *self.receipt_count.lock().unwrap() += 1;
         Ok(())

@@ -70,7 +70,7 @@ impl Protocol for Tap {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, ()> {
         Ok(self.session.clone())
     }
 
@@ -79,7 +79,7 @@ impl Protocol for Tap {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         Ok(())
     }
 
@@ -88,7 +88,7 @@ impl Protocol for Tap {
         _message: Message,
         _caller: SharedSession,
         _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         // We use accept_incoming instead of demux because there are no
         // protocols under this one that would ask Tap to demux a message and
         // because, semantically, demux chooses one of its own sessions to
@@ -102,7 +102,7 @@ impl Protocol for Tap {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         // Move the channel into the task. It cannot not be accessed from
         // `self` after this point.
         let mut receiver = self.receiver.lock().unwrap().take().unwrap();
@@ -110,14 +110,12 @@ impl Protocol for Tap {
             initialized.wait().await;
             // Repeatedly receive messages and pass them up the stack
             while let Some(delivery) = receiver.recv().await {
-                match self
+                // Ignore failed deliveries. Rely on sessions to report errors
+                // via tracing.
+                let _ = self
                     .session
                     .clone()
-                    .receive_delivery(delivery, context.clone())
-                {
-                    Ok(()) => {}
-                    Err(e) => println!("{}", e),
-                }
+                    .receive_delivery(delivery, context.clone());
             }
         });
         Ok(())

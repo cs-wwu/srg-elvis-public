@@ -54,7 +54,7 @@ impl TapSession {
         self: Arc<Self>,
         mut delivery: Delivery,
         mut context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ()> {
         let first_responder: FirstResponder = take_header(&delivery.message)
             .ok_or(TapError::HeaderLength)
             .unwrap()
@@ -63,17 +63,36 @@ impl TapSession {
         let network_id: NetworkId = delivery.network;
         network_id.apply(&mut context.info);
         delivery.message.slice(8..);
-        let protocol = context
-            .protocol(first_responder.into())
-            .ok_or_else(|| TapError::NoSuchProtocol(first_responder.into()))?;
+        let protocol = match context.protocol(first_responder.into()) {
+            Some(protocol) => protocol,
+            None => {
+                tracing::error!(
+                    "Could not find a protocol for the protocol ID: {}",
+                    first_responder
+                );
+                Err(())?
+            }
+        };
         protocol.demux(delivery.message, self, context)
     }
 }
 
 impl Session for TapSession {
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), Box<dyn Error>> {
-        let network_id = NetworkId::try_from(&context.info)?;
-        let first_responder = FirstResponder::try_from(&context.info)?;
+    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), ()> {
+        let network_id = match NetworkId::try_from(&context.info) {
+            Ok(network_id) => network_id,
+            Err(_) => {
+                tracing::error!("The context did not contain a network ID");
+                Err(())?
+            }
+        };
+        let first_responder = match FirstResponder::try_from(&context.info) {
+            Ok(first_responder) => first_responder,
+            Err(_) => {
+                tracing::error!("The context did not contain a first responder");
+                Err(())?
+            }
+        };
         message.prepend(first_responder.into_inner().to_be_bytes().to_vec());
         let delivery = Delivery {
             message,
@@ -91,19 +110,15 @@ impl Session for TapSession {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        _message: Message,
-        _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ()> {
         panic!("Use Tap::receive_delivery() instead");
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()> {
         // TODO(hardint): Add support for querying the MTU
         match key {
             MACHINE_ID_KEY => Ok(self.machine_id.into()),
-            _ => Err(TapError::NoSuchKey.into()),
+            _ => Err(()),
         }
     }
 }
