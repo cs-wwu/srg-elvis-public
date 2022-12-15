@@ -369,7 +369,7 @@ mod tests {
         };
 
         let actual = TcpHeader::from_bytes(
-            serial.into_iter().chain(payload.into_iter().cloned()),
+            serial.into_iter().chain(payload.iter().cloned()),
             src_address,
             dst_address,
         )?;
@@ -437,7 +437,7 @@ mod tests {
         .ack()
         .psh()
         .acknowledgement(acknowledgement)
-        .build(payload.into_iter().cloned())?;
+        .build(payload.iter().cloned())?;
 
         assert_eq!(expected, actual);
         Ok(())
