@@ -17,7 +17,7 @@ use std::{
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 
-/// An application that sends a Time To Live (TTL) to 
+/// An application that sends a Time To Live (TTL) to
 /// another machine from the first machine.
 /// The second machine will then send the TTL back minus 1.
 /// Once the TTL reaches 0 the program ends.
@@ -115,15 +115,14 @@ impl Application for PingPong {
     fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
         let ttl = message.iter().next().ok_or(PingPongError::NoMessageBody)?;
 
-        if ttl % 2 == 0{
+        if ttl % 2 == 0 {
             println!("Pong {}", ttl);
-        }
-        else{
+        } else {
             println!("Ping {}", ttl);
         }
 
         let ttl = ttl - 1;
-        
+
         if ttl == 0 {
             println!("TTL has reach 0, PingPong has successfully completed");
             if let Some(shutdown) = self.shutdown.lock().unwrap().take() {

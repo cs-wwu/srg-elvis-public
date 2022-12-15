@@ -114,6 +114,7 @@ impl Session for TcpSession {
         }
     }
 
+    // See 3.10.3
     fn receive(
         self: Arc<Self>,
         _message: Message,
