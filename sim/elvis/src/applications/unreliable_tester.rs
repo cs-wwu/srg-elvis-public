@@ -109,7 +109,7 @@ impl Application for UnreliableTester {
                     .send(Message::new(&i.to_be_bytes()), context.clone())
                 {
                     Ok(_) => {}
-                    Err(_) => tracing::warn!("UnreliableTester failed to send"),
+                    Err(_) => tracing::error!("UnreliableTester failed to send"),
                 }
             }
         });

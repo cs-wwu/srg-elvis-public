@@ -62,7 +62,7 @@ impl Application for SendMessage {
             match session.send(Message::new(self.text), context) {
                 Ok(_) => {}
                 Err(_) => {
-                    tracing::warn!("SendMessage failed to send");
+                    tracing::error!("SendMessage failed to send");
                 }
             }
         });

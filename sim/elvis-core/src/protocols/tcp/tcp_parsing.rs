@@ -1,5 +1,5 @@
-use super::TcpError;
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
+use thiserror::Error as ThisError;
 
 const HEADER_WORDS: u16 = 5;
 const HEADER_OCTETS: u16 = HEADER_WORDS * 4;
@@ -41,8 +41,9 @@ impl TcpHeader {
         mut bytes: impl Iterator<Item = u8>,
         src_address: Ipv4Address,
         dst_address: Ipv4Address,
-    ) -> Result<Self, TcpError> {
-        let mut next = || -> Result<u8, TcpError> { bytes.next().ok_or(TcpError::HeaderTooShort) };
+    ) -> Result<Self, ParseError> {
+        let mut next =
+            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
         let mut checksum = Checksum::new();
 
         let src_port = u16::from_be_bytes([next()?, next()?]);
@@ -66,7 +67,7 @@ impl TcpHeader {
 
         if data_offset != HEADER_WORDS as u8 {
             // TODO(hardint): Support optional headers
-            Err(TcpError::UnexpectedOptions)?
+            Err(ParseError::UnexpectedOptions)?
         }
 
         let window = u16::from_be_bytes([next()?, next()?]);
@@ -100,12 +101,24 @@ impl TcpHeader {
                 urgent,
             })
         } else {
-            Err(TcpError::InvalidChecksum {
+            Err(ParseError::Checksum {
                 actual: checksum,
                 expected: expected_checksum,
             })
         }
     }
+}
+
+#[derive(Debug, ThisError, PartialEq, Eq, Clone, Copy)]
+pub enum ParseError {
+    #[error("Too few bytes to constitute a TCP header")]
+    HeaderTooShort,
+    #[error(
+        "The computed checksum {actual:#06x} did not match the header checksum {expected:#06x}"
+    )]
+    Checksum { actual: u16, expected: u16 },
+    #[error("Data offset was different from that expected for a simple header")]
+    UnexpectedOptions,
 }
 
 /// Used for building a serialized TCP header
@@ -200,12 +213,12 @@ impl TcpHeaderBuilder {
     }
 
     /// Get the serialized header
-    pub fn build(self, mut payload: impl Iterator<Item = u8>) -> Result<Vec<u8>, TcpError> {
+    pub fn build(self, mut payload: impl Iterator<Item = u8>) -> Result<Vec<u8>, BuildHeaderError> {
         let mut checksum = Checksum::new();
         let length = checksum
             .accumulate_remainder(&mut payload)
             .checked_add(HEADER_OCTETS)
-            .ok_or(TcpError::OverlyLongPayload)?;
+            .ok_or(BuildHeaderError::OverlyLongPayload)?;
 
         // Pseudo header
         checksum.add_u32(self.src_address.into());
@@ -236,6 +249,12 @@ impl TcpHeaderBuilder {
         out.extend_from_slice(&self.urgent.to_be_bytes());
         Ok(out)
     }
+}
+
+#[derive(Debug, ThisError, PartialEq, Eq, Clone, Copy)]
+pub enum BuildHeaderError {
+    #[error("The TCP payload is longer than can fit into a single packet")]
+    OverlyLongPayload,
 }
 
 /// The control bits of a TCP header
