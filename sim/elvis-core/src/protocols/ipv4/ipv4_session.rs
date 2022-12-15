@@ -14,7 +14,6 @@ use crate::{
     Session,
 };
 use std::{error::Error, sync::Arc};
-
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
     /// The protocol that we demux incoming messages to

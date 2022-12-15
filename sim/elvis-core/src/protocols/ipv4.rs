@@ -133,8 +133,10 @@ impl Protocol for Ipv4 {
         let remote = RemoteAddress::from(header.source);
         let local = LocalAddress::from(header.destination);
         let identifier = SessionId { local, remote };
+
         local.apply(&mut context.info);
         remote.apply(&mut context.info);
+
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => match self.listen_bindings.get(&local) {

@@ -14,7 +14,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio::sync::{mpsc::Sender, Barrier};
-
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]
 pub struct Forward {
@@ -72,6 +71,7 @@ impl Application for Forward {
         RemoteAddress::set(&mut participants, self.remote_ip);
         LocalPort::set(&mut participants, self.local_port);
         RemotePort::set(&mut participants, self.remote_port);
+
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         *self.outgoing.lock().unwrap() = Some(udp.clone().open(
             Self::ID,
