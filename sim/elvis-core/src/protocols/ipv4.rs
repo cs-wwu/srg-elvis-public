@@ -5,7 +5,7 @@ use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
     message::Message,
-    protocol::{Context, ProtocolId},
+    protocol::{Context, ProtocolId, QueryError},
     protocols::tap::Tap,
     session::SharedSession,
     Control, Protocol, Session,
@@ -166,7 +166,7 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
-        panic!("Nothing to query on IPv4")
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+        Err(QueryError::NonexistentKey)
     }
 }

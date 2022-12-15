@@ -6,7 +6,7 @@ use crate::{
     machine::MachineId,
     message::Message,
     network::Delivery,
-    protocol::{Context, ProtocolId},
+    protocol::{Context, ProtocolId, QueryError},
     session::SharedSession,
     Control, Protocol,
 };
@@ -123,11 +123,11 @@ impl Protocol for Tap {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add support for querying the MTU
         match key {
             MACHINE_ID_KEY => Ok(self.session.machine_id.into()),
-            _ => Err(TapError::NoSuchKey.into()),
+            _ => Err(QueryError::NonexistentKey),
         }
     }
 }

@@ -1,9 +1,9 @@
 //! The [`Protocol`] trait and supporting types.
 
-use crate::control::{Key, Primitive};
-
 use super::{control::value::make_key, message::Message, session::SharedSession, Control};
+use crate::control::{Key, Primitive};
 use std::{error::Error, sync::Arc};
+use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 
 mod context;
@@ -143,5 +143,11 @@ pub trait Protocol {
     ) -> Result<(), Box<dyn Error>>;
 
     /// Gets a piece of information from the protocol
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>>;
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum QueryError {
+    #[error("The provided key cannot be queried on this protocol")]
+    NonexistentKey,
 }
