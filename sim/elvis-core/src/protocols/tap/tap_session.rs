@@ -1,7 +1,4 @@
-use super::{
-    tap_misc::{FirstResponder, TapError},
-    NetworkId, MACHINE_ID_KEY,
-};
+use super::{tap_misc::FirstResponder, NetworkId, MACHINE_ID_KEY};
 use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
@@ -56,8 +53,7 @@ impl TapSession {
         mut context: Context,
     ) -> Result<(), ()> {
         let first_responder: FirstResponder = take_header(&delivery.message)
-            .ok_or(TapError::HeaderLength)
-            .unwrap()
+            .expect("Expected two bytes for the header")
             .into();
         first_responder.apply(&mut context.info);
         let network_id: NetworkId = delivery.network;
