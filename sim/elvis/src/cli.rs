@@ -58,8 +58,8 @@ fn initialize_logging() {
         .with_writer(Arc::new(file))
         .json()
         .finish();
-    // set the global default so all events/logs go to the same subscriber and subsequently the same file
-    // TODO: Talk to tim on handling errors properly
+    // set the global default so all events/logs go to the same subscriber and
+    // subsequently the same file TODO: Talk to tim on handling errors properly
     match tracing::subscriber::set_global_default(subscriber) {
         Ok(sub) => sub,
         Err(error) => println!("{:?}", error),

@@ -118,22 +118,21 @@ impl Application for PingPong {
         };
 
         if ttl % 2 == 0 {
-            println!("Pong {}", ttl);
+            tracing::info!("Pong {}", ttl);
         } else {
-            println!("Ping {}", ttl);
+            tracing::info!("Ping {}", ttl);
         }
 
         let ttl = ttl - 1;
 
         if ttl == 0 {
-            println!("TTL has reach 0, PingPong has successfully completed");
+            tracing::info!("TTL has reach 0, PingPong has successfully completed");
             if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
                 tokio::spawn(async move {
                     shutdown.send(()).await.unwrap();
                 });
             }
         } else {
-            // println!("{}", ttl);
             self.session
                 .clone()
                 .lock()
