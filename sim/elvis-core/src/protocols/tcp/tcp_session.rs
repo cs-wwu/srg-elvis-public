@@ -7,12 +7,24 @@ use crate::{
     Message, Session,
 };
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::{error::Error, sync::Arc};
+use std::{
+    error::Error,
+    sync::{Arc, RwLock},
+};
+use tokio::sync::{mpsc, oneshot};
+use tracing::error;
+
+// TODO(hardint): The unwraps used on channels should be removed and cleaned up
+// along with proper simulation teardown.
 
 pub struct TcpSession {
-    state: State,
-    tcb: Tcb,
+    tcb: Arc<RwLock<Tcb>>,
     downstream: SharedSession,
+    /// Messages to be sent are queued here for delivery on a separate thread.
+    send_queue: Arc<mpsc::UnboundedSender<Message>>,
+    /// Sent on once after transitioning to established so that the asyncronous
+    /// delivery thread knows when it can start transmitting.
+    established_barrier: Arc<oneshot::Sender<()>>,
 }
 
 /// The initial send sequence of a connection.
@@ -52,21 +64,54 @@ impl TcpSession {
             .send(message, context)
             .map_err(|_| TcpError::Send)?;
 
+        let (established_barrier_send, established_barrier_recv) = oneshot::channel();
+        let (send_queue_send, mut send_queue_recv) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            // Don't start sending until the connection has been established
+            match established_barrier_recv.await {
+                Ok(_) => {}
+                Err(_) => {
+                    error!("Failed to establish the TCP connection");
+                    return;
+                }
+            }
+
+            while let Some(_message) = send_queue_recv.recv().await {
+                todo!()
+            }
+        });
+
         Ok(Self {
-            state: State::SynSent,
             downstream,
-            tcb: Tcb {
+            send_queue: Arc::new(send_queue_send),
+            established_barrier: Arc::new(established_barrier_send),
+            tcb: Arc::new(RwLock::new(Tcb {
+                state: State::SynSent,
                 id,
                 send,
                 recv: Default::default(),
-            },
+            })),
         })
     }
 }
 
 impl Session for TcpSession {
-    fn send(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
-        todo!()
+    // See 3.10.2
+    fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
+        let state = self.tcb.read().unwrap().state;
+        use State::*;
+        match state {
+            SynSent | SynReceived | Established | CloseWait => {
+                let send_queue = self.send_queue.clone();
+                tokio::spawn(async move {
+                    send_queue.send(message).unwrap();
+                });
+                Ok(())
+            }
+            FinWait1 | FinWait2 | Closing | LastAck | TimeWait => {
+                Err(Box::new(TcpError::InvalidSend))
+            }
+        }
     }
 
     fn receive(
@@ -108,7 +153,7 @@ impl SessionId {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum State {
     /// Represents waiting for a matching connection request after having sent a
     /// connection request.
@@ -206,6 +251,7 @@ impl ReceiveSequenceSpace {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct Tcb {
+    state: State,
     id: SessionId,
     send: SendSequenceSpace,
     recv: ReceiveSequenceSpace,

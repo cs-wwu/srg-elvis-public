@@ -239,4 +239,6 @@ pub enum TcpError {
     OverlyLongPayload,
     #[error("A message failed to send")]
     Send,
+    #[error("Attempted to send on a TCP session that is closing")]
+    InvalidSend,
 }
