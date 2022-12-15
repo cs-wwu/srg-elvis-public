@@ -10,10 +10,7 @@ use crate::{
     session::SharedSession,
     Control, Protocol,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Barrier,

@@ -14,7 +14,6 @@ use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
 
 mod udp_misc;
-use udp_misc::UdpError;
 pub use udp_misc::{LocalPort, RemotePort};
 
 mod udp_session;

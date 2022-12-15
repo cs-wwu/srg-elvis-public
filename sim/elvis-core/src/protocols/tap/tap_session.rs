@@ -12,7 +12,7 @@ use crate::{
     Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 
 /// The session type for a [`Tap`](super::Tap).

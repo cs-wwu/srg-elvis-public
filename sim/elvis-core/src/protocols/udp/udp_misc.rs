@@ -17,10 +17,6 @@ from_impls!(RemotePort, u16);
 
 #[derive(Debug, ThisError)]
 pub(super) enum UdpError {
-    #[error("Tried to create an existing session")]
-    SessionExists,
-    #[error("Tried to demux with a missing session and no listen bindings")]
-    MissingSession,
     #[error("Too few bytes to constitute a UDP header")]
     HeaderTooShort,
     #[error(

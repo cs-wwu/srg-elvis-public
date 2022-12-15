@@ -9,10 +9,7 @@ use elvis_core::{
     session::SharedSession,
     Control,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]

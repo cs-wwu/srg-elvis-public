@@ -8,7 +8,7 @@ use elvis_core::{
     },
     Control,
 };
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that sends a single message over the network.
@@ -59,7 +59,12 @@ impl Application for SendMessage {
         let session = protocol.open(Self::ID, participants, context.clone())?;
         tokio::spawn(async move {
             initialized.wait().await;
-            session.send(Message::new(self.text), context);
+            match session.send(Message::new(self.text), context) {
+                Ok(_) => {}
+                Err(_) => {
+                    tracing::warn!("SendMessage failed to send");
+                }
+            }
         });
         Ok(())
     }

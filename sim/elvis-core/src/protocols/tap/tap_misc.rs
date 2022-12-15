@@ -30,10 +30,6 @@ pub const MACHINE_ID_KEY: Key = make_key("First responder");
 pub enum TapError {
     #[error("Expected two bytes for the header")]
     HeaderLength,
-    #[error("Could not find a protocol for the protocol ID: {0:?}")]
-    NoSuchProtocol(ProtocolId),
-    #[error("Could not match the query key to a piece of information")]
-    NoSuchKey,
     #[error("{0}")]
     Other(#[from] Box<dyn Error>),
 }

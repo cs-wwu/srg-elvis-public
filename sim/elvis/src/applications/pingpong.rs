@@ -10,11 +10,7 @@ use elvis_core::{
     session::SharedSession,
     Control,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
-use thiserror::Error as ThisError;
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that sends a Time To Live (TTL) to

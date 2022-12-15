@@ -9,7 +9,6 @@ use elvis_core::{
     Control, Message,
 };
 use std::{
-    error::Error,
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
@@ -110,7 +109,7 @@ impl Application for UnreliableTester {
                     .send(Message::new(&i.to_be_bytes()), context.clone())
                 {
                     Ok(_) => {}
-                    Err(_) => tracing::error!("Failed to send"),
+                    Err(_) => tracing::warn!("UnreliableTester failed to send"),
                 }
             }
         });
