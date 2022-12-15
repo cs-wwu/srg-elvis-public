@@ -1,3 +1,4 @@
+use super::{tcp_parsing::TcpHeaderBuilder, TcpError};
 use crate::{
     control::{Key, Primitive},
     protocol::Context,
@@ -5,18 +6,61 @@ use crate::{
     session::SharedSession,
     Message, Session,
 };
+use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::{error::Error, sync::Arc};
 
 pub struct TcpSession {
     state: State,
-    send: SendSequenceSpace,
-    recv: ReceiveSequenceSpace,
+    tcb: Tcb,
     downstream: SharedSession,
 }
 
+/// The initial send sequence of a connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Iss {
+    #[default]
+    Random,
+    FromSeed(u64),
+}
+
+impl From<Iss> for u32 {
+    fn from(iss: Iss) -> Self {
+        let mut rng = match iss {
+            Iss::Random => SmallRng::from_entropy(),
+            Iss::FromSeed(c) => SmallRng::seed_from_u64(c),
+        };
+        rng.next_u32()
+    }
+}
+
 impl TcpSession {
-    pub fn open(_id: SessionId, _downstream: SharedSession) -> Self {
-        todo!()
+    /// Open a new connection. See 3.10.1.
+    pub fn open(
+        context: Context,
+        id: SessionId,
+        downstream: SharedSession,
+        iss: Iss,
+    ) -> Result<Self, TcpError> {
+        let send = SendSequenceSpace::new(iss, 0x1000);
+
+        let header = TcpHeaderBuilder::new(id, send.iss, send.wnd)
+            .syn()
+            .build([].into_iter())?;
+        let message = Message::new(header);
+        downstream
+            .clone()
+            .send(message, context)
+            .map_err(|_| TcpError::Send)?;
+
+        Ok(Self {
+            state: State::SynSent,
+            downstream,
+            tcb: Tcb {
+                id,
+                send,
+                recv: Default::default(),
+            },
+        })
     }
 }
 
@@ -46,10 +90,22 @@ pub struct Socket {
     pub port: u16,
 }
 
+impl Socket {
+    pub fn new(address: Ipv4Address, port: u16) -> Self {
+        Self { address, port }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SessionId {
-    pub local: Socket,
-    pub remote: Socket,
+    pub src: Socket,
+    pub dst: Socket,
+}
+
+impl SessionId {
+    pub fn new(src: Socket, dst: Socket) -> Self {
+        Self { src, dst }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -110,6 +166,20 @@ struct SendSequenceSpace {
     iss: u32,
 }
 
+impl SendSequenceSpace {
+    pub fn new(iss: Iss, wnd: u16) -> Self {
+        let iss = iss.into();
+        Self {
+            iss,
+            una: iss,
+            nxt: iss + 1,
+            wnd,
+            wl1: 0,
+            wl2: 0,
+        }
+    }
+}
+
 ///     1          2          3
 /// ----------|----------|----------
 ///        RCV.NXT    RCV.NXT
@@ -118,7 +188,7 @@ struct SendSequenceSpace {
 /// 1 - old sequence numbers which have been acknowledged
 /// 2 - sequence numbers allowed for new reception
 /// 3 - future sequence numbers which are not yet allowed
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, PartialEq, Eq, Hash)]
 struct ReceiveSequenceSpace {
     /// Next
     nxt: u32,
@@ -128,14 +198,20 @@ struct ReceiveSequenceSpace {
     irs: u32,
 }
 
+impl ReceiveSequenceSpace {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct Tcb {
-    local_socket: Socket,
-    remote_socket: Socket,
+    id: SessionId,
     send: SendSequenceSpace,
     recv: ReceiveSequenceSpace,
 }
 
+/// Is `b` between `a` and `c` when accounting for modular arithmetic?
 fn is_between_wrapped(a: u32, b: u32, c: u32) -> bool {
     (a < b && b < c) || (c < a && a < b) || (b < c && c < a)
 }

@@ -4,11 +4,12 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-thiserror = "1.0"
-const-fnv1a-hash = "1.0"
-tokio = { version = "1.20", features = ["rt", "rt-multi-thread", "time", "macros", "signal", "sync"] }
-dashmap = "5.3"
+thiserror = "1.0.37"
+const-fnv1a-hash = "1.1.0"
+tokio = { version = "1.23.0", features = ["rt", "rt-multi-thread", "time", "macros", "signal", "sync"] }
+dashmap = "5.4.0"
 tracing = "0.1.37"
+rand = { version = "0.8.5", features = ["small_rng"] }
 
 [dev-dependencies]
 anyhow = "1.0"

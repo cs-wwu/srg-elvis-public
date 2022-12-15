@@ -1,6 +1,6 @@
 use self::{
     tcp_parsing::TcpHeader,
-    tcp_session::{SessionId, Socket, TcpSession},
+    tcp_session::{Iss, SessionId, Socket, TcpSession},
 };
 use super::{
     ipv4::{LocalAddress, RemoteAddress},
@@ -17,7 +17,10 @@ use crate::{
     Control, Message, Protocol, Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{error::Error, sync::Arc};
+use std::{
+    error::Error,
+    sync::{Arc, Mutex},
+};
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 use tracing::error;
@@ -25,13 +28,35 @@ use tracing::error;
 mod tcp_parsing;
 mod tcp_session;
 
+#[derive(Default)]
 pub struct Tcp {
     listen_bindings: DashMap<Socket, ProtocolId>,
     sessions: DashMap<SessionId, Arc<TcpSession>>,
+    iss_seed: Arc<Mutex<Iss>>,
 }
 
 impl Tcp {
     pub const ID: ProtocolId = ProtocolId::new(6);
+
+    pub fn new(iss: Iss) -> Self {
+        Self {
+            listen_bindings: Default::default(),
+            sessions: Default::default(),
+            iss_seed: Arc::new(Mutex::new(iss)),
+        }
+    }
+
+    fn next_iss(self: Arc<Self>) -> Iss {
+        let mut lock = self.iss_seed.lock().unwrap();
+        match *lock {
+            Iss::Random => Iss::Random,
+            Iss::FromSeed(c) => {
+                let out = *lock;
+                *lock = Iss::FromSeed(c + 1);
+                out
+            }
+        }
+    }
 }
 
 impl Protocol for Tcp {
@@ -60,17 +85,25 @@ impl Protocol for Tcp {
             port: RemotePort::try_from(&participants).unwrap().into(),
         };
 
-        let session_id = SessionId { local, remote };
-        match self.sessions.entry(session_id) {
+        let session_id = SessionId {
+            src: local,
+            dst: remote,
+        };
+        match self.clone().sessions.entry(session_id) {
             Entry::Occupied(_) => Err(TcpError::SessionExists)?,
             Entry::Vacant(entry) => {
                 // Create the session and save it
                 let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
                     Self::ID,
                     participants,
-                    context,
+                    context.clone(),
                 )?;
-                let session = Arc::new(TcpSession::open(session_id, downstream));
+                let session = Arc::new(TcpSession::open(
+                    context,
+                    session_id,
+                    downstream,
+                    self.next_iss(),
+                )?);
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -124,23 +157,31 @@ impl Protocol for Tcp {
         };
 
         // Use the context and the header information to identify the session
-        let session_id = SessionId { local, remote };
+        let session_id = SessionId {
+            src: local,
+            dst: remote,
+        };
 
         // Add the header information to the context
         LocalPort::new(local.port).apply(&mut context.info);
         RemotePort::new(remote.port).apply(&mut context.info);
 
-        let session = match self.sessions.entry(session_id) {
+        let session = match self.clone().sessions.entry(session_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
                 session
             }
             Entry::Vacant(session_entry) => {
-                match self.listen_bindings.entry(local) {
+                match self.clone().listen_bindings.entry(local) {
                     Entry::Occupied(_listen_entry) => {
                         // If we have a listen binding, create the session and
                         // save it
-                        let session = Arc::new(TcpSession::open(session_id, caller));
+                        let session = Arc::new(TcpSession::open(
+                            context.clone(),
+                            session_id,
+                            caller,
+                            self.next_iss(),
+                        )?);
                         session_entry.insert(session.clone());
                         session
                     }
@@ -196,4 +237,6 @@ pub enum TcpError {
     UnexpectedOptions,
     #[error("The TCP payload is longer than can fit into a single packet")]
     OverlyLongPayload,
+    #[error("A message failed to send")]
+    Send,
 }

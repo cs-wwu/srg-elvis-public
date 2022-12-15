@@ -1,4 +1,4 @@
-use super::TcpError;
+use super::{tcp_session::SessionId, TcpError};
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 
 const HEADER_WORDS: u16 = 5;
@@ -111,32 +111,19 @@ impl TcpHeader {
 /// Used for building a serialized TCP header
 #[derive(Debug)]
 pub struct TcpHeaderBuilder {
-    src_port: u16,
-    dst_port: u16,
+    id: SessionId,
     sequence: u32,
     acknowledgement: u32,
     control: Control,
     window: u16,
     urgent: u16,
-    src_address: Ipv4Address,
-    dst_address: Ipv4Address,
 }
 
 impl TcpHeaderBuilder {
     /// Initialize the TCP header with defaults and the given values
-    pub fn new(
-        src_port: u16,
-        dst_port: u16,
-        src_address: Ipv4Address,
-        dst_address: Ipv4Address,
-        sequence: u32,
-        window: u16,
-    ) -> Self {
+    pub fn new(id: SessionId, sequence: u32, window: u16) -> Self {
         Self {
-            src_port,
-            dst_port,
-            src_address,
-            dst_address,
+            id,
             sequence,
             window,
             acknowledgement: 0,
@@ -208,16 +195,16 @@ impl TcpHeaderBuilder {
             .ok_or(TcpError::OverlyLongPayload)?;
 
         // Pseudo header
-        checksum.add_u32(self.src_address.into());
-        checksum.add_u32(self.dst_address.into());
+        checksum.add_u32(self.id.src.address.into());
+        checksum.add_u32(self.id.dst.address.into());
         checksum.add_u8(0, 6);
         checksum.add_u16(length);
 
         let data_offset = (HEADER_WORDS as u8) << 4;
 
         // Header parts
-        checksum.add_u16(self.src_port);
-        checksum.add_u16(self.dst_port);
+        checksum.add_u16(self.id.src.port);
+        checksum.add_u16(self.id.dst.port);
         checksum.add_u32(self.sequence.to_be_bytes());
         checksum.add_u32(self.acknowledgement.to_be_bytes());
         checksum.add_u8(data_offset, self.control.into());
@@ -225,8 +212,8 @@ impl TcpHeaderBuilder {
         checksum.add_u16(self.urgent);
 
         let mut out = Vec::with_capacity(HEADER_OCTETS as usize);
-        out.extend_from_slice(&self.src_port.to_be_bytes());
-        out.extend_from_slice(&self.dst_port.to_be_bytes());
+        out.extend_from_slice(&self.id.src.port.to_be_bytes());
+        out.extend_from_slice(&self.id.dst.port.to_be_bytes());
         out.extend_from_slice(&self.sequence.to_be_bytes());
         out.extend_from_slice(&self.acknowledgement.to_be_bytes());
         out.push(data_offset);
@@ -331,6 +318,8 @@ impl From<Control> for u8 {
 
 #[cfg(test)]
 mod tests {
+    use crate::protocols::tcp::tcp_session::Socket;
+
     use super::*;
 
     #[test]
@@ -396,16 +385,24 @@ mod tests {
     fn builds_packet() -> anyhow::Result<()> {
         let payload = b"Hello, world!";
         let ttl = 30;
-        let src_address = Ipv4Address::LOCALHOST;
-        let dst_address = Ipv4Address::SUBNET;
-        let src_port = 0xcafe;
-        let dst_port = 0xbabe;
         let sequence = 123456789;
         let window = 1024;
         let acknowledgement = 10;
 
+        let id = SessionId {
+            src: Socket {
+                address: Ipv4Address::LOCALHOST,
+                port: 0xcafe,
+            },
+            dst: Socket {
+                address: Ipv4Address::SUBNET,
+                port: 0xbabe,
+            },
+        };
+
         let expected = {
-            let mut expected = etherparse::TcpHeader::new(src_port, dst_port, sequence, window);
+            let mut expected =
+                etherparse::TcpHeader::new(id.src.port, id.dst.port, sequence, window);
             expected.acknowledgment_number = acknowledgement;
             expected.ack = true;
             expected.psh = true;
@@ -413,8 +410,8 @@ mod tests {
                 payload.len().try_into()?,
                 ttl,
                 etherparse::IpNumber::Tcp,
-                src_address.into(),
-                dst_address.into(),
+                id.src.address.into(),
+                id.dst.address.into(),
             );
             expected.checksum = expected.calc_checksum_ipv4(&ip_header, payload)?;
             expected
@@ -426,18 +423,11 @@ mod tests {
             serial
         };
 
-        let actual = TcpHeaderBuilder::new(
-            src_port,
-            dst_port,
-            src_address,
-            dst_address,
-            sequence,
-            window,
-        )
-        .ack()
-        .psh()
-        .acknowledgement(acknowledgement)
-        .build(payload.into_iter().cloned())?;
+        let actual = TcpHeaderBuilder::new(id, sequence, window)
+            .ack()
+            .psh()
+            .acknowledgement(acknowledgement)
+            .build(payload.into_iter().cloned())?;
 
         assert_eq!(expected, actual);
         Ok(())
