@@ -18,29 +18,33 @@ pub fn machines_parser<'a>(
 ) -> Result<(Machines<'a>, &'a str), String> {
     let mut machines = Machines::new();
     let mut remaining_string = s0;
-    let machines_line_num = line_num.clone() - 1;
+    let machines_line_num = *line_num - 1;
     //Will loop until all machine have been read
-    while remaining_string != "" {
+    while !remaining_string.is_empty() {
         let mut t = 0;
         while remaining_string.chars().nth(t as usize) == Some('\t') {
             t += 1;
         }
         // next line doesn't have enough tabs thus a network isn't being declared
-        if t < num_tabs {
-            return Ok((machines, remaining_string));
-        } else if t > num_tabs {
-            return Err(general_error(
-                num_tabs,
-                machines_line_num,
-                dec,
-                format!(
-                    "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
-                    num_tabs_to_string(num_tabs + 1),
-                    line_num,
+        match t{
+            t if t < num_tabs => {
+                return Ok((machines, remaining_string))
+            },
+            t if t > num_tabs => {
+                return Err(general_error(
                     num_tabs,
-                    t
-                ),
-            ));
+                    machines_line_num,
+                    dec,
+                    format!(
+                        "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
+                        num_tabs_to_string(num_tabs + 1),
+                        line_num,
+                        num_tabs,
+                        t
+                    ),
+                ))
+            },
+            _ => (),
         }
         //Find the next machine to be parsed
         let parsed_machines = general_parser(&remaining_string[num_tabs as usize..], line_num);
@@ -113,43 +117,47 @@ fn machine_parser<'a>(
     let mut networks: MachineNetworks = MachineNetworks::new();
     let mut protocols: Protocols = Protocols::new();
     let mut applications: Applications = Applications::new();
-    let machine_line_num = line_num.clone() - 1;
+    let machine_line_num = *line_num - 1;
     let mut remaining_string = s0;
 
     let mut req = vec![DecType::Networks, DecType::Protocols, DecType::Applications];
     // Parse the 3 types
-    while remaining_string != "" {
+    while !remaining_string.is_empty() {
         let mut t = 0;
         while remaining_string.chars().nth(t as usize) == Some('\t') {
             t += 1;
         }
         // next line doesn't have enough tabs thus a network isn't being declared
-        if t < num_tabs {
-            return Ok((
-                Machine {
-                    dectype: dec,
-                    options: Some(args),
-                    interfaces: Interfaces {
-                        networks: networks,
-                        protocols: protocols,
-                        applications: applications,
+        match t{
+            t if t < num_tabs => {
+                return Ok((
+                    Machine {
+                        dectype: dec,
+                        options: Some(args),
+                        interfaces: Interfaces {
+                            networks,
+                            protocols,
+                            applications,
+                        },
                     },
-                },
-                remaining_string,
-            ));
-        } else if t > num_tabs {
-            return Err(general_error(
-                num_tabs,
-                machine_line_num,
-                dec,
-                format!(
-                    "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
-                    num_tabs_to_string(num_tabs + 1),
-                    line_num,
+                    remaining_string,
+                ))
+            },
+            t if t > num_tabs => {
+                return Err(general_error(
                     num_tabs,
-                    t
-                ),
-            ));
+                    machine_line_num,
+                    dec,
+                    format!(
+                        "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
+                        num_tabs_to_string(num_tabs + 1),
+                        line_num,
+                        num_tabs,
+                        t
+                    ),
+                ))
+            },
+            _ => ()
         }
         // Find the machine and arguments to be parsed
         let parsed_machine = general_parser(&remaining_string[num_tabs as usize..], line_num);
@@ -282,9 +290,9 @@ fn machine_parser<'a>(
             dectype: DecType::Machine,
             options: Some(args),
             interfaces: Interfaces {
-                networks: networks,
-                protocols: protocols,
-                applications: applications,
+                networks,
+                protocols,
+                applications,
             },
         },
         remaining_string,
@@ -302,7 +310,7 @@ fn machine_networks_parser<'a>(
 ) -> Result<(MachineNetworks<'a>, &'a str), String> {
     let mut networks = MachineNetworks::new();
     let mut remaining_string = s0;
-    let networks_line_num = line_num.clone() - 1;
+    let networks_line_num = *line_num - 1;
     let mut t = 0;
     while remaining_string.chars().nth(t as usize) == Some('\t') {
         t += 1;
@@ -311,7 +319,7 @@ fn machine_networks_parser<'a>(
     if t != num_tabs {
         return Err("Invalid formatting".to_string());
     }
-    while remaining_string != "" {
+    while !remaining_string.is_empty() {
         let network = general_parser(&remaining_string[num_tabs as usize..], line_num);
         match network {
             Ok(n) => {
@@ -343,28 +351,27 @@ fn machine_networks_parser<'a>(
         while remaining_string.chars().nth(t as usize) == Some('\t') {
             t += 1;
         }
-        // next line doesn't have enough tabs thus a network isn't being declared
-        if t < num_tabs {
-            break;
-        }
-        // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
-        else if t > num_tabs {
-            return Err(general_error(
-                num_tabs,
-                networks_line_num,
-                dec,
-                format!(
-                    "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
-                    num_tabs_to_string(num_tabs + 1),
-                    line_num,
+        match t {
+            // next line doesn't have enough tabs thus a network isn't being declared
+            t if t < num_tabs => break,
+            // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
+            t if t > num_tabs => return Err(general_error(
                     num_tabs,
-                    t
-                ),
-            ));
+                    networks_line_num,
+                    dec,
+                format!(
+                        "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
+                        num_tabs_to_string(num_tabs + 1),
+                        line_num,
+                        num_tabs,
+                        t
+                    ),
+                )),
+            _ => (),
         }
     }
 
-    return Ok((networks, remaining_string));
+    Ok((networks, remaining_string))
 }
 
 /// Parses the [Protocol] from a machine.
@@ -378,7 +385,7 @@ fn machine_protocols_parser<'a>(
 ) -> Result<(Protocols<'a>, &'a str), String> {
     let mut protocols = Protocols::new();
     let mut remaining_string = s0;
-    let protocols_line_num = line_num.clone() - 1;
+    let protocols_line_num = *line_num - 1;
     let mut t = 0;
     while remaining_string.chars().nth(t as usize) == Some('\t') {
         t += 1;
@@ -388,7 +395,7 @@ fn machine_protocols_parser<'a>(
         return Err("Invalid formatting".to_string());
     }
     //While there are more protocols to parse
-    while remaining_string != "" {
+    while !remaining_string.is_empty() {
         //Find the specific protocol
         let protocol = general_parser(&remaining_string[num_tabs as usize..], line_num);
         match protocol {
@@ -424,27 +431,26 @@ fn machine_protocols_parser<'a>(
         while remaining_string.chars().nth(t as usize) == Some('\t') {
             t += 1;
         }
-        // next line doesn't have enough tabs thus a network isn't being declared
-        if t < num_tabs {
-            break;
-        }
-        // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
-        else if t > num_tabs {
-            return Err(general_error(
-                num_tabs,
-                protocols_line_num,
-                dec,
-                format!(
-                    "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
-                    num_tabs_to_string(num_tabs + 1),
-                    line_num,
+        match t {
+            // next line doesn't have enough tabs thus a network isn't being declared
+            t if t < num_tabs => break,
+            // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
+            t if t > num_tabs => return Err(general_error(
                     num_tabs,
-                    t
-                ),
-            ));
+                    protocols_line_num,
+                    dec,
+                format!(
+                        "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
+                        num_tabs_to_string(num_tabs + 1),
+                        line_num,
+                        num_tabs,
+                        t
+                    ),
+                )),
+            _ => (),
         }
     }
-    return Ok((protocols, remaining_string));
+    Ok((protocols, remaining_string))
 }
 
 /// Parses the [Application] from a machine.
@@ -459,7 +465,7 @@ fn machine_applications_parser<'a>(
 ) -> Result<(Applications<'a>, &'a str), String> {
     let mut apps = Applications::new();
     let mut remaining_string = s0;
-    let applications_line_num = line_num.clone() - 1;
+    let applications_line_num = *line_num - 1;
     let mut t = 0;
     while remaining_string.chars().nth(t as usize) == Some('\t') {
         t += 1;
@@ -469,7 +475,7 @@ fn machine_applications_parser<'a>(
         return Err("Invalid formatting".to_string());
     }
     //While there are more applications to be parsed
-    while remaining_string != "" {
+    while !remaining_string.is_empty() {
         let application = general_parser(&remaining_string[num_tabs as usize..], line_num);
         match application {
             Ok(n) => {
@@ -502,25 +508,24 @@ fn machine_applications_parser<'a>(
         while remaining_string.chars().nth(t as usize) == Some('\t') {
             t += 1;
         }
-        // next line doesn't have enough tabs thus a network isn't being declared
-        if t < num_tabs {
-            break;
-        }
-        // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
-        else if t > num_tabs {
-            return Err(general_error(
-                num_tabs,
-                applications_line_num,
-                dec,
-                format!(
-                    "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
-                    num_tabs_to_string(num_tabs + 1),
-                    line_num,
+        match t {
+            // next line doesn't have enough tabs thus a network isn't being declared
+            t if t < num_tabs => break,
+            // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
+            t if t > num_tabs => return Err(general_error(
                     num_tabs,
-                    t
-                ),
-            ));
+                    applications_line_num,
+                    dec,
+                format!(
+                        "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
+                        num_tabs_to_string(num_tabs + 1),
+                        line_num,
+                        num_tabs,
+                        t
+                    ),
+                )),
+            _ => (),
         }
     }
-    return Ok((apps, remaining_string));
+    Ok((apps, remaining_string))
 }

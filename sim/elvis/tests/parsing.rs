@@ -97,3 +97,31 @@ fn parsing_test_correct() {
     
     assert_eq!(result.unwrap(), format!("{:?}", s))
 }
+
+#[test]
+fn parsing_test_network_fail_1() {
+    let result = parser_testing("./tests/parsing_tests/network_test_fail_1.txt");
+    let s: String = "Errors at ./tests/parsing_tests/network_test_fail_1.txt:\n\nLine 1: Unable to parse inside of Networks due to: \n\tLine 2: Unable to parse inside of Network due to: \n\t\tLine 3: expected type IP and got type Network instead.\n\n".to_string();
+    match result{
+        Ok(_s) => {
+            assert_eq!("5", "10");
+        }
+        Err(e) => {
+            assert_eq!(e, s);
+        }
+    }
+}
+
+#[test]
+fn parsing_test_network_fail_2() {
+    let result = parser_testing("./tests/parsing_tests/network_test_fail_2.txt");
+    let s: String = "Errors at ./tests/parsing_tests/network_test_fail_2.txt:\n\nLine 1: Unable to parse inside of Networks due to: \n\tLine 3: Unable to parse inside of Network due to: \n\t\tLine 3: expected 2 tabs and got 3 tabs instead.\n\n".to_string();
+    match result{
+        Ok(_s) => {
+            assert_eq!("5", "10");
+        }
+        Err(e) => {
+            assert_eq!(e, s);
+        }
+    }
+}

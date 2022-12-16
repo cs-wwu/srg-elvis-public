@@ -11,20 +11,20 @@ pub fn networks_parser<'a>(dec: DecType, _args: Params<'a>, s0: &'a str, num_tab
     let mut networks = Networks::new();
     let mut remaining_string = s0;
     // save the line number we start on in this function for errors
-    let networks_line_num = line_num.clone() - 1;
+    let networks_line_num = *line_num - 1;
 
-    while remaining_string != "" {
+    while !remaining_string.is_empty() {
         // count how many tabs there are at the beginning of the string
         let mut t = 0;
         while remaining_string.chars().nth(t as usize) == Some('\t') {
             t+=1;
         }
-        // next line doesn't have enough tabs thus a network isn't being declared
-        if t < num_tabs {
-            return Ok((networks, remaining_string));
-        }
-        else if t > num_tabs {
-            return Err(general_error(num_tabs, networks_line_num, dec, format!("{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n", num_tabs_to_string(num_tabs+1), line_num, num_tabs, t)));
+        match t {
+            // next line doesn't have enough tabs thus a network isn't being declared
+            t if t < num_tabs => break,
+            // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
+            t if t > num_tabs => return Err(general_error(num_tabs, networks_line_num, dec, format!("{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n", num_tabs_to_string(num_tabs+1), line_num, num_tabs, t))),
+            _ => (),
         }
         
         // parse everything after the tabs
@@ -73,7 +73,7 @@ fn network_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32
     let mut ips = IPs::new();
 	let mut remaining_string = s0;
     // save the beginning of this declarations line num
-    let network_line_num = line_num.clone() - 1;
+    let network_line_num = *line_num - 1;
 
     let mut t = 0;
     while remaining_string.chars().nth(t as usize) == Some('\t') {
@@ -84,9 +84,9 @@ fn network_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32
         return Err(general_error(num_tabs, *line_num, dec, format!("{}Line {:?}: expected {} tabs and got {} tabs instead.\n", num_tabs_to_string(num_tabs+1), *line_num, num_tabs, t)));
     }
 	
-	while remaining_string != "" {
+	while !remaining_string.is_empty() {
         // save the line num at the beginning of this line
-        let cur_line_num = line_num.clone();
+        let cur_line_num = *line_num;
 		let network = general_parser(&remaining_string[num_tabs as usize..], line_num);
 		match network {
 			Ok(n) => {
@@ -108,13 +108,12 @@ fn network_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32
 		while remaining_string.chars().nth(t as usize) == Some('\t') {
 			t+=1;
 		}
-		// next line doesn't have enough tabs thus a network isn't being declared
-		if t < num_tabs {
-			break;
-		}
-        // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
-        else if t > num_tabs {
-            return Err(general_error(num_tabs, network_line_num, dec, format!("{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n", num_tabs_to_string(num_tabs+1), line_num, num_tabs, t)));
+        match t {
+            // next line doesn't have enough tabs thus a network isn't being declared
+            t if t < num_tabs => break,
+            // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
+            t if t > num_tabs => return Err(general_error(num_tabs, network_line_num, dec, format!("{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n", num_tabs_to_string(num_tabs+1), line_num, num_tabs, t))),
+            _ => (),
         }
 	}
 	

@@ -39,7 +39,7 @@ pub fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
     let mut line_num = 1;
 
     // loops until we run out of input
-    while remaining_string != "" {
+    while !remaining_string.is_empty() {
         let res = general_parser(remaining_string, &mut line_num);
         match res {
             Ok(info) => {
@@ -53,7 +53,7 @@ pub fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
                         
                     },
                     DecType::Networks => {
-                        match networks_parser(dectype, options, &remaining_string, num_tabs + 1, &mut line_num) {
+                        match networks_parser(dectype, options, remaining_string, num_tabs + 1, &mut line_num) {
                             Ok(n) => {
                                 // update the remaining string and networks list if we got a result
                                 remaining_string = n.1;
@@ -74,7 +74,7 @@ pub fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
                         return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::IP));
                     },
                     DecType::Machines => {
-                        match machines_parser(dectype, options, &remaining_string, num_tabs + 1, &mut line_num) {
+                        match machines_parser(dectype, options, remaining_string, num_tabs + 1, &mut line_num) {
                             Ok(n) => {
                                 // update the remaining string and machines list if we got a result
                                 remaining_string = n.1;

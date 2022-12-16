@@ -77,7 +77,7 @@ pub fn num_tabs_to_string(num_tabs: i32) -> String{
         temp_num += 1;
     }
 
-    return temp.to_string();
+    temp.to_string()
 }
 
 /// Formats a general error message and returns that String.
@@ -123,7 +123,7 @@ fn section(input: &str) -> Res<&str, &str> {
 
 /// Breaks down the arguments of our input for the [general_parser].
 /// For example, turns "name='test' net-id='testing'" into a vector of strings containing "name='test'" and "net-id='testing'"
-fn arguments<'a>(input: &'a str) -> Res<&str, Params> {
+fn arguments(input: & str) -> Res<&str, Params> {
     context(
         "arguments",
         many0(separated_pair(
