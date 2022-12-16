@@ -10,7 +10,7 @@ use crate::{
         tap::{FirstResponder, NetworkId},
         udp::Udp,
     },
-    session::SharedSession,
+    session::{ReceiveError, SendError, SharedSession},
     Session,
 };
 use std::{fmt::Debug, sync::Arc};
@@ -46,7 +46,7 @@ impl Ipv4Session {
 
 impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), ()> {
+    fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
             Udp::ID => ProtocolNumber::Udp,
@@ -63,7 +63,7 @@ impl Session for Ipv4Session {
             Ok(header) => header,
             Err(e) => {
                 tracing::error!("{}", e);
-                Err(())?
+                Err(SendError::Header)?
             }
         };
         self.network_id.apply(&mut context.info);
@@ -74,11 +74,12 @@ impl Session for Ipv4Session {
     }
 
     #[tracing::instrument(name = "Ipv4Session::receive", skip_all)]
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, context)
+            .demux(message, self, context)?;
+        Ok(())
     }
 
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()> {

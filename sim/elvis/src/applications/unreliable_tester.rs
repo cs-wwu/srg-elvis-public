@@ -3,7 +3,7 @@ use elvis_core::{
     protocols::{
         ipv4::{LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort},
-        user_process::Application,
+        user_process::{Application, ApplicationError},
         Udp, UserProcess,
     },
     Control, Message,
@@ -116,7 +116,11 @@ impl Application for UnreliableTester {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ()> {
+    fn receive(
+        self: Arc<Self>,
+        _message: Message,
+        _context: Context,
+    ) -> Result<(), ApplicationError> {
         *self.last_receipt.lock().unwrap() = SystemTime::now();
         *self.receipt_count.lock().unwrap() += 1;
         Ok(())

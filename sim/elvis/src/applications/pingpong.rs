@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort},
-        user_process::{Application, UserProcess},
+        user_process::{Application, ApplicationError, UserProcess},
         Udp,
     },
     session::SharedSession,
@@ -108,12 +108,16 @@ impl Application for PingPong {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+        context: Context,
+    ) -> Result<(), ApplicationError> {
         let ttl = match message.iter().next() {
             Some(ttl) => ttl,
             None => {
                 tracing::error!("The message contained no TTL");
-                Err(())?
+                Err(ApplicationError::Other)?
             }
         };
 

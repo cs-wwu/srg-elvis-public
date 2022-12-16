@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4Address, LocalAddress},
         udp::LocalPort,
-        user_process::{Application, UserProcess},
+        user_process::{Application, ApplicationError, UserProcess},
         Udp,
     },
     Control,
@@ -71,7 +71,11 @@ impl Application for Capture {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, _context: Context) -> Result<(), ()> {
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+        _context: Context,
+    ) -> Result<(), ApplicationError> {
         *self.message.lock().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
             tokio::spawn(async move {

@@ -6,7 +6,7 @@ use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
     message::Message,
-    protocol::{Context, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ProtocolId, QueryError},
     protocols::tap::Tap,
     session::SharedSession,
     Control, Protocol, Session,
@@ -142,7 +142,7 @@ impl Protocol for Ipv4 {
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), DemuxError> {
         let span = tracing::trace_span!("IPv4 demux");
         let _enter = span.enter();
         // Extract identifying information from the header and the context and
@@ -151,7 +151,7 @@ impl Protocol for Ipv4 {
             Ok(header) => header,
             Err(e) => {
                 tracing::error!("{}", e);
-                Err(())?
+                Err(DemuxError::Header)?
             }
         };
         message.slice(header.ihl as usize * 4..);
@@ -172,7 +172,7 @@ impl Protocol for Ipv4 {
                         Ok(network) => network,
                         Err(e) => {
                             tracing::error!("{}", e);
-                            Err(())?
+                            Err(DemuxError::MissingContext)?
                         }
                     };
                     let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
@@ -184,7 +184,7 @@ impl Protocol for Ipv4 {
                         "Could not find a listen binding for the local address: {}",
                         local
                     );
-                    Err(())?
+                    Err(DemuxError::MissingSession)?
                 }
             },
         };

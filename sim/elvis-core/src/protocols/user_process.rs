@@ -4,11 +4,12 @@
 use crate::{
     control::{Key, Primitive},
     message::Message,
-    protocol::{Context, ProtocolId, QueryError},
-    session::SharedSession,
+    protocol::{Context, DemuxError, ProtocolId, QueryError},
+    session::{SendError, SharedSession},
     Control, Protocol,
 };
 use std::sync::Arc;
+use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// A program being run in a [`UserProcess`].
@@ -32,7 +33,22 @@ pub trait Application {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()>;
+    fn receive(self: Arc<Self>, message: Message, context: Context)
+        -> Result<(), ApplicationError>;
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationError {
+    #[error("Application errored due to failed send")]
+    Send,
+    #[error("Application errored for an unspecified reason")]
+    Other,
+}
+
+impl From<SendError> for ApplicationError {
+    fn from(_: SendError) -> Self {
+        Self::Send
+    }
 }
 
 /// A user-level process that sits at the top of the networking stack.
@@ -96,9 +112,10 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         message: Message,
         _caller: SharedSession,
         context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), DemuxError> {
         let application = self.application.clone();
-        application.recv(message, context)
+        application.receive(message, context)?;
+        Ok(())
     }
 
     fn start(

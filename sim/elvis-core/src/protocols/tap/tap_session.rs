@@ -6,6 +6,7 @@ use crate::{
     message::Message,
     network::Delivery,
     protocol::{Context, ProtocolId},
+    session::{ReceiveError, SendError},
     Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
@@ -47,11 +48,12 @@ impl TapSession {
 
     /// Receives a delivery from the network and passes it up the protocol
     /// stack.
+    #[tracing::instrument(name = "TapSession::receive_delivery", skip(delivery, context))]
     pub(super) fn receive_delivery(
         self: Arc<Self>,
         mut delivery: Delivery,
         mut context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ReceiveError> {
         let first_responder: FirstResponder = take_header(&delivery.message)
             .expect("Expected two bytes for the header")
             .into();
@@ -66,28 +68,29 @@ impl TapSession {
                     "Could not find a protocol for the protocol ID: {}",
                     first_responder
                 );
-                Err(())?
+                Err(ReceiveError::Other)?
             }
         };
-        protocol.demux(delivery.message, self, context)
+        protocol.demux(delivery.message, self, context)?;
+        Ok(())
     }
 }
 
 impl Session for TapSession {
     #[tracing::instrument(name = "TapSession::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), ()> {
+    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
         let network_id = match NetworkId::try_from(&context.info) {
             Ok(network_id) => network_id,
             Err(_) => {
                 tracing::error!("The context did not contain a network ID");
-                Err(())?
+                Err(SendError::MissingContext)?
             }
         };
         let first_responder = match FirstResponder::try_from(&context.info) {
             Ok(first_responder) => first_responder,
             Err(_) => {
                 tracing::error!("The context did not contain a first responder");
-                Err(())?
+                Err(SendError::MissingContext)?
             }
         };
         message.prepend(first_responder.into_inner().to_be_bytes().to_vec());
@@ -107,7 +110,7 @@ impl Session for TapSession {
         Ok(())
     }
 
-    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ()> {
+    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ReceiveError> {
         panic!("Use Tap::receive_delivery() instead");
     }
 

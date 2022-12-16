@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort, Udp},
-        user_process::{Application, UserProcess},
+        user_process::{Application, ApplicationError, UserProcess},
     },
     session::SharedSession,
     Control,
@@ -83,7 +83,12 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+        context: Context,
+    ) -> Result<(), ApplicationError> {
+        // TODO(hardint): Use ? again
         self.outgoing
             .clone()
             .lock()
@@ -91,6 +96,7 @@ impl Application for Forward {
             .as_ref()
             .unwrap()
             .clone()
-            .send(message, context)
+            .send(message, context)?;
+        Ok(())
     }
 }

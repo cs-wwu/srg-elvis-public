@@ -6,7 +6,7 @@ use crate::{
     machine::MachineId,
     message::Message,
     network::Delivery,
-    protocol::{Context, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ProtocolId, QueryError},
     session::SharedSession,
     Control, Protocol,
 };
@@ -85,7 +85,7 @@ impl Protocol for Tap {
         _message: Message,
         _caller: SharedSession,
         _context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), DemuxError> {
         // We use accept_incoming instead of demux because there are no
         // protocols under this one that would ask Tap to demux a message and
         // because, semantically, demux chooses one of its own sessions to

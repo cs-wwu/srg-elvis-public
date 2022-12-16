@@ -4,7 +4,7 @@
 use crate::{
     control::{Key, Primitive},
     message::Message,
-    protocol::{Context, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ProtocolId, QueryError},
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
     session::SharedSession,
     Control, Protocol, Session,
@@ -121,7 +121,7 @@ impl Protocol for Udp {
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), DemuxError> {
         // Extract information from the context
         let local_address = LocalAddress::try_from(&context.info).unwrap();
         let remote_address = RemoteAddress::try_from(&context.info).unwrap();
@@ -135,7 +135,7 @@ impl Protocol for Udp {
             Ok(header) => header,
             Err(e) => {
                 tracing::error!("{}", e);
-                Err(())?
+                Err(DemuxError::Header)?
             }
         };
         message.slice(8..);
@@ -186,7 +186,7 @@ impl Protocol for Udp {
                         tracing::error!(
                             "Tried to demux with a missing session and no listen bindings"
                         );
-                        Err(())?
+                        Err(DemuxError::MissingSession)?
                     }
                 }
             }

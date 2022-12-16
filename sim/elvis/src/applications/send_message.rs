@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort, Udp},
-        user_process::{Application, UserProcess},
+        user_process::{Application, ApplicationError, UserProcess},
     },
     Control,
 };
@@ -69,7 +69,11 @@ impl Application for SendMessage {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ()> {
+    fn receive(
+        self: Arc<Self>,
+        _message: Message,
+        _context: Context,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

@@ -5,7 +5,7 @@ use crate::{
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::ipv4::Ipv4Address,
-    session::SharedSession,
+    session::{ReceiveError, SendError, SharedSession},
     Session,
 };
 use std::{fmt::Debug, sync::Arc};
@@ -18,8 +18,10 @@ pub(super) struct UdpSession {
 
 impl Session for UdpSession {
     #[tracing::instrument(name = "UdpSession::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), ()> {
+    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
         let id = self.id;
+        // TODO(hardint): Should this fail or just segment the message into
+        // multiple IP packets?
         let header = match build_udp_header(
             self.id.local.address,
             id.local.port,
@@ -30,7 +32,7 @@ impl Session for UdpSession {
             Ok(header) => header,
             Err(e) => {
                 tracing::error!("{}", e);
-                Err(())?
+                Err(SendError::Header)?
             }
         };
         send_message_event(
@@ -46,7 +48,7 @@ impl Session for UdpSession {
     }
 
     #[tracing::instrument(name = "UdpSession::receive", skip(message, context))]
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError> {
         receive_message_event(
             self.id.local.address,
             self.id.remote.address,

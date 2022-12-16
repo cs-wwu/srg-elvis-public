@@ -1,8 +1,12 @@
 //! The [`Protocol`] trait and supporting types.
 
 use super::{control::value::make_key, message::Message, session::SharedSession, Control};
-use crate::control::{Key, Primitive};
-use std::sync::Arc;
+use crate::{
+    control::{Key, Primitive},
+    protocols::user_process::ApplicationError,
+    session::ReceiveError,
+};
+use std::{fmt::Display, sync::Arc};
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 
@@ -45,15 +49,17 @@ impl From<ProtocolId> for u64 {
     }
 }
 
+impl Display for ProtocolId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A member of a networking protocol stack.
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
 pub trait Protocol {
-    // TODO(hardint): We need methods that allow other protocols to query info about a
-    // protocol and its sessions. For example, a TCP or an IP protocol will want
-    // a method to learn about a Tap's MTU.
-
     /// Returns a unique identifier for the protocol.
     fn id(self: Arc<Self>) -> ProtocolId;
 
@@ -123,7 +129,7 @@ pub trait Protocol {
         message: Message,
         caller: SharedSession,
         context: Context,
-    ) -> Result<(), ()>;
+    ) -> Result<(), DemuxError>;
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
@@ -150,4 +156,32 @@ pub trait Protocol {
 pub enum QueryError {
     #[error("The provided key cannot be queried on this protocol")]
     NonexistentKey,
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum DemuxError {
+    #[error("Failed due to a session receive error")]
+    Receive,
+    #[error("Failed to find a session to demux to")]
+    MissingSession,
+    #[error("Data expected through the context was missing")]
+    MissingContext,
+    #[error("Failed to parse a header during demux")]
+    Header,
+    #[error("Receive failed during the execution of an Application")]
+    Application,
+    #[error("Unspecified demux error")]
+    Other,
+}
+
+impl From<ReceiveError> for DemuxError {
+    fn from(_: ReceiveError) -> Self {
+        Self::Receive
+    }
+}
+
+impl From<ApplicationError> for DemuxError {
+    fn from(_: ApplicationError) -> Self {
+        Self::Application
+    }
 }
