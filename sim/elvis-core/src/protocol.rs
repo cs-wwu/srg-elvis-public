@@ -169,20 +169,16 @@ pub enum DemuxError {
     #[error("Failed to parse a header during demux")]
     Header,
     #[error("Receive failed during the execution of an Application")]
-    Application,
+    Application(#[from] ApplicationError),
     #[error("Unspecified demux error")]
     Other,
 }
 
+// Cannot have a circular reference between DemuxError and ReceiveError, so the
+// #[from] shorthand is not possible
 impl From<ReceiveError> for DemuxError {
     fn from(_: ReceiveError) -> Self {
         Self::Receive
-    }
-}
-
-impl From<ApplicationError> for DemuxError {
-    fn from(_: ApplicationError) -> Self {
-        Self::Application
     }
 }
 
@@ -197,15 +193,9 @@ pub enum ListenError {
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
 pub enum StartError {
     #[error("Protocol failed to start because an application failed to start")]
-    Application,
+    Application(#[from] ApplicationError),
     #[error("Unspecified error")]
     Other,
-}
-
-impl From<ApplicationError> for StartError {
-    fn from(_: ApplicationError) -> Self {
-        Self::Application
-    }
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]

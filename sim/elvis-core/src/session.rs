@@ -40,6 +40,8 @@ pub enum ReceiveError {
     Other,
 }
 
+// Cannot have a circular reference between DemuxError and ReceiveError, so the
+// #[from] shorthand is not possible
 impl From<DemuxError> for ReceiveError {
     fn from(_: DemuxError) -> Self {
         Self::Demux

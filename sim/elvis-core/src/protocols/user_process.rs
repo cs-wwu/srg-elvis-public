@@ -40,31 +40,13 @@ pub trait Application {
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationError {
     #[error("A listen call failed")]
-    Listen,
+    Listen(#[from] ListenError),
     #[error("An open call failed")]
-    Open,
+    Open(#[from] OpenError),
     #[error("A send call failed")]
-    Send,
+    Send(#[from] SendError),
     #[error("Unspecified error")]
     Other,
-}
-
-impl From<SendError> for ApplicationError {
-    fn from(_: SendError) -> Self {
-        Self::Send
-    }
-}
-
-impl From<ListenError> for ApplicationError {
-    fn from(_: ListenError) -> Self {
-        Self::Listen
-    }
-}
-
-impl From<OpenError> for ApplicationError {
-    fn from(_: OpenError) -> Self {
-        Self::Open
-    }
 }
 
 /// A user-level process that sits at the top of the networking stack.
