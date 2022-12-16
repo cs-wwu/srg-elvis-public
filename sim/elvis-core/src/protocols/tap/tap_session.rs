@@ -6,7 +6,7 @@ use crate::{
     message::Message,
     network::Delivery,
     protocol::{Context, ProtocolId},
-    session::{ReceiveError, SendError},
+    session::{QueryError, ReceiveError, SendError},
     Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
@@ -114,11 +114,11 @@ impl Session for TapSession {
         panic!("Use Tap::receive_delivery() instead");
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add support for querying the MTU
         match key {
             MACHINE_ID_KEY => Ok(self.machine_id.into()),
-            _ => Err(()),
+            _ => Err(QueryError::MissingKey),
         }
     }
 }

@@ -29,7 +29,7 @@ pub trait Session {
     fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError>;
 
     /// Gets a piece of information from some session in the protocol stack.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()>;
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
@@ -54,4 +54,10 @@ pub enum SendError {
     MissingContext,
     #[error("Failed to send for an unspecified reason")]
     Other,
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum QueryError {
+    #[error("No session held a datum matching the given key")]
+    MissingKey,
 }

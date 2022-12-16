@@ -10,7 +10,7 @@ use crate::{
         tap::{FirstResponder, NetworkId},
         udp::Udp,
     },
-    session::{ReceiveError, SendError, SharedSession},
+    session::{QueryError, ReceiveError, SendError, SharedSession},
     Session,
 };
 use std::{fmt::Debug, sync::Arc};
@@ -82,7 +82,7 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         self.downstream.clone().query(key)
     }
 }
