@@ -24,10 +24,13 @@ pub fn generate_sim(file_path: &str) {
     }
 }
 
-/// This is the core parsing logic that runs through our input file. Takes in a string of the contents of the file and the file path of that file.
+
+/// This is the core parsing logic that runs through our input file. 
+/// 
+/// Takes in a string of the contents of the file and the file path of that file.
 /// Returns the resulting sim, or an error message.
 // TODO: make it so we only have to pass a file path through to this function
-fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
+pub fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
     let mut networks = Networks::new();
     let mut machines = Machines::new();
 
