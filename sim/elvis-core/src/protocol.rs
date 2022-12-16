@@ -63,6 +63,23 @@ pub trait Protocol {
     /// Returns a unique identifier for the protocol.
     fn id(self: Arc<Self>) -> ProtocolId;
 
+    /// Starts the protocol running. This gives protocols an opportunity to open
+    /// sessions, spawn tasks, and perform other setup as needed.
+    ///
+    /// All implementors should wait on the barrier after completing synchronous
+    /// operations such as opening sessions or spawning tasks and, critically,
+    /// before sending anything on the network. This allows applications that
+    /// may wish to send messages to delay until the moment that other machines
+    /// are ready to receive the message. Implementors may also store the
+    /// `shutdown` channel and send on it at a later time to cleanly shut down
+    /// the simulation.
+    fn start(
+        self: Arc<Self>,
+        context: Context,
+        shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
+    ) -> Result<(), ()>;
+
     /// Actively open a new network connection.
     ///
     /// Called by the `upstream` protocol to create a new
@@ -130,23 +147,6 @@ pub trait Protocol {
         caller: SharedSession,
         context: Context,
     ) -> Result<(), DemuxError>;
-
-    /// Starts the protocol running. This gives protocols an opportunity to open
-    /// sessions, spawn tasks, and perform other setup as needed.
-    ///
-    /// All implementors should wait on the barrier after completing synchronous
-    /// operations such as opening sessions or spawning tasks and, critically,
-    /// before sending anything on the network. This allows applications that
-    /// may wish to send messages to delay until the moment that other machines
-    /// are ready to receive the message. Implementors may also store the
-    /// `shutdown` channel and send on it at a later time to cleanly shut down
-    /// the simulation.
-    fn start(
-        self: Arc<Self>,
-        context: Context,
-        shutdown: Sender<()>,
-        initialized: Arc<Barrier>,
-    ) -> Result<(), ()>;
 
     /// Gets a piece of information from the protocol
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
