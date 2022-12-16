@@ -9,7 +9,7 @@ use crate::{
     Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 use tokio::sync::mpsc::Sender;
 
 /// The session type for a [`Tap`](super::Tap).
@@ -74,6 +74,7 @@ impl TapSession {
 }
 
 impl Session for TapSession {
+    #[tracing::instrument(name = "TapSession::send", skip(message, context))]
     fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), ()> {
         let network_id = match NetworkId::try_from(&context.info) {
             Ok(network_id) => network_id,
@@ -116,6 +117,14 @@ impl Session for TapSession {
             MACHINE_ID_KEY => Ok(self.machine_id.into()),
             _ => Err(()),
         }
+    }
+}
+
+impl Debug for TapSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TapSession")
+            .field("machine_id", &self.machine_id)
+            .finish()
     }
 }
 

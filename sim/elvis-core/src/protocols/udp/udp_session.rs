@@ -1,32 +1,30 @@
-use super::{
-    udp_misc::{LocalPort, RemotePort},
-    udp_parsing::build_udp_header,
-};
+use super::udp_parsing::build_udp_header;
 use crate::{
     control::{Key, Primitive},
     logging::{receive_message_event, send_message_event},
     message::Message,
     protocol::{Context, ProtocolId},
-    protocols::ipv4::{LocalAddress, RemoteAddress},
+    protocols::ipv4::Ipv4Address,
     session::SharedSession,
     Session,
 };
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 pub(super) struct UdpSession {
     pub upstream: ProtocolId,
     pub downstream: SharedSession,
-    pub identifier: SessionId,
+    pub id: SessionId,
 }
 
 impl Session for UdpSession {
+    #[tracing::instrument(name = "UdpSession::send", skip(message, context))]
     fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), ()> {
-        let id = self.identifier;
+        let id = self.id;
         let header = match build_udp_header(
-            self.identifier.local_address.into(),
-            id.local_port.into(),
-            self.identifier.remote_address.into(),
-            id.remote_port.into(),
+            self.id.local.address.into(),
+            id.local.port.into(),
+            self.id.remote.address.into(),
+            id.remote.port.into(),
             message.iter(),
         ) {
             Ok(header) => header,
@@ -36,10 +34,10 @@ impl Session for UdpSession {
             }
         };
         send_message_event(
-            self.identifier.local_address.into(),
-            self.identifier.remote_address.into(),
-            id.local_port.into(),
-            id.remote_port.into(),
+            self.id.local.address.into(),
+            self.id.remote.address.into(),
+            id.local.port.into(),
+            id.remote.port.into(),
             message.clone(),
         );
         message.prepend(header);
@@ -47,12 +45,13 @@ impl Session for UdpSession {
         Ok(())
     }
 
+    #[tracing::instrument(name = "UdpSession::receive", skip(message, context))]
     fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
         receive_message_event(
-            self.identifier.local_address.into(),
-            self.identifier.remote_address.into(),
-            self.identifier.local_port.into(),
-            self.identifier.remote_port.into(),
+            self.id.local.address.into(),
+            self.id.remote.address.into(),
+            self.id.local.port.into(),
+            self.id.remote.port.into(),
             message.clone(),
         );
         context
@@ -67,10 +66,20 @@ impl Session for UdpSession {
     }
 }
 
+impl Debug for UdpSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UdpSession").field("id", &self.id).finish()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Socket {
+    pub address: Ipv4Address,
+    pub port: u16,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
-    pub local_address: LocalAddress,
-    pub local_port: LocalPort,
-    pub remote_address: RemoteAddress,
-    pub remote_port: RemotePort,
+    pub local: Socket,
+    pub remote: Socket,
 }

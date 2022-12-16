@@ -13,7 +13,8 @@ use crate::{
     session::SharedSession,
     Session,
 };
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
+
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
     /// The protocol that we demux incoming messages to
@@ -21,7 +22,7 @@ pub struct Ipv4Session {
     /// The session we mux outgoing messages to
     downstream: SharedSession,
     /// The identifying information for this session
-    identifier: SessionId,
+    id: SessionId,
     /// The ID of the network to send on
     network_id: NetworkId,
 }
@@ -37,13 +38,14 @@ impl Ipv4Session {
         Self {
             upstream,
             downstream,
-            identifier,
+            id: identifier,
             network_id,
         }
     }
 }
 
 impl Session for Ipv4Session {
+    #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
     fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), ()> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
@@ -51,8 +53,8 @@ impl Session for Ipv4Session {
             _ => panic!("Unknown upstream protocol"),
         };
         let header = match Ipv4HeaderBuilder::new(
-            self.identifier.local.into(),
-            self.identifier.remote.into(),
+            self.id.local.into(),
+            self.id.remote.into(),
             protocol_number,
             length as u16,
         )
@@ -71,6 +73,7 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
+    #[tracing::instrument(name = "Ipv4Session::receive", skip_all)]
     fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
         context
             .protocol(self.upstream)
@@ -80,6 +83,14 @@ impl Session for Ipv4Session {
 
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, ()> {
         self.downstream.clone().query(key)
+    }
+}
+
+impl Debug for Ipv4Session {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ipv4Session")
+            .field("identifier", &self.id)
+            .finish()
     }
 }
 

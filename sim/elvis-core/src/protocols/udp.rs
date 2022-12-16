@@ -20,7 +20,7 @@ mod udp_session;
 use udp_session::{SessionId, UdpSession};
 
 mod udp_parsing;
-use self::udp_parsing::UdpHeader;
+use self::{udp_parsing::UdpHeader, udp_session::Socket};
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
@@ -49,6 +49,7 @@ impl Protocol for Udp {
         Self::ID
     }
 
+    #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
         self: Arc<Self>,
         upstream: ProtocolId,
@@ -60,10 +61,14 @@ impl Protocol for Udp {
         // of the higher-up protocols and we should crash. Therefore, unwrapping
         // is appropriate here.
         let identifier = SessionId {
-            local_port: LocalPort::try_from(&participants).unwrap(),
-            remote_port: RemotePort::try_from(&participants).unwrap(),
-            local_address: LocalAddress::try_from(&participants).unwrap(),
-            remote_address: RemoteAddress::try_from(&participants).unwrap(),
+            local: Socket {
+                address: LocalAddress::try_from(&participants).unwrap().into(),
+                port: LocalPort::try_from(&participants).unwrap().into(),
+            },
+            remote: Socket {
+                address: RemoteAddress::try_from(&participants).unwrap().into(),
+                port: RemotePort::try_from(&participants).unwrap().into(),
+            },
         };
         match self.sessions.entry(identifier) {
             Entry::Occupied(_) => {
@@ -80,7 +85,7 @@ impl Protocol for Udp {
                 let session = Arc::new(UdpSession {
                     upstream,
                     downstream,
-                    identifier,
+                    id: identifier,
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -88,6 +93,7 @@ impl Protocol for Udp {
         }
     }
 
+    #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
         upstream: ProtocolId,
@@ -109,6 +115,7 @@ impl Protocol for Udp {
             .listen(Self::ID, participants, context)
     }
 
+    #[tracing::instrument(name = "Udp::demux", skip_all)]
     fn demux(
         self: Arc<Self>,
         mut message: Message,
@@ -137,10 +144,14 @@ impl Protocol for Udp {
         let local_port = LocalPort::new(header.destination);
         let remote_port = RemotePort::new(header.source);
         let session_id = SessionId {
-            local_address,
-            local_port,
-            remote_address,
-            remote_port,
+            local: Socket {
+                address: local_address.into(),
+                port: local_port.into(),
+            },
+            remote: Socket {
+                address: remote_address.into(),
+                port: remote_port.into(),
+            },
         };
 
         // Add the header information to the context
@@ -166,7 +177,7 @@ impl Protocol for Udp {
                         let session = Arc::new(UdpSession {
                             upstream: *listen_entry.get(),
                             downstream: caller,
-                            identifier: session_id,
+                            id: session_id,
                         });
                         session_entry.insert(session.clone());
                         session

@@ -64,6 +64,7 @@ impl Protocol for Ipv4 {
         Self::ID
     }
 
+    #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
         self: Arc<Self>,
         upstream: ProtocolId,
@@ -105,6 +106,7 @@ impl Protocol for Ipv4 {
         }
     }
 
+    #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
         upstream: ProtocolId,
@@ -134,6 +136,7 @@ impl Protocol for Ipv4 {
             .listen(Self::ID, participants, context)
     }
 
+    #[tracing::instrument(name = "Udp::demux", skip_all)]
     fn demux(
         self: Arc<Self>,
         mut message: Message,
