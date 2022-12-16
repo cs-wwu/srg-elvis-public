@@ -21,10 +21,10 @@ impl Session for UdpSession {
     fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), ()> {
         let id = self.id;
         let header = match build_udp_header(
-            self.id.local.address.into(),
-            id.local.port.into(),
-            self.id.remote.address.into(),
-            id.remote.port.into(),
+            self.id.local.address,
+            id.local.port,
+            self.id.remote.address,
+            id.remote.port,
             message.iter(),
         ) {
             Ok(header) => header,
@@ -34,10 +34,10 @@ impl Session for UdpSession {
             }
         };
         send_message_event(
-            self.id.local.address.into(),
-            self.id.remote.address.into(),
-            id.local.port.into(),
-            id.remote.port.into(),
+            self.id.local.address,
+            self.id.remote.address,
+            id.local.port,
+            id.remote.port,
             message.clone(),
         );
         message.prepend(header);
@@ -48,10 +48,10 @@ impl Session for UdpSession {
     #[tracing::instrument(name = "UdpSession::receive", skip(message, context))]
     fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ()> {
         receive_message_event(
-            self.id.local.address.into(),
-            self.id.remote.address.into(),
-            self.id.local.port.into(),
-            self.id.remote.port.into(),
+            self.id.local.address,
+            self.id.remote.address,
+            self.id.local.port,
+            self.id.remote.port,
             message.clone(),
         );
         context
