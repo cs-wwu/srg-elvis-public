@@ -37,7 +37,7 @@ impl Application for Query {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
@@ -53,14 +53,14 @@ impl Application for Query {
             Ok(machine_id_session) => machine_id_session,
             Err(e) => {
                 tracing::error!("{}", e);
-                Err(())?
+                Err(ApplicationError::Other)?
             }
         };
         let machine_id_protocol = match tap.query(MACHINE_ID_KEY).unwrap().ok_u64() {
             Ok(machine_id_protocol) => machine_id_protocol,
             Err(e) => {
                 tracing::error!("{}", e);
-                Err(())?
+                Err(ApplicationError::Other)?
             }
         };
         assert_eq!(machine_id_session, machine_id_protocol);

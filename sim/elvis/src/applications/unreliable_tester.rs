@@ -65,7 +65,7 @@ impl Application for UnreliableTester {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ApplicationError> {
         // Synchronous initialization
         *self.shutdown.lock().unwrap() = Some(shutdown);
         *self.last_receipt.lock().unwrap() = SystemTime::now();

@@ -49,7 +49,7 @@ impl Application for SendMessage {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         RemoteAddress::set(&mut participants, self.ip);

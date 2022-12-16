@@ -78,7 +78,7 @@ impl Application for PingPong {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ApplicationError> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
 
         let mut participants = Control::new();
