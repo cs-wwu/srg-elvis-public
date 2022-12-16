@@ -59,12 +59,9 @@ impl Application for SendMessage {
         let session = protocol.open(Self::ID, participants, context.clone())?;
         tokio::spawn(async move {
             initialized.wait().await;
-            match session.send(Message::new(self.text), context) {
-                Ok(_) => {}
-                Err(_) => {
-                    tracing::error!("SendMessage failed to send");
-                }
-            }
+            session
+                .send(Message::new(self.text), context)
+                .expect("SendMessage failed to send");
         });
         Ok(())
     }

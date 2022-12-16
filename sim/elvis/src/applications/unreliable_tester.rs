@@ -104,13 +104,10 @@ impl Application for UnreliableTester {
 
             // Send 100 messages to our peer
             for i in 0..100u32 {
-                match send_session
+                send_session
                     .clone()
                     .send(Message::new(&i.to_be_bytes()), context.clone())
-                {
-                    Ok(_) => {}
-                    Err(_) => tracing::error!("UnreliableTester failed to send"),
-                }
+                    .expect("UnreliableTester failed to send");
             }
         });
         Ok(())

@@ -49,20 +49,8 @@ impl Application for Query {
             context.clone(),
         )?;
         let tap = context.protocol(TAP_ID).expect("No such protocol");
-        let machine_id_session = match session.query(MACHINE_ID_KEY).unwrap().ok_u64() {
-            Ok(machine_id_session) => machine_id_session,
-            Err(e) => {
-                tracing::error!("{}", e);
-                Err(ApplicationError::Other)?
-            }
-        };
-        let machine_id_protocol = match tap.query(MACHINE_ID_KEY).unwrap().ok_u64() {
-            Ok(machine_id_protocol) => machine_id_protocol,
-            Err(e) => {
-                tracing::error!("{}", e);
-                Err(ApplicationError::Other)?
-            }
-        };
+        let machine_id_session = session.query(MACHINE_ID_KEY).unwrap().ok_u64().unwrap();
+        let machine_id_protocol = tap.query(MACHINE_ID_KEY).unwrap().ok_u64().unwrap();
         assert_eq!(machine_id_session, machine_id_protocol);
         tokio::spawn(async move {
             initialized.wait().await;

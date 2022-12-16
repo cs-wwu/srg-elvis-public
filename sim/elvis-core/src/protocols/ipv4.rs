@@ -64,7 +64,7 @@ impl Protocol for Ipv4 {
         Self::ID
     }
 
-    #[tracing::instrument(name = "Udp::open", skip_all)]
+    #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
         self: Arc<Self>,
         upstream: ProtocolId,
@@ -80,7 +80,7 @@ impl Protocol for Ipv4 {
         match self.sessions.entry(key) {
             Entry::Occupied(_) => {
                 tracing::error!(
-                    "Attempting to create a session that already exists for {} -> {}",
+                    "A session already exists for {} -> {}",
                     key.local,
                     key.remote
                 );
@@ -106,7 +106,7 @@ impl Protocol for Ipv4 {
         }
     }
 
-    #[tracing::instrument(name = "Udp::listen", skip_all)]
+    #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
         upstream: ProtocolId,
@@ -118,10 +118,7 @@ impl Protocol for Ipv4 {
         let local = LocalAddress::try_from(&participants).unwrap();
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => {
-                tracing::error!(
-                    "Attempting to create a binding that already exists for local address {}",
-                    local
-                );
+                tracing::error!("A binding already exists for local address {}", local);
                 Err(ListenError::Existing)?
             }
             Entry::Vacant(entry) => {
@@ -136,7 +133,7 @@ impl Protocol for Ipv4 {
             .listen(Self::ID, participants, context)
     }
 
-    #[tracing::instrument(name = "Udp::demux", skip_all)]
+    #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
         self: Arc<Self>,
         mut message: Message,
@@ -170,8 +167,8 @@ impl Protocol for Ipv4 {
                     // binding for it, create the session
                     let network = match NetworkId::try_from(&context.info) {
                         Ok(network) => network,
-                        Err(e) => {
-                            tracing::error!("{}", e);
+                        Err(_) => {
+                            tracing::error!("Network ID missing from context");
                             Err(DemuxError::MissingContext)?
                         }
                     };
@@ -181,7 +178,7 @@ impl Protocol for Ipv4 {
                 }
                 None => {
                     tracing::error!(
-                        "Could not find a listen binding for the local address: {}",
+                        "Could not find a listen binding for the local address {}",
                         local
                     );
                     Err(DemuxError::MissingSession)?

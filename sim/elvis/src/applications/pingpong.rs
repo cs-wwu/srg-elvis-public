@@ -113,13 +113,7 @@ impl Application for PingPong {
         message: Message,
         context: Context,
     ) -> Result<(), ApplicationError> {
-        let ttl = match message.iter().next() {
-            Some(ttl) => ttl,
-            None => {
-                tracing::error!("The message contained no TTL");
-                Err(ApplicationError::Other)?
-            }
-        };
+        let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
             tracing::info!("Pong {}", ttl);

@@ -65,7 +65,7 @@ impl TapSession {
             Some(protocol) => protocol,
             None => {
                 tracing::error!(
-                    "Could not find a protocol for the protocol ID: {}",
+                    "Could not find a protocol for the protocol ID {}",
                     first_responder
                 );
                 Err(ReceiveError::Other)?
@@ -82,14 +82,14 @@ impl Session for TapSession {
         let network_id = match NetworkId::try_from(&context.info) {
             Ok(network_id) => network_id,
             Err(_) => {
-                tracing::error!("The context did not contain a network ID");
+                tracing::error!("Network ID missing from context");
                 Err(SendError::MissingContext)?
             }
         };
         let first_responder = match FirstResponder::try_from(&context.info) {
             Ok(first_responder) => first_responder,
             Err(_) => {
-                tracing::error!("The context did not contain a first responder");
+                tracing::error!("First responder missing from context");
                 Err(SendError::MissingContext)?
             }
         };
