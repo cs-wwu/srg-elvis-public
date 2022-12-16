@@ -11,7 +11,7 @@ use super::core_parser::general_parser;
 pub fn generate_sim(file_path: &str) {
     let contents = fs::read_to_string(file_path)
         .expect("Should have been able to read the file");
-    let fixed_string = contents.replace('\r', "");
+    let fixed_string = contents.replace('\r', "").replace("    ", "\t");
     let res = core_parser(&fixed_string, file_path);
     match res {
         Ok(s) => {

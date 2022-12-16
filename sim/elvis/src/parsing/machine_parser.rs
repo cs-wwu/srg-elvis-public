@@ -90,7 +90,7 @@ pub fn machines_parser<'a>(
                     machines_line_num,
                     dec,
                     format!(
-                        "{}Line {:?}: expected type Network and got type {:?} instead.\n",
+                        "{}Line {:?}: expected type Machine and got type {:?} instead.\n",
                         num_tabs_to_string(num_tabs + 1),
                         *line_num,
                         dectype
@@ -130,18 +130,7 @@ fn machine_parser<'a>(
         // next line doesn't have enough tabs thus a network isn't being declared
         match t{
             t if t < num_tabs => {
-                return Ok((
-                    Machine {
-                        dectype: dec,
-                        options: Some(args),
-                        interfaces: Interfaces {
-                            networks,
-                            protocols,
-                            applications,
-                        },
-                    },
-                    remaining_string,
-                ))
+                break;
             },
             t if t > num_tabs => {
                 return Err(general_error(
@@ -253,7 +242,7 @@ fn machine_parser<'a>(
                                 format!(
                                     "{}Line {:?}: Unexpected type {:?}.\n",
                                     num_tabs_to_string(num_tabs + 1),
-                                    *line_num,
+                                    line_num,
                                     machine.0
                                 ),
                             ))
@@ -267,7 +256,7 @@ fn machine_parser<'a>(
                         format!(
                             "{}Line {:?}: Unexpected type {:?}.\n",
                             num_tabs_to_string(num_tabs + 1),
-                            *line_num,
+                            *line_num - 1,
                             machine.0
                         ),
                     ));
@@ -283,6 +272,14 @@ fn machine_parser<'a>(
                 ));
             }
         }
+    }
+    if !req.is_empty(){
+        return Err(general_error(
+            num_tabs,
+            machine_line_num,
+            dec,
+            format!("{}{}", num_tabs_to_string(num_tabs + 1), format!("Failed to include all required types for machine. Still needs types: {:?}", req)),
+        ));
     }
     // Return the machine found
     Ok((
@@ -331,7 +328,7 @@ fn machine_networks_parser<'a>(
                         format!(
                             "{}Line {:?}: expected type Network and got type {:?} instead.\n",
                             num_tabs_to_string(num_tabs + 1),
-                            line_num,
+                            *line_num - 1,
                             n.0
                         ),
                     ));
@@ -409,7 +406,7 @@ fn machine_protocols_parser<'a>(
                         format!(
                             "{}Line {:?}: expected type Protocol and got type {:?} instead.\n",
                             num_tabs_to_string(num_tabs + 1),
-                            line_num,
+                            *line_num - 1,
                             n.0
                         ),
                     ));
@@ -486,9 +483,9 @@ fn machine_applications_parser<'a>(
                         applications_line_num,
                         dec,
                         format!(
-                            "{}Line {:?}: expected type Network and got type {:?} instead.\n",
+                            "{}Line {:?}: expected type Application and got type {:?} instead.\n",
                             num_tabs_to_string(num_tabs + 1),
-                            line_num,
+                            *line_num - 1,
                             n.0
                         ),
                     ));
