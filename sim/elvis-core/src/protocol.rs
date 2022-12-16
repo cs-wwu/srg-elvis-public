@@ -78,7 +78,7 @@ pub trait Protocol {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()>;
+    ) -> Result<(), StartError>;
 
     /// Actively open a new network connection.
     ///
@@ -99,7 +99,7 @@ pub trait Protocol {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, ()>;
+    ) -> Result<SharedSession, OpenError>;
 
     /// Listen for new connections.
     ///
@@ -190,6 +190,28 @@ impl From<ApplicationError> for DemuxError {
 pub enum ListenError {
     #[error("The listen binding already exists")]
     Existing,
-    #[error("Unspecified listen error")]
+    #[error("Unspecified error")]
+    Other,
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum StartError {
+    #[error("Protocol failed to start because an application failed to start")]
+    Application,
+    #[error("Unspecified error")]
+    Other,
+}
+
+impl From<ApplicationError> for StartError {
+    fn from(_: ApplicationError) -> Self {
+        Self::Application
+    }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum OpenError {
+    #[error("The session already exists")]
+    Existing,
+    #[error("Unspecified error")]
     Other,
 }

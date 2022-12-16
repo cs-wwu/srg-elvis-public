@@ -6,7 +6,7 @@ use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     protocols::tap::Tap,
     session::SharedSession,
     Control, Protocol, Session,
@@ -70,7 +70,7 @@ impl Protocol for Ipv4 {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, ()> {
+    ) -> Result<SharedSession, OpenError> {
         let span = tracing::trace_span!("IPv4 open");
         let _enter = span.enter();
         // Extract identifying information from the participants list
@@ -84,7 +84,7 @@ impl Protocol for Ipv4 {
                     key.local,
                     key.remote
                 );
-                Err(())?
+                Err(OpenError::Existing)?
             }
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
@@ -197,7 +197,7 @@ impl Protocol for Ipv4 {
         _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
         });

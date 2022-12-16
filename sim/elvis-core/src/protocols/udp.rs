@@ -4,7 +4,7 @@
 use crate::{
     control::{Key, Primitive},
     message::Message,
-    protocol::{Context, DemuxError, ListenError, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
     session::SharedSession,
     Control, Protocol, Session,
@@ -55,7 +55,7 @@ impl Protocol for Udp {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, ()> {
+    ) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
         // of the higher-up protocols and we should crash. Therefore, unwrapping
@@ -73,7 +73,7 @@ impl Protocol for Udp {
         match self.sessions.entry(identifier) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
-                Err(())?
+                Err(OpenError::Existing)?
             }
             Entry::Vacant(entry) => {
                 // Create the session and save it
@@ -200,7 +200,7 @@ impl Protocol for Udp {
         _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
         });

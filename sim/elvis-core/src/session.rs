@@ -36,7 +36,7 @@ pub trait Session {
 pub enum ReceiveError {
     #[error("Receive failed due to a demux error")]
     Demux,
-    #[error("Failed to receive for an unspecified reason")]
+    #[error("Unspecified error")]
     Other,
 }
 
@@ -52,7 +52,7 @@ pub enum SendError {
     Header,
     #[error("Data expected through the context was missing")]
     MissingContext,
-    #[error("Failed to send for an unspecified reason")]
+    #[error("Unspecified error")]
     Other,
 }
 

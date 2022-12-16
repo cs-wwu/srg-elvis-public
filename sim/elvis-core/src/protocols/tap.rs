@@ -6,7 +6,7 @@ use crate::{
     machine::MachineId,
     message::Message,
     network::Delivery,
-    protocol::{Context, DemuxError, ListenError, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     session::SharedSession,
     Control, Protocol,
 };
@@ -67,7 +67,7 @@ impl Protocol for Tap {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<SharedSession, ()> {
+    ) -> Result<SharedSession, OpenError> {
         Ok(self.session.clone())
     }
 
@@ -99,7 +99,7 @@ impl Protocol for Tap {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), StartError> {
         // Move the channel into the task. It cannot not be accessed from
         // `self` after this point.
         let mut receiver = self.receiver.lock().unwrap().take().unwrap();

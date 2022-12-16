@@ -4,7 +4,7 @@
 use crate::{
     control::{Key, Primitive},
     message::Message,
-    protocol::{Context, DemuxError, ListenError, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     session::{SendError, SharedSession},
     Control, Protocol,
 };
@@ -29,7 +29,7 @@ pub trait Application {
         context: Context,
         shutdown: Sender<()>,
         initialize: Arc<Barrier>,
-    ) -> Result<(), ()>;
+    ) -> Result<(), ApplicationError>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
@@ -39,15 +39,31 @@ pub trait Application {
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationError {
-    #[error("Application errored due to failed send")]
+    #[error("A listen call failed")]
+    Listen,
+    #[error("An open call failed")]
+    Open,
+    #[error("A send call failed")]
     Send,
-    #[error("Application errored for an unspecified reason")]
+    #[error("Unspecified error")]
     Other,
 }
 
 impl From<SendError> for ApplicationError {
     fn from(_: SendError) -> Self {
         Self::Send
+    }
+}
+
+impl From<ListenError> for ApplicationError {
+    fn from(_: ListenError) -> Self {
+        Self::Listen
+    }
+}
+
+impl From<OpenError> for ApplicationError {
+    fn from(_: OpenError) -> Self {
+        Self::Open
     }
 }
 
@@ -94,7 +110,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<SharedSession, ()> {
+    ) -> Result<SharedSession, OpenError> {
         panic!("Cannot active open on a user process")
     }
 
@@ -123,7 +139,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), StartError> {
         let application = self.application.clone();
         application.start(context, shutdown, initialized)?;
         Ok(())

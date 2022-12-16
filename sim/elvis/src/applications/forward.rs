@@ -62,7 +62,7 @@ impl Application for Forward {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, self.local_ip);
         RemoteAddress::set(&mut participants, self.remote_ip);
