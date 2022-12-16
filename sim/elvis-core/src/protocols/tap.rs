@@ -6,7 +6,7 @@ use crate::{
     machine::MachineId,
     message::Message,
     network::Delivery,
-    protocol::{Context, DemuxError, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ListenError, ProtocolId, QueryError},
     session::SharedSession,
     Control, Protocol,
 };
@@ -76,7 +76,7 @@ impl Protocol for Tap {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ListenError> {
         Ok(())
     }
 

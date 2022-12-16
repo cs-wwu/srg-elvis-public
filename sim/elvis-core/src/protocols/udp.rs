@@ -4,7 +4,7 @@
 use crate::{
     control::{Key, Primitive},
     message::Message,
-    protocol::{Context, DemuxError, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ListenError, ProtocolId, QueryError},
     protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
     session::SharedSession,
     Control, Protocol, Session,
@@ -99,7 +99,7 @@ impl Protocol for Udp {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.

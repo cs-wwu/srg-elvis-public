@@ -6,7 +6,7 @@ use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
     message::Message,
-    protocol::{Context, DemuxError, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ListenError, ProtocolId, QueryError},
     protocols::tap::Tap,
     session::SharedSession,
     Control, Protocol, Session,
@@ -112,7 +112,7 @@ impl Protocol for Ipv4 {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ListenError> {
         let span = tracing::trace_span!("IPv4 listen");
         let _enter = span.enter();
         let local = LocalAddress::try_from(&participants).unwrap();
@@ -122,7 +122,7 @@ impl Protocol for Ipv4 {
                     "Attempting to create a binding that already exists for local address {}",
                     local
                 );
-                Err(())?
+                Err(ListenError::Existing)?
             }
             Entry::Vacant(entry) => {
                 entry.insert(upstream);

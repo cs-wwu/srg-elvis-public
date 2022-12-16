@@ -4,7 +4,7 @@
 use crate::{
     control::{Key, Primitive},
     message::Message,
-    protocol::{Context, DemuxError, ProtocolId, QueryError},
+    protocol::{Context, DemuxError, ListenError, ProtocolId, QueryError},
     session::{SendError, SharedSession},
     Control, Protocol,
 };
@@ -103,7 +103,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ListenError> {
         panic!("Cannot listen on a user process")
     }
 

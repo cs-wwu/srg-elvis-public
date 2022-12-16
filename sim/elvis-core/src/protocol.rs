@@ -104,7 +104,7 @@ pub trait Protocol {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), ()>;
+    ) -> Result<(), ListenError>;
 
     /// Identifies the session that a message belongs to and forwards the
     /// message to it.
@@ -184,4 +184,12 @@ impl From<ApplicationError> for DemuxError {
     fn from(_: ApplicationError) -> Self {
         Self::Application
     }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ListenError {
+    #[error("The listen binding already exists")]
+    Existing,
+    #[error("Unspecified listen error")]
+    Other,
 }
