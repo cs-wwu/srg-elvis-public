@@ -84,8 +84,14 @@ impl Protocol for Ipv4 {
         context: Context,
     ) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(
-            Self::get_local_address(&participants)?,
-            Self::get_remote_address(&participants)?,
+            Self::get_local_address(&participants).or_else(|_| {
+                tracing::error!("Missing local address on context");
+                Err(OpenError::MissingContext)
+            })?,
+            Self::get_remote_address(&participants).or_else(|_| {
+                tracing::error!("Missing remote address on context");
+                Err(OpenError::MissingContext)
+            })?,
         );
         match self.sessions.entry(key) {
             Entry::Occupied(_) => {
@@ -123,7 +129,10 @@ impl Protocol for Ipv4 {
         participants: Control,
         context: Context,
     ) -> Result<(), ListenError> {
-        let local = Self::get_local_address(&participants)?;
+        let local = Self::get_local_address(&participants).or_else(|_| {
+            tracing::error!("Missing local address on context");
+            Err(ListenError::MissingContext)
+        })?;
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => {
                 tracing::error!("A binding already exists for local address {}", local);
@@ -169,7 +178,10 @@ impl Protocol for Ipv4 {
                 Some(binding) => {
                     // If the session does not exist but we have a listen
                     // binding for it, create the session
-                    let network = Tap::get_network_id(&context.info)?;
+                    let network = Tap::get_network_id(&context.info).or_else(|_| {
+                        tracing::error!("Missing network ID on context");
+                        Err(DemuxError::MissingContext)
+                    })?;
                     let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
                     entry.insert(session.clone());
                     session

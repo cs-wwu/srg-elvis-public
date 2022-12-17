@@ -77,12 +77,24 @@ impl Protocol for Udp {
         // is appropriate here.
         let identifier = SessionId::new(
             Socket::new(
-                Ipv4::get_local_address(&participants)?,
-                Self::get_local_port(&participants)?,
+                Ipv4::get_local_address(&participants).or_else(|_| {
+                    tracing::error!("Missing local address on context");
+                    Err(OpenError::MissingContext)
+                })?,
+                Self::get_local_port(&participants).or_else(|_| {
+                    tracing::error!("Missing local port on context");
+                    Err(OpenError::MissingContext)
+                })?,
             ),
             Socket::new(
-                Ipv4::get_remote_address(&participants)?,
-                Self::get_remote_port(&participants)?,
+                Ipv4::get_remote_address(&participants).or_else(|_| {
+                    tracing::error!("Missing remote address on context");
+                    Err(OpenError::MissingContext)
+                })?,
+                Self::get_remote_port(&participants).or_else(|_| {
+                    tracing::error!("Missing remote port on context");
+                    Err(OpenError::MissingContext)
+                })?,
             ),
         );
         match self.sessions.entry(identifier) {
@@ -119,8 +131,14 @@ impl Protocol for Udp {
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
         let identifier = Socket {
-            port: Self::get_local_port(&participants)?,
-            address: Ipv4::get_local_address(&participants)?,
+            port: Self::get_local_port(&participants).or_else(|_| {
+                tracing::error!("Missing local port on context");
+                Err(ListenError::MissingContext)
+            })?,
+            address: Ipv4::get_local_address(&participants).or_else(|_| {
+                tracing::error!("Missing local address on context");
+                Err(ListenError::MissingContext)
+            })?,
         };
         self.listen_bindings.insert(identifier, upstream);
         // Ask lower-level protocols to add the binding as well
@@ -138,8 +156,14 @@ impl Protocol for Udp {
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.info)?;
-        let remote_address = Ipv4::get_remote_address(&context.info)?;
+        let local_address = Ipv4::get_local_address(&context.info).or_else(|_| {
+            tracing::error!("Missing local address on context");
+            Err(DemuxError::MissingContext)
+        })?;
+        let remote_address = Ipv4::get_remote_address(&context.info).or_else(|_| {
+            tracing::error!("Missing remote address on context");
+            Err(DemuxError::MissingContext)
+        })?;
 
         // Parse the header
         let header = match UdpHeader::from_bytes_ipv4(

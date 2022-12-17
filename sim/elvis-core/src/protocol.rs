@@ -2,7 +2,7 @@
 
 use super::{message::Message, session::SharedSession, Control};
 use crate::{
-    control::{ControlError, Key, Primitive},
+    control::{Key, Primitive},
     protocols::user_process::ApplicationError,
     session::ReceiveError,
 };
@@ -165,8 +165,8 @@ pub enum DemuxError {
     Receive,
     #[error("Failed to find a session to demux to")]
     MissingSession,
-    #[error("A property was missing on the context: {0}")]
-    Control(#[from] ControlError),
+    #[error("Data expected through the context was missing")]
+    MissingContext,
     #[error("Failed to parse a header during demux")]
     Header,
     #[error("Receive failed during the execution of an Application")]
@@ -187,8 +187,8 @@ impl From<ReceiveError> for DemuxError {
 pub enum ListenError {
     #[error("The listen binding already exists")]
     Existing,
-    #[error("A property was missing on the context: {0}")]
-    Control(#[from] ControlError),
+    #[error("Data expected through the context was missing")]
+    MissingContext,
     #[error("Unspecified error")]
     Other,
 }
@@ -205,8 +205,8 @@ pub enum StartError {
 pub enum OpenError {
     #[error("The session already exists")]
     Existing,
-    #[error("A property was missing on the context: {0}")]
-    Control(#[from] ControlError),
+    #[error("Data expected through the context was missing")]
+    MissingContext,
     #[error("Unspecified error")]
     Other,
 }
