@@ -2,9 +2,10 @@ use elvis_core::{
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort, Udp},
+        ipv4::Ipv4Address,
+        udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
+        Ipv4,
     },
     Control,
 };
@@ -51,10 +52,10 @@ impl Application for SendMessage {
         initialized: Arc<Barrier>,
     ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        RemoteAddress::set(&mut participants, self.ip);
-        LocalPort::set(&mut participants, 0);
-        RemotePort::set(&mut participants, self.port);
+        Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
+        Ipv4::set_remote_address(self.ip, &mut participants);
+        Udp::set_local_port(0, &mut participants);
+        Udp::set_remote_port(self.port, &mut participants);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, context.clone())?;
         tokio::spawn(async move {

@@ -2,10 +2,9 @@ use elvis_core::{
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{Ipv4Address, LocalAddress},
-        udp::LocalPort,
+        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Udp,
+        Ipv4, Udp,
     },
     Control,
 };
@@ -59,8 +58,8 @@ impl Application for Capture {
     ) -> Result<(), ApplicationError> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, self.ip_address);
-        LocalPort::set(&mut participants, self.port);
+        Ipv4::set_local_address(self.ip_address, &mut participants);
+        Udp::set_local_port(self.port, &mut participants);
         context
             .protocol(Udp::ID)
             .expect("No such protocol")

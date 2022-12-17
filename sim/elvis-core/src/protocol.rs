@@ -1,11 +1,12 @@
 //! The [`Protocol`] trait and supporting types.
 
-use super::{control::value::make_key, message::Message, session::SharedSession, Control};
+use super::{message::Message, session::SharedSession, Control};
 use crate::{
-    control::{Key, Primitive},
+    control::{ControlError, Key, Primitive},
     protocols::user_process::ApplicationError,
     session::ReceiveError,
 };
+use const_fnv1a_hash::fnv1a_hash_64;
 use std::{fmt::Display, sync::Arc};
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -28,7 +29,7 @@ impl ProtocolId {
 
     /// Creates a pseudorandom ID by hashing the string identifier.
     pub const fn from_string(string: &'static str) -> Self {
-        Self(make_key(string))
+        Self(fnv1a_hash_64(string.as_bytes(), None))
     }
 
     /// Gets the underlying ID number.
@@ -164,8 +165,8 @@ pub enum DemuxError {
     Receive,
     #[error("Failed to find a session to demux to")]
     MissingSession,
-    #[error("Data expected through the context was missing")]
-    MissingContext,
+    #[error("A property was missing on the context: {0}")]
+    Control(#[from] ControlError),
     #[error("Failed to parse a header during demux")]
     Header,
     #[error("Receive failed during the execution of an Application")]
@@ -186,6 +187,8 @@ impl From<ReceiveError> for DemuxError {
 pub enum ListenError {
     #[error("The listen binding already exists")]
     Existing,
+    #[error("A property was missing on the context: {0}")]
+    Control(#[from] ControlError),
     #[error("Unspecified error")]
     Other,
 }
@@ -202,6 +205,8 @@ pub enum StartError {
 pub enum OpenError {
     #[error("The session already exists")]
     Existing,
+    #[error("A property was missing on the context: {0}")]
+    Control(#[from] ControlError),
     #[error("Unspecified error")]
     Other,
 }

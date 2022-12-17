@@ -1,10 +1,8 @@
 use elvis_core::{
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort},
         user_process::{Application, ApplicationError},
-        Udp, UserProcess,
+        Ipv4, Udp, UserProcess,
     },
     Control, Message,
 };
@@ -70,10 +68,10 @@ impl Application for UnreliableTester {
         *self.shutdown.lock().unwrap() = Some(shutdown);
         *self.last_receipt.lock().unwrap() = SystemTime::now();
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, [0, 0, 0, 0].into());
-        RemoteAddress::set(&mut participants, [0, 0, 0, 1].into());
-        LocalPort::set(&mut participants, 0xdead);
-        RemotePort::set(&mut participants, 0xdead);
+        Ipv4::set_local_address([0, 0, 0, 0].into(), &mut participants);
+        Ipv4::set_remote_address([0, 0, 0, 1].into(), &mut participants);
+        Udp::set_local_port(0xdead, &mut participants);
+        Udp::set_remote_port(0xdead, &mut participants);
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         udp.clone()
             .listen(Self::ID, participants.clone(), context.clone())?;

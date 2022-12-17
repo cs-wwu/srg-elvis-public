@@ -2,9 +2,10 @@ use elvis_core::{
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort, Udp},
+        ipv4::Ipv4Address,
+        udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
+        Ipv4,
     },
     session::SharedSession,
     Control,
@@ -64,10 +65,10 @@ impl Application for Forward {
         initialized: Arc<Barrier>,
     ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, self.local_ip);
-        RemoteAddress::set(&mut participants, self.remote_ip);
-        LocalPort::set(&mut participants, self.local_port);
-        RemotePort::set(&mut participants, self.remote_port);
+        Ipv4::set_local_address(self.local_ip, &mut participants);
+        Ipv4::set_remote_address(self.remote_ip, &mut participants);
+        Udp::set_local_port(self.local_port, &mut participants);
+        Udp::set_remote_port(self.remote_port, &mut participants);
 
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         *self.outgoing.lock().unwrap() = Some(udp.clone().open(

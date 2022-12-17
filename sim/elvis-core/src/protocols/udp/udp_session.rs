@@ -4,7 +4,7 @@ use crate::{
     logging::{receive_message_event, send_message_event},
     message::Message,
     protocol::{Context, ProtocolId},
-    protocols::ipv4::Ipv4Address,
+    protocols::utility::Socket,
     session::{QueryError, ReceiveError, SendError, SharedSession},
     Session,
 };
@@ -75,13 +75,13 @@ impl Debug for UdpSession {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Socket {
-    pub address: Ipv4Address,
-    pub port: u16,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
     pub local: Socket,
     pub remote: Socket,
+}
+
+impl SessionId {
+    pub fn new(local: Socket, remote: Socket) -> Self {
+        Self { local, remote }
+    }
 }

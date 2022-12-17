@@ -2,10 +2,9 @@ use elvis_core::{
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort},
+        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Udp, MACHINE_ID_KEY, TAP_ID,
+        Ipv4, Udp, MACHINE_ID_KEY, TAP_ID,
     },
     Control,
 };
@@ -39,10 +38,10 @@ impl Application for Query {
         initialized: Arc<Barrier>,
     ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        RemoteAddress::set(&mut participants, Ipv4Address::LOCALHOST);
-        LocalPort::set(&mut participants, 0);
-        RemotePort::set(&mut participants, 0);
+        Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
+        Ipv4::set_remote_address(Ipv4Address::LOCALHOST, &mut participants);
+        Udp::set_local_port(0, &mut participants);
+        Udp::set_remote_port(0, &mut participants);
         let session = context.protocol(Udp::ID).expect("No such protocol").open(
             Self::ID,
             participants,
