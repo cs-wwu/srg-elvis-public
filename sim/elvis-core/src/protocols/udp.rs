@@ -47,7 +47,7 @@ impl Udp {
     }
 
     pub fn get_local_port(control: &Control) -> Result<u16, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u16()?.into())
+        Ok(control.get((Self::ID, 0))?.ok_u16()?)
     }
 
     pub fn set_remote_port(port: u16, control: &mut Control) {
@@ -55,7 +55,7 @@ impl Udp {
     }
 
     pub fn get_remote_port(control: &Control) -> Result<u16, ControlError> {
-        Ok(control.get((Self::ID, 1))?.ok_u16()?.into())
+        Ok(control.get((Self::ID, 1))?.ok_u16()?)
     }
 }
 
@@ -77,23 +77,23 @@ impl Protocol for Udp {
         // is appropriate here.
         let identifier = SessionId::new(
             Socket::new(
-                Ipv4::get_local_address(&participants).or_else(|_| {
+                Ipv4::get_local_address(&participants).map_err(|_| {
                     tracing::error!("Missing local address on context");
-                    Err(OpenError::MissingContext)
+                    OpenError::MissingContext
                 })?,
-                Self::get_local_port(&participants).or_else(|_| {
+                Self::get_local_port(&participants).map_err(|_| {
                     tracing::error!("Missing local port on context");
-                    Err(OpenError::MissingContext)
+                    OpenError::MissingContext
                 })?,
             ),
             Socket::new(
-                Ipv4::get_remote_address(&participants).or_else(|_| {
+                Ipv4::get_remote_address(&participants).map_err(|_| {
                     tracing::error!("Missing remote address on context");
-                    Err(OpenError::MissingContext)
+                    OpenError::MissingContext
                 })?,
-                Self::get_remote_port(&participants).or_else(|_| {
+                Self::get_remote_port(&participants).map_err(|_| {
                     tracing::error!("Missing remote port on context");
-                    Err(OpenError::MissingContext)
+                    OpenError::MissingContext
                 })?,
             ),
         );
@@ -131,13 +131,13 @@ impl Protocol for Udp {
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
         let identifier = Socket {
-            port: Self::get_local_port(&participants).or_else(|_| {
+            port: Self::get_local_port(&participants).map_err(|_| {
                 tracing::error!("Missing local port on context");
-                Err(ListenError::MissingContext)
+                ListenError::MissingContext
             })?,
-            address: Ipv4::get_local_address(&participants).or_else(|_| {
+            address: Ipv4::get_local_address(&participants).map_err(|_| {
                 tracing::error!("Missing local address on context");
-                Err(ListenError::MissingContext)
+                ListenError::MissingContext
             })?,
         };
         self.listen_bindings.insert(identifier, upstream);
@@ -156,20 +156,20 @@ impl Protocol for Udp {
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.info).or_else(|_| {
+        let local_address = Ipv4::get_local_address(&context.info).map_err(|_| {
             tracing::error!("Missing local address on context");
-            Err(DemuxError::MissingContext)
+            DemuxError::MissingContext
         })?;
-        let remote_address = Ipv4::get_remote_address(&context.info).or_else(|_| {
+        let remote_address = Ipv4::get_remote_address(&context.info).map_err(|_| {
             tracing::error!("Missing remote address on context");
-            Err(DemuxError::MissingContext)
+            DemuxError::MissingContext
         })?;
 
         // Parse the header
         let header = match UdpHeader::from_bytes_ipv4(
             message.iter(),
-            remote_address.into(),
-            local_address.into(),
+            remote_address,
+            local_address,
         ) {
             Ok(header) => header,
             Err(e) => {

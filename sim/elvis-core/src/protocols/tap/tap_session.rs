@@ -64,7 +64,7 @@ impl TapSession {
         Tap::set_first_responder(first_responder, &mut context.info);
         Tap::set_network_id(delivery.network, &mut context.info);
         delivery.message.slice(8..);
-        let protocol = match context.protocol(first_responder.into()) {
+        let protocol = match context.protocol(first_responder) {
             Some(protocol) => protocol,
             None => {
                 tracing::error!(
