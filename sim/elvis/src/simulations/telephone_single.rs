@@ -31,7 +31,7 @@ pub async fn telephone_single() {
     for i in 0u32..(end - 1) {
         let local: Ipv4Address = i.to_be_bytes().into();
         let remote: Ipv4Address = (i + 1).to_be_bytes().into();
-        let table = [(local, 0), (remote, 1)].into_iter().collect();
+        let table = [(local, 0), (remote, 0)].into_iter().collect();
         internet.machine([
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(table),
