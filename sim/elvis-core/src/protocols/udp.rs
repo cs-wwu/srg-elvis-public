@@ -156,11 +156,11 @@ impl Protocol for Udp {
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.info).map_err(|_| {
+        let local_address = Ipv4::get_local_address(&context.control).map_err(|_| {
             tracing::error!("Missing local address on context");
             DemuxError::MissingContext
         })?;
-        let remote_address = Ipv4::get_remote_address(&context.info).map_err(|_| {
+        let remote_address = Ipv4::get_remote_address(&context.control).map_err(|_| {
             tracing::error!("Missing remote address on context");
             DemuxError::MissingContext
         })?;
@@ -183,8 +183,8 @@ impl Protocol for Udp {
         );
 
         // Add the header information to the context
-        Self::set_local_port(session_id.local.port, &mut context.info);
-        Self::set_remote_port(session_id.remote.port, &mut context.info);
+        Self::set_local_port(session_id.local.port, &mut context.control);
+        Self::set_remote_port(session_id.remote.port, &mut context.control);
 
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {

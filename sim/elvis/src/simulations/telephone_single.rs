@@ -1,6 +1,6 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    networks::Broadcast,
+    networks::{Direct, Mac},
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address},
@@ -16,18 +16,18 @@ use elvis_core::{
 /// network. When it reaches its destination, the simulation ends.
 pub async fn telephone_single() {
     let mut internet = Internet::new();
-    let end = 10;
-    let mut network = Broadcast::new_opaque(1500);
+    const END: u32 = 1000;
+    let mut network = Direct::new_opaque();
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(remote, 0)].into_iter().collect()),
         Pci::new_shared([network.tap()]),
-        SendMessage::new_shared("Hello!", remote, 0xbeef),
+        SendMessage::new_shared("Hello!", remote, 0xbeef, 1),
     ]);
 
-    for i in 0u32..(end - 1) {
+    for i in 0u32..(END - 1) {
         let local: Ipv4Address = i.to_be_bytes().into();
         let remote: Ipv4Address = (i + 1).to_be_bytes().into();
         let table = [(local, 0), (remote, 0)].into_iter().collect();
@@ -35,11 +35,11 @@ pub async fn telephone_single() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(table),
             Pci::new_shared([network.tap()]),
-            Forward::new_shared(local, remote, 0xbeef, 0xbeef),
+            Forward::new_shared(local, remote, 0xbeef, 0xbeef, i as Mac + 2),
         ]);
     }
 
-    let local = (end - 1).to_be_bytes().into();
+    let local = (END - 1).to_be_bytes().into();
     let capture = Capture::new_shared(local, 0xbeef);
     internet.machine([
         Udp::new_shared() as SharedProtocol,

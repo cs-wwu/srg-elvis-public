@@ -1,5 +1,5 @@
 use crate::{
-    control::{ControlError, Key, Primitive},
+    control::{Key, Primitive},
     network::{OpaqueNetwork, SharedTap, Tap, TapEnvironment},
     protocol::ProtocolId,
     session::{QueryError, SendError},
@@ -7,6 +7,8 @@ use crate::{
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{self, Receiver, Sender};
+
+use super::get_destination_mac;
 
 type DirectConnections = Arc<RwLock<Vec<Sender<Message>>>>;
 
@@ -25,14 +27,6 @@ impl Direct {
 
     pub fn new_opaque() -> OpaqueNetwork {
         Box::new(Self::new())
-    }
-
-    pub fn set_destination_mac(mac: u64, control: &mut Control) {
-        control.insert((Self::ID, 0), mac);
-    }
-
-    pub fn get_destination_mac(control: &Control) -> Result<u64, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u64()?)
     }
 }
 
@@ -80,7 +74,7 @@ impl Tap for DirectTap {
     }
 
     fn send(self: Arc<Self>, message: Message, control: Control) -> Result<(), SendError> {
-        let destination = Direct::get_destination_mac(&control).or_else(|_| {
+        let destination = get_destination_mac(&control).or_else(|_| {
             tracing::error!("Missing destination mac on context");
             Err(SendError::MissingContext)
         })? as usize;

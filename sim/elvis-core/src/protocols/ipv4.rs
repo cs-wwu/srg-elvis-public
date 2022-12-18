@@ -165,8 +165,8 @@ impl Protocol for Ipv4 {
         message.slice(header.ihl as usize * 4..);
         let identifier = SessionId::new(header.destination, header.source);
 
-        Self::set_local_address(identifier.local, &mut context.info);
-        Self::set_remote_address(identifier.remote, &mut context.info);
+        Self::set_local_address(identifier.local, &mut context.control);
+        Self::set_remote_address(identifier.remote, &mut context.control);
 
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
@@ -174,7 +174,7 @@ impl Protocol for Ipv4 {
                 Some(binding) => {
                     // If the session does not exist but we have a listen
                     // binding for it, create the session
-                    let network = Pci::get_tap_slot(&context.info).map_err(|_| {
+                    let network = Pci::get_tap_slot(&context.control).map_err(|_| {
                         tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;

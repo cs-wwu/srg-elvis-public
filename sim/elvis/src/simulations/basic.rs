@@ -25,7 +25,7 @@ pub async fn basic() {
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared(ip_table.clone()),
         Pci::new_shared([network.tap()]),
-        SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef),
+        SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef, 0),
     ]);
 
     let capture = Capture::new_shared(capture_ip_address, 0xbeef);

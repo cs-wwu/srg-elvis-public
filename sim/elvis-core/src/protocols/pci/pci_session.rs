@@ -31,7 +31,7 @@ impl PciSession {
 impl Session for PciSession {
     #[tracing::instrument(name = "PciSession::send", skip_all)]
     fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
-        let first_responder = match Pci::get_first_responder(&context.info) {
+        let first_responder = match Pci::get_first_responder(&context.control) {
             Ok(first_responder) => first_responder,
             Err(_) => {
                 tracing::error!("First responder missing from context");
@@ -39,7 +39,7 @@ impl Session for PciSession {
             }
         };
         message.prepend(first_responder.into_inner().to_be_bytes().to_vec());
-        self.tap.clone().send(message, context.info)?;
+        self.tap.clone().send(message, context.control)?;
         Ok(())
     }
 
@@ -57,8 +57,8 @@ impl Session for PciSession {
             }
         };
         message.slice(8..);
-        Pci::set_first_responder(first_responder, &mut context.info);
-        Pci::set_tap_slot(self.index, &mut context.info);
+        Pci::set_first_responder(first_responder, &mut context.control);
+        Pci::set_tap_slot(self.index, &mut context.control);
         let protocol = match context.protocol(first_responder) {
             Some(protocol) => protocol,
             None => {

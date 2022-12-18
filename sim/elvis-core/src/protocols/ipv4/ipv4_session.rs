@@ -64,8 +64,8 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        Pci::set_tap_slot(self.tap_slot, &mut context.info);
-        Pci::set_first_responder(Ipv4::ID, &mut context.info);
+        Pci::set_tap_slot(self.tap_slot, &mut context.control);
+        Pci::set_first_responder(Ipv4::ID, &mut context.control);
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
         Ok(())

@@ -1,5 +1,6 @@
 use elvis_core::{
     message::Message,
+    networks::{set_destination_mac, Mac},
     protocol::{Context, ProtocolId},
     protocols::{
         ipv4::Ipv4Address,
@@ -25,6 +26,7 @@ pub struct Forward {
     local_port: u16,
     /// The port number for outgoing messages
     remote_port: u16,
+    destination_mac: Mac,
 }
 
 impl Forward {
@@ -34,6 +36,7 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
+        destination_mac: Mac,
     ) -> Self {
         Self {
             outgoing: Default::default(),
@@ -41,6 +44,7 @@ impl Forward {
             remote_ip,
             local_port,
             remote_port,
+            destination_mac,
         }
     }
 
@@ -50,8 +54,15 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
+        destination_mac: Mac,
     ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(local_ip, remote_ip, local_port, remote_port))
+        UserProcess::new_shared(Self::new(
+            local_ip,
+            remote_ip,
+            local_port,
+            remote_port,
+            destination_mac,
+        ))
     }
 }
 
@@ -87,9 +98,9 @@ impl Application for Forward {
     fn receive(
         self: Arc<Self>,
         message: Message,
-        context: Context,
+        mut context: Context,
     ) -> Result<(), ApplicationError> {
-        // TODO(hardint): Use ? again
+        set_destination_mac(self.destination_mac, &mut context.control);
         self.outgoing
             .clone()
             .lock()

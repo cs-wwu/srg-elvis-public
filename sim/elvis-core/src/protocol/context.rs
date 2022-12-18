@@ -9,7 +9,7 @@ pub struct Context {
     pub protocols: ProtocolMap,
     /// A key-value store for exchanging unstructured information between
     /// [`Protocol`](super::Protocol)s.
-    pub info: Control,
+    pub control: Control,
 }
 
 impl Context {
@@ -17,7 +17,7 @@ impl Context {
     pub(crate) fn new(protocols: ProtocolMap) -> Self {
         Self {
             protocols,
-            info: Control::new(),
+            control: Control::new(),
         }
     }
 

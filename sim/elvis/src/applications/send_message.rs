@@ -1,5 +1,6 @@
 use elvis_core::{
     message::Message,
+    networks::{set_destination_mac, Mac},
     protocol::{Context, ProtocolId},
     protocols::{
         ipv4::Ipv4Address,
@@ -20,15 +21,23 @@ pub struct SendMessage {
     ip: Ipv4Address,
     /// The port to send on
     port: u16,
+    /// The machine that will receive the message
+    destination_mac: Mac,
 }
 
 impl SendMessage {
     /// Creates a new send message application.
-    pub fn new(text: &'static str, remote_ip: Ipv4Address, remote_port: u16) -> Self {
+    pub fn new(
+        text: &'static str,
+        remote_ip: Ipv4Address,
+        remote_port: u16,
+        destination_mac: Mac,
+    ) -> Self {
         Self {
             text,
             ip: remote_ip,
             port: remote_port,
+            destination_mac,
         }
     }
 
@@ -37,8 +46,9 @@ impl SendMessage {
         text: &'static str,
         remote_ip: Ipv4Address,
         remote_port: u16,
+        destination_mac: Mac,
     ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(text, remote_ip, remote_port))
+        UserProcess::new_shared(Self::new(text, remote_ip, remote_port, destination_mac))
     }
 }
 
@@ -47,7 +57,7 @@ impl Application for SendMessage {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
+        mut context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
     ) -> Result<(), ApplicationError> {
@@ -60,6 +70,7 @@ impl Application for SendMessage {
         let session = protocol.open(Self::ID, participants, context.clone())?;
         tokio::spawn(async move {
             initialized.wait().await;
+            set_destination_mac(self.destination_mac, &mut context.control);
             session
                 .send(Message::new(self.text), context)
                 .expect("SendMessage failed to send");
