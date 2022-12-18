@@ -56,7 +56,6 @@ pub mod internet;
 pub use internet::Internet;
 
 pub mod network;
-pub use network::Network;
 
 mod machine;
 use machine::Machine;

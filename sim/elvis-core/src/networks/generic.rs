@@ -1,10 +1,10 @@
 use crate::{
     control::{Key, Primitive},
     id::Id,
-    network::{OpaqueNetwork, SharedTap, Tap, TapEnvironment},
+    network::{SharedTap, Tap, TapEnvironment},
     protocol::Context,
     session::{QueryError, SendError},
-    Control, Message, Network,
+    Control, Message,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{
@@ -31,15 +31,7 @@ impl Generic {
         }
     }
 
-    pub fn new_opaque() -> OpaqueNetwork {
-        Box::new(Self::new())
-    }
-}
-
-impl Network for Generic {
-    fn start(self: Box<Self>) {}
-
-    fn tap(&mut self) -> SharedTap {
+    pub fn tap(&mut self) -> SharedTap {
         let (send, receive) = mpsc::channel(16);
         self.connections.write().unwrap().push(send);
         Arc::new(DirectTap::new(

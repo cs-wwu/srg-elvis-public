@@ -1,6 +1,5 @@
 use crate::applications::PingPong;
 use elvis_core::{
-    network::OpaqueNetwork,
     networks::Generic,
     protocol::SharedProtocol,
     protocols::{
@@ -8,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Pci,
     },
-    Internet, Network,
+    Internet,
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
@@ -37,5 +36,5 @@ pub async fn ping_pong() {
         PingPong::new_shared(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef),
     ]);
 
-    internet.run([Box::new(network) as OpaqueNetwork]).await;
+    internet.run().await;
 }

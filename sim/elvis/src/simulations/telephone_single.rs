@@ -17,7 +17,7 @@ use elvis_core::{
 pub async fn telephone_single() {
     let mut internet = Internet::new();
     const END: u32 = 1000;
-    let mut network = Generic::new_opaque();
+    let mut network = Generic::new();
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine([
@@ -48,7 +48,7 @@ pub async fn telephone_single() {
         capture.clone(),
     ]);
 
-    internet.run([network]).await;
+    internet.run().await;
     assert_eq!(
         capture.application().message(),
         Some(Message::new("Hello!"))

@@ -1,7 +1,5 @@
 //! The [`Internet`] and supporting types.
 
-use crate::network::OpaqueNetwork;
-
 use super::{protocol::SharedProtocol, Machine};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Barrier};
@@ -30,10 +28,7 @@ impl Internet {
     }
 
     /// Runs the simulation.
-    pub async fn run(self, networks: impl IntoIterator<Item = OpaqueNetwork>) {
-        for network in networks {
-            network.start();
-        }
+    pub async fn run(self) {
         let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
         let initialized = Arc::new(Barrier::new(self.protocol_count));
         for machine in self.machines {

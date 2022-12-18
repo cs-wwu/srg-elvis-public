@@ -9,25 +9,11 @@ use crate::{
 };
 use std::sync::Arc;
 
-pub type OpaqueNetwork = Box<dyn Network>;
 pub type SharedTap = Arc<dyn Tap + Send + Sync + 'static>;
 pub type TapIndex = u32;
 
-// TODO(hardint): Start should take an initialization barrier
-
-/// Models a network that connects machine and delivers
-/// messages between them.
-pub trait Network {
-    /// Spawns a task for the Network to run in and returns half a channel on
-    /// which to send messages to the network.
-    fn start(self: Box<Self>);
-
-    /// Produces a session that can be used to send messages on the network.
-    fn tap(&mut self) -> SharedTap;
-}
-
-// TODO(hardint): Start should take an initialization barrier
 pub trait Tap {
+    // TODO(hardint): Start should take an initialization barrier
     /// Spawns a task for the Network to run in and returns half a channel on
     /// which to send messages to the network.
     fn start(self: Arc<Self>, environment: TapEnvironment);

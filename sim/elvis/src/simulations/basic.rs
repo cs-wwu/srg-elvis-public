@@ -17,7 +17,7 @@ use elvis_core::{
 /// single network. The simulation ends when the message is received.
 pub async fn basic() {
     let mut internet = Internet::new();
-    let mut network = Generic::new_opaque();
+    let mut network = Generic::new();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
@@ -36,7 +36,7 @@ pub async fn basic() {
         capture.clone(),
     ]);
 
-    internet.run([network]).await;
+    internet.run().await;
     assert_eq!(
         capture.application().message(),
         Some(Message::new("Hello!"))
