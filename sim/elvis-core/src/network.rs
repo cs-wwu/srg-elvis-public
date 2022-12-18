@@ -3,14 +3,17 @@
 use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
-    session::{QueryError, SharedSession},
-    Message,
+    protocol::Context,
+    session::{QueryError, SendError, SharedSession},
+    Control, Message,
 };
 use std::sync::Arc;
 
 pub type OpaqueNetwork = Box<dyn Network>;
 pub type SharedTap = Arc<dyn Tap + Send + Sync + 'static>;
 pub type TapIndex = u32;
+
+// TODO(hardint): Start should take an initialization barrier
 
 /// Models a network that connects machine and delivers
 /// messages between them.
@@ -23,6 +26,7 @@ pub trait Network {
     fn tap(&mut self) -> SharedTap;
 }
 
+// TODO(hardint): Start should take an initialization barrier
 pub trait Tap {
     /// Spawns a task for the Network to run in and returns half a channel on
     /// which to send messages to the network.
@@ -30,7 +34,7 @@ pub trait Tap {
 
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    fn send(self: Arc<Self>, message: Message);
+    fn send(self: Arc<Self>, message: Message, control: Control) -> Result<(), SendError>;
 
     /// Gets a piece of information from some session in the protocol stack.
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
@@ -45,5 +49,9 @@ pub struct TapEnvironment {
 impl TapEnvironment {
     pub fn new(protocols: ProtocolMap, session: SharedSession) -> Self {
         Self { protocols, session }
+    }
+
+    pub fn context(&self) -> Context {
+        Context::new(self.protocols.clone())
     }
 }

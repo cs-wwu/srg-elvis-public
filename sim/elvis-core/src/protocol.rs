@@ -17,6 +17,9 @@ pub use context::Context;
 /// A shared handle to a [`Protocol`].
 pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
 
+// TODO(hardint): If this is going to be used for networks and other types as
+// well, it should probably be moved and renamed.
+
 /// A unique identifier for a [`Protocol`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProtocolId(u64);

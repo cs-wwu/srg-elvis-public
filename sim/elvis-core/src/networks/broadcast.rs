@@ -3,8 +3,8 @@ use crate::{
     control::{Key, Primitive},
     network::{OpaqueNetwork, SharedTap, Tap, TapEnvironment},
     protocol::Context,
-    session::QueryError,
-    Message, Network,
+    session::{QueryError, SendError},
+    Control, Message, Network,
 };
 use std::sync::{Arc, Mutex};
 use tokio::sync::{broadcast, mpsc};
@@ -81,7 +81,7 @@ impl Tap for BroadcastTap {
         });
     }
 
-    fn send(self: Arc<Self>, message: Message) {
+    fn send(self: Arc<Self>, message: Message, _control: Control) -> Result<(), SendError> {
         tokio::spawn(async move {
             match self.send.send(message).await {
                 Ok(_) => {}
@@ -90,6 +90,7 @@ impl Tap for BroadcastTap {
                 }
             }
         });
+        Ok(())
     }
 
     fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {

@@ -39,7 +39,7 @@ impl Session for PciSession {
             }
         };
         message.prepend(first_responder.into_inner().to_be_bytes().to_vec());
-        self.tap.clone().send(message);
+        self.tap.clone().send(message, context.info)?;
         Ok(())
     }
 

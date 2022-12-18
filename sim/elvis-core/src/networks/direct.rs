@@ -1,98 +1,111 @@
-use futures::{stream::FuturesUnordered, StreamExt};
-use std::sync::Arc;
-use tokio::sync::mpsc;
-
 use crate::{
-    control::{Key, Primitive},
-    machine::TapSlot,
+    control::{ControlError, Key, Primitive},
     network::{OpaqueNetwork, SharedTap, Tap, TapEnvironment},
-    session::QueryError,
-    Message, Network,
+    protocol::ProtocolId,
+    session::{QueryError, SendError},
+    Control, Message, Network,
 };
+use std::sync::{Arc, RwLock};
+use tokio::sync::mpsc::{self, Receiver, Sender};
+
+type DirectConnections = Arc<RwLock<Vec<Sender<Message>>>>;
 
 pub struct Direct {
-    to_network: (mpsc::Sender<Delivery>, mpsc::Receiver<Delivery>),
-    senders: Vec<mpsc::Sender<Delivery>>,
-    receivers: Vec<mpsc::Receiver<Delivery>>,
+    connections: DirectConnections,
 }
 
 impl Direct {
+    pub const ID: ProtocolId = ProtocolId::from_string("Direct network");
+
     pub fn new() -> Self {
         Self {
-            to_network: mpsc::channel(16),
-            senders: vec![],
-            receivers: vec![],
+            connections: Arc::new(RwLock::new(vec![])),
         }
     }
 
     pub fn new_opaque() -> OpaqueNetwork {
         Box::new(Self::new())
     }
+
+    pub fn set_destination_mac(mac: u64, control: &mut Control) {
+        control.insert((Self::ID, 0), mac);
+    }
+
+    pub fn get_destination_mac(control: &Control) -> Result<u64, ControlError> {
+        Ok(control.get((Self::ID, 0))?.ok_u64()?)
+    }
 }
 
 impl Network for Direct {
-    fn start(self: Box<Self>) {
+    fn start(self: Box<Self>) {}
+
+    fn tap(&mut self) -> SharedTap {
+        let (send, receive) = mpsc::channel(16);
+        self.connections.write().unwrap().push(send);
+        Arc::new(DirectTap::new(self.connections.clone(), receive))
+    }
+}
+
+pub struct DirectTap {
+    connections: DirectConnections,
+    receiver: Arc<RwLock<Option<Receiver<Message>>>>,
+}
+
+impl DirectTap {
+    pub fn new(connections: DirectConnections, receiver: Receiver<Message>) -> Self {
+        Self {
+            connections,
+            receiver: Arc::new(RwLock::new(Some(receiver))),
+        }
+    }
+}
+
+impl Tap for DirectTap {
+    fn start(self: Arc<Self>, environment: TapEnvironment) {
+        let mut receiver = self.receiver.write().unwrap().take().unwrap();
         tokio::spawn(async move {
-            let receivers: FuturesUnordered<_> = self
-                .receivers
-                .into_iter()
-                .map(|mut receiver| receiver.recv())
-                .collect();
-            while let Some(Some(delivery)) = receivers.next().await {
-                match self.senders[delivery.recipient as usize]
-                    .send(delivery)
-                    .await
+            while let Some(message) = receiver.recv().await {
+                match environment
+                    .session
+                    .clone()
+                    .receive(message, environment.context())
                 {
                     Ok(_) => {}
                     Err(e) => {
-                        tracing::error!("Failed to send on broadcast network: {}", e);
+                        tracing::error!("Failed to receive on direct network: {}", e);
                     }
                 }
             }
         });
     }
 
-    fn tap(&mut self) -> SharedTap {
-        let (to_network_sender, to_network_receiver) = mpsc::channel(16);
-        let (to_tap_sender, to_tap_receiver) = mpsc::channel(16);
-        self.senders.push(to_tap_sender);
-        self.receivers.push(to_network_receiver);
-        Arc::new(DirectTap::new(
-            self.senders.len() as u32,
-            to_network_sender,
-            to_tap_receiver,
-        ))
+    fn send(self: Arc<Self>, message: Message, control: Control) -> Result<(), SendError> {
+        let destination = Direct::get_destination_mac(&control).or_else(|_| {
+            tracing::error!("Missing destination mac on context");
+            Err(SendError::MissingContext)
+        })? as usize;
+        let channel = self
+            .connections
+            .read()
+            .unwrap()
+            .get(destination)
+            .ok_or_else(|| {
+                tracing::error!("The destination mac is out of bounds: {}", destination);
+                SendError::MissingContext
+            })?
+            .clone();
+        tokio::spawn(async move {
+            match channel.clone().send(message).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("Failed to send on direct network: {}", e);
+                }
+            }
+        });
+        Ok(())
     }
-}
 
-pub struct DirectTap {
-    mac: u32,
-    send: mpsc::Sender<Delivery>,
-    receive: mpsc::Receiver<Delivery>,
-}
-
-impl DirectTap {
-    pub fn new(mac: u32, send: mpsc::Sender<Delivery>, receive: mpsc::Receiver<Delivery>) -> Self {
-        Self { mac, send, receive }
-    }
-}
-
-impl Tap for DirectTap {
-    fn start(self: Arc<Self>, environment: TapEnvironment) {
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
         todo!()
     }
-
-    fn send(self: Arc<Self>, message: Message) {
-        todo!()
-    }
-
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Delivery {
-    message: Message,
-    recipient: TapSlot,
 }
