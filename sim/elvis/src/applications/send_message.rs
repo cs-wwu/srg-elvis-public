@@ -1,14 +1,14 @@
 use elvis_core::{
     message::Message,
     networks::{set_destination_mac, Mac},
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4,
     },
-    Control,
+    Control, Id,
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -53,7 +53,7 @@ impl SendMessage {
 }
 
 impl Application for SendMessage {
-    const ID: ProtocolId = ProtocolId::from_string("Send Message");
+    const ID: Id = Id::from_string("Send Message");
 
     fn start(
         self: Arc<Self>,

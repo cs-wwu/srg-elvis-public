@@ -1,5 +1,5 @@
-use super::protocol::{Context, ProtocolId, SharedProtocol};
-use crate::logging::machine_creation_event;
+use super::protocol::{Context, SharedProtocol};
+use crate::{id::Id, logging::machine_creation_event};
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
@@ -10,7 +10,7 @@ use tokio::sync::{mpsc::Sender, Barrier};
 pub type TapSlot = u32;
 
 /// A mapping of protocol IDs to protocols
-pub(crate) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
+pub(crate) type ProtocolMap = Arc<HashMap<Id, SharedProtocol>>;
 
 /// A networked computer in the simultation.
 ///

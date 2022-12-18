@@ -2,12 +2,12 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    id::Id,
     machine::TapSlot,
     message::Message,
     network::SharedTap,
     protocol::{
-        Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, SharedProtocol,
-        StartError,
+        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
     session::SharedSession,
     Control, Protocol,
@@ -32,7 +32,7 @@ pub struct Pci {
 
 impl Pci {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::from_string("PCI");
+    pub const ID: Id = Id::from_string("PCI");
 
     /// Creates a new network tap.
     pub fn new(taps: impl IntoIterator<Item = SharedTap>) -> Self {
@@ -58,23 +58,23 @@ impl Pci {
         Ok(control.get((Self::ID, 0))?.ok_u32()?)
     }
 
-    pub fn set_first_responder(id: ProtocolId, control: &mut Control) {
+    pub fn set_first_responder(id: Id, control: &mut Control) {
         control.insert((Self::ID, 1), id.into_inner());
     }
 
-    pub fn get_first_responder(control: &Control) -> Result<ProtocolId, ControlError> {
+    pub fn get_first_responder(control: &Control) -> Result<Id, ControlError> {
         Ok(control.get((Self::ID, 1))?.ok_u64()?.into())
     }
 }
 
 impl Protocol for Pci {
-    fn id(self: Arc<Self>) -> ProtocolId {
+    fn id(self: Arc<Self>) -> Id {
         Self::ID
     }
 
     fn open(
         self: Arc<Self>,
-        _upstream: ProtocolId,
+        _upstream: Id,
         participants: Control,
         _context: Context,
     ) -> Result<SharedSession, OpenError> {
@@ -95,7 +95,7 @@ impl Protocol for Pci {
 
     fn listen(
         self: Arc<Self>,
-        _upstream: ProtocolId,
+        _upstream: Id,
         _participants: Control,
         _context: Context,
     ) -> Result<(), ListenError> {

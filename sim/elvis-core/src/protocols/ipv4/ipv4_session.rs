@@ -4,9 +4,10 @@ use super::{
 };
 use crate::{
     control::{Key, Primitive},
+    id::Id,
     machine::TapSlot,
     message::Message,
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     protocols::{pci::Pci, udp::Udp},
     session::{QueryError, ReceiveError, SendError, SharedSession},
     Session,
@@ -16,7 +17,7 @@ use std::{fmt::Debug, sync::Arc};
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
     /// The protocol that we demux incoming messages to
-    upstream: ProtocolId,
+    upstream: Id,
     /// The session we mux outgoing messages to
     downstream: SharedSession,
     /// The identifying information for this session
@@ -29,7 +30,7 @@ impl Ipv4Session {
     /// Creates a new IPv4 session
     pub(super) fn new(
         downstream: SharedSession,
-        upstream: ProtocolId,
+        upstream: Id,
         identifier: SessionId,
         tap_slot: TapSlot,
     ) -> Self {

@@ -1,7 +1,7 @@
 use elvis_core::{
     message::Message,
     networks::{set_destination_mac, Mac},
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         udp::Udp,
@@ -9,7 +9,7 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control,
+    Control, Id,
 };
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -67,7 +67,7 @@ impl Forward {
 }
 
 impl Application for Forward {
-    const ID: ProtocolId = ProtocolId::from_string("Forward");
+    const ID: Id = Id::from_string("Forward");
 
     fn start(
         self: Arc<Self>,

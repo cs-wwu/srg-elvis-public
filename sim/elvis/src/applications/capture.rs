@@ -1,12 +1,12 @@
 use elvis_core::{
     message::Message,
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Udp,
     },
-    Control,
+    Control, Id,
 };
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -48,7 +48,7 @@ impl Capture {
 }
 
 impl Application for Capture {
-    const ID: ProtocolId = ProtocolId::from_string("Capture");
+    const ID: Id = Id::from_string("Capture");
 
     fn start(
         self: Arc<Self>,

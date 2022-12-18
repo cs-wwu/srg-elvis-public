@@ -1,10 +1,11 @@
 use super::Pci;
 use crate::{
     control::{Key, Primitive},
+    id::Id,
     machine::{ProtocolMap, TapSlot},
     message::Message,
     network::{SharedTap, TapEnvironment},
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     session::{QueryError, ReceiveError, SendError},
     Session,
 };
@@ -82,7 +83,7 @@ impl Session for PciSession {
 
 /// Parses the Tap header from the message, which is just the ID of the protocol
 /// that should receive this message.
-fn take_header(message: &Message) -> Option<ProtocolId> {
+fn take_header(message: &Message) -> Option<Id> {
     let mut iter = message.iter();
     Some(
         u64::from_be_bytes([

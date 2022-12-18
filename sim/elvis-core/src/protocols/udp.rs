@@ -3,8 +3,9 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    id::Id,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
     Control, Protocol, Session,
@@ -24,13 +25,13 @@ use super::utility::Socket;
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: DashMap<Socket, ProtocolId>,
+    listen_bindings: DashMap<Socket, Id>,
     sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::new(17);
+    pub const ID: Id = Id::new(17);
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
@@ -60,14 +61,14 @@ impl Udp {
 }
 
 impl Protocol for Udp {
-    fn id(self: Arc<Self>) -> ProtocolId {
+    fn id(self: Arc<Self>) -> Id {
         Self::ID
     }
 
     #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         participants: Control,
         context: Context,
     ) -> Result<SharedSession, OpenError> {
@@ -123,7 +124,7 @@ impl Protocol for Udp {
     #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         participants: Control,
         context: Context,
     ) -> Result<(), ListenError> {

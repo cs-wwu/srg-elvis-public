@@ -1,7 +1,8 @@
 use crate::{
     control::{Key, Primitive},
+    id::Id,
     network::{OpaqueNetwork, SharedTap, Tap, TapEnvironment},
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     session::{QueryError, SendError},
     Control, Message, Network,
 };
@@ -21,7 +22,7 @@ pub struct Generic {
 }
 
 impl Generic {
-    pub const ID: ProtocolId = ProtocolId::from_string("Direct network");
+    pub const ID: Id = Id::from_string("Direct network");
 
     pub fn new() -> Self {
         Self {

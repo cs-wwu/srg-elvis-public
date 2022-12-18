@@ -1,13 +1,13 @@
 use elvis_core::{
     message::Message,
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control,
+    Control, Id,
 };
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -70,7 +70,7 @@ impl PingPong {
 }
 
 impl Application for PingPong {
-    const ID: ProtocolId = ProtocolId::from_string("PingPong");
+    const ID: Id = Id::from_string("PingPong");
 
     fn start(
         self: Arc<Self>,

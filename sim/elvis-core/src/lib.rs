@@ -36,6 +36,7 @@
 //!
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
+mod logging;
 pub mod networks;
 pub mod protocols;
 
@@ -57,7 +58,8 @@ pub use internet::Internet;
 pub mod network;
 pub use network::Network;
 
-pub(crate) mod machine;
-pub(crate) use machine::Machine;
+mod machine;
+use machine::Machine;
 
-pub(crate) mod logging;
+mod id;
+pub use id::Id;

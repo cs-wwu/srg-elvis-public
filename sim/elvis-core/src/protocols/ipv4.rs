@@ -3,9 +3,10 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    id::Id,
     machine::TapSlot,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
     Control, Protocol, Session,
@@ -28,14 +29,14 @@ pub type IpToTapSlot = DashMap<Ipv4Address, TapSlot>;
 /// An implementation of the Internet Protocol.
 #[derive(Clone)]
 pub struct Ipv4 {
-    listen_bindings: DashMap<Ipv4Address, ProtocolId>,
+    listen_bindings: DashMap<Ipv4Address, Id>,
     sessions: DashMap<SessionId, Arc<Ipv4Session>>,
     ip_to_network: IpToTapSlot,
 }
 
 impl Ipv4 {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::new(4);
+    pub const ID: Id = Id::new(4);
 
     /// Creates a new instance of the protocol.
     pub fn new(network_for_ip: IpToTapSlot) -> Self {
@@ -72,14 +73,14 @@ impl Ipv4 {
 // messages can be sent to the correct network
 
 impl Protocol for Ipv4 {
-    fn id(self: Arc<Self>) -> ProtocolId {
+    fn id(self: Arc<Self>) -> Id {
         Self::ID
     }
 
     #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         mut participants: Control,
         context: Context,
     ) -> Result<SharedSession, OpenError> {
@@ -121,7 +122,7 @@ impl Protocol for Ipv4 {
     #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         participants: Control,
         context: Context,
     ) -> Result<(), ListenError> {

@@ -1,4 +1,4 @@
-use crate::{control::ControlError, protocol::ProtocolId, Control};
+use crate::{control::ControlError, id::Id, Control};
 
 /// A network maximum transmission unit.
 ///
@@ -6,7 +6,7 @@ use crate::{control::ControlError, protocol::ProtocolId, Control};
 pub type Mtu = u32;
 pub type Mac = u64;
 
-const NETWORKS_ID: ProtocolId = ProtocolId::from_string("Networks");
+const NETWORKS_ID: Id = Id::from_string("Networks");
 
 pub fn set_destination_mac(mac: Mac, control: &mut Control) {
     control.insert((NETWORKS_ID, 0), mac);

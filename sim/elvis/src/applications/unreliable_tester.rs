@@ -1,10 +1,10 @@
 use elvis_core::{
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     protocols::{
         user_process::{Application, ApplicationError},
         Ipv4, Udp, UserProcess,
     },
-    Control, Message,
+    Control, Id, Message,
 };
 use std::{
     sync::{Arc, Mutex},
@@ -56,7 +56,7 @@ impl Default for UnreliableTester {
 }
 
 impl Application for UnreliableTester {
-    const ID: ProtocolId = ProtocolId::from_string("Unreliable tester");
+    const ID: Id = Id::from_string("Unreliable tester");
 
     fn start(
         self: Arc<Self>,
