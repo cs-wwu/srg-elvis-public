@@ -1,6 +1,6 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    networks::{Broadcast, Mac},
+    networks::Generic,
     protocol::SharedProtocol,
     protocols::{ipv4::Ipv4, udp::Udp, Pci},
     Internet, Message,
@@ -15,15 +15,14 @@ pub async fn telephone_multi() {
     let mut internet = Internet::new();
     const END: u32 = 1000;
     // Since we are using a broadcast network, the destination MAC is not used
-    const WHATEVER_MAC: Mac = 0;
-    let mut networks: Vec<_> = (0..END).map(|_| Broadcast::new_opaque(1500)).collect();
+    let mut networks: Vec<_> = (0..END).map(|_| Generic::new_opaque()).collect();
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(remote, 0)].into_iter().collect()),
         Pci::new_shared([networks[0].tap()]),
-        SendMessage::new_shared("Hello!", remote, 0xbeef, WHATEVER_MAC),
+        SendMessage::new_shared("Hello!", remote, 0xbeef, None),
     ]);
 
     for i in 0u32..(END - 1) {
@@ -33,7 +32,7 @@ pub async fn telephone_multi() {
         internet.machine([
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(table),
-            Forward::new_shared(local, remote, 0xbeef, 0xbeef, WHATEVER_MAC),
+            Forward::new_shared(local, remote, 0xbeef, 0xbeef, None),
             Pci::new_shared([networks[i as usize].tap(), networks[i as usize + 1].tap()]),
         ]);
     }

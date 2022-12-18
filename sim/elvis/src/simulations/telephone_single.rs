@@ -1,6 +1,6 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    networks::{Direct, Mac},
+    networks::{Generic, Mac},
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address},
@@ -17,14 +17,14 @@ use elvis_core::{
 pub async fn telephone_single() {
     let mut internet = Internet::new();
     const END: u32 = 1000;
-    let mut network = Direct::new_opaque();
+    let mut network = Generic::new_opaque();
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(remote, 0)].into_iter().collect()),
         Pci::new_shared([network.tap()]),
-        SendMessage::new_shared("Hello!", remote, 0xbeef, 1),
+        SendMessage::new_shared("Hello!", remote, 0xbeef, Some(1)),
     ]);
 
     for i in 0u32..(END - 1) {
@@ -35,7 +35,7 @@ pub async fn telephone_single() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(table),
             Pci::new_shared([network.tap()]),
-            Forward::new_shared(local, remote, 0xbeef, 0xbeef, i as Mac + 2),
+            Forward::new_shared(local, remote, 0xbeef, 0xbeef, Some(i as Mac + 2)),
         ]);
     }
 

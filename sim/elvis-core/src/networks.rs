@@ -16,8 +16,5 @@ pub fn get_destination_mac(control: &Control) -> Result<Mac, ControlError> {
     Ok(control.get((NETWORKS_ID, 0))?.ok_u64()?)
 }
 
-mod broadcast;
-pub use broadcast::Broadcast;
-
-mod direct;
-pub use direct::Direct;
+mod generic;
+pub use generic::Generic;

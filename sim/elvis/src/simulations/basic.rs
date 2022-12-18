@@ -1,7 +1,7 @@
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
-    networks::Broadcast,
+    networks::Generic,
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
@@ -17,7 +17,7 @@ use elvis_core::{
 /// single network. The simulation ends when the message is received.
 pub async fn basic() {
     let mut internet = Internet::new();
-    let mut network = Broadcast::new_opaque(1500);
+    let mut network = Generic::new_opaque();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
@@ -25,7 +25,7 @@ pub async fn basic() {
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared(ip_table.clone()),
         Pci::new_shared([network.tap()]),
-        SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef, 0),
+        SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef, None),
     ]);
 
     let capture = Capture::new_shared(capture_ip_address, 0xbeef);

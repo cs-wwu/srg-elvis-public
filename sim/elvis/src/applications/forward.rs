@@ -26,7 +26,7 @@ pub struct Forward {
     local_port: u16,
     /// The port number for outgoing messages
     remote_port: u16,
-    destination_mac: Mac,
+    destination_mac: Option<Mac>,
 }
 
 impl Forward {
@@ -36,7 +36,7 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
-        destination_mac: Mac,
+        destination_mac: Option<Mac>,
     ) -> Self {
         Self {
             outgoing: Default::default(),
@@ -54,7 +54,7 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
-        destination_mac: Mac,
+        destination_mac: Option<Mac>,
     ) -> Arc<UserProcess<Self>> {
         UserProcess::new_shared(Self::new(
             local_ip,
@@ -100,7 +100,9 @@ impl Application for Forward {
         message: Message,
         mut context: Context,
     ) -> Result<(), ApplicationError> {
-        set_destination_mac(self.destination_mac, &mut context.control);
+        if let Some(destination_mac) = self.destination_mac {
+            set_destination_mac(destination_mac, &mut context.control);
+        }
         self.outgoing
             .clone()
             .lock()

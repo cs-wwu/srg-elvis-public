@@ -1,7 +1,7 @@
 use crate::applications::PingPong;
 use elvis_core::{
     network::OpaqueNetwork,
-    networks::Broadcast,
+    networks::Generic,
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
@@ -20,7 +20,7 @@ const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);
 /// back and forth till the TTL reaches 0. TTL will be subtracted by 1 every time a machine reveives it.
 pub async fn ping_pong() {
     let mut internet = Internet::new();
-    let mut network = Broadcast::new(1500);
+    let mut network = Generic::new();
     let ip_table: IpToTapSlot = [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 1)].into_iter().collect();
 
     internet.machine([

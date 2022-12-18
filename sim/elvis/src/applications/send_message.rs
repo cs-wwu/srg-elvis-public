@@ -22,7 +22,7 @@ pub struct SendMessage {
     /// The port to send on
     port: u16,
     /// The machine that will receive the message
-    destination_mac: Mac,
+    destination_mac: Option<Mac>,
 }
 
 impl SendMessage {
@@ -31,7 +31,7 @@ impl SendMessage {
         text: &'static str,
         remote_ip: Ipv4Address,
         remote_port: u16,
-        destination_mac: Mac,
+        destination_mac: Option<Mac>,
     ) -> Self {
         Self {
             text,
@@ -46,7 +46,7 @@ impl SendMessage {
         text: &'static str,
         remote_ip: Ipv4Address,
         remote_port: u16,
-        destination_mac: Mac,
+        destination_mac: Option<Mac>,
     ) -> Arc<UserProcess<Self>> {
         UserProcess::new_shared(Self::new(text, remote_ip, remote_port, destination_mac))
     }
@@ -70,7 +70,9 @@ impl Application for SendMessage {
         let session = protocol.open(Self::ID, participants, context.clone())?;
         tokio::spawn(async move {
             initialized.wait().await;
-            set_destination_mac(self.destination_mac, &mut context.control);
+            if let Some(destination_mac) = self.destination_mac {
+                set_destination_mac(destination_mac, &mut context.control);
+            }
             session
                 .send(Message::new(self.text), context)
                 .expect("SendMessage failed to send");
