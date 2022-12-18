@@ -1,7 +1,7 @@
 use super::Mtu;
 use crate::{
     control::{Key, Primitive},
-    network::{SharedTap, Tap, TapEnvironment},
+    network::{OpaqueNetwork, SharedTap, Tap, TapEnvironment},
     protocol::Context,
     session::QueryError,
     Message, Network,
@@ -26,6 +26,10 @@ impl Broadcast {
             to_network: mpsc::channel::<Message>(16),
             from_network: broadcast::channel::<Message>(16),
         }
+    }
+
+    pub fn new_opaque(mtu: Mtu) -> OpaqueNetwork {
+        Box::new(Self::new(mtu))
     }
 }
 

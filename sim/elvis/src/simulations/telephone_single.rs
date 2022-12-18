@@ -1,6 +1,5 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    network::OpaqueNetwork,
     networks::Broadcast,
     protocol::SharedProtocol,
     protocols::{
@@ -8,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Pci,
     },
-    Internet, Message, Network,
+    Internet, Message,
 };
 
 /// Simulates a message being repeatedly forwarded on a single network.
@@ -18,7 +17,7 @@ use elvis_core::{
 pub async fn telephone_single() {
     let mut internet = Internet::new();
     let end = 10;
-    let mut network = Broadcast::new(1500);
+    let mut network = Broadcast::new_opaque(1500);
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine([
@@ -49,7 +48,7 @@ pub async fn telephone_single() {
         capture.clone(),
     ]);
 
-    internet.run([Box::new(network) as OpaqueNetwork]).await;
+    internet.run([network]).await;
     assert_eq!(
         capture.application().message(),
         Some(Message::new("Hello!"))
