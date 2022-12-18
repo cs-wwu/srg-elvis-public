@@ -58,7 +58,7 @@ impl Session for PciSession {
         };
         message.slice(8..);
         Pci::set_first_responder(first_responder, &mut context.info);
-        Pci::set_tap_index(self.index, &mut context.info);
+        Pci::set_tap_slot(self.index, &mut context.info);
         let protocol = match context.protocol(first_responder) {
             Some(protocol) => protocol,
             None => {

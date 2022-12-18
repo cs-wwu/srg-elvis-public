@@ -50,11 +50,11 @@ impl Pci {
         Arc::new(Self::new(taps))
     }
 
-    pub fn set_tap_index(slot: TapSlot, control: &mut Control) {
+    pub fn set_tap_slot(slot: TapSlot, control: &mut Control) {
         control.insert((Self::ID, 0), slot);
     }
 
-    pub fn get_tap_index(control: &Control) -> Result<TapSlot, ControlError> {
+    pub fn get_tap_slot(control: &Control) -> Result<TapSlot, ControlError> {
         Ok(control.get((Self::ID, 0))?.ok_u32()?)
     }
 
@@ -78,7 +78,7 @@ impl Protocol for Pci {
         participants: Control,
         _context: Context,
     ) -> Result<SharedSession, OpenError> {
-        let network_id = Pci::get_tap_index(&participants).or_else(|_| {
+        let network_id = Pci::get_tap_slot(&participants).or_else(|_| {
             tracing::error!("Missing network ID on context");
             Err(OpenError::MissingContext)
         })?;

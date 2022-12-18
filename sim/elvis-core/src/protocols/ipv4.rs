@@ -80,7 +80,7 @@ impl Protocol for Ipv4 {
     fn open(
         self: Arc<Self>,
         upstream: ProtocolId,
-        participants: Control,
+        mut participants: Control,
         context: Context,
     ) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(
@@ -105,6 +105,7 @@ impl Protocol for Ipv4 {
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
                 let tap_slot = { *self.ip_to_network.get(&key.remote).unwrap() };
+                Pci::set_tap_slot(tap_slot, &mut participants);
                 let tap_session = context.protocol(Pci::ID).expect("No such protocol").open(
                     Self::ID,
                     participants,
@@ -173,7 +174,7 @@ impl Protocol for Ipv4 {
                 Some(binding) => {
                     // If the session does not exist but we have a listen
                     // binding for it, create the session
-                    let network = Pci::get_tap_index(&context.info).map_err(|_| {
+                    let network = Pci::get_tap_slot(&context.info).map_err(|_| {
                         tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;
