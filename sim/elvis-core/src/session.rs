@@ -3,6 +3,7 @@
 use super::{protocol::Context, Message};
 use crate::{
     control::{Key, Primitive},
+    networks::Mtu,
     protocol::DemuxError,
 };
 use std::sync::Arc;
@@ -54,6 +55,8 @@ pub enum SendError {
     Header,
     #[error("Data expected through the context was missing")]
     MissingContext,
+    #[error("The message length exceeds the network's MTU: {0}")]
+    Mtu(Mtu),
     #[error("Unspecified error")]
     Other,
 }

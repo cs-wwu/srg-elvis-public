@@ -12,11 +12,12 @@ use tokio::sync::{
     mpsc,
 };
 
-use super::get_destination_mac;
+use super::{get_destination_mac, Mtu};
 
 type DirectConnections = Arc<RwLock<Vec<mpsc::Sender<Message>>>>;
 
 pub struct Generic {
+    mtu: Mtu,
     connections: DirectConnections,
     broadcast: broadcast::Sender<Message>,
 }
@@ -24,8 +25,9 @@ pub struct Generic {
 impl Generic {
     pub const ID: Id = Id::from_string("Direct network");
 
-    pub fn new() -> Self {
+    pub fn new(mtu: Mtu) -> Self {
         Self {
+            mtu,
             connections: Arc::new(RwLock::new(vec![])),
             broadcast: broadcast::channel::<Message>(16).0,
         }
@@ -35,6 +37,7 @@ impl Generic {
         let (send, receive) = mpsc::channel(16);
         self.connections.write().unwrap().push(send);
         Arc::new(DirectTap::new(
+            self.mtu,
             self.connections.clone(),
             receive,
             self.broadcast.clone(),
@@ -43,6 +46,7 @@ impl Generic {
 }
 
 pub struct DirectTap {
+    mtu: Mtu,
     connections: DirectConnections,
     direct_receiver: Arc<RwLock<Option<mpsc::Receiver<Message>>>>,
     broadcast: broadcast::Sender<Message>,
@@ -50,11 +54,13 @@ pub struct DirectTap {
 
 impl DirectTap {
     pub fn new(
+        mtu: Mtu,
         connections: DirectConnections,
         receiver: mpsc::Receiver<Message>,
         broadcast: broadcast::Sender<Message>,
     ) -> Self {
         Self {
+            mtu,
             connections,
             direct_receiver: Arc::new(RwLock::new(Some(receiver))),
             broadcast,
@@ -81,6 +87,10 @@ impl Tap for DirectTap {
     }
 
     fn send(self: Arc<Self>, message: Message, control: Control) -> Result<(), SendError> {
+        if message.len() > self.mtu as usize {
+            Err(SendError::Mtu(self.mtu))?
+        }
+
         match get_destination_mac(&control) {
             Ok(destination) => {
                 let destination = destination as usize;

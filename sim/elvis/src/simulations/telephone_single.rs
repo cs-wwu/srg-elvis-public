@@ -17,7 +17,7 @@ use elvis_core::{
 pub async fn telephone_single() {
     let mut internet = Internet::new();
     const END: u32 = 1000;
-    let mut network = Generic::new();
+    let mut network = Generic::new(1500);
 
     let remote = 0u32.to_be_bytes().into();
     internet.machine([

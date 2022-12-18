@@ -17,7 +17,7 @@ use elvis_core::{
 /// single network. The simulation ends when the message is received.
 pub async fn basic() {
     let mut internet = Internet::new();
-    let mut network = Generic::new();
+    let mut network = Generic::new(1500);
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
