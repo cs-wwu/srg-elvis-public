@@ -1,17 +1,13 @@
-use super::{
-    internet::NetworkHandle,
-    protocol::{Context, ProtocolId, SharedProtocol},
-};
-use crate::{logging::machine_creation_event, network::Delivery, protocols::tap::Tap};
+use super::protocol::{Context, ProtocolId, SharedProtocol};
+use crate::logging::machine_creation_event;
 use std::{
     collections::{hash_map::Entry, HashMap},
-    iter,
     sync::Arc,
 };
 use tokio::sync::{mpsc::Sender, Barrier};
 
-/// An identifier for a particular [`Machine`] in the simulation.
-pub(crate) type MachineId = u64;
+/// A tap's PCI slot index
+pub type TapSlot = u32;
 
 /// A mapping of protocol IDs to protocols
 pub(crate) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
@@ -25,24 +21,15 @@ pub(crate) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
 /// networking protocols or user programs.
 pub(crate) struct Machine {
     protocols: ProtocolMap,
-    tap: Arc<Tap>,
 }
 
 impl Machine {
     /// Creates a new machine containing the given `protocols`. Returns the
     /// machine and a channel which can be used to send messages to the machine.
-    pub fn new(
-        protocols: impl IntoIterator<Item = SharedProtocol>,
-        id: MachineId,
-    ) -> (Self, Sender<Delivery>) {
-        let (tap, sender) = Tap::new(id);
-        let tap = Arc::new(tap);
+    pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>) -> Machine {
         let mut protocols_map = HashMap::new();
         let mut protocol_ids = Vec::new();
-        for protocol in protocols
-            .into_iter()
-            .chain(iter::once(tap.clone() as SharedProtocol))
-        {
+        for protocol in protocols.into_iter() {
             match protocols_map.entry(protocol.clone().id()) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
@@ -51,17 +38,10 @@ impl Machine {
                 }
             }
         }
-        machine_creation_event(id as usize, protocol_ids);
-        let machine = Self {
-            tap,
+        machine_creation_event(protocol_ids);
+        Self {
             protocols: Arc::new(protocols_map),
-        };
-        (machine, sender)
-    }
-
-    /// Attaches the machine to the given network.
-    pub fn attach(&mut self, network_id: NetworkHandle, sender: Sender<Delivery>) {
-        self.tap.clone().attach(network_id, sender);
+        }
     }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
@@ -76,7 +56,7 @@ impl Machine {
                     shutdown.clone(),
                     initialized.clone(),
                 )
-                .unwrap()
+                .expect("A protocol failed to start")
         }
     }
 

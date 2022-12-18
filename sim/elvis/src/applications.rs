@@ -14,6 +14,3 @@ pub use unreliable_tester::UnreliableTester;
 
 mod pingpong;
 pub use pingpong::PingPong;
-
-mod query;
-pub use query::Query;

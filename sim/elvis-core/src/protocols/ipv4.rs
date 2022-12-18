@@ -3,10 +3,10 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
-    internet::NetworkHandle,
+    machine::TapSlot,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
-    protocols::tap::Tap,
+    protocols::pci::Pci,
     session::SharedSession,
     Control, Protocol, Session,
 };
@@ -23,14 +23,14 @@ pub use ipv4_address::Ipv4Address;
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
-pub type IpToNetwork = DashMap<Ipv4Address, NetworkHandle>;
+pub type IpToTapSlot = DashMap<Ipv4Address, TapSlot>;
 
 /// An implementation of the Internet Protocol.
 #[derive(Clone)]
 pub struct Ipv4 {
     listen_bindings: DashMap<Ipv4Address, ProtocolId>,
     sessions: DashMap<SessionId, Arc<Ipv4Session>>,
-    ip_to_network: IpToNetwork,
+    ip_to_network: IpToTapSlot,
 }
 
 impl Ipv4 {
@@ -38,7 +38,7 @@ impl Ipv4 {
     pub const ID: ProtocolId = ProtocolId::new(4);
 
     /// Creates a new instance of the protocol.
-    pub fn new(network_for_ip: IpToNetwork) -> Self {
+    pub fn new(network_for_ip: IpToTapSlot) -> Self {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
@@ -47,7 +47,7 @@ impl Ipv4 {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared(network_for_ip: IpToNetwork) -> Arc<Self> {
+    pub fn new_shared(network_for_ip: IpToTapSlot) -> Arc<Self> {
         Arc::new(Self::new(network_for_ip))
     }
 
@@ -104,18 +104,13 @@ impl Protocol for Ipv4 {
             }
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
-                let network_id = { *self.ip_to_network.get(&key.remote).unwrap() };
-                let tap_session = context.protocol(Tap::ID).expect("No such protocol").open(
+                let tap_slot = { *self.ip_to_network.get(&key.remote).unwrap() };
+                let tap_session = context.protocol(Pci::ID).expect("No such protocol").open(
                     Self::ID,
                     participants,
                     context,
                 )?;
-                let session = Arc::new(Ipv4Session::new(
-                    tap_session,
-                    upstream,
-                    key,
-                    network_id.into_inner(),
-                ));
+                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, tap_slot));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -145,7 +140,7 @@ impl Protocol for Ipv4 {
 
         // Essentially a no-op but good for completeness and as an example
         context
-            .protocol(Tap::ID)
+            .protocol(Pci::ID)
             .expect("No such protocol")
             .listen(Self::ID, participants, context)
     }
@@ -178,7 +173,7 @@ impl Protocol for Ipv4 {
                 Some(binding) => {
                     // If the session does not exist but we have a listen
                     // binding for it, create the session
-                    let network = Tap::get_network_id(&context.info).map_err(|_| {
+                    let network = Pci::get_tap_index(&context.info).map_err(|_| {
                         tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;

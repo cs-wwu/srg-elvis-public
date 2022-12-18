@@ -55,11 +55,10 @@ pub fn receive_message_event(
 /// Used to log the creation of any machines added to the sim. Will log:
 /// machine_id, list of all protocol id's associated with the machine
 /// This will eventually contain more info as the simulation evolves
-pub fn machine_creation_event(machine_id: usize, protocol_ids: Vec<ProtocolId>) {
+pub fn machine_creation_event(protocol_ids: Vec<ProtocolId>) {
     event!(
         target: "MACHINE_CREATION",
         Level::INFO,
-        machine_id=machine_id,
         protocol_ids = format!("{:?}", protocol_ids),
     );
 }

@@ -1,11 +1,12 @@
-use super::{ProtocolId, SharedProtocol};
 use crate::{machine::ProtocolMap, Control};
+
+use super::{ProtocolId, SharedProtocol};
 
 /// Provides a [`Protocol`](super::Protocol) with information about its
 /// execution environment.
 #[derive(Clone)]
 pub struct Context {
-    protocols: ProtocolMap,
+    pub protocols: ProtocolMap,
     /// A key-value store for exchanging unstructured information between
     /// [`Protocol`](super::Protocol)s.
     pub info: Control,

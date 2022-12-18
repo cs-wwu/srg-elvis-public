@@ -1,13 +1,14 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    internet::NetworkHandle,
-    networks::Reliable,
+    network::OpaqueNetwork,
+    networks::Broadcast,
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToNetwork, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address},
         udp::Udp,
+        Pci,
     },
-    Internet, Message,
+    Internet, Message, Network,
 };
 
 /// Simulates a message being repeatedly forwarded on a single network.
@@ -17,51 +18,40 @@ use elvis_core::{
 pub async fn telephone_single() {
     let mut internet = Internet::new();
     let end = 10;
-    let network = internet.network(Reliable::new(1500));
+    let mut network = Broadcast::new(1500);
 
     let remote = 0u32.to_be_bytes().into();
-    internet.machine(
-        [
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared([(remote, network)].into_iter().collect()),
-            SendMessage::new_shared("Hello!", remote, 0xbeef),
-        ],
-        [network],
-    );
+    internet.machine([
+        Udp::new_shared() as SharedProtocol,
+        Ipv4::new_shared([(remote, 0)].into_iter().collect()),
+        Pci::new_shared([network.tap()]),
+        SendMessage::new_shared("Hello!", remote, 0xbeef),
+    ]);
 
     for i in 0u32..(end - 1) {
-        let (local, remote, table) = create_ip_table(i, network);
-        internet.machine(
-            [
-                Udp::new_shared() as SharedProtocol,
-                Ipv4::new_shared(table),
-                Forward::new_shared(local, remote, 0xbeef, 0xbeef),
-            ],
-            [network],
-        );
+        let local: Ipv4Address = i.to_be_bytes().into();
+        let remote: Ipv4Address = (i + 1).to_be_bytes().into();
+        let table = [(local, 0), (remote, 1)].into_iter().collect();
+        internet.machine([
+            Udp::new_shared() as SharedProtocol,
+            Ipv4::new_shared(table),
+            Pci::new_shared([network.tap()]),
+            Forward::new_shared(local, remote, 0xbeef, 0xbeef),
+        ]);
     }
 
     let local = (end - 1).to_be_bytes().into();
     let capture = Capture::new_shared(local, 0xbeef);
-    internet.machine(
-        [
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared([(local, network)].into_iter().collect()),
-            capture.clone(),
-        ],
-        [network],
-    );
+    internet.machine([
+        Udp::new_shared() as SharedProtocol,
+        Ipv4::new_shared([(local, 0)].into_iter().collect()),
+        Pci::new_shared([network.tap()]),
+        capture.clone(),
+    ]);
 
-    internet.run().await;
+    internet.run([Box::new(network) as OpaqueNetwork]).await;
     assert_eq!(
         capture.application().message(),
         Some(Message::new("Hello!"))
     );
-}
-
-fn create_ip_table(i: u32, network: NetworkHandle) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
-    let local: Ipv4Address = i.to_be_bytes().into();
-    let remote: Ipv4Address = (i + 1).to_be_bytes().into();
-    let table = [(local, network), (remote, network)].into_iter().collect();
-    (local, remote, table)
 }

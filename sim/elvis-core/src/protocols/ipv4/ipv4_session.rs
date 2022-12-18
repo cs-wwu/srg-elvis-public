@@ -4,12 +4,10 @@ use super::{
 };
 use crate::{
     control::{Key, Primitive},
+    machine::TapSlot,
     message::Message,
     protocol::{Context, ProtocolId},
-    protocols::{
-        tap::{NetworkId, Tap},
-        udp::Udp,
-    },
+    protocols::{pci::Pci, udp::Udp},
     session::{QueryError, ReceiveError, SendError, SharedSession},
     Session,
 };
@@ -23,8 +21,8 @@ pub struct Ipv4Session {
     downstream: SharedSession,
     /// The identifying information for this session
     id: SessionId,
-    /// The ID of the network to send on
-    network_id: NetworkId,
+    /// The PCI slot to send on
+    tap_slot: TapSlot,
 }
 
 impl Ipv4Session {
@@ -33,13 +31,13 @@ impl Ipv4Session {
         downstream: SharedSession,
         upstream: ProtocolId,
         identifier: SessionId,
-        network_id: NetworkId,
+        tap_slot: TapSlot,
     ) -> Self {
         Self {
             upstream,
             downstream,
             id: identifier,
-            network_id,
+            tap_slot,
         }
     }
 }
@@ -66,8 +64,8 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        Tap::set_network_id(self.network_id, &mut context.info);
-        Tap::set_first_responder(Ipv4::ID, &mut context.info);
+        Pci::set_tap_index(self.tap_slot, &mut context.info);
+        Pci::set_first_responder(Ipv4::ID, &mut context.info);
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
         Ok(())
