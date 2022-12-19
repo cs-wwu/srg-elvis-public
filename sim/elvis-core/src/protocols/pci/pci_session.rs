@@ -74,10 +74,8 @@ impl Session for PciSession {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
-        // TODO(hardint): Add support for querying the MTU
-        // TODO(hardint): Add support for querying the machine ID
-        Err(QueryError::MissingKey)
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+        self.tap.clone().query(key)
     }
 }
 
