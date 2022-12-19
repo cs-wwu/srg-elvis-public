@@ -33,6 +33,7 @@ pub struct Pci {
 impl Pci {
     /// A unique identifier for the protocol.
     pub const ID: Id = Id::from_string("PCI");
+    pub const SLOT_COUNT_QUERY_KEY: Key = (Self::ID, 0);
 
     /// Creates a new network tap.
     pub fn new(taps: impl IntoIterator<Item = SharedTap>) -> Self {
@@ -126,9 +127,10 @@ impl Protocol for Pci {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
-        // TODO(hardint): Add support for querying the MTU
-        // TODO(hardint): Add support for querying the machine ID
-        Err(QueryError::NonexistentKey)
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+        match key {
+            Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.len() as u64).into()),
+            _ => Err(QueryError::NonexistentKey),
+        }
     }
 }

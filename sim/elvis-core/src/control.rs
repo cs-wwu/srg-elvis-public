@@ -10,8 +10,10 @@ use thiserror::Error as ThisError;
 pub(crate) mod primitive;
 pub use primitive::Primitive;
 
+pub type PropertyKey = u64;
+
 /// A key for a [`Control`].
-pub type Key = (Id, u64);
+pub type Key = (Id, PropertyKey);
 
 /// A key-value store with which to exchange data between protocols.
 ///

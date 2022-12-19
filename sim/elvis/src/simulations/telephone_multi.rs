@@ -53,3 +53,11 @@ pub async fn telephone_multi() {
         Some(Message::new("Hello!"))
     );
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn telephone_multi() {
+        super::telephone_multi().await
+    }
+}

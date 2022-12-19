@@ -54,3 +54,11 @@ pub async fn telephone_single() {
         Some(Message::new("Hello!"))
     );
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn telephone_single() {
+        super::telephone_single().await
+    }
+}

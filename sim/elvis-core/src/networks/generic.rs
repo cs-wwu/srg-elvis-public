@@ -24,6 +24,7 @@ pub struct Generic {
 
 impl Generic {
     pub const ID: Id = Id::from_string("Direct network");
+    pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
 
     pub fn new(mtu: Mtu) -> Self {
         Self {
@@ -125,8 +126,11 @@ impl Tap for DirectTap {
         }
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
-        todo!()
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+        match key {
+            Generic::MTU_QUERY_KEY => Ok(self.mtu.into()),
+            _ => Err(QueryError::MissingKey),
+        }
     }
 }
 
