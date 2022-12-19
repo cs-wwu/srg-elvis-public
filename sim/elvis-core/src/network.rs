@@ -1,7 +1,5 @@
 //! Contains the [`Tap`] trait and supporting types.
 
-use tokio::sync::Barrier;
-
 use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
@@ -10,9 +8,15 @@ use crate::{
     Control, Message,
 };
 use std::sync::Arc;
+use tokio::sync::Barrier;
 
 pub type SharedTap = Arc<dyn Tap + Send + Sync + 'static>;
+pub type OpaqueNetwork = Box<dyn Network>;
 pub type TapIndex = u32;
+
+pub trait Network {
+    fn start(self: Box<Self>, barrier: Arc<Barrier>);
+}
 
 pub trait Tap {
     /// Spawns a task for the Network to run in and returns half a channel on

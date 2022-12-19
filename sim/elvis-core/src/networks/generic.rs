@@ -1,7 +1,7 @@
 use crate::{
     control::{Key, Primitive},
     id::Id,
-    network::{SharedTap, Tap, TapEnvironment},
+    network::{Network, SharedTap, Tap, TapEnvironment},
     protocol::Context,
     session::{QueryError, SendError},
     Control, Message,
@@ -43,6 +43,15 @@ impl Generic {
             receive,
             self.broadcast.clone(),
         ))
+    }
+}
+
+impl Network for Generic {
+    fn start(self: Box<Self>, barrier: Arc<Barrier>) {
+        // TODO(hardint)
+        tokio::spawn(async move {
+            barrier.wait().await;
+        });
     }
 }
 

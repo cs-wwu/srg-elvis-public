@@ -52,13 +52,14 @@ pub use protocol::Protocol;
 pub mod session;
 pub use session::Session;
 
-pub mod internet;
-pub use internet::Internet;
-
 pub mod network;
+pub use network::Network;
 
 mod machine;
-use machine::Machine;
+pub use machine::Machine;
+
+mod internet;
+pub use internet::run_internet;
 
 mod id;
 pub use id::Id;

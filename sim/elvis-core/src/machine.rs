@@ -19,7 +19,7 @@ pub(crate) type ProtocolMap = Arc<HashMap<Id, SharedProtocol>>;
 /// [`Network`](super::Network)s. Each machine contains a set of
 /// [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
-pub(crate) struct Machine {
+pub struct Machine {
     protocols: ProtocolMap,
 }
 
@@ -46,7 +46,7 @@ impl Machine {
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
+    pub(crate) fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
         let protocol_context = Context::new(self.protocols.clone());
         for protocol in self.protocols.values() {
             protocol
