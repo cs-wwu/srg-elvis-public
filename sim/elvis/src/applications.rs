@@ -9,9 +9,6 @@ pub use send_message::SendMessage;
 mod forward;
 pub use forward::Forward;
 
-mod unreliable_tester;
-pub use unreliable_tester::UnreliableTester;
-
 mod ping_pong;
 pub use ping_pong::PingPong;
 

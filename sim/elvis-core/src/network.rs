@@ -1,4 +1,4 @@
-//! Contains the [`Network`] trait and supporting types.
+//! Contains the [`Tap`] trait and supporting types.
 
 use tokio::sync::Barrier;
 

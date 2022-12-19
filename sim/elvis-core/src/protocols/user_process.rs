@@ -23,8 +23,8 @@ pub trait Application {
     /// A unique identifier for the application.
     const ID: Id;
 
-    /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
-    /// is not called in response to specific events.
+    /// Gives the application an opportunity to set up before the simulation
+    /// begins.
     fn start(
         self: Arc<Self>,
         context: Context,
