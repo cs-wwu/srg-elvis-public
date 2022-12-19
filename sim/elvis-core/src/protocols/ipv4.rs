@@ -31,7 +31,7 @@ pub type IpToTapSlot = DashMap<Ipv4Address, TapSlot>;
 pub struct Ipv4 {
     listen_bindings: DashMap<Ipv4Address, Id>,
     sessions: DashMap<SessionId, Arc<Ipv4Session>>,
-    ip_to_network: IpToTapSlot,
+    ip_tap_slot: IpToTapSlot,
 }
 
 impl Ipv4 {
@@ -43,7 +43,7 @@ impl Ipv4 {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            ip_to_network: network_for_ip,
+            ip_tap_slot: network_for_ip,
         }
     }
 
@@ -105,7 +105,7 @@ impl Protocol for Ipv4 {
             }
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
-                let tap_slot = { *self.ip_to_network.get(&key.remote).unwrap() };
+                let tap_slot = { *self.ip_tap_slot.get(&key.remote).unwrap() };
                 Pci::set_tap_slot(tap_slot, &mut participants);
                 let tap_session = context.protocol(Pci::ID).expect("No such protocol").open(
                     Self::ID,

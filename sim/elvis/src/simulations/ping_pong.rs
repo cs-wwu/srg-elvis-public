@@ -20,7 +20,7 @@ const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);
 pub async fn ping_pong() {
     let mut internet = Internet::new();
     let mut network = Generic::new(1500);
-    let ip_table: IpToTapSlot = [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 1)].into_iter().collect();
+    let ip_table: IpToTapSlot = [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 0)].into_iter().collect();
 
     internet.machine([
         Udp::new_shared() as SharedProtocol,
