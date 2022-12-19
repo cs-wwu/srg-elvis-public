@@ -1,5 +1,7 @@
 //! Contains the [`Network`] trait and supporting types.
 
+use tokio::sync::Barrier;
+
 use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
@@ -13,10 +15,9 @@ pub type SharedTap = Arc<dyn Tap + Send + Sync + 'static>;
 pub type TapIndex = u32;
 
 pub trait Tap {
-    // TODO(hardint): Start should take an initialization barrier
     /// Spawns a task for the Network to run in and returns half a channel on
     /// which to send messages to the network.
-    fn start(self: Arc<Self>, environment: TapEnvironment);
+    fn start(self: Arc<Self>, environment: TapEnvironment, barrier: Arc<Barrier>);
 
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.

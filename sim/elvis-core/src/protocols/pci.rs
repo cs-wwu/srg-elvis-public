@@ -118,10 +118,15 @@ impl Protocol for Pci {
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
     ) -> Result<(), StartError> {
+        let barrier = Arc::new(Barrier::new(self.sessions.len() + 1));
         for session in self.sessions.iter() {
-            session.clone().start(context.protocols.clone());
+            session
+                .clone()
+                .start(context.protocols.clone(), barrier.clone());
         }
         tokio::spawn(async move {
+            // Wait until all the taps have started before starting the sim
+            barrier.wait().await;
             initialized.wait().await;
         });
         Ok(())

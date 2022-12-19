@@ -9,7 +9,7 @@ use crate::{
 use std::sync::{Arc, RwLock};
 use tokio::sync::{
     broadcast::{self, error::RecvError},
-    mpsc,
+    mpsc, Barrier,
 };
 
 use super::{get_destination_mac, Mtu};
@@ -70,10 +70,11 @@ impl DirectTap {
 }
 
 impl Tap for DirectTap {
-    fn start(self: Arc<Self>, environment: TapEnvironment) {
+    fn start(self: Arc<Self>, environment: TapEnvironment, barrier: Arc<Barrier>) {
         let mut direct_receiver = self.direct_receiver.write().unwrap().take().unwrap();
         let mut broadcast_receiver = self.broadcast.subscribe();
         tokio::spawn(async move {
+            barrier.wait().await;
             loop {
                 tokio::select! {
                     message = direct_receiver.recv() => {

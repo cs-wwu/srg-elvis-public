@@ -1,3 +1,5 @@
+use tokio::sync::Barrier;
+
 use super::Pci;
 use crate::{
     control::{Key, Primitive},
@@ -23,9 +25,9 @@ impl PciSession {
         Self { tap, index }
     }
 
-    pub(super) fn start(self: Arc<Self>, protocols: ProtocolMap) {
+    pub(super) fn start(self: Arc<Self>, protocols: ProtocolMap, barrier: Arc<Barrier>) {
         let environment = TapEnvironment::new(protocols, self.clone());
-        self.tap.clone().start(environment);
+        self.tap.clone().start(environment, barrier);
     }
 }
 
