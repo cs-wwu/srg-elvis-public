@@ -79,9 +79,9 @@ impl Protocol for Pci {
         participants: Control,
         _context: Context,
     ) -> Result<SharedSession, OpenError> {
-        let network_id = Pci::get_tap_slot(&participants).or_else(|_| {
+        let network_id = Pci::get_tap_slot(&participants).map_err(|_| {
             tracing::error!("Missing network ID on context");
-            Err(OpenError::MissingContext)
+            OpenError::MissingContext
         })?;
         let session = self
             .sessions
