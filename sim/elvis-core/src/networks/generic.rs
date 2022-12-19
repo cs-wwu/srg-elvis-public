@@ -37,7 +37,7 @@ impl Generic {
     pub fn tap(&mut self) -> SharedTap {
         let (send, receive) = mpsc::channel(16);
         self.connections.write().unwrap().push(send);
-        Arc::new(DirectTap::new(
+        Arc::new(GenericTap::new(
             self.mtu,
             self.connections.clone(),
             receive,
@@ -46,14 +46,14 @@ impl Generic {
     }
 }
 
-pub struct DirectTap {
+pub struct GenericTap {
     mtu: Mtu,
     connections: DirectConnections,
     direct_receiver: Arc<RwLock<Option<mpsc::Receiver<Message>>>>,
     broadcast: broadcast::Sender<Message>,
 }
 
-impl DirectTap {
+impl GenericTap {
     pub fn new(
         mtu: Mtu,
         connections: DirectConnections,
@@ -69,7 +69,7 @@ impl DirectTap {
     }
 }
 
-impl Tap for DirectTap {
+impl Tap for GenericTap {
     fn start(self: Arc<Self>, environment: TapEnvironment, barrier: Arc<Barrier>) {
         let mut direct_receiver = self.direct_receiver.write().unwrap().take().unwrap();
         let mut broadcast_receiver = self.broadcast.subscribe();
