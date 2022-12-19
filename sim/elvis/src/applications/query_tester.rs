@@ -11,11 +11,12 @@ use elvis_core::{
 };
 use tokio::sync::{mpsc::Sender, Barrier};
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct QueryTester;
 
 impl QueryTester {
     pub fn new() -> Self {
-        Self
+        Default::default()
     }
 
     pub fn new_shared() -> Arc<UserProcess<Self>> {
