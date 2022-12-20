@@ -8,11 +8,8 @@ use super::core_parser::general_parser;
 // TODO: Will be configured to accept full files in the future
 /// main wrapper for parsing.
 /// Currently accepts file paths in string form (CLI input needed in the future)
-pub fn generate_sim(file_path: &str) {
-    let contents = fs::read_to_string(file_path)
-        .expect("Should have been able to read the file");
-    let fixed_string = contents.replace('\r', "").replace("    ", "\t");
-    let res = core_parser(&fixed_string, file_path);
+pub fn generate_sim(file_path: String) {
+    let res = core_parser(file_path);
     match res {
         Ok(s) => {
             println!("{:?}", s);
@@ -30,7 +27,10 @@ pub fn generate_sim(file_path: &str) {
 /// Takes in a string of the contents of the file and the file path of that file.
 /// Returns the resulting sim, or an error message.
 // TODO: make it so we only have to pass a file path through to this function
-pub fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
+pub fn core_parser(file_path: String) -> Result<Sim, String> {
+    let s = fs::read_to_string(&file_path)
+        .expect("Should have been able to read the file").replace('\r', "").replace("    ", "\t");
+    // let fixed_string = contents.replace('\r', "").replace("    ", "\t");
     let mut networks = Networks::new();
     let mut machines = Machines::new();
 
@@ -40,7 +40,7 @@ pub fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
 
     // loops until we run out of input
     while !remaining_string.is_empty() {
-        let res = general_parser(remaining_string, &mut line_num);
+        let res = general_parser(&remaining_string, &mut line_num);
         match res {
             Ok(info) => {
                 let dectype = info.0;
@@ -58,7 +58,7 @@ pub fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
                                 // update the remaining string and networks list if we got a result
                                 remaining_string = n.1;
                                 for new_nets in n.0 {
-                                    if networks.contains_key(new_nets.0) {
+                                    if networks.contains_key(&new_nets.0) {
                                         return Err(format!("{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", num_tabs_to_string(num_tabs), line_num, new_nets.0));
                                     }
                                     networks.insert(new_nets.0, new_nets.1);

@@ -22,13 +22,13 @@ pub enum DecType {
 }
 
 pub type Res<T, U> = IResult<T, U, VerboseError<T>>;
-pub type Params<'a> = HashMap<&'a str, &'a str>;
-pub type Networks<'a> = HashMap<&'a str, Network<'a>>;
-pub type MachineNetworks<'a> = Vec<MachineNetwork<'a>>;
-pub type Protocols<'a> = Vec<Protocol<'a>>;
-pub type Applications<'a> = Vec<Application<'a>>;
-pub type Machines<'a> = Vec<Machine<'a>>;
-pub type IPs<'a> = Vec<IP<'a>>;
+pub type Params = HashMap<String, String>;
+pub type Networks = HashMap<String, Network>;
+pub type MachineNetworks = Vec<MachineNetwork>;
+pub type Protocols = Vec<Protocol>;
+pub type Applications = Vec<Application>;
+pub type Machines = Vec<Machine>;
+pub type IPs = Vec<IP>;
 
 /// Interfaces Struct.
 /// Holds the various types stored inside a [Machine].
@@ -36,10 +36,10 @@ pub type IPs<'a> = Vec<IP<'a>>;
 /// 
 /// Contains: [MachineNetworks], [Protocols], and [Applications]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Interfaces<'a> {
-    pub networks: MachineNetworks<'a>,
-    pub protocols: Protocols<'a>,
-    pub applications: Applications<'a>,
+pub struct Interfaces {
+    pub networks: MachineNetworks,
+    pub protocols: Protocols,
+    pub applications: Applications,
 }
 
 /// Machine Struct.
@@ -48,10 +48,10 @@ pub struct Interfaces<'a> {
 /// 
 /// Contains: [DecType], [Params], and the [Interfaces] used for that machine
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Machine<'a> {
+pub struct Machine {
     pub dectype: DecType,
-    pub options: Option<Params<'a>>,
-    pub interfaces: Interfaces<'a>
+    pub options: Option<Params>,
+    pub interfaces: Interfaces
 }
 
 /// Network Struct.
@@ -60,10 +60,10 @@ pub struct Machine<'a> {
 /// 
 /// Contains: [DecType], [Params], and [IPs]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Network<'a> {
+pub struct Network {
     pub dectype: DecType,
-    pub options: Params<'a>,
-    pub ip: IPs<'a>,
+    pub options: Params,
+    pub ip: IPs,
 }
 /// MachineNetwork Struct.
 /// Used to store networks for a machine
@@ -72,9 +72,9 @@ pub struct Network<'a> {
 /// Contains the following:
 /// [DecType], [Params]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct MachineNetwork<'a> {
+pub struct MachineNetwork {
     pub dectype: DecType,
-    pub options: Params<'a>,
+    pub options: Params,
 }
 
 /// Protocol Struct.
@@ -83,9 +83,9 @@ pub struct MachineNetwork<'a> {
 /// 
 /// Contains: [DecType] and [Params]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Protocol<'a> {
+pub struct Protocol {
     pub dectype: DecType,
-    pub options: Params<'a>
+    pub options: Params
 }
 
 /// IP Struct.
@@ -94,9 +94,9 @@ pub struct Protocol<'a> {
 /// 
 /// Contains: [DecType] and [Params]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IP<'a> {
+pub struct IP {
     pub dectype: DecType,
-    pub options: Params<'a>
+    pub options: Params
 }
 
 /// Application Struct.
@@ -105,9 +105,9 @@ pub struct IP<'a> {
 /// 
 /// Contains: [DecType] and [Params]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Application<'a> {
+pub struct Application {
     pub dectype: DecType,
-    pub options: Params<'a>
+    pub options: Params
 }
 
 /// Sim Struct.
@@ -116,9 +116,9 @@ pub struct Application<'a> {
 /// 
 /// Contains: [Networks] and [Machines]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Sim<'a> {
-    pub networks: Networks<'a>,
-    pub machines: Machines<'a>
+pub struct Sim {
+    pub networks: Networks,
+    pub machines: Machines
 }
 
 impl From<&str> for DecType {

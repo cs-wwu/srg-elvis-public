@@ -15,7 +15,7 @@ use std::collections::HashMap;
 ///
 /// Takes in a string and the current line number of the file we are looking it.
 /// Returns either an error string or a tuple containing the DecType it got, the Params it got inside of that DecType, and the remaining string after parsing.
-pub fn general_parser<'a>(s: &'a str, line_num: &mut i32) -> Result<(DecType, Params<'a>, &'a str), String> {
+pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, String), String> {
     // grab everything between brackets '[' and ']'
     let sec = section(s);
 
@@ -23,9 +23,9 @@ pub fn general_parser<'a>(s: &'a str, line_num: &mut i32) -> Result<(DecType, Pa
         // s0 = remaining string, s1 = string gotten by parsing
         Ok((s0, s1)) => {
             // parse what was inside of the section to get the type and remaining string
-            let dec = get_type(s1);
+            let dec = get_type(&s1);
             let dectype;
-            let mut args : HashMap<&str, &str> = HashMap::new();
+            let mut args : HashMap<String, String> = HashMap::new();
             match dec {
                 // s2 = (remaining string, dectype)
                 Ok(s2) => {
@@ -43,7 +43,7 @@ pub fn general_parser<'a>(s: &'a str, line_num: &mut i32) -> Result<(DecType, Pa
                                     return Err(format!("Line {:?}: duplicate argument '{}'='{}'\n", *line_num, arg.0, arg.1));
                                 }
 
-                                args.insert(arg.0, arg.1);
+                                args.insert(arg.0.to_string(), arg.1.to_string());
                             }
                         }
 
@@ -67,7 +67,7 @@ pub fn general_parser<'a>(s: &'a str, line_num: &mut i32) -> Result<(DecType, Pa
                 *line_num += 1;
             }
 
-            Ok((dectype, args, &s0[num_new_line as usize..]))
+            Ok((dectype, args, s0[num_new_line as usize..].to_string()))
         }
 
         Err(e) => {

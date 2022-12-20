@@ -7,7 +7,7 @@ use super::core_parser::{general_error, general_parser, num_tabs_to_string};
 /// 
 /// Takes in a [DecType], [Params], remaining string, current number of tabs, and the current line number.
 /// Returns either an error String, or a tuple containing [Networks] and the remaining string.
-pub fn networks_parser<'a>(dec: DecType, _args: Params<'a>, s0: &'a str, num_tabs: i32, line_num: &mut i32) -> Result<(Networks<'a>, &'a str), String>{
+pub fn networks_parser(dec: DecType, _args: Params, s0: String, num_tabs: i32, line_num: &mut i32) -> Result<(Networks, String), String>{
     let mut networks = Networks::new();
     let mut remaining_string = s0;
     // save the line number we start on in this function for errors
@@ -55,7 +55,7 @@ pub fn networks_parser<'a>(dec: DecType, _args: Params<'a>, s0: &'a str, num_tab
                                 if networks.contains_key(id) {
                                     return Err(format!("{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", num_tabs_to_string(num_tabs), networks_line_num, id));
                                 }
-                                networks.insert(id, n.0);
+                                networks.insert(id.to_string(), n.0);
                             }
                             None => {
                                 return Err(format!("{}Line {:?}: Unable to parse Network in Networks due to missing id.", num_tabs_to_string(num_tabs), networks_line_num));
@@ -80,7 +80,7 @@ pub fn networks_parser<'a>(dec: DecType, _args: Params<'a>, s0: &'a str, num_tab
 
 /// Parses a single [Network]. Takes in a [DecType], [Params], remaining string, current number of tabs, and the current line number.
 /// Returns either an error String, or a tuple containing [Network] and the remaining string.
-fn network_parser<'a>(dec: DecType, args: Params<'a>, s0: &'a str, num_tabs: i32, line_num: &mut i32) -> Result<(Network<'a>, &'a str), String>{
+fn network_parser<'a>(dec: DecType, args: Params, s0: String, num_tabs: i32, line_num: &mut i32) -> Result<(Network, String), String>{
     let mut ips = IPs::new();
 	let mut remaining_string = s0;
     // save the beginning of this declarations line num

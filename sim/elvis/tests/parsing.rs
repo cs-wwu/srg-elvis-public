@@ -1,17 +1,13 @@
-// use std::collections::HashMap;
-use std::fs;
+use std::collections::HashMap;
 use elvis::parsing::core_parser;
-// use elvis::parsing::parsing_data::*;
+use elvis::parsing::parsing_data::*;
 
 /// main wrapper for parsing testing.
-fn parser_testing(file_path: &str) -> Result<String, String> {
-    let contents = fs::read_to_string(file_path)
-        .expect("Should have been able to read the file");
-    let fixed_string = contents.replace('\r', "").replace("    ", "\t");
-    let res = core_parser(&fixed_string, file_path);
+fn parser_testing(file_path: &str) -> Result<Sim, String> {
+    let res = core_parser(file_path.to_string());
     match res {
         Ok(s) => {
-            return Ok(format!("{:?}", s));
+            return Ok(s);
         }
 
         Err(e) => {
@@ -19,87 +15,86 @@ fn parser_testing(file_path: &str) -> Result<String, String> {
         }
     }
 }
-// TODO: Test broken as hashmap ordering comparisons as strings
-// TODO: Need to fix borrowed property so we can compare sim's directly
-// #[test]
-// fn parsing_test_correct() {
-//     let result = parser_testing("./tests/parsing_tests/test1.txt");
-//     let s = Sim { 
-//         networks: HashMap::from([
-//             ("5", Network { 
-//                 dectype: DecType::Network, 
-//                 options: HashMap::from([("id", "5")]), 
-//                 ip: vec![
-//                     IP { 
-//                         dectype: DecType::IP, 
-//                         options: HashMap::from([("range", "123.45.67.89-123.45.67.91")])
-//                     }, 
-//                     IP { 
-//                         dectype: DecType::IP, 
-//                         options: HashMap::from([("range", "123.45.67.92-123.45.67.94")])
-//                     }, 
-//                     IP { 
-//                         dectype: DecType::IP, 
-//                         options: HashMap::from([("ip", "192.168.1.121")])
-//                     }
-//                 ] 
-//             }), 
-//             ("1", Network { 
-//                 dectype: DecType::Network, 
-//                 options: HashMap::from([("id", "1")]), 
-//                 ip: vec![
-//                     IP { 
-//                         dectype: DecType::IP, 
-//                         options: HashMap::from([("range", "12.34.56.789-14.34.56.789")])
-//                     }
-//                 ] 
-//             })
-//         ]), 
-//         machines: vec![
-//             Machine { 
-//                 dectype: DecType::Machine, 
-//                 options: Some(HashMap::from([
-//                     ("name", "test")
-//                 ])), 
-//                 interfaces: Interfaces { 
-//                     networks: vec![
-//                         MachineNetwork { 
-//                             dectype: DecType::Network, 
-//                             options: HashMap::from([
-//                                 ("id", "5")
-//                             ])
-//                         }
-//                     ], 
-//                     protocols: vec![
-//                         Protocol { 
-//                             dectype: DecType::Protocol, 
-//                             options: HashMap::from([
-//                                 ("name", "IPv4")
-//                             ])
-//                         }, Protocol { 
-//                             dectype: DecType::Protocol, 
-//                             options: HashMap::from([
-//                                 ("name", "TCP")
-//                             ])
-//                         }
-//                     ], 
-//                     applications: vec![
-//                         Application { 
-//                             dectype: DecType::Application, 
-//                             options: HashMap::from([
-//                                 ("name", "send_message"), 
-//                                 ("message", "Hello!"), 
-//                                 ("to", "10.0.0.1")
-//                                 ])
-//                         }
-//                     ] 
-//                 } 
-//             }
-//         ]
-//     };
+
+#[test]
+fn parsing_test_correct() {
+    let result = parser_testing("./tests/parsing_tests/test1.txt");
+    let s = Sim { 
+        networks: HashMap::from([
+            ("5".to_string(), Network { 
+                dectype: DecType::Network, 
+                options: HashMap::from([("id".to_string(), "5".to_string())]), 
+                ip: vec![
+                    IP { 
+                        dectype: DecType::IP, 
+                        options: HashMap::from([("range".to_string(), "123.45.67.89-123.45.67.91".to_string())])
+                    }, 
+                    IP { 
+                        dectype: DecType::IP, 
+                        options: HashMap::from([("range".to_string(), "123.45.67.92-123.45.67.94".to_string())])
+                    }, 
+                    IP { 
+                        dectype: DecType::IP, 
+                        options: HashMap::from([("ip".to_string(), "192.168.1.121".to_string())])
+                    }
+                ] 
+            }), 
+            ("1".to_string(), Network { 
+                dectype: DecType::Network, 
+                options: HashMap::from([("id".to_string(), "1".to_string())]), 
+                ip: vec![
+                    IP { 
+                        dectype: DecType::IP, 
+                        options: HashMap::from([("range".to_string(), "12.34.56.789-14.34.56.789".to_string())])
+                    }
+                ] 
+            })
+        ]), 
+        machines: vec![
+            Machine { 
+                dectype: DecType::Machine, 
+                options: Some(HashMap::from([
+                    ("name".to_string(), "test".to_string())
+                ])), 
+                interfaces: Interfaces { 
+                    networks: vec![
+                        MachineNetwork { 
+                            dectype: DecType::Network, 
+                            options: HashMap::from([
+                                ("id".to_string(), "5".to_string())
+                            ])
+                        }
+                    ], 
+                    protocols: vec![
+                        Protocol { 
+                            dectype: DecType::Protocol, 
+                            options: HashMap::from([
+                                ("name".to_string(), "IPv4".to_string())
+                            ])
+                        }, Protocol { 
+                            dectype: DecType::Protocol, 
+                            options: HashMap::from([
+                                ("name".to_string(), "TCP".to_string())
+                            ])
+                        }
+                    ], 
+                    applications: vec![
+                        Application { 
+                            dectype: DecType::Application, 
+                            options: HashMap::from([
+                                ("name".to_string(), "send_message".to_string()), 
+                                ("message".to_string(), "Hello!".to_string()), 
+                                ("to".to_string(), "10.0.0.1".to_string())
+                                ])
+                        }
+                    ] 
+                } 
+            }
+        ]
+    };
     
-//     assert_eq!(result.unwrap(), format!("{:?}", s))
-// }
+    assert_eq!(result.unwrap(), s)
+}
 
 #[test]
 fn parsing_test_network_fail_1() {

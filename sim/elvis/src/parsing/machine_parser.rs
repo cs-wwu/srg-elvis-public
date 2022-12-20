@@ -11,11 +11,11 @@ use super::parsing_data::*;
 /// a Vec of machines to be handled by the coding parser later.
 pub fn machines_parser<'a>(
     dec: DecType,
-    _args: Params<'a>,
-    s0: &'a str,
+    _args: Params,
+    s0: String,
     num_tabs: i32,
     line_num: &mut i32,
-) -> Result<(Machines<'a>, &'a str), String> {
+) -> Result<(Machines, String), String> {
     let mut machines = Machines::new();
     let mut remaining_string = s0;
     let machines_line_num = *line_num - 1;
@@ -28,7 +28,7 @@ pub fn machines_parser<'a>(
         // next line doesn't have enough tabs thus a network isn't being declared
         match t{
             t if t < num_tabs => {
-                return Ok((machines, remaining_string))
+                return Ok((machines, remaining_string.to_string()))
             },
             t if t > num_tabs => {
                 return Err(general_error(
@@ -107,13 +107,13 @@ pub fn machines_parser<'a>(
 ///
 /// Will return a either Machine or an Error in a Result
 /// Note: Will only parse a section of [Networks], [Protocols], or [Applications] once per machine
-fn machine_parser<'a>(
+fn machine_parser(
     dec: DecType,
-    args: Params<'a>,
-    s0: &'a str,
+    args: Params,
+    s0: String,
     num_tabs: i32,
     line_num: &mut i32,
-) -> Result<(Machine<'a>, &'a str), String> {
+) -> Result<(Machine, String), String> {
     let mut networks: MachineNetworks = MachineNetworks::new();
     let mut protocols: Protocols = Protocols::new();
     let mut applications: Applications = Applications::new();
@@ -298,13 +298,13 @@ fn machine_parser<'a>(
 
 /// Parses the [Network] from a machine.
 /// Machine networks will have ID's or names to correlate with defined Networks
-fn machine_networks_parser<'a>(
+fn machine_networks_parser(
     dec: DecType,
-    _args: Params<'a>,
-    s0: &'a str,
+    _args: Params,
+    s0: String,
     num_tabs: i32,
     line_num: &mut i32,
-) -> Result<(MachineNetworks<'a>, &'a str), String> {
+) -> Result<(MachineNetworks, String), String> {
     let mut networks = MachineNetworks::new();
     let mut remaining_string = s0;
     let networks_line_num = *line_num - 1;
@@ -373,13 +373,13 @@ fn machine_networks_parser<'a>(
 
 /// Parses the [Protocol] from a machine.
 /// Machine protocols will contain connection types such as TCP, UDP, or IPv4
-fn machine_protocols_parser<'a>(
+fn machine_protocols_parser(
     dec: DecType,
-    _args: Params<'a>,
-    s0: &'a str,
+    _args: Params,
+    s0: String,
     num_tabs: i32,
     line_num: &mut i32,
-) -> Result<(Protocols<'a>, &'a str), String> {
+) -> Result<(Protocols, String), String> {
     let mut protocols = Protocols::new();
     let mut remaining_string = s0;
     let protocols_line_num = *line_num - 1;
@@ -455,11 +455,11 @@ fn machine_protocols_parser<'a>(
 /// Items such as the type of application and data for the application will be parsed here
 fn machine_applications_parser<'a>(
     dec: DecType,
-    _args: Params<'a>,
-    s0: &'a str,
+    _args: Params,
+    s0: String,
     num_tabs: i32,
     line_num: &mut i32,
-) -> Result<(Applications<'a>, &'a str), String> {
+) -> Result<(Applications, String), String> {
     let mut apps = Applications::new();
     let mut remaining_string = s0;
     let applications_line_num = *line_num - 1;
