@@ -4,17 +4,13 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort},
-        user_process::{Application, UserProcess},
+        user_process::{Application, ApplicationError, UserProcess},
         Udp,
     },
     session::SharedSession,
     Control,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
-use thiserror::Error as ThisError;
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that sends a Time To Live (TTL) to
@@ -82,7 +78,7 @@ impl Application for PingPong {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
 
         let mut participants = Control::new();
@@ -112,26 +108,29 @@ impl Application for PingPong {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
-        let ttl = message.iter().next().ok_or(PingPongError::NoMessageBody)?;
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+        context: Context,
+    ) -> Result<(), ApplicationError> {
+        let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
-            println!("Pong {}", ttl);
+            tracing::info!("Pong {}", ttl);
         } else {
-            println!("Ping {}", ttl);
+            tracing::info!("Ping {}", ttl);
         }
 
         let ttl = ttl - 1;
 
         if ttl == 0 {
-            println!("TTL has reach 0, PingPong has successfully completed");
+            tracing::info!("TTL has reach 0, PingPong has successfully completed");
             if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
                 tokio::spawn(async move {
                     shutdown.send(()).await.unwrap();
                 });
             }
         } else {
-            // println!("{}", ttl);
             self.session
                 .clone()
                 .lock()
@@ -143,10 +142,4 @@ impl Application for PingPong {
         }
         Ok(())
     }
-}
-
-#[derive(Debug, ThisError)]
-pub enum PingPongError {
-    #[error("The message contained no ttl")]
-    NoMessageBody,
 }

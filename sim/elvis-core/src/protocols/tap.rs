@@ -6,14 +6,11 @@ use crate::{
     machine::MachineId,
     message::Message,
     network::Delivery,
-    protocol::{Context, ProtocolId},
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     session::SharedSession,
     Control, Protocol,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Barrier,
@@ -70,7 +67,7 @@ impl Protocol for Tap {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, OpenError> {
         Ok(self.session.clone())
     }
 
@@ -79,7 +76,7 @@ impl Protocol for Tap {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ListenError> {
         Ok(())
     }
 
@@ -88,7 +85,7 @@ impl Protocol for Tap {
         _message: Message,
         _caller: SharedSession,
         _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), DemuxError> {
         // We use accept_incoming instead of demux because there are no
         // protocols under this one that would ask Tap to demux a message and
         // because, semantically, demux chooses one of its own sessions to
@@ -102,7 +99,7 @@ impl Protocol for Tap {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), StartError> {
         // Move the channel into the task. It cannot not be accessed from
         // `self` after this point.
         let mut receiver = self.receiver.lock().unwrap().take().unwrap();
@@ -110,24 +107,22 @@ impl Protocol for Tap {
             initialized.wait().await;
             // Repeatedly receive messages and pass them up the stack
             while let Some(delivery) = receiver.recv().await {
-                match self
+                // Ignore failed deliveries. Rely on sessions to report errors
+                // via tracing.
+                let _ = self
                     .session
                     .clone()
-                    .receive_delivery(delivery, context.clone())
-                {
-                    Ok(()) => {}
-                    Err(e) => println!("{}", e),
-                }
+                    .receive_delivery(delivery, context.clone());
             }
         });
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add support for querying the MTU
         match key {
             MACHINE_ID_KEY => Ok(self.session.machine_id.into()),
-            _ => Err(TapError::NoSuchKey.into()),
+            _ => Err(QueryError::NonexistentKey),
         }
     }
 }

@@ -4,15 +4,12 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort, Udp},
-        user_process::{Application, UserProcess},
+        user_process::{Application, ApplicationError, UserProcess},
     },
     session::SharedSession,
     Control,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]
@@ -65,7 +62,7 @@ impl Application for Forward {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, self.local_ip);
         RemoteAddress::set(&mut participants, self.remote_ip);
@@ -86,7 +83,12 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+        context: Context,
+    ) -> Result<(), ApplicationError> {
+        // TODO(hardint): Use ? again
         self.outgoing
             .clone()
             .lock()

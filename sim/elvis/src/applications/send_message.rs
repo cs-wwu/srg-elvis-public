@@ -4,11 +4,11 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort, Udp},
-        user_process::{Application, UserProcess},
+        user_process::{Application, ApplicationError, UserProcess},
     },
     Control,
 };
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that sends a single message over the network.
@@ -49,7 +49,7 @@ impl Application for SendMessage {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, Ipv4Address::LOCALHOST);
         RemoteAddress::set(&mut participants, self.ip);
@@ -59,15 +59,18 @@ impl Application for SendMessage {
         let session = protocol.open(Self::ID, participants, context.clone())?;
         tokio::spawn(async move {
             initialized.wait().await;
-            match session.send(Message::new(self.text), context) {
-                Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
-            }
+            session
+                .send(Message::new(self.text), context)
+                .expect("SendMessage failed to send");
         });
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
+    fn receive(
+        self: Arc<Self>,
+        _message: Message,
+        _context: Context,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

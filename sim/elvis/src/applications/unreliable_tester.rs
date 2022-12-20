@@ -3,13 +3,12 @@ use elvis_core::{
     protocols::{
         ipv4::{LocalAddress, RemoteAddress},
         udp::{LocalPort, RemotePort},
-        user_process::Application,
+        user_process::{Application, ApplicationError},
         Udp, UserProcess,
     },
     Control, Message,
 };
 use std::{
-    error::Error,
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
@@ -66,7 +65,7 @@ impl Application for UnreliableTester {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         // Synchronous initialization
         *self.shutdown.lock().unwrap() = Some(shutdown);
         *self.last_receipt.lock().unwrap() = SystemTime::now();
@@ -105,19 +104,20 @@ impl Application for UnreliableTester {
 
             // Send 100 messages to our peer
             for i in 0..100u32 {
-                match send_session
+                send_session
                     .clone()
                     .send(Message::new(&i.to_be_bytes()), context.clone())
-                {
-                    Ok(_) => {}
-                    Err(e) => eprintln!("{}", e),
-                }
+                    .expect("UnreliableTester failed to send");
             }
         });
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
+    fn receive(
+        self: Arc<Self>,
+        _message: Message,
+        _context: Context,
+    ) -> Result<(), ApplicationError> {
         *self.last_receipt.lock().unwrap() = SystemTime::now();
         *self.receipt_count.lock().unwrap() += 1;
         Ok(())

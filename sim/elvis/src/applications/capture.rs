@@ -4,15 +4,12 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4Address, LocalAddress},
         udp::LocalPort,
-        user_process::{Application, UserProcess},
+        user_process::{Application, ApplicationError, UserProcess},
         Udp,
     },
     Control,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that stores the first message it receives and then exits the
@@ -59,7 +56,7 @@ impl Application for Capture {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
         let mut participants = Control::new();
         LocalAddress::set(&mut participants, self.ip_address);
@@ -74,7 +71,11 @@ impl Application for Capture {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+        _context: Context,
+    ) -> Result<(), ApplicationError> {
         *self.message.lock().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
             tokio::spawn(async move {

@@ -1,33 +1,31 @@
 //! An implementation of [Internet Protocol version
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
+use super::tap::NetworkId;
 use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
     message::Message,
-    protocol::{Context, ProtocolId},
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     protocols::tap::Tap,
     session::SharedSession,
     Control, Protocol, Session,
 };
-use std::{error::Error, sync::Arc};
+use dashmap::{mapref::entry::Entry, DashMap};
+use std::sync::Arc;
+use tokio::sync::{mpsc::Sender, Barrier};
 
 mod ipv4_parsing;
-use dashmap::{mapref::entry::Entry, DashMap};
 use ipv4_parsing::Ipv4Header;
 
 mod ipv4_address;
 pub use ipv4_address::Ipv4Address;
 
 mod ipv4_misc;
-use ipv4_misc::Ipv4Error;
 pub use ipv4_misc::{LocalAddress, RemoteAddress};
 
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
-use tokio::sync::{mpsc::Sender, Barrier};
-
-use super::tap::NetworkId;
 
 pub type IpToNetwork = DashMap<Ipv4Address, NetworkHandle>;
 
@@ -66,18 +64,28 @@ impl Protocol for Ipv4 {
         Self::ID
     }
 
+    #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, OpenError> {
+        let span = tracing::trace_span!("IPv4 open");
+        let _enter = span.enter();
         // Extract identifying information from the participants list
         let local = LocalAddress::try_from(&participants).unwrap();
         let remote = RemoteAddress::try_from(&participants).unwrap();
         let key = SessionId { local, remote };
         match self.sessions.entry(key) {
-            Entry::Occupied(_) => Err(Ipv4Error::SessionExists(key.local, key.remote))?,
+            Entry::Occupied(_) => {
+                tracing::error!(
+                    "A session already exists for {} -> {}",
+                    key.local,
+                    key.remote
+                );
+                Err(OpenError::Existing)?
+            }
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
                 let network_id = { *self.ip_to_network.get(&remote.into_inner()).unwrap() };
@@ -98,15 +106,21 @@ impl Protocol for Ipv4 {
         }
     }
 
+    #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ListenError> {
+        let span = tracing::trace_span!("IPv4 listen");
+        let _enter = span.enter();
         let local = LocalAddress::try_from(&participants).unwrap();
         match self.listen_bindings.entry(local) {
-            Entry::Occupied(_) => Err(Ipv4Error::BindingExists(local))?,
+            Entry::Occupied(_) => {
+                tracing::error!("A binding already exists for local address {}", local);
+                Err(ListenError::Existing)?
+            }
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
             }
@@ -119,15 +133,24 @@ impl Protocol for Ipv4 {
             .listen(Self::ID, participants, context)
     }
 
+    #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
         self: Arc<Self>,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), DemuxError> {
+        let span = tracing::trace_span!("IPv4 demux");
+        let _enter = span.enter();
         // Extract identifying information from the header and the context and
         // add header information to the context
-        let header = Ipv4Header::from_bytes(message.iter())?;
+        let header = match Ipv4Header::from_bytes(message.iter()) {
+            Ok(header) => header,
+            Err(e) => {
+                tracing::error!("{}", e);
+                Err(DemuxError::Header)?
+            }
+        };
         message.slice(header.ihl as usize * 4..);
         let remote = RemoteAddress::from(header.source);
         let local = LocalAddress::from(header.destination);
@@ -142,12 +165,24 @@ impl Protocol for Ipv4 {
                 Some(binding) => {
                     // If the session does not exist but we have a listen
                     // binding for it, create the session
-                    let network = NetworkId::try_from(&context.info)?;
+                    let network = match NetworkId::try_from(&context.info) {
+                        Ok(network) => network,
+                        Err(_) => {
+                            tracing::error!("Network ID missing from context");
+                            Err(DemuxError::MissingContext)?
+                        }
+                    };
                     let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
                     entry.insert(session.clone());
                     session
                 }
-                None => Err(Ipv4Error::MissingListenBinding(local))?,
+                None => {
+                    tracing::error!(
+                        "Could not find a listen binding for the local address {}",
+                        local
+                    );
+                    Err(DemuxError::MissingSession)?
+                }
             },
         };
         session.receive(message, context)?;
@@ -159,14 +194,14 @@ impl Protocol for Ipv4 {
         _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
         });
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, Box<dyn Error>> {
-        panic!("Nothing to query on IPv4")
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+        Err(QueryError::NonexistentKey)
     }
 }
