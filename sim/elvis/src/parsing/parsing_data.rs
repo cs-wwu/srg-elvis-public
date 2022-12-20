@@ -4,6 +4,7 @@ use nom::{
     error::{VerboseError},
     IResult
 };
+use std::collections::HashMap;
 
 /// DecType is the core type of each parse-able item.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -21,9 +22,8 @@ pub enum DecType {
 }
 
 pub type Res<T, U> = IResult<T, U, VerboseError<T>>;
-pub type Param<'a> = (&'a str, &'a str);
-pub type Params<'a> = Vec<Param<'a>>;
-pub type Networks<'a> = Vec<Network<'a>>;
+pub type Params<'a> = HashMap<&'a str, &'a str>;
+pub type Networks<'a> = HashMap<&'a str, Network<'a>>;
 pub type MachineNetworks<'a> = Vec<MachineNetwork<'a>>;
 pub type Protocols<'a> = Vec<Protocol<'a>>;
 pub type Applications<'a> = Vec<Application<'a>>;

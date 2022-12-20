@@ -49,7 +49,18 @@ pub fn networks_parser<'a>(dec: DecType, _args: Params<'a>, s0: &'a str, num_tab
                 let net = network_parser(dectype, options, remaining_string, num_tabs+1, line_num);
                 match net {
                     Ok(n) => {
-                        networks.push(n.0);
+                        // networks.push(n.0);
+                        match n.0.options.get("id"){
+                            Some(id) => {
+                                if networks.contains_key(id) {
+                                    return Err(format!("{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", num_tabs_to_string(num_tabs), networks_line_num, id));
+                                }
+                                networks.insert(id, n.0);
+                            }
+                            None => {
+                                return Err(format!("{}Line {:?}: Unable to parse Network in Networks due to missing id.", num_tabs_to_string(num_tabs), networks_line_num));
+                            }
+                        }
                         remaining_string = n.1;
                     }
                     Err(e) =>{

@@ -1,6 +1,6 @@
 //! Main parsing file. Will take in a file path as an argument for the file to be parsed
 use std::{fs};
-use super::parsing_data::*;
+use super::{parsing_data::*, num_tabs_to_string};
 use super::machine_parser::machines_parser;
 use super::network_parser::networks_parser;
 use super::core_parser::general_parser;
@@ -58,7 +58,10 @@ pub fn core_parser<'a>(s: &'a str, file_path: &str) -> Result<Sim<'a>, String> {
                                 // update the remaining string and networks list if we got a result
                                 remaining_string = n.1;
                                 for new_nets in n.0 {
-                                    networks.push(new_nets);
+                                    if networks.contains_key(new_nets.0) {
+                                        return Err(format!("{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", num_tabs_to_string(num_tabs), line_num, new_nets.0));
+                                    }
+                                    networks.insert(new_nets.0, new_nets.1);
                                 }
                             }
 

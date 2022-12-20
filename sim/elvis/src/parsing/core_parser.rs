@@ -8,6 +8,8 @@ use nom::{
     multi::many0,
 };
 
+use std::collections::HashMap;
+
 /// General parsing for any line of our NDL.
 /// 
 ///
@@ -23,7 +25,7 @@ pub fn general_parser<'a>(s: &'a str, line_num: &mut i32) -> Result<(DecType, Pa
             // parse what was inside of the section to get the type and remaining string
             let dec = get_type(s1);
             let dectype;
-            let args;
+            let mut args : HashMap<&str, &str> = HashMap::new();
             match dec {
                 // s2 = (remaining string, dectype)
                 Ok(s2) => {
@@ -31,10 +33,17 @@ pub fn general_parser<'a>(s: &'a str, line_num: &mut i32) -> Result<(DecType, Pa
                     
                     match arguments(s2.0) {
                         Ok(a) => {
-                            // a = (remaining string, args)
-                            args = a.1;
                             if !a.0.is_empty() {
-                                return Err(format!("Line {:?}: extra argument at '{}'\n", *line_num, s2.0))
+                                return Err(format!("Line {:?}: extra argument at '{}'\n", *line_num, s2.0));
+                            }
+
+                            for arg in &a.1 {
+                                // makes sure that each argument is a unique one, otherwise error
+                                if args.contains_key(arg.0) {
+                                    return Err(format!("Line {:?}: duplicate argument '{}'='{}'\n", *line_num, arg.0, arg.1));
+                                }
+
+                                args.insert(arg.0, arg.1);
                             }
                         }
 
@@ -57,7 +66,7 @@ pub fn general_parser<'a>(s: &'a str, line_num: &mut i32) -> Result<(DecType, Pa
                 num_new_line += 1;
                 *line_num += 1;
             }
-            
+
             Ok((dectype, args, &s0[num_new_line as usize..]))
         }
 
@@ -123,7 +132,7 @@ fn section(input: &str) -> Res<&str, &str> {
 
 /// Breaks down the arguments of our input for the [general_parser].
 /// For example, turns "name='test' net-id='testing'" into a vector of strings containing "name='test'" and "net-id='testing'"
-fn arguments(input: & str) -> Res<&str, Params> {
+fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
     context(
         "arguments",
         many0(separated_pair(
