@@ -1,7 +1,7 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::{
-    control::{Key, Primitive},
+    control::{ControlError, Key, Primitive},
     internet::NetworkHandle,
     machine::MachineId,
     message::Message,
@@ -16,11 +16,11 @@ use tokio::sync::{
     Barrier,
 };
 
-mod tap_misc;
-pub use tap_misc::*;
-
 mod tap_session;
 use tap_session::TapSession;
+
+pub type NetworkId = u32;
+pub const MACHINE_ID_KEY: Key = (Tap::ID, 2);
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
@@ -54,6 +54,22 @@ impl Tap {
     /// Attach this machine to the given network.
     pub fn attach(self: Arc<Self>, network_id: NetworkHandle, sender: Sender<Delivery>) {
         self.session.clone().attach(network_id, sender);
+    }
+
+    pub fn set_network_id(id: NetworkId, control: &mut Control) {
+        control.insert((Self::ID, 0), id);
+    }
+
+    pub fn get_network_id(control: &Control) -> Result<NetworkId, ControlError> {
+        Ok(control.get((Self::ID, 0))?.ok_u32()?)
+    }
+
+    pub fn set_first_responder(id: ProtocolId, control: &mut Control) {
+        control.insert((Self::ID, 1), id.into_inner());
+    }
+
+    pub fn get_first_responder(control: &Control) -> Result<ProtocolId, ControlError> {
+        Ok(control.get((Self::ID, 1))?.ok_u64()?.into())
     }
 }
 

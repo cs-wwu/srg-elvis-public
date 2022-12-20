@@ -1,9 +1,8 @@
 //! An implementation of [Internet Protocol version
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
-use super::tap::NetworkId;
 use crate::{
-    control::{Key, Primitive},
+    control::{ControlError, Key, Primitive},
     internet::NetworkHandle,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
@@ -21,9 +20,6 @@ use ipv4_parsing::Ipv4Header;
 mod ipv4_address;
 pub use ipv4_address::Ipv4Address;
 
-mod ipv4_misc;
-pub use ipv4_misc::{LocalAddress, RemoteAddress};
-
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
@@ -32,7 +28,7 @@ pub type IpToNetwork = DashMap<Ipv4Address, NetworkHandle>;
 /// An implementation of the Internet Protocol.
 #[derive(Clone)]
 pub struct Ipv4 {
-    listen_bindings: DashMap<LocalAddress, ProtocolId>,
+    listen_bindings: DashMap<Ipv4Address, ProtocolId>,
     sessions: DashMap<SessionId, Arc<Ipv4Session>>,
     ip_to_network: IpToNetwork,
 }
@@ -54,6 +50,22 @@ impl Ipv4 {
     pub fn new_shared(network_for_ip: IpToNetwork) -> Arc<Self> {
         Arc::new(Self::new(network_for_ip))
     }
+
+    pub fn set_local_address(address: Ipv4Address, control: &mut Control) {
+        control.insert((Self::ID, 0), address.to_u32());
+    }
+
+    pub fn get_local_address(control: &Control) -> Result<Ipv4Address, ControlError> {
+        Ok(control.get((Self::ID, 0))?.ok_u32()?.into())
+    }
+
+    pub fn set_remote_address(address: Ipv4Address, control: &mut Control) {
+        control.insert((Self::ID, 1), address.to_u32());
+    }
+
+    pub fn get_remote_address(control: &Control) -> Result<Ipv4Address, ControlError> {
+        Ok(control.get((Self::ID, 1))?.ok_u32()?.into())
+    }
 }
 
 // TODO(hardint): Add a static IP lookup table in the constructor so that
@@ -71,12 +83,16 @@ impl Protocol for Ipv4 {
         participants: Control,
         context: Context,
     ) -> Result<SharedSession, OpenError> {
-        let span = tracing::trace_span!("IPv4 open");
-        let _enter = span.enter();
-        // Extract identifying information from the participants list
-        let local = LocalAddress::try_from(&participants).unwrap();
-        let remote = RemoteAddress::try_from(&participants).unwrap();
-        let key = SessionId { local, remote };
+        let key = SessionId::new(
+            Self::get_local_address(&participants).map_err(|_| {
+                tracing::error!("Missing local address on context");
+                OpenError::MissingContext
+            })?,
+            Self::get_remote_address(&participants).map_err(|_| {
+                tracing::error!("Missing remote address on context");
+                OpenError::MissingContext
+            })?,
+        );
         match self.sessions.entry(key) {
             Entry::Occupied(_) => {
                 tracing::error!(
@@ -88,7 +104,7 @@ impl Protocol for Ipv4 {
             }
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
-                let network_id = { *self.ip_to_network.get(&remote.into_inner()).unwrap() };
+                let network_id = { *self.ip_to_network.get(&key.remote).unwrap() };
                 let tap_session = context.protocol(Tap::ID).expect("No such protocol").open(
                     Self::ID,
                     participants,
@@ -98,7 +114,7 @@ impl Protocol for Ipv4 {
                     tap_session,
                     upstream,
                     key,
-                    network_id.into_inner().into(),
+                    network_id.into_inner(),
                 ));
                 entry.insert(session.clone());
                 Ok(session)
@@ -113,9 +129,10 @@ impl Protocol for Ipv4 {
         participants: Control,
         context: Context,
     ) -> Result<(), ListenError> {
-        let span = tracing::trace_span!("IPv4 listen");
-        let _enter = span.enter();
-        let local = LocalAddress::try_from(&participants).unwrap();
+        let local = Self::get_local_address(&participants).map_err(|_| {
+            tracing::error!("Missing local address on context");
+            ListenError::MissingContext
+        })?;
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => {
                 tracing::error!("A binding already exists for local address {}", local);
@@ -140,8 +157,6 @@ impl Protocol for Ipv4 {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), DemuxError> {
-        let span = tracing::trace_span!("IPv4 demux");
-        let _enter = span.enter();
         // Extract identifying information from the header and the context and
         // add header information to the context
         let header = match Ipv4Header::from_bytes(message.iter()) {
@@ -152,26 +167,21 @@ impl Protocol for Ipv4 {
             }
         };
         message.slice(header.ihl as usize * 4..);
-        let remote = RemoteAddress::from(header.source);
-        let local = LocalAddress::from(header.destination);
-        let identifier = SessionId { local, remote };
+        let identifier = SessionId::new(header.destination, header.source);
 
-        local.apply(&mut context.info);
-        remote.apply(&mut context.info);
+        Self::set_local_address(identifier.local, &mut context.info);
+        Self::set_remote_address(identifier.remote, &mut context.info);
 
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => match self.listen_bindings.get(&local) {
+            Entry::Vacant(entry) => match self.listen_bindings.get(&identifier.local) {
                 Some(binding) => {
                     // If the session does not exist but we have a listen
                     // binding for it, create the session
-                    let network = match NetworkId::try_from(&context.info) {
-                        Ok(network) => network,
-                        Err(_) => {
-                            tracing::error!("Network ID missing from context");
-                            Err(DemuxError::MissingContext)?
-                        }
-                    };
+                    let network = Tap::get_network_id(&context.info).map_err(|_| {
+                        tracing::error!("Missing network ID on context");
+                        DemuxError::MissingContext
+                    })?;
                     let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
                     entry.insert(session.clone());
                     session
@@ -179,7 +189,7 @@ impl Protocol for Ipv4 {
                 None => {
                     tracing::error!(
                         "Could not find a listen binding for the local address {}",
-                        local
+                        identifier.local
                     );
                     Err(DemuxError::MissingSession)?
                 }

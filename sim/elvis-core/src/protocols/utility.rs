@@ -1,5 +1,7 @@
 //! Contains utilities for implementing protocols.
 
+use super::ipv4::Ipv4Address;
+
 /// A calculator for the checksum used by the UDP, TCP, and IP protocols.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Checksum(u16);
@@ -57,5 +59,17 @@ impl Checksum {
             0xffff => 0xffff,
             sum => !sum,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Socket {
+    pub address: Ipv4Address,
+    pub port: u16,
+}
+
+impl Socket {
+    pub fn new(address: Ipv4Address, port: u16) -> Self {
+        Self { address, port }
     }
 }

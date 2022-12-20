@@ -3,15 +3,17 @@
 //! This module primarily implements the [`Control`] key-value store.
 
 use std::collections::HashMap;
+use thiserror::Error as ThisError;
 
 pub(crate) mod primitive;
 pub use primitive::Primitive;
 
-pub(crate) mod value;
-pub use value::Value;
+use crate::protocol::ProtocolId;
+
+use self::primitive::PrimitiveError;
 
 /// A key for a [`Control`].
-pub type Key = u64;
+pub type Key = (ProtocolId, u64);
 
 /// A key-value store with which to exchange data between protocols.
 ///
@@ -50,7 +52,15 @@ impl Control {
     }
 
     /// Gets the value for the given key.
-    pub fn get(&self, key: Key) -> Option<Primitive> {
-        self.0.get(&key).cloned()
+    pub fn get(&self, key: Key) -> Result<Primitive, ControlError> {
+        self.0.get(&key).cloned().ok_or(ControlError::Missing)
     }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ControlError {
+    #[error("Control key missing")]
+    Missing,
+    #[error("{0}")]
+    Primitive(#[from] PrimitiveError),
 }

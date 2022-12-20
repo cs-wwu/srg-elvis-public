@@ -1,13 +1,13 @@
 use super::{
     ipv4_parsing::{Ipv4HeaderBuilder, ProtocolNumber},
-    Ipv4, LocalAddress, RemoteAddress,
+    Ipv4, Ipv4Address,
 };
 use crate::{
     control::{Key, Primitive},
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        tap::{FirstResponder, NetworkId},
+        tap::{NetworkId, Tap},
         udp::Udp,
     },
     session::{QueryError, ReceiveError, SendError, SharedSession},
@@ -53,8 +53,8 @@ impl Session for Ipv4Session {
             _ => panic!("Unknown upstream protocol"),
         };
         let header = match Ipv4HeaderBuilder::new(
-            self.id.local.into(),
-            self.id.remote.into(),
+            self.id.local,
+            self.id.remote,
             protocol_number,
             length as u16,
         )
@@ -66,8 +66,8 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        self.network_id.apply(&mut context.info);
-        FirstResponder::set(&mut context.info, Ipv4::ID.into());
+        Tap::set_network_id(self.network_id, &mut context.info);
+        Tap::set_first_responder(Ipv4::ID, &mut context.info);
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
         Ok(())
@@ -99,7 +99,13 @@ impl Debug for Ipv4Session {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
     /// The local address
-    pub local: LocalAddress,
+    pub local: Ipv4Address,
     /// The remote address
-    pub remote: RemoteAddress,
+    pub remote: Ipv4Address,
+}
+
+impl SessionId {
+    pub fn new(local: Ipv4Address, remote: Ipv4Address) -> Self {
+        Self { local, remote }
+    }
 }

@@ -233,7 +233,7 @@ impl Ipv4HeaderBuilder {
             ((self.flags.as_u8() as u16) << 13) | (self.fragment_offset & FRAGMENT_OFFSET_MASK);
         checksum.add_u16(flags_and_fragment_offset);
 
-        checksum.add_u8(self.time_to_live, self.protocol as u8);
+        checksum.add_u8(self.time_to_live, self.protocol);
         checksum.add_u32(self.source.into());
         checksum.add_u32(self.destination.into());
 
@@ -242,7 +242,7 @@ impl Ipv4HeaderBuilder {
         out.extend_from_slice(&self.identification.to_be_bytes());
         out.extend_from_slice(&flags_and_fragment_offset.to_be_bytes());
         out.push(self.time_to_live);
-        out.push(self.protocol as u8);
+        out.push(self.protocol);
         out.extend_from_slice(&checksum.as_u16().to_be_bytes());
         out.extend_from_slice(&self.source.to_u32().to_be_bytes());
         out.extend_from_slice(&self.destination.to_u32().to_be_bytes());

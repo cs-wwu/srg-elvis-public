@@ -1,4 +1,4 @@
-use super::{tap_misc::FirstResponder, NetworkId, MACHINE_ID_KEY};
+use super::{Tap, MACHINE_ID_KEY};
 use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
@@ -54,14 +54,17 @@ impl TapSession {
         mut delivery: Delivery,
         mut context: Context,
     ) -> Result<(), ReceiveError> {
-        let first_responder: FirstResponder = take_header(&delivery.message)
-            .expect("Expected two bytes for the header")
-            .into();
-        first_responder.apply(&mut context.info);
-        let network_id: NetworkId = delivery.network;
-        network_id.apply(&mut context.info);
+        let first_responder = match take_header(&delivery.message) {
+            Some(protocol) => protocol,
+            None => {
+                tracing::error!("Expected eight bytes for the tap header");
+                Err(ReceiveError::Other)?
+            }
+        };
+        Tap::set_first_responder(first_responder, &mut context.info);
+        Tap::set_network_id(delivery.network, &mut context.info);
         delivery.message.slice(8..);
-        let protocol = match context.protocol(first_responder.into()) {
+        let protocol = match context.protocol(first_responder) {
             Some(protocol) => protocol,
             None => {
                 tracing::error!(
@@ -79,14 +82,14 @@ impl TapSession {
 impl Session for TapSession {
     #[tracing::instrument(name = "TapSession::send", skip(message, context))]
     fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
-        let network_id = match NetworkId::try_from(&context.info) {
+        let network_id = match Tap::get_network_id(&context.info) {
             Ok(network_id) => network_id,
             Err(_) => {
                 tracing::error!("Network ID missing from context");
                 Err(SendError::MissingContext)?
             }
         };
-        let first_responder = match FirstResponder::try_from(&context.info) {
+        let first_responder = match Tap::get_first_responder(&context.info) {
             Ok(first_responder) => first_responder,
             Err(_) => {
                 tracing::error!("First responder missing from context");
@@ -102,7 +105,7 @@ impl Session for TapSession {
         tokio::spawn(async move {
             let sender = self
                 .networks
-                .get(&NetworkHandle::new(network_id.into_inner()))
+                .get(&NetworkHandle::new(network_id))
                 .unwrap()
                 .clone();
             sender.send(delivery).await.unwrap()

@@ -2,10 +2,9 @@ use elvis_core::{
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort},
+        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Udp,
+        Ipv4, Udp,
     },
     session::SharedSession,
     Control,
@@ -82,10 +81,10 @@ impl Application for PingPong {
         *self.shutdown.lock().unwrap() = Some(shutdown);
 
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, self.local_ip_address);
-        RemoteAddress::set(&mut participants, self.remote_ip_address);
-        LocalPort::set(&mut participants, self.local_port);
-        RemotePort::set(&mut participants, self.remote_port);
+        Ipv4::set_local_address(self.local_ip_address, &mut participants);
+        Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
+        Udp::set_local_port(self.local_port, &mut participants);
+        Udp::set_remote_port(self.remote_port, &mut participants);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, context.clone())?;
         *self.session.lock().unwrap() = Some(session);
