@@ -4,15 +4,17 @@ use super::{parsing_data::*, num_tabs_to_string};
 use super::machine_parser::machines_parser;
 use super::network_parser::networks_parser;
 use super::core_parser::general_parser;
+use super::generator::core_generator;
 
 // TODO: Will be configured to accept full files in the future
 /// main wrapper for parsing.
 /// Currently accepts file paths in string form (CLI input needed in the future)
-pub fn generate_sim(file_path: String) {
+pub async fn generate_sim(file_path: String) {
     let res = core_parser(file_path);
     match res {
         Ok(s) => {
-            println!("{:?}", s);
+            // println!("{:?}", s);
+            core_generator(s).await;
         }
 
         Err(e) => {

@@ -17,7 +17,9 @@ use elvis_core::{
 pub async fn basic() {
     let mut internet = Internet::new();
     let network = internet.network(Reliable::new(1500));
-    let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
+    // let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
+    let capture_ip_address: Ipv4Address = 123456789.into();
+    println!("{}", capture_ip_address);
     let ip_table: IpToNetwork = [(capture_ip_address, network)].into_iter().collect();
 
     internet.machine(

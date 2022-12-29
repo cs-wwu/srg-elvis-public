@@ -6,5 +6,5 @@ use crate::{parsing::generate_sim};
 /// single network. The simulation ends when the message is received.
 pub async fn parse() {
     let file_path:String = "./elvis/src/parsing/testing.txt".to_string();
-    generate_sim(file_path);
+    generate_sim(file_path).await;
 }
