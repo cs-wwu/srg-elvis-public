@@ -10,7 +10,7 @@ use elvis_core::{
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
 pub async fn query() {
-    let mut network = Network::new(1500);
+    let mut network = Network::new().mtu(1500);
 
     let machine = Machine::new([
         Udp::new_shared() as SharedProtocol,

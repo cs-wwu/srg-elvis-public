@@ -22,7 +22,7 @@ pub type Mtu = u32;
 pub type Mac = u64;
 
 pub struct Network {
-    mtu: Mtu,
+    mtu: Option<Mtu>,
     connections: DirectConnections,
     broadcast: broadcast::Sender<Message>,
 }
@@ -31,12 +31,17 @@ impl Network {
     pub const ID: Id = Id::from_string("Network");
     pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
 
-    pub fn new(mtu: Mtu) -> Self {
+    pub fn new() -> Self {
         Self {
-            mtu,
+            mtu: None,
             connections: Arc::new(RwLock::new(vec![])),
             broadcast: broadcast::channel::<Message>(16).0,
         }
+    }
+
+    pub fn mtu(mut self, mtu: Mtu) -> Self {
+        self.mtu = Some(mtu);
+        self
     }
 
     pub fn tap(&mut self) -> Tap {
@@ -60,7 +65,7 @@ impl Network {
 }
 
 pub struct Tap {
-    mtu: Mtu,
+    mtu: Option<Mtu>,
     connections: DirectConnections,
     direct_receiver: Arc<RwLock<Option<mpsc::Receiver<Message>>>>,
     broadcast: broadcast::Sender<Message>,
@@ -68,7 +73,7 @@ pub struct Tap {
 
 impl Tap {
     pub fn new(
-        mtu: Mtu,
+        mtu: Option<Mtu>,
         connections: DirectConnections,
         receiver: mpsc::Receiver<Message>,
         broadcast: broadcast::Sender<Message>,
@@ -100,8 +105,10 @@ impl Tap {
     }
 
     pub(crate) fn send(&self, message: Message, control: Control) -> Result<(), SendError> {
-        if message.len() > self.mtu as usize {
-            Err(SendError::Mtu(self.mtu))?
+        if let Some(mtu) = self.mtu {
+            if message.len() > mtu as usize {
+                Err(SendError::Mtu(mtu))?
+            }
         }
 
         match Network::get_destination_mac(&control) {
@@ -140,7 +147,7 @@ impl Tap {
 
     pub(crate) fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         match key {
-            Network::MTU_QUERY_KEY => Ok(self.mtu.into()),
+            Network::MTU_QUERY_KEY => Ok(self.mtu.unwrap_or(0).into()),
             _ => Err(QueryError::MissingKey),
         }
     }
