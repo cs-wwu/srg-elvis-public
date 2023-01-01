@@ -1,13 +1,12 @@
 use crate::applications::PingPong;
 use elvis_core::{
-    networks::Generic,
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
         udp::Udp,
         Pci,
     },
-    run_internet, Machine,
+    run_internet, Machine, Network,
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
@@ -18,7 +17,7 @@ const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);
 /// In this simulation, two machines will send a Time To Live (TTL) message
 /// back and forth till the TTL reaches 0. TTL will be subtracted by 1 every time a machine reveives it.
 pub async fn ping_pong() {
-    let mut network = Generic::new(1500);
+    let mut network = Network::new(1500);
     let ip_table: IpToTapSlot = [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 0)].into_iter().collect();
 
     let machines = vec![
@@ -36,7 +35,7 @@ pub async fn ping_pong() {
         ]),
     ];
 
-    run_internet(machines, vec![Box::new(network)]).await;
+    run_internet(machines).await;
 
     // TODO(hardint): Should check here that things actually ran correctly
 }

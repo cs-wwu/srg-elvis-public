@@ -6,7 +6,7 @@ use crate::{
     id::Id,
     machine::{ProtocolMap, TapSlot},
     message::Message,
-    network::{SharedTap, TapEnvironment},
+    network::{Tap, TapEnvironment},
     protocol::Context,
     session::{QueryError, ReceiveError, SendError},
     Session,
@@ -15,19 +15,19 @@ use std::sync::Arc;
 
 /// The session type for a [`Tap`](super::Tap).
 pub(crate) struct PciSession {
-    tap: SharedTap,
+    tap: Tap,
     index: TapSlot,
 }
 
 impl PciSession {
     /// Creates a new Tap session
-    pub(super) fn new(tap: SharedTap, index: u32) -> Self {
+    pub(super) fn new(tap: Tap, index: u32) -> Self {
         Self { tap, index }
     }
 
     pub(super) fn start(self: Arc<Self>, protocols: ProtocolMap, barrier: Arc<Barrier>) {
         let environment = TapEnvironment::new(protocols, self.clone());
-        self.tap.clone().start(environment, barrier);
+        self.tap.start(environment, barrier);
     }
 }
 
@@ -42,7 +42,7 @@ impl Session for PciSession {
             }
         };
         message.prepend(first_responder.into_inner().to_be_bytes().to_vec());
-        self.tap.clone().send(message, context.control)?;
+        self.tap.send(message, context.control)?;
         Ok(())
     }
 
@@ -77,7 +77,7 @@ impl Session for PciSession {
     }
 
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        self.tap.clone().query(key)
+        self.tap.query(key)
     }
 }
 

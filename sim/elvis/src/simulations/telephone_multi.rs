@@ -1,10 +1,8 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    network::OpaqueNetwork,
-    networks::Generic,
     protocol::SharedProtocol,
     protocols::{ipv4::Ipv4, udp::Udp, Pci},
-    run_internet, Machine, Message,
+    run_internet, Machine, Message, Network,
 };
 
 /// Simulates a message being forwarded along across many networks.
@@ -15,7 +13,7 @@ use elvis_core::{
 pub async fn telephone_multi() {
     const END: u32 = 1000;
     // Since we are using a broadcast network, the destination MAC is not used
-    let mut networks: Vec<_> = (0..END).map(|_| Generic::new(1500)).collect();
+    let mut networks: Vec<_> = (0..END).map(|_| Network::new(1500)).collect();
 
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
@@ -47,14 +45,7 @@ pub async fn telephone_multi() {
         capture.clone(),
     ]));
 
-    run_internet(
-        machines,
-        networks
-            .into_iter()
-            .map(|network| Box::new(network) as OpaqueNetwork)
-            .collect(),
-    )
-    .await;
+    run_internet(machines).await;
     assert_eq!(
         capture.application().message(),
         Some(Message::new("Hello!"))

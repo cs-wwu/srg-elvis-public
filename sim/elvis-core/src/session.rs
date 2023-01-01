@@ -3,7 +3,7 @@
 use super::{protocol::Context, Message};
 use crate::{
     control::{Key, Primitive},
-    networks::Mtu,
+    network::Mtu,
     protocol::DemuxError,
 };
 use std::sync::Arc;

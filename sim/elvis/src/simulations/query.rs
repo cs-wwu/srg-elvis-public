@@ -1,9 +1,8 @@
 use crate::applications::QueryTester;
 use elvis_core::{
-    networks::Generic,
     protocol::SharedProtocol,
     protocols::{ipv4::Ipv4, udp::Udp, Pci},
-    run_internet, Machine,
+    run_internet, Machine, Network,
 };
 
 /// Runs a basic simulation.
@@ -11,7 +10,7 @@ use elvis_core::{
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
 pub async fn query() {
-    let mut network = Generic::new(1500);
+    let mut network = Network::new(1500);
 
     let machine = Machine::new([
         Udp::new_shared() as SharedProtocol,
@@ -20,7 +19,7 @@ pub async fn query() {
         Pci::new_shared([network.tap(), network.tap()]),
     ]);
 
-    run_internet(vec![machine], vec![Box::new(network)]).await;
+    run_internet(vec![machine]).await;
 }
 
 #[cfg(test)]

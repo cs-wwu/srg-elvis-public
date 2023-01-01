@@ -1,6 +1,6 @@
 use elvis_core::{
     message::Message,
-    networks::{set_destination_mac, Mac},
+    network::{set_destination_mac, Mac},
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,

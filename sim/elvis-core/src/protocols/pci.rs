@@ -5,7 +5,7 @@ use crate::{
     id::Id,
     machine::TapSlot,
     message::Message,
-    network::SharedTap,
+    network::Tap,
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
@@ -36,7 +36,7 @@ impl Pci {
     pub const SLOT_COUNT_QUERY_KEY: Key = (Self::ID, 0);
 
     /// Creates a new network tap.
-    pub fn new(taps: impl IntoIterator<Item = SharedTap>) -> Self {
+    pub fn new(taps: impl IntoIterator<Item = Tap>) -> Self {
         Self {
             sessions: taps
                 .into_iter()
@@ -47,7 +47,7 @@ impl Pci {
     }
 
     /// Creates a new network tap.
-    pub fn new_shared(taps: impl IntoIterator<Item = SharedTap>) -> SharedProtocol {
+    pub fn new_shared(taps: impl IntoIterator<Item = Tap>) -> SharedProtocol {
         Arc::new(Self::new(taps))
     }
 

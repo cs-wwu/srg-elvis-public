@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use elvis_core::{
-    networks::Generic,
     protocol::Context,
     protocols::{
         user_process::{Application, ApplicationError},
         Ipv4, Pci, Udp, UserProcess,
     },
-    Control, Id, Message,
+    Control, Id, Message, Network,
 };
 use tokio::sync::{mpsc::Sender, Barrier};
 
@@ -52,7 +51,7 @@ impl Application for QueryTester {
             .expect("Missing UDP protocol")
             .open(Self::ID, participants, context)
             .unwrap()
-            .query(Generic::MTU_QUERY_KEY)
+            .query(Network::MTU_QUERY_KEY)
             .unwrap()
             .ok_u32()
             .unwrap();

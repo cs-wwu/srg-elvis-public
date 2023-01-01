@@ -1,34 +1,183 @@
-//! Contains the [`Tap`] trait and supporting types.
-
 use crate::{
-    control::{Key, Primitive},
+    control::{ControlError, Key, Primitive},
+    id::Id,
     machine::ProtocolMap,
     protocol::Context,
     session::{QueryError, SendError, SharedSession},
     Control, Message,
 };
-use std::sync::Arc;
-use tokio::sync::Barrier;
+use std::sync::{Arc, RwLock};
+use tokio::sync::{
+    broadcast::{self, error::RecvError},
+    mpsc, Barrier,
+};
 
-pub type SharedTap = Arc<dyn Tap + Send + Sync + 'static>;
-pub type OpaqueNetwork = Box<dyn Network>;
 pub type TapIndex = u32;
+type DirectConnections = Arc<RwLock<Vec<mpsc::Sender<Message>>>>;
 
-pub trait Network {
-    fn start(self: Box<Self>, barrier: Arc<Barrier>);
+/// A network maximum transmission unit.
+///
+/// The largest number of bytes that can be sent over the network at once.
+pub type Mtu = u32;
+pub type Mac = u64;
+
+const NETWORKS_ID: Id = Id::from_string("Networks");
+
+pub fn set_destination_mac(mac: Mac, control: &mut Control) {
+    control.insert((NETWORKS_ID, 0), mac);
 }
 
-pub trait Tap {
-    /// Spawns a task for the Network to run in and returns half a channel on
-    /// which to send messages to the network.
-    fn start(self: Arc<Self>, environment: TapEnvironment, barrier: Arc<Barrier>);
+pub fn get_destination_mac(control: &Control) -> Result<Mac, ControlError> {
+    Ok(control.get((NETWORKS_ID, 0))?.ok_u64()?)
+}
 
-    /// Takes the message, appends headers, and forwards it to the next session
-    /// in the chain for further processing.
-    fn send(self: Arc<Self>, message: Message, control: Control) -> Result<(), SendError>;
+pub struct Network {
+    mtu: Mtu,
+    connections: DirectConnections,
+    broadcast: broadcast::Sender<Message>,
+}
 
-    /// Gets a piece of information from some session in the protocol stack.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
+impl Network {
+    pub const ID: Id = Id::from_string("Direct network");
+    pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
+
+    pub fn new(mtu: Mtu) -> Self {
+        Self {
+            mtu,
+            connections: Arc::new(RwLock::new(vec![])),
+            broadcast: broadcast::channel::<Message>(16).0,
+        }
+    }
+
+    pub fn tap(&mut self) -> Tap {
+        let (send, receive) = mpsc::channel(16);
+        self.connections.write().unwrap().push(send);
+        Tap::new(
+            self.mtu,
+            self.connections.clone(),
+            receive,
+            self.broadcast.clone(),
+        )
+    }
+}
+
+pub struct Tap {
+    mtu: Mtu,
+    connections: DirectConnections,
+    direct_receiver: Arc<RwLock<Option<mpsc::Receiver<Message>>>>,
+    broadcast: broadcast::Sender<Message>,
+}
+
+impl Tap {
+    pub fn new(
+        mtu: Mtu,
+        connections: DirectConnections,
+        receiver: mpsc::Receiver<Message>,
+        broadcast: broadcast::Sender<Message>,
+    ) -> Self {
+        Self {
+            mtu,
+            connections,
+            direct_receiver: Arc::new(RwLock::new(Some(receiver))),
+            broadcast,
+        }
+    }
+
+    pub(crate) fn start(&self, environment: TapEnvironment, barrier: Arc<Barrier>) {
+        let mut direct_receiver = self.direct_receiver.write().unwrap().take().unwrap();
+        let mut broadcast_receiver = self.broadcast.subscribe();
+        tokio::spawn(async move {
+            barrier.wait().await;
+            loop {
+                tokio::select! {
+                    message = direct_receiver.recv() => {
+                        receive_direct(message, environment.clone());
+                    }
+                    message = broadcast_receiver.recv() => {
+                        receive_broadcast(message, environment.clone());
+                    }
+                }
+            }
+        });
+    }
+
+    pub(crate) fn send(&self, message: Message, control: Control) -> Result<(), SendError> {
+        if message.len() > self.mtu as usize {
+            Err(SendError::Mtu(self.mtu))?
+        }
+
+        match get_destination_mac(&control) {
+            Ok(destination) => {
+                let destination = destination as usize;
+                let channel = self
+                    .connections
+                    .read()
+                    .unwrap()
+                    .get(destination)
+                    .ok_or_else(|| {
+                        tracing::error!("The destination mac is out of bounds: {}", destination);
+                        SendError::MissingContext
+                    })?
+                    .clone();
+                tokio::spawn(async move {
+                    match channel.clone().send(message).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("Failed to send on direct network: {}", e);
+                        }
+                    }
+                });
+                Ok(())
+            }
+
+            Err(_) => match self.broadcast.send(message) {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    tracing::error!("Failed to send on broadcast network: {}", e);
+                    Err(SendError::Other)
+                }
+            },
+        }
+    }
+
+    pub(crate) fn query(&self, key: Key) -> Result<Primitive, QueryError> {
+        match key {
+            Network::MTU_QUERY_KEY => Ok(self.mtu.into()),
+            _ => Err(QueryError::MissingKey),
+        }
+    }
+}
+
+fn receive_direct(message: Option<Message>, environment: TapEnvironment) {
+    if let Some(message) = message {
+        match environment
+            .session
+            .clone()
+            .receive(message, environment.context())
+        {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Failed to receive on direct network: {}", e);
+            }
+        }
+    }
+}
+
+fn receive_broadcast(message: Result<Message, RecvError>, environment: TapEnvironment) {
+    match message {
+        Ok(message) => {
+            let context = Context::new(environment.protocols);
+            match environment.session.receive(message, context) {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("Failed to receive on a broadcast network: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!("Broadcast receive error: {}", e);
+        }
+    }
 }
 
 #[derive(Clone)]
