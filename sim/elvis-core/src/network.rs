@@ -6,7 +6,10 @@ use crate::{
     session::{QueryError, SendError, SharedSession},
     Control, Message,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use tokio::sync::{
     broadcast::{self, error::RecvError},
     mpsc, Barrier,
@@ -23,6 +26,7 @@ pub type Mac = u64;
 
 pub struct Network {
     mtu: Option<Mtu>,
+    latency: Option<Duration>,
     connections: DirectConnections,
     broadcast: broadcast::Sender<Message>,
 }
@@ -34,6 +38,7 @@ impl Network {
     pub fn new() -> Self {
         Self {
             mtu: None,
+            latency: None,
             connections: Arc::new(RwLock::new(vec![])),
             broadcast: broadcast::channel::<Message>(16).0,
         }
@@ -41,6 +46,11 @@ impl Network {
 
     pub fn mtu(mut self, mtu: Mtu) -> Self {
         self.mtu = Some(mtu);
+        self
+    }
+
+    pub fn latency(mut self, latency: Duration) -> Self {
+        self.latency = Some(latency);
         self
     }
 

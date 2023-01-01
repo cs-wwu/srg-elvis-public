@@ -14,3 +14,6 @@ pub use ping_pong::ping_pong;
 
 mod query;
 pub use query::query;
+
+mod latency;
+pub use latency::latency;
