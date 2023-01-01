@@ -16,7 +16,7 @@ use elvis_core::{
 /// network. When it reaches its destination, the simulation ends.
 pub async fn telephone_single() {
     const END: u32 = 1000;
-    let mut network = Network::new();
+    let network = Network::basic();
 
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([

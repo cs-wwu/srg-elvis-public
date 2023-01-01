@@ -24,24 +24,15 @@ type DirectConnections = Arc<RwLock<Vec<mpsc::Sender<Message>>>>;
 pub type Mtu = u32;
 pub type Mac = u64;
 
-pub struct Network {
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub struct NetworkBuilder {
     mtu: Option<Mtu>,
     latency: Option<Duration>,
-    connections: DirectConnections,
-    broadcast: broadcast::Sender<Message>,
 }
 
-impl Network {
-    pub const ID: Id = Id::from_string("Network");
-    pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
-
+impl NetworkBuilder {
     pub fn new() -> Self {
-        Self {
-            mtu: None,
-            latency: None,
-            connections: Arc::new(RwLock::new(vec![])),
-            broadcast: broadcast::channel::<Message>(16).0,
-        }
+        Default::default()
     }
 
     pub fn mtu(mut self, mtu: Mtu) -> Self {
@@ -54,15 +45,45 @@ impl Network {
         self
     }
 
-    pub fn tap(&mut self) -> Tap {
+    pub fn build(self) -> Arc<Network> {
+        Arc::new(Network::new(self.mtu, self.latency))
+    }
+}
+
+pub struct Network {
+    mtu: Option<Mtu>,
+    latency: Option<Duration>,
+    broadcast: broadcast::Sender<Message>,
+    connections: DirectConnections,
+}
+
+impl Default for Network {
+    fn default() -> Self {
+        Self::new(None, None)
+    }
+}
+
+impl Network {
+    pub const ID: Id = Id::from_string("Network");
+    pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
+
+    fn new(mtu: Option<Mtu>, latency: Option<Duration>) -> Self {
+        Self {
+            mtu,
+            latency,
+            connections: Arc::new(RwLock::new(vec![])),
+            broadcast: broadcast::channel::<Message>(16).0,
+        }
+    }
+
+    pub fn basic() -> Arc<Self> {
+        Arc::new(Default::default())
+    }
+
+    pub fn tap(self: &Arc<Self>) -> Tap {
         let (send, receive) = mpsc::channel(16);
         self.connections.write().unwrap().push(send);
-        Tap::new(
-            self.mtu,
-            self.connections.clone(),
-            receive,
-            self.broadcast.clone(),
-        )
+        Tap::new(self.clone(), receive)
     }
 
     pub fn set_destination_mac(mac: Mac, control: &mut Control) {
@@ -75,30 +96,21 @@ impl Network {
 }
 
 pub struct Tap {
-    mtu: Option<Mtu>,
-    connections: DirectConnections,
+    network: Arc<Network>,
     direct_receiver: Arc<RwLock<Option<mpsc::Receiver<Message>>>>,
-    broadcast: broadcast::Sender<Message>,
 }
 
 impl Tap {
-    pub fn new(
-        mtu: Option<Mtu>,
-        connections: DirectConnections,
-        receiver: mpsc::Receiver<Message>,
-        broadcast: broadcast::Sender<Message>,
-    ) -> Self {
+    pub fn new(network: Arc<Network>, receiver: mpsc::Receiver<Message>) -> Self {
         Self {
-            mtu,
-            connections,
+            network,
             direct_receiver: Arc::new(RwLock::new(Some(receiver))),
-            broadcast,
         }
     }
 
     pub(crate) fn start(&self, environment: TapEnvironment, barrier: Arc<Barrier>) {
         let mut direct_receiver = self.direct_receiver.write().unwrap().take().unwrap();
-        let mut broadcast_receiver = self.broadcast.subscribe();
+        let mut broadcast_receiver = self.network.broadcast.subscribe();
         tokio::spawn(async move {
             barrier.wait().await;
             loop {
@@ -115,7 +127,7 @@ impl Tap {
     }
 
     pub(crate) fn send(&self, message: Message, control: Control) -> Result<(), SendError> {
-        if let Some(mtu) = self.mtu {
+        if let Some(mtu) = self.network.mtu {
             if message.len() > mtu as usize {
                 Err(SendError::Mtu(mtu))?
             }
@@ -125,6 +137,7 @@ impl Tap {
             Ok(destination) => {
                 let destination = destination as usize;
                 let channel = self
+                    .network
                     .connections
                     .read()
                     .unwrap()
@@ -145,7 +158,7 @@ impl Tap {
                 Ok(())
             }
 
-            Err(_) => match self.broadcast.send(message) {
+            Err(_) => match self.network.broadcast.send(message) {
                 Ok(_) => Ok(()),
                 Err(e) => {
                     tracing::error!("Failed to send on broadcast network: {}", e);
@@ -157,7 +170,7 @@ impl Tap {
 
     pub(crate) fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         match key {
-            Network::MTU_QUERY_KEY => Ok(self.mtu.unwrap_or(0).into()),
+            Network::MTU_QUERY_KEY => Ok(self.network.mtu.unwrap_or(0).into()),
             _ => Err(QueryError::MissingKey),
         }
     }

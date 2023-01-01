@@ -13,7 +13,7 @@ use elvis_core::{
 pub async fn telephone_multi() {
     const END: u32 = 1000;
     // Since we are using a broadcast network, the destination MAC is not used
-    let mut networks: Vec<_> = (0..END).map(|_| Network::new()).collect();
+    let networks: Vec<_> = (0..END).map(|_| Network::basic()).collect();
 
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
