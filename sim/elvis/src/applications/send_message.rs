@@ -1,6 +1,6 @@
 use elvis_core::{
     message::Message,
-    network::{set_destination_mac, Mac},
+    network::Mac,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
@@ -8,7 +8,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4,
     },
-    Control, Id,
+    Control, Id, Network,
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -71,7 +71,7 @@ impl Application for SendMessage {
         tokio::spawn(async move {
             initialized.wait().await;
             if let Some(destination_mac) = self.destination_mac {
-                set_destination_mac(destination_mac, &mut context.control);
+                Network::set_destination_mac(destination_mac, &mut context.control);
             }
             session
                 .send(Message::new(self.text), context)

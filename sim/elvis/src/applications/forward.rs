@@ -1,6 +1,6 @@
 use elvis_core::{
     message::Message,
-    network::{set_destination_mac, Mac},
+    network::Mac,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
@@ -9,7 +9,7 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control, Id,
+    Control, Id, Network,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -101,7 +101,7 @@ impl Application for Forward {
         mut context: Context,
     ) -> Result<(), ApplicationError> {
         if let Some(destination_mac) = self.destination_mac {
-            set_destination_mac(destination_mac, &mut context.control);
+            Network::set_destination_mac(destination_mac, &mut context.control);
         }
         self.outgoing
             .clone()

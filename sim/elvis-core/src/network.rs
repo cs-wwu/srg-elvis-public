@@ -21,16 +21,6 @@ type DirectConnections = Arc<RwLock<Vec<mpsc::Sender<Message>>>>;
 pub type Mtu = u32;
 pub type Mac = u64;
 
-const NETWORKS_ID: Id = Id::from_string("Networks");
-
-pub fn set_destination_mac(mac: Mac, control: &mut Control) {
-    control.insert((NETWORKS_ID, 0), mac);
-}
-
-pub fn get_destination_mac(control: &Control) -> Result<Mac, ControlError> {
-    Ok(control.get((NETWORKS_ID, 0))?.ok_u64()?)
-}
-
 pub struct Network {
     mtu: Mtu,
     connections: DirectConnections,
@@ -38,7 +28,7 @@ pub struct Network {
 }
 
 impl Network {
-    pub const ID: Id = Id::from_string("Direct network");
+    pub const ID: Id = Id::from_string("Network");
     pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
 
     pub fn new(mtu: Mtu) -> Self {
@@ -58,6 +48,14 @@ impl Network {
             receive,
             self.broadcast.clone(),
         )
+    }
+
+    pub fn set_destination_mac(mac: Mac, control: &mut Control) {
+        control.insert((Self::ID, 0), mac);
+    }
+
+    pub fn get_destination_mac(control: &Control) -> Result<Mac, ControlError> {
+        Ok(control.get((Self::ID, 0))?.ok_u64()?)
     }
 }
 
@@ -106,7 +104,7 @@ impl Tap {
             Err(SendError::Mtu(self.mtu))?
         }
 
-        match get_destination_mac(&control) {
+        match Network::get_destination_mac(&control) {
             Ok(destination) => {
                 let destination = destination as usize;
                 let channel = self
