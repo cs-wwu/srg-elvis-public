@@ -10,13 +10,13 @@ use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
-use tokio::sync::{
-    broadcast::{self, error::RecvError},
-    mpsc, Barrier,
+use tokio::{
+    sync::{
+        broadcast::{self, error::RecvError},
+        mpsc, Barrier,
+    },
+    time::sleep,
 };
-
-pub type TapIndex = u32;
-type DirectConnections = Arc<RwLock<Vec<mpsc::Sender<Message>>>>;
 
 /// A network maximum transmission unit.
 ///
@@ -54,7 +54,7 @@ pub struct Network {
     mtu: Option<Mtu>,
     latency: Option<Duration>,
     broadcast: broadcast::Sender<Message>,
-    connections: DirectConnections,
+    connections: Arc<RwLock<Vec<mpsc::Sender<Message>>>>,
 }
 
 impl Default for Network {
@@ -133,6 +133,7 @@ impl Tap {
             }
         }
 
+        let latency = self.network.latency;
         match Network::get_destination_mac(&control) {
             Ok(destination) => {
                 let destination = destination as usize;
@@ -148,6 +149,9 @@ impl Tap {
                     })?
                     .clone();
                 tokio::spawn(async move {
+                    if let Some(latency) = latency {
+                        sleep(latency).await;
+                    }
                     match channel.clone().send(message).await {
                         Ok(_) => {}
                         Err(e) => {
@@ -158,13 +162,30 @@ impl Tap {
                 Ok(())
             }
 
-            Err(_) => match self.network.broadcast.send(message) {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    tracing::error!("Failed to send on broadcast network: {}", e);
-                    Err(SendError::Other)
+            Err(_) => {
+                if let Some(latency) = latency {
+                    let broadcast = self.network.broadcast.clone();
+                    tokio::spawn(async move {
+                        sleep(latency).await;
+                        match broadcast.send(message) {
+                            Ok(_) => Ok(()),
+                            Err(e) => {
+                                tracing::error!("Failed to send on broadcast network: {}", e);
+                                Err(SendError::Other)
+                            }
+                        }
+                    });
+                    Ok(())
+                } else {
+                    match self.network.broadcast.send(message) {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            tracing::error!("Failed to send on broadcast network: {}", e);
+                            Err(SendError::Other)
+                        }
+                    }
                 }
-            },
+            }
         }
     }
 
