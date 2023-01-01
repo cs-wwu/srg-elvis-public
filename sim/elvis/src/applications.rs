@@ -14,3 +14,6 @@ pub use ping_pong::PingPong;
 
 mod query_tester;
 pub use query_tester::QueryTester;
+
+mod throughput_tester;
+pub use throughput_tester::ThroughputTester;

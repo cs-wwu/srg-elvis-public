@@ -17,3 +17,6 @@ pub use query::query;
 
 mod latency;
 pub use latency::latency;
+
+mod throughput;
+pub use throughput::throughput;

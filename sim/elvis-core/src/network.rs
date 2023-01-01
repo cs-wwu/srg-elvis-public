@@ -24,10 +24,24 @@ use tokio::{
 pub type Mtu = u32;
 pub type Mac = u64;
 
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Baud(u32);
+
+impl Baud {
+    pub fn bits_per_second(rate: u32) -> Self {
+        Self(rate / 8)
+    }
+
+    pub fn bytes_per_second(rate: u32) -> Self {
+        Self(rate)
+    }
+}
+
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct NetworkBuilder {
     mtu: Option<Mtu>,
     latency: Option<Duration>,
+    throughput: Option<Baud>,
 }
 
 impl NetworkBuilder {
@@ -45,21 +59,27 @@ impl NetworkBuilder {
         self
     }
 
+    pub fn throughput(mut self, throughput: Baud) -> Self {
+        self.throughput = Some(throughput);
+        self
+    }
+
     pub fn build(self) -> Arc<Network> {
-        Arc::new(Network::new(self.mtu, self.latency))
+        Arc::new(Network::new(self.mtu, self.latency, self.throughput))
     }
 }
 
 pub struct Network {
     mtu: Option<Mtu>,
     latency: Option<Duration>,
+    throughput: Option<Baud>,
     broadcast: broadcast::Sender<Message>,
     connections: Arc<RwLock<Vec<mpsc::Sender<Message>>>>,
 }
 
 impl Default for Network {
     fn default() -> Self {
-        Self::new(None, None)
+        Self::new(None, None, None)
     }
 }
 
@@ -67,10 +87,11 @@ impl Network {
     pub const ID: Id = Id::from_string("Network");
     pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
 
-    fn new(mtu: Option<Mtu>, latency: Option<Duration>) -> Self {
+    fn new(mtu: Option<Mtu>, latency: Option<Duration>, throughput: Option<Baud>) -> Self {
         Self {
             mtu,
             latency,
+            throughput,
             connections: Arc::new(RwLock::new(vec![])),
             broadcast: broadcast::channel::<Message>(16).0,
         }
