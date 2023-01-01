@@ -42,7 +42,7 @@ pub async fn latency() {
 
     let now = SystemTime::now();
     run_internet(machines).await;
-    assert!(now.elapsed().unwrap().as_millis() > 1000);
+    assert!(now.elapsed().unwrap().as_millis() >= 1000);
 
     assert_eq!(
         capture.application().message(),

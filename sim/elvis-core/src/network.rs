@@ -163,28 +163,20 @@ impl Tap {
             }
 
             Err(_) => {
-                if let Some(latency) = latency {
-                    let broadcast = self.network.broadcast.clone();
-                    tokio::spawn(async move {
+                let broadcast = self.network.broadcast.clone();
+                tokio::spawn(async move {
+                    if let Some(latency) = latency {
                         sleep(latency).await;
-                        match broadcast.send(message) {
-                            Ok(_) => Ok(()),
-                            Err(e) => {
-                                tracing::error!("Failed to send on broadcast network: {}", e);
-                                Err(SendError::Other)
-                            }
-                        }
-                    });
-                    Ok(())
-                } else {
-                    match self.network.broadcast.send(message) {
+                    }
+                    match broadcast.send(message) {
                         Ok(_) => Ok(()),
                         Err(e) => {
                             tracing::error!("Failed to send on broadcast network: {}", e);
                             Err(SendError::Other)
                         }
                     }
-                }
+                });
+                Ok(())
             }
         }
     }
