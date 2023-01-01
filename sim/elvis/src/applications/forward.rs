@@ -11,13 +11,13 @@ use elvis_core::{
     session::SharedSession,
     Control, Id,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]
 pub struct Forward {
     /// The session on which we send any messages we receive
-    outgoing: Arc<Mutex<Option<SharedSession>>>,
+    outgoing: Arc<RwLock<Option<SharedSession>>>,
     /// The IP address for incoming messages
     local_ip: Ipv4Address,
     /// The IP address for outgoing messages
@@ -82,7 +82,7 @@ impl Application for Forward {
         Udp::set_remote_port(self.remote_port, &mut participants);
 
         let udp = context.protocol(Udp::ID).expect("No such protocol");
-        *self.outgoing.lock().unwrap() = Some(udp.clone().open(
+        *self.outgoing.write().unwrap() = Some(udp.clone().open(
             Self::ID,
             // TODO(hardint): Can these clones be cheaper?
             participants.clone(),
@@ -105,7 +105,7 @@ impl Application for Forward {
         }
         self.outgoing
             .clone()
-            .lock()
+            .read()
             .unwrap()
             .as_ref()
             .unwrap()

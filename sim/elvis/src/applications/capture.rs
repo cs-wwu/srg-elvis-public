@@ -8,7 +8,7 @@ use elvis_core::{
     },
     Control, Id,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that stores the first message it receives and then exits the
@@ -16,9 +16,9 @@ use tokio::sync::{mpsc::Sender, Barrier};
 #[derive(Debug, Clone)]
 pub struct Capture {
     /// The message that was received, if any
-    message: Arc<Mutex<Option<Message>>>,
+    message: Arc<RwLock<Option<Message>>>,
     /// The channel we send on to shut down the simulation
-    shutdown: Arc<Mutex<Option<Sender<()>>>>,
+    shutdown: Arc<RwLock<Option<Sender<()>>>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
@@ -43,7 +43,7 @@ impl Capture {
 
     /// Gets the message that was received.
     pub fn message(&self) -> Option<Message> {
-        self.message.lock().unwrap().clone()
+        self.message.read().unwrap().clone()
     }
 }
 
@@ -56,7 +56,7 @@ impl Application for Capture {
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
     ) -> Result<(), ApplicationError> {
-        *self.shutdown.lock().unwrap() = Some(shutdown);
+        *self.shutdown.write().unwrap() = Some(shutdown);
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
         Udp::set_local_port(self.port, &mut participants);
@@ -75,8 +75,8 @@ impl Application for Capture {
         message: Message,
         _context: Context,
     ) -> Result<(), ApplicationError> {
-        *self.message.lock().unwrap() = Some(message);
-        if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
+        *self.message.write().unwrap() = Some(message);
+        if let Some(shutdown) = self.shutdown.write().unwrap().take() {
             tokio::spawn(async move {
                 shutdown.send(()).await.unwrap();
             });
