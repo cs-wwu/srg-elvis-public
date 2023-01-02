@@ -7,15 +7,16 @@ use crate::{
     Control, Message,
 };
 use std::{
+    collections::VecDeque,
     sync::{Arc, RwLock},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 use tokio::{
     sync::{
         broadcast::{self, error::RecvError},
-        mpsc, Barrier,
+        mpsc, oneshot, Barrier,
     },
-    time::sleep,
+    time::{sleep, timeout},
 };
 
 /// A network maximum transmission unit.
@@ -69,12 +70,20 @@ impl NetworkBuilder {
     }
 }
 
+struct QueuedDelivery {
+    bytes: u32,
+    notify: oneshot::Sender<()>,
+}
+
 pub struct Network {
     mtu: Option<Mtu>,
     latency: Option<Duration>,
     throughput: Option<Baud>,
     broadcast: broadcast::Sender<Message>,
     connections: Arc<RwLock<Vec<mpsc::Sender<Message>>>>,
+    started: Arc<RwLock<bool>>,
+    send_queue_sender: mpsc::Sender<QueuedDelivery>,
+    send_queue_receiver: Arc<RwLock<Option<mpsc::Receiver<QueuedDelivery>>>>,
 }
 
 impl Default for Network {
@@ -88,12 +97,16 @@ impl Network {
     pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
 
     fn new(mtu: Option<Mtu>, latency: Option<Duration>, throughput: Option<Baud>) -> Self {
+        let send_queue = mpsc::channel(16);
         Self {
             mtu,
             latency,
             throughput,
-            connections: Arc::new(RwLock::new(vec![])),
+            connections: Default::default(),
             broadcast: broadcast::channel::<Message>(16).0,
+            started: Default::default(),
+            send_queue_sender: send_queue.0,
+            send_queue_receiver: Arc::new(RwLock::new(Some(send_queue.1))),
         }
     }
 
@@ -105,6 +118,70 @@ impl Network {
         let (send, receive) = mpsc::channel(16);
         self.connections.write().unwrap().push(send);
         Tap::new(self.clone(), receive)
+    }
+
+    // TODO(hardint): Barrier needed
+    fn start(&self) {
+        let started = {
+            let mut lock = self.started.write().unwrap();
+            let started = *lock;
+            *lock = true;
+            started
+        };
+        if let Some(throughput) = self.throughput {
+            if !started {
+                let mut receiver = self.send_queue_receiver.write().unwrap().take().unwrap();
+                tokio::spawn(async move {
+                    let mut queue = VecDeque::<QueuedDelivery>::new();
+                    loop {
+                        let next = queue.back();
+                        let delay = match next {
+                            Some(next) => Duration::from_millis(
+                                next.bytes as u64 * 1000 / throughput.0 as u64,
+                            ),
+                            None => Duration::MAX,
+                        };
+                        let now = SystemTime::now();
+                        match timeout(delay, receiver.recv()).await {
+                            Ok(delivery) => {
+                                match delivery {
+                                    Some(delivery) => {
+                                        queue.push_front(delivery);
+                                        let elapsed = now
+                                            .elapsed()
+                                            .unwrap()
+                                            .as_millis()
+                                            .try_into()
+                                            .unwrap_or(u32::MAX);
+                                        queue.back_mut().unwrap().bytes -=
+                                            elapsed * throughput.0 / 1000;
+                                    }
+                                    // The other side was closed? Check docs.
+                                    // This is probably a simulation shutting
+                                    // down situation.
+                                    None => break,
+                                }
+                            }
+                            Err(_) => {
+                                // Safe to unwrap here because we got a timeout,
+                                // which means that queue.back() was Some
+                                // earlier
+                                let delivery = queue.pop_back().unwrap();
+                                match delivery.notify.send(()) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        tracing::error!(
+                                            "Failed to signal a message delivery: {:?}",
+                                            e
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
     }
 
     pub fn set_destination_mac(mac: Mac, control: &mut Control) {
