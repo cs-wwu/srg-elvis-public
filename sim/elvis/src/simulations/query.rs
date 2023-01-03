@@ -20,7 +20,7 @@ pub async fn query() {
         Pci::new_shared([network.tap(), network.tap()]),
     ]);
 
-    run_internet(vec![machine]).await;
+    run_internet(vec![machine], vec![network]).await;
 }
 
 #[cfg(test)]

@@ -17,10 +17,10 @@ use elvis_core::{
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
 pub async fn throughput() {
-    const TCP_HEADER_SIZE: u32 = 20;
-    const IP_HEADER_SIZE: u32 = 20;
-    const PAYLOAD_LENGTH: u32 = 6;
-    const MESSAGE_LENGTH: u32 = TCP_HEADER_SIZE + IP_HEADER_SIZE + PAYLOAD_LENGTH;
+    const TCP_HEADER_SIZE: u64 = 20;
+    const IP_HEADER_SIZE: u64 = 20;
+    const PAYLOAD_LENGTH: u64 = 6;
+    const MESSAGE_LENGTH: u64 = TCP_HEADER_SIZE + IP_HEADER_SIZE + PAYLOAD_LENGTH;
     let network = NetworkBuilder::new()
         .throughput(Baud::bytes_per_second(MESSAGE_LENGTH))
         .build();
@@ -49,7 +49,7 @@ pub async fn throughput() {
         ]),
     ];
 
-    run_internet(machines).await;
+    run_internet(machines, vec![network]).await;
 }
 
 #[cfg(test)]

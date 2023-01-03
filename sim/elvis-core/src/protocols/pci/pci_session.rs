@@ -3,20 +3,19 @@ use tokio::sync::Barrier;
 use super::Pci;
 use crate::{
     control::{Key, Primitive},
-    id::Id,
-    machine::{ProtocolMap, TapSlot},
+    machine::{PciSlot, ProtocolMap},
     message::Message,
-    network::{Tap, TapEnvironment},
+    network::{Delivery, Tap, TapEnvironment},
     protocol::Context,
     session::{QueryError, ReceiveError, SendError},
-    Session,
+    Network, Session,
 };
 use std::sync::Arc;
 
 /// The session type for a [`Tap`](super::Tap).
-pub(crate) struct PciSession {
+pub struct PciSession {
     tap: Tap,
-    index: TapSlot,
+    index: PciSlot,
 }
 
 impl PciSession {
@@ -29,73 +28,50 @@ impl PciSession {
         let environment = TapEnvironment::new(protocols, self.clone());
         self.tap.start(environment, barrier);
     }
-}
 
-impl Session for PciSession {
-    #[tracing::instrument(name = "PciSession::send", skip_all)]
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
-        let first_responder = match Pci::get_first_responder(&context.control) {
-            Ok(first_responder) => first_responder,
-            Err(_) => {
-                tracing::error!("First responder missing from context");
-                Err(SendError::MissingContext)?
-            }
-        };
-        message.prepend(first_responder.into_inner().to_be_bytes().to_vec());
-        self.tap.send(message, context.control)?;
-        Ok(())
-    }
-
-    #[tracing::instrument(name = "PciSession::receive", skip_all)]
-    fn receive(
+    pub(crate) fn receive_pci(
         self: Arc<Self>,
-        mut message: Message,
+        delivery: Delivery,
         mut context: Context,
     ) -> Result<(), ReceiveError> {
-        let first_responder = match take_header(&message) {
-            Some(protocol) => protocol,
-            None => {
-                tracing::error!("Expected eight bytes for the tap header");
-                Err(ReceiveError::Other)?
-            }
-        };
-        message.slice(8..);
-        Pci::set_first_responder(first_responder, &mut context.control);
-        Pci::set_tap_slot(self.index, &mut context.control);
-        let protocol = match context.protocol(first_responder) {
+        Pci::set_pci_slot(self.index, &mut context.control);
+        Network::set_sender(delivery.sender, &mut context.control);
+        let protocol = match context.protocol(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
                 tracing::error!(
                     "Could not find a protocol for the protocol ID {}",
-                    first_responder
+                    delivery.protocol
                 );
                 Err(ReceiveError::Other)?
             }
         };
-        protocol.demux(message, self, context)?;
+        protocol.demux(delivery.message, self, context)?;
         Ok(())
+    }
+}
+
+impl Session for PciSession {
+    #[tracing::instrument(name = "PciSession::send", skip_all)]
+    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
+        let protocol = match Network::get_protocol(&context.control) {
+            Ok(protocol) => protocol,
+            Err(_) => {
+                tracing::error!("Protocol missing from context");
+                Err(SendError::MissingContext)?
+            }
+        };
+        let destination = Network::get_destination(&context.control).ok();
+        self.tap.send(message, destination, protocol)?;
+        Ok(())
+    }
+
+    #[tracing::instrument(name = "PciSession::receive", skip_all)]
+    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ReceiveError> {
+        panic!("Use receive_pci insteaed")
     }
 
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         self.tap.query(key)
     }
-}
-
-/// Parses the Tap header from the message, which is just the ID of the protocol
-/// that should receive this message.
-fn take_header(message: &Message) -> Option<Id> {
-    let mut iter = message.iter();
-    Some(
-        u64::from_be_bytes([
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-            iter.next()?,
-        ])
-        .into(),
-    )
 }

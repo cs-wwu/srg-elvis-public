@@ -40,7 +40,7 @@ pub async fn latency() {
     ];
 
     let now = SystemTime::now();
-    run_internet(machines).await;
+    run_internet(machines, vec![network]).await;
     assert!(now.elapsed().unwrap().as_millis() >= 1000);
 }
 

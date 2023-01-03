@@ -71,7 +71,7 @@ impl Application for SendMessage {
         tokio::spawn(async move {
             initialized.wait().await;
             if let Some(destination_mac) = self.destination_mac {
-                Network::set_destination_mac(destination_mac, &mut context.control);
+                Network::set_destination(destination_mac, &mut context.control);
             }
             session
                 .send(Message::new(self.text), context)

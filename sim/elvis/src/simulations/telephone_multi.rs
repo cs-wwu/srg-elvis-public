@@ -45,7 +45,7 @@ pub async fn telephone_multi() {
         capture.clone(),
     ]));
 
-    run_internet(machines).await;
+    run_internet(machines, networks).await;
     assert_eq!(
         capture.application().message(),
         Some(Message::new("Hello!"))

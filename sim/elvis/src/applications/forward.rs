@@ -101,7 +101,7 @@ impl Application for Forward {
         mut context: Context,
     ) -> Result<(), ApplicationError> {
         if let Some(destination_mac) = self.destination_mac {
-            Network::set_destination_mac(destination_mac, &mut context.control);
+            Network::set_destination(destination_mac, &mut context.control);
         }
         self.outgoing
             .clone()

@@ -35,7 +35,7 @@ pub async fn ping_pong() {
         ]),
     ];
 
-    run_internet(machines).await;
+    run_internet(machines, vec![network]).await;
 
     // TODO(hardint): Should check here that things actually ran correctly
 }

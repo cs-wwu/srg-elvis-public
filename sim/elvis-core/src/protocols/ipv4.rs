@@ -4,7 +4,7 @@
 use crate::{
     control::{ControlError, Key, Primitive},
     id::Id,
-    machine::TapSlot,
+    machine::PciSlot,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
@@ -24,7 +24,7 @@ pub use ipv4_address::Ipv4Address;
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
-pub type IpToTapSlot = DashMap<Ipv4Address, TapSlot>;
+pub type IpToTapSlot = DashMap<Ipv4Address, PciSlot>;
 
 /// An implementation of the Internet Protocol.
 #[derive(Clone)]
@@ -106,7 +106,7 @@ impl Protocol for Ipv4 {
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
                 let tap_slot = { *self.ip_tap_slot.get(&key.remote).unwrap() };
-                Pci::set_tap_slot(tap_slot, &mut participants);
+                Pci::set_pci_slot(tap_slot, &mut participants);
                 let tap_session = context.protocol(Pci::ID).expect("No such protocol").open(
                     Self::ID,
                     participants,
@@ -175,7 +175,7 @@ impl Protocol for Ipv4 {
                 Some(binding) => {
                     // If the session does not exist but we have a listen
                     // binding for it, create the session
-                    let network = Pci::get_tap_slot(&context.control).map_err(|_| {
+                    let network = Pci::get_pci_slot(&context.control).map_err(|_| {
                         tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;

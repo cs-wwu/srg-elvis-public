@@ -5,12 +5,12 @@ use super::{
 use crate::{
     control::{Key, Primitive},
     id::Id,
-    machine::TapSlot,
+    machine::PciSlot,
     message::Message,
     protocol::Context,
     protocols::{pci::Pci, udp::Udp},
     session::{QueryError, ReceiveError, SendError, SharedSession},
-    Session,
+    Network, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -23,7 +23,7 @@ pub struct Ipv4Session {
     /// The identifying information for this session
     id: SessionId,
     /// The PCI slot to send on
-    tap_slot: TapSlot,
+    tap_slot: PciSlot,
 }
 
 impl Ipv4Session {
@@ -32,7 +32,7 @@ impl Ipv4Session {
         downstream: SharedSession,
         upstream: Id,
         identifier: SessionId,
-        tap_slot: TapSlot,
+        tap_slot: PciSlot,
     ) -> Self {
         Self {
             upstream,
@@ -65,8 +65,8 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        Pci::set_tap_slot(self.tap_slot, &mut context.control);
-        Pci::set_first_responder(Ipv4::ID, &mut context.control);
+        Pci::set_pci_slot(self.tap_slot, &mut context.control);
+        Network::set_protocol(Ipv4::ID, &mut context.control);
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
         Ok(())

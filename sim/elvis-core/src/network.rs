@@ -3,20 +3,20 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     protocol::Context,
-    session::{QueryError, SendError, SharedSession},
+    protocols::pci::PciSession,
+    session::{QueryError, SendError},
     Control, Message,
 };
 use std::{
-    collections::VecDeque,
     sync::{Arc, RwLock},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tokio::{
     sync::{
         broadcast::{self, error::RecvError},
-        mpsc, oneshot, Barrier,
+        mpsc, Barrier,
     },
-    time::{sleep, timeout},
+    time::sleep,
 };
 
 /// A network maximum transmission unit.
@@ -26,14 +26,14 @@ pub type Mtu = u32;
 pub type Mac = u64;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Baud(u32);
+pub struct Baud(u64);
 
 impl Baud {
-    pub fn bits_per_second(rate: u32) -> Self {
+    pub fn bits_per_second(rate: u64) -> Self {
         Self(rate / 8)
     }
 
-    pub fn bytes_per_second(rate: u32) -> Self {
+    pub fn bytes_per_second(rate: u64) -> Self {
         Self(rate)
     }
 }
@@ -70,20 +70,24 @@ impl NetworkBuilder {
     }
 }
 
-struct QueuedDelivery {
-    bytes: u32,
-    notify: oneshot::Sender<()>,
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct Delivery {
+    pub message: Message,
+    pub sender: Mac,
+    pub destination: Option<Mac>,
+    pub protocol: Id,
 }
 
 pub struct Network {
     mtu: Option<Mtu>,
     latency: Option<Duration>,
     throughput: Option<Baud>,
-    broadcast: broadcast::Sender<Message>,
-    connections: Arc<RwLock<Vec<mpsc::Sender<Message>>>>,
-    started: Arc<RwLock<bool>>,
-    send_queue_sender: mpsc::Sender<QueuedDelivery>,
-    send_queue_receiver: Arc<RwLock<Option<mpsc::Receiver<QueuedDelivery>>>>,
+    funnel: (
+        mpsc::Sender<Delivery>,
+        Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
+    ),
+    broadcast: broadcast::Sender<Delivery>,
+    taps: Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>,
 }
 
 impl Default for Network {
@@ -97,16 +101,14 @@ impl Network {
     pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
 
     fn new(mtu: Option<Mtu>, latency: Option<Duration>, throughput: Option<Baud>) -> Self {
-        let send_queue = mpsc::channel(16);
+        let funnel = mpsc::channel(16);
         Self {
             mtu,
             latency,
             throughput,
-            connections: Default::default(),
-            broadcast: broadcast::channel::<Message>(16).0,
-            started: Default::default(),
-            send_queue_sender: send_queue.0,
-            send_queue_receiver: Arc::new(RwLock::new(Some(send_queue.1))),
+            funnel: (funnel.0, Arc::new(RwLock::new(Some(funnel.1)))),
+            taps: Default::default(),
+            broadcast: broadcast::channel::<Delivery>(16).0,
         }
     }
 
@@ -116,92 +118,103 @@ impl Network {
 
     pub fn tap(self: &Arc<Self>) -> Tap {
         let (send, receive) = mpsc::channel(16);
-        self.connections.write().unwrap().push(send);
-        Tap::new(self.clone(), receive)
+        let mac = self.taps.read().unwrap().len();
+        self.taps.write().unwrap().push(send);
+        Tap::new(self.clone(), mac as Mac, receive)
     }
 
-    // TODO(hardint): Barrier needed
-    fn start(&self) {
-        let started = {
-            let mut lock = self.started.write().unwrap();
-            let started = *lock;
-            *lock = true;
-            started
-        };
-        if let Some(throughput) = self.throughput {
-            if !started {
-                let mut receiver = self.send_queue_receiver.write().unwrap().take().unwrap();
+    pub(crate) fn start(self: Arc<Self>, barrier: Arc<Barrier>) {
+        let mut receiver = self.funnel.1.write().unwrap().take().unwrap();
+        let throughput = self.throughput;
+        let latency = self.latency;
+        let taps = self.taps.clone();
+        let broadcast = self.broadcast.clone();
+        tokio::spawn(async move {
+            barrier.wait().await;
+            while let Some(delivery) = receiver.recv().await {
+                if let Some(throughput) = throughput {
+                    sleep(Duration::from_millis(
+                        delivery.message.len() as u64 * 1000 / throughput.0,
+                    ))
+                    .await;
+                }
+
+                let taps = taps.clone();
+                let broadcast = broadcast.clone();
                 tokio::spawn(async move {
-                    let mut queue = VecDeque::<QueuedDelivery>::new();
-                    loop {
-                        let next = queue.back();
-                        let delay = match next {
-                            Some(next) => Duration::from_millis(
-                                next.bytes as u64 * 1000 / throughput.0 as u64,
-                            ),
-                            None => Duration::MAX,
-                        };
-                        let now = SystemTime::now();
-                        match timeout(delay, receiver.recv()).await {
-                            Ok(delivery) => {
-                                match delivery {
-                                    Some(delivery) => {
-                                        queue.push_front(delivery);
-                                        let elapsed = now
-                                            .elapsed()
-                                            .unwrap()
-                                            .as_millis()
-                                            .try_into()
-                                            .unwrap_or(u32::MAX);
-                                        queue.back_mut().unwrap().bytes -=
-                                            elapsed * throughput.0 / 1000;
-                                    }
-                                    // The other side was closed? Check docs.
-                                    // This is probably a simulation shutting
-                                    // down situation.
-                                    None => break,
-                                }
-                            }
-                            Err(_) => {
-                                // Safe to unwrap here because we got a timeout,
-                                // which means that queue.back() was Some
-                                // earlier
-                                let delivery = queue.pop_back().unwrap();
-                                match delivery.notify.send(()) {
-                                    Ok(_) => {}
-                                    Err(e) => {
+                    if let Some(latency) = latency {
+                        sleep(latency).await;
+                    }
+                    match delivery.destination {
+                        Some(destination) => {
+                            let tap = {
+                                let taps = taps.read().unwrap();
+                                match taps.get(destination as usize) {
+                                    Some(tap) => tap,
+                                    None => {
                                         tracing::error!(
-                                            "Failed to signal a message delivery: {:?}",
-                                            e
-                                        )
+                                            "Trying to deliver to an invalid MAC address"
+                                        );
+                                        return;
                                     }
+                                }
+                                .clone()
+                            };
+                            match tap.send(delivery).await {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    tracing::error!("Failed to deliver a message: {}", e)
                                 }
                             }
                         }
+                        None => match broadcast.clone().send(delivery) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                tracing::error!("Failed to deliver a message: {}", e)
+                            }
+                        },
                     }
                 });
             }
-        }
+        });
     }
 
-    pub fn set_destination_mac(mac: Mac, control: &mut Control) {
+    pub fn set_destination(mac: Mac, control: &mut Control) {
         control.insert((Self::ID, 0), mac);
     }
 
-    pub fn get_destination_mac(control: &Control) -> Result<Mac, ControlError> {
+    pub fn get_destination(control: &Control) -> Result<Mac, ControlError> {
         Ok(control.get((Self::ID, 0))?.ok_u64()?)
+    }
+
+    pub fn set_sender(mac: Mac, control: &mut Control) {
+        control.insert((Self::ID, 1), mac);
+    }
+
+    pub fn get_sender(control: &Control) -> Result<Mac, ControlError> {
+        Ok(control.get((Self::ID, 1))?.ok_u64()?)
+    }
+
+    pub fn set_protocol(protocol: Id, control: &mut Control) {
+        control.insert((Self::ID, 2), protocol.into_inner());
+    }
+
+    pub fn get_protocol(control: &Control) -> Result<Id, ControlError> {
+        Ok(control.get((Self::ID, 2))?.ok_u64()?.into())
     }
 }
 
 pub struct Tap {
     network: Arc<Network>,
-    direct_receiver: Arc<RwLock<Option<mpsc::Receiver<Message>>>>,
+    mac: Mac,
+    direct_receiver: Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
 }
 
 impl Tap {
-    pub fn new(network: Arc<Network>, receiver: mpsc::Receiver<Message>) -> Self {
+    fn new(network: Arc<Network>, mac: Mac, receiver: mpsc::Receiver<Delivery>) -> Self {
         Self {
             network,
+            mac,
             direct_receiver: Arc::new(RwLock::new(Some(receiver))),
         }
     }
@@ -224,59 +237,41 @@ impl Tap {
         });
     }
 
-    pub(crate) fn send(&self, message: Message, control: Control) -> Result<(), SendError> {
+    pub(crate) fn send(
+        &self,
+        message: Message,
+        destination: Option<Mac>,
+        protocol: Id,
+    ) -> Result<(), SendError> {
         if let Some(mtu) = self.network.mtu {
             if message.len() > mtu as usize {
+                tracing::error!("Attempted to send a message larger than the network can handle");
                 Err(SendError::Mtu(mtu))?
             }
         }
 
         let latency = self.network.latency;
-        match Network::get_destination_mac(&control) {
-            Ok(destination) => {
-                let destination = destination as usize;
-                let channel = self
-                    .network
-                    .connections
-                    .read()
-                    .unwrap()
-                    .get(destination)
-                    .ok_or_else(|| {
-                        tracing::error!("The destination mac is out of bounds: {}", destination);
-                        SendError::MissingContext
-                    })?
-                    .clone();
-                tokio::spawn(async move {
-                    if let Some(latency) = latency {
-                        sleep(latency).await;
-                    }
-                    match channel.clone().send(message).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!("Failed to send on direct network: {}", e);
-                        }
-                    }
-                });
-                Ok(())
-            }
+        let funnel = self.network.funnel.0.clone();
+        let delivery = Delivery {
+            message,
+            sender: self.mac,
+            destination,
+            protocol,
+        };
 
-            Err(_) => {
-                let broadcast = self.network.broadcast.clone();
-                tokio::spawn(async move {
-                    if let Some(latency) = latency {
-                        sleep(latency).await;
-                    }
-                    match broadcast.send(message) {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!("Failed to send on broadcast network: {}", e);
-                            Err(SendError::Other)
-                        }
-                    }
-                });
-                Ok(())
+        tokio::spawn(async move {
+            if let Some(latency) = latency {
+                sleep(latency).await;
             }
-        }
+            match funnel.send(delivery).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("Failed to send on direct network: {}", e);
+                }
+            }
+        });
+
+        Ok(())
     }
 
     pub(crate) fn query(&self, key: Key) -> Result<Primitive, QueryError> {
@@ -287,13 +282,10 @@ impl Tap {
     }
 }
 
-fn receive_direct(message: Option<Message>, environment: TapEnvironment) {
-    if let Some(message) = message {
-        match environment
-            .session
-            .clone()
-            .receive(message, environment.context())
-        {
+fn receive_direct(delivery: Option<Delivery>, environment: TapEnvironment) {
+    if let Some(delivery) = delivery {
+        let context = environment.context();
+        match environment.session.clone().receive_pci(delivery, context) {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Failed to receive on direct network: {}", e);
@@ -302,11 +294,11 @@ fn receive_direct(message: Option<Message>, environment: TapEnvironment) {
     }
 }
 
-fn receive_broadcast(message: Result<Message, RecvError>, environment: TapEnvironment) {
-    match message {
-        Ok(message) => {
-            let context = Context::new(environment.protocols);
-            match environment.session.receive(message, context) {
+fn receive_broadcast(delivery: Result<Delivery, RecvError>, environment: TapEnvironment) {
+    match delivery {
+        Ok(delivery) => {
+            let context = environment.context();
+            match environment.session.receive_pci(delivery, context) {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::error!("Failed to receive on a broadcast network: {}", e);
@@ -322,11 +314,11 @@ fn receive_broadcast(message: Result<Message, RecvError>, environment: TapEnviro
 #[derive(Clone)]
 pub struct TapEnvironment {
     pub protocols: ProtocolMap,
-    pub session: SharedSession,
+    pub session: Arc<PciSession>,
 }
 
 impl TapEnvironment {
-    pub fn new(protocols: ProtocolMap, session: SharedSession) -> Self {
+    pub fn new(protocols: ProtocolMap, session: Arc<PciSession>) -> Self {
         Self { protocols, session }
     }
 

@@ -3,7 +3,7 @@
 use crate::{
     control::{ControlError, Key, Primitive},
     id::Id,
-    machine::TapSlot,
+    machine::PciSlot,
     message::Message,
     network::Tap,
     protocol::{
@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
 
 mod pci_session;
-use pci_session::PciSession;
+pub(crate) use pci_session::PciSession;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
@@ -51,20 +51,12 @@ impl Pci {
         Arc::new(Self::new(taps))
     }
 
-    pub fn set_tap_slot(slot: TapSlot, control: &mut Control) {
+    pub fn set_pci_slot(slot: PciSlot, control: &mut Control) {
         control.insert((Self::ID, 0), slot);
     }
 
-    pub fn get_tap_slot(control: &Control) -> Result<TapSlot, ControlError> {
+    pub fn get_pci_slot(control: &Control) -> Result<PciSlot, ControlError> {
         Ok(control.get((Self::ID, 0))?.ok_u32()?)
-    }
-
-    pub fn set_first_responder(id: Id, control: &mut Control) {
-        control.insert((Self::ID, 1), id.into_inner());
-    }
-
-    pub fn get_first_responder(control: &Control) -> Result<Id, ControlError> {
-        Ok(control.get((Self::ID, 1))?.ok_u64()?.into())
     }
 }
 
@@ -79,15 +71,15 @@ impl Protocol for Pci {
         participants: Control,
         _context: Context,
     ) -> Result<SharedSession, OpenError> {
-        let network_id = Pci::get_tap_slot(&participants).map_err(|_| {
-            tracing::error!("Missing network ID on context");
+        let pci_slot = Pci::get_pci_slot(&participants).map_err(|_| {
+            tracing::error!("Missing PCI slot on context");
             OpenError::MissingContext
         })?;
         let session = self
             .sessions
-            .get(network_id as usize)
+            .get(pci_slot as usize)
             .ok_or_else(|| {
-                tracing::error!("Network ID is out of bounds");
+                tracing::error!("PCI slot is out of bounds");
                 OpenError::Other
             })?
             .clone();

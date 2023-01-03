@@ -35,7 +35,7 @@ pub async fn basic() {
         ]),
     ];
 
-    run_internet(machines).await;
+    run_internet(machines, vec![network]).await;
     assert_eq!(
         capture.application().message(),
         Some(Message::new("Hello!"))

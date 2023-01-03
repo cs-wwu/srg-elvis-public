@@ -7,7 +7,7 @@ use std::{
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// A tap's PCI slot index
-pub type TapSlot = u32;
+pub type PciSlot = u32;
 
 /// A mapping of protocol IDs to protocols
 pub(crate) type ProtocolMap = Arc<HashMap<Id, SharedProtocol>>;
