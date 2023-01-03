@@ -1,5 +1,3 @@
-use tokio::sync::Barrier;
-
 use super::Pci;
 use crate::{
     control::{Key, Primitive},
@@ -11,6 +9,7 @@ use crate::{
     Network, Session,
 };
 use std::sync::Arc;
+use tokio::sync::Barrier;
 
 /// The session type for a [`Tap`](super::Tap).
 pub struct PciSession {
