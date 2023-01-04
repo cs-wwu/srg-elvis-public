@@ -3,6 +3,7 @@ use crate::Network;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Barrier};
 
+/// Runs the simulation with the given machines and networks
 pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
     let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
     let total_protocols: usize = machines

@@ -23,11 +23,18 @@ impl PciSession {
         Self { tap, index }
     }
 
+    /// Called by the owning [`Pci`] protocol at the beginning of the simulation
+    /// to start the contained tap running
     pub(super) fn start(self: Arc<Self>, protocols: ProtocolMap, barrier: Arc<Barrier>) {
         let environment = TapEnvironment::new(protocols, self.clone());
         self.tap.start(environment, barrier);
     }
 
+    /// Called by the owned [`Tap`] to pass a frame from the network up the
+    /// protocol stack. We use this instead of [`Session::receive`] because the
+    /// tap holds a reference to this session as a concrete type and having
+    /// specialized arguments to pass a full network frame to this session is
+    /// useful.
     pub(crate) fn receive_pci(
         self: Arc<Self>,
         delivery: Delivery,
@@ -71,6 +78,9 @@ impl Session for PciSession {
     }
 
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        self.tap.query(key)
+        match key {
+            Pci::MTU_QUERY_KEY => Ok(self.tap.mtu().unwrap_or(0).into()),
+            _ => Err(QueryError::MissingKey),
+        }
     }
 }

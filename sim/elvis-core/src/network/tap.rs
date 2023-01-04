@@ -1,11 +1,7 @@
-use super::{Delivery, Mac};
+use super::{Delivery, Mac, Mtu};
 use crate::{
-    control::{Key, Primitive},
-    machine::ProtocolMap,
-    protocol::Context,
-    protocols::pci::PciSession,
-    session::{QueryError, SendError},
-    Id, Message, Network,
+    machine::ProtocolMap, protocol::Context, protocols::pci::PciSession, session::SendError, Id,
+    Message, Network,
 };
 use std::sync::{Arc, RwLock};
 use tokio::{
@@ -13,6 +9,9 @@ use tokio::{
     time::sleep,
 };
 
+/// An access point to a [`Network`]. A tap can be created by calling
+/// [`Network::tap`]. Taps should be added to a [`crate::protocols::Pci`]
+/// protocol to allow a [`Machine`](crate::Machine) to access the network.
 pub struct Tap {
     network: Arc<Network>,
     mac: Mac,
@@ -20,6 +19,7 @@ pub struct Tap {
 }
 
 impl Tap {
+    /// Creates a new tap
     pub(super) fn new(network: Arc<Network>, mac: Mac, receiver: mpsc::Receiver<Delivery>) -> Self {
         Self {
             network,
@@ -28,6 +28,7 @@ impl Tap {
         }
     }
 
+    /// Called at the beginning of the simulation to start the tap running.
     pub(crate) fn start(&self, environment: TapEnvironment, barrier: Arc<Barrier>) {
         let mut direct_receiver = self.direct_receiver.write().unwrap().take().unwrap();
         let mut broadcast_receiver = self.network.broadcast.subscribe();
@@ -46,6 +47,7 @@ impl Tap {
         });
     }
 
+    /// Send a message over the network
     pub(crate) fn send(
         &self,
         message: Message,
@@ -60,7 +62,7 @@ impl Tap {
         }
 
         let latency = self.network.latency;
-        let funnel = self.network.funnel_sender.clone();
+        let funnel = self.network.delivery_sender.clone();
         let delivery = Delivery {
             message,
             sender: self.mac,
@@ -83,11 +85,9 @@ impl Tap {
         Ok(())
     }
 
-    pub(crate) fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        match key {
-            Network::MTU_QUERY_KEY => Ok(self.network.mtu.unwrap_or(0).into()),
-            _ => Err(QueryError::MissingKey),
-        }
+    /// Gets the maximum transmission unit of the attached network
+    pub(crate) fn mtu(&self) -> Option<Mtu> {
+        self.network.mtu
     }
 }
 
@@ -120,8 +120,9 @@ fn receive_broadcast(delivery: Result<Delivery, RecvError>, environment: TapEnvi
     }
 }
 
+/// Allows a [`Tap`] requires to get information about its environment
 #[derive(Clone)]
-pub struct TapEnvironment {
+pub(crate) struct TapEnvironment {
     pub protocols: ProtocolMap,
     pub session: Arc<PciSession>,
 }

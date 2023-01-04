@@ -33,7 +33,12 @@ pub struct Pci {
 impl Pci {
     /// A unique identifier for the protocol.
     pub const ID: Id = Id::from_string("PCI");
+
+    /// THe key used the query the number of attached [`Tap`]s
     pub const SLOT_COUNT_QUERY_KEY: Key = (Self::ID, 0);
+
+    /// The key used to query the MTU of the network
+    pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
 
     /// Creates a new network tap.
     pub fn new(taps: impl IntoIterator<Item = Tap>) -> Self {
