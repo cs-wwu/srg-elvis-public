@@ -78,10 +78,8 @@ pub struct Network {
     mtu: Option<Mtu>,
     latency: Option<Duration>,
     throughput: Option<Baud>,
-    funnel: (
-        mpsc::Sender<Delivery>,
-        Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
-    ),
+    funnel_sender: mpsc::Sender<Delivery>,
+    funnel_receiver: Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
     broadcast: broadcast::Sender<Delivery>,
     taps: Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>,
 }
@@ -102,7 +100,8 @@ impl Network {
             mtu,
             latency,
             throughput,
-            funnel: (funnel.0, Arc::new(RwLock::new(Some(funnel.1)))),
+            funnel_sender: funnel.0,
+            funnel_receiver: Arc::new(RwLock::new(Some(funnel.1))),
             taps: Default::default(),
             broadcast: broadcast::channel::<Delivery>(16).0,
         }
@@ -120,7 +119,7 @@ impl Network {
     }
 
     pub(crate) fn start(self: Arc<Self>, barrier: Arc<Barrier>) {
-        let mut receiver = self.funnel.1.write().unwrap().take().unwrap();
+        let mut receiver = self.funnel_receiver.write().unwrap().take().unwrap();
         let throughput = self.throughput;
         let latency = self.latency;
         let taps = self.taps.clone();

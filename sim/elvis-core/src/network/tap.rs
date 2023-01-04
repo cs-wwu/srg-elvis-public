@@ -60,7 +60,7 @@ impl Tap {
         }
 
         let latency = self.network.latency;
-        let funnel = self.network.funnel.0.clone();
+        let funnel = self.network.funnel_sender.clone();
         let delivery = Delivery {
             message,
             sender: self.mac,
