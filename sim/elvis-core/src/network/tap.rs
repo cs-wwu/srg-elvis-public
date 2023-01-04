@@ -94,7 +94,7 @@ impl Tap {
 fn receive_direct(delivery: Option<Delivery>, environment: TapEnvironment) {
     if let Some(delivery) = delivery {
         let context = environment.context();
-        match environment.session.clone().receive_pci(delivery, context) {
+        match environment.session.receive_pci(delivery, context) {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Failed to receive on direct network: {}", e);
