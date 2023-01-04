@@ -14,10 +14,9 @@ pub(crate) type ProtocolMap = Arc<HashMap<Id, SharedProtocol>>;
 
 /// A networked computer in the simultation.
 ///
-/// A machine is conceptually a computer attached to the internet. Machines are
-/// managed by the [`Internet`](super::Internet) and communicate through
-/// [`Network`](super::Network)s. Each machine contains a set of
-/// [`Protocol`](super::Protocol)s that it manages. The protocols may be
+/// A machine is conceptually a computer attached to the internet. Machines
+/// communicate through [`Network`](super::Network)s. Each machine contains a
+/// set of [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
     protocols: ProtocolMap,

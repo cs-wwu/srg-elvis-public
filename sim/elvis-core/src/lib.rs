@@ -21,7 +21,7 @@
 //! - [`Message`](message::Message) and [`Control`] provide basic utilities
 //!   common to most protocols
 //! - [`Protocol`] and [`Session`] implement individual protocols
-//! - [`Internet`] provides the actual simulation
+//! - [`run_internet`] runs the actual simulation
 //!
 //! # Protocol structure
 //!
