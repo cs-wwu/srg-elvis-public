@@ -56,10 +56,14 @@ impl Pci {
         Arc::new(Self::new(taps))
     }
 
+    /// Sets the index of the tap that a message should be sent over or that a
+    /// message was received from.
     pub fn set_pci_slot(slot: PciSlot, control: &mut Control) {
         control.insert((Self::ID, 0), slot);
     }
 
+    /// Gets the index of the tap that a message should be sent over or that a
+    /// message was received from.
     pub fn get_pci_slot(control: &Control) -> Result<PciSlot, ControlError> {
         Ok(control.get((Self::ID, 0))?.ok_u32()?)
     }
