@@ -17,10 +17,10 @@ use elvis_core::{
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
 pub async fn throughput() {
-    const TCP_HEADER_SIZE: u64 = 20;
+    const UDP_HEADER_SIZE: u64 = 8;
     const IP_HEADER_SIZE: u64 = 20;
     const PAYLOAD_LENGTH: u64 = 6;
-    const MESSAGE_LENGTH: u64 = TCP_HEADER_SIZE + IP_HEADER_SIZE + PAYLOAD_LENGTH;
+    const MESSAGE_LENGTH: u64 = UDP_HEADER_SIZE + IP_HEADER_SIZE + PAYLOAD_LENGTH;
     let network = NetworkBuilder::new()
         .throughput(Baud::bytes_per_second(MESSAGE_LENGTH))
         .build();
@@ -32,9 +32,7 @@ pub async fn throughput() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             Pci::new_shared([network.tap()]),
-            SendMessage::new_shared("First ", capture_ip_address, 0xbeef, None),
-            SendMessage::new_shared("Second", capture_ip_address, 0xbeef, None),
-            SendMessage::new_shared("Third ", capture_ip_address, 0xbeef, None),
+            SendMessage::new_shared("First ", capture_ip_address, 0xbeef, None, 3),
         ]),
         Machine::new([
             Udp::new_shared() as SharedProtocol,

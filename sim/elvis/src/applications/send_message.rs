@@ -23,6 +23,7 @@ pub struct SendMessage {
     port: u16,
     /// The machine that will receive the message
     destination_mac: Option<Mac>,
+    count: u16,
 }
 
 impl SendMessage {
@@ -32,12 +33,14 @@ impl SendMessage {
         remote_ip: Ipv4Address,
         remote_port: u16,
         destination_mac: Option<Mac>,
+        count: u16,
     ) -> Self {
         Self {
             text,
             ip: remote_ip,
             port: remote_port,
             destination_mac,
+            count,
         }
     }
 
@@ -47,8 +50,15 @@ impl SendMessage {
         remote_ip: Ipv4Address,
         remote_port: u16,
         destination_mac: Option<Mac>,
+        count: u16,
     ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(text, remote_ip, remote_port, destination_mac))
+        UserProcess::new_shared(Self::new(
+            text,
+            remote_ip,
+            remote_port,
+            destination_mac,
+            count,
+        ))
     }
 }
 
@@ -73,9 +83,12 @@ impl Application for SendMessage {
             if let Some(destination_mac) = self.destination_mac {
                 Network::set_destination(destination_mac, &mut context.control);
             }
-            session
-                .send(Message::new(self.text), context)
-                .expect("SendMessage failed to send");
+            for _ in 0..self.count {
+                session
+                    .clone()
+                    .send(Message::new(self.text), context.clone())
+                    .expect("SendMessage failed to send");
+            }
         });
         Ok(())
     }

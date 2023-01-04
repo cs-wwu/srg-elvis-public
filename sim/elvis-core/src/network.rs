@@ -129,10 +129,9 @@ impl Network {
             barrier.wait().await;
             while let Some(delivery) = receiver.recv().await {
                 if let Some(throughput) = throughput {
-                    sleep(Duration::from_millis(
-                        delivery.message.len() as u64 * 1000 / throughput.0,
-                    ))
-                    .await;
+                    let ms = delivery.message.len() as u64 * 1000 / throughput.0;
+                    println!("{}, {}, {}", delivery.message.len(), throughput.0, ms);
+                    sleep(Duration::from_millis(ms)).await;
                 }
 
                 let taps = taps.clone();
