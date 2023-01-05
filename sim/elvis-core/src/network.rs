@@ -27,10 +27,6 @@ use tokio::{
     time::sleep,
 };
 
-mod tap;
-pub use tap::Tap;
-pub(crate) use tap::TapEnvironment;
-
 /// A network maximum transmission unit.
 ///
 /// The largest number of bytes that can be sent over the network at once.
@@ -127,17 +123,19 @@ pub(crate) struct Delivery {
 /// reliability. It should provide a reasonable approximation of many kinds of
 /// networks, including Ethernet and WiFi.
 pub struct Network {
-    mtu: Option<Mtu>,
+    /// A channel for sending a message to all taps attached to the network.
+    /// Each tap subscribes to this.
+    broadcast: broadcast::Sender<Delivery>,
+    mtu: Mtu,
     latency: Option<Duration>,
     throughput: Option<Baud>,
     /// The sending half of a channel for taps to send messages to the network
     /// for delivery over the network. The other half is `delivery_receiver`.
+    /// Each tap gets its own copy of this and the network does not use it.
     delivery_sender: mpsc::Sender<Delivery>,
     /// The receiving half of a channel for receiving messages from taps for
     /// delivery over the network. The other half is `delivery_sender`.
     delivery_receiver: Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
-    /// A channel for sending a message to all taps attached to the network
-    broadcast: broadcast::Sender<Delivery>,
     /// A vector for channels for sending messages to specific taps attached to
     /// the network
     taps: Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>,
@@ -157,7 +155,7 @@ impl Network {
     fn new(mtu: Option<Mtu>, latency: Option<Duration>, throughput: Option<Baud>) -> Self {
         let funnel = mpsc::channel(16);
         Self {
-            mtu,
+            mtu: mtu.unwrap_or(Mtu::MAX),
             latency,
             throughput,
             delivery_sender: funnel.0,
@@ -178,9 +176,15 @@ impl Network {
     /// to send and receive messages through the network.
     pub fn tap(self: &Arc<Self>) -> Tap {
         let (send, receive) = mpsc::channel(16);
-        let mac = self.taps.read().unwrap().len();
+        let mac = self.taps.read().unwrap().len() as u64;
         self.taps.write().unwrap().push(send);
-        Tap::new(self.clone(), mac as Mac, receive)
+        Tap {
+            mtu: self.mtu,
+            mac,
+            delivery_sender: self.delivery_sender.clone(),
+            unicast_receiver: Arc::new(RwLock::new(Some(receive))),
+            broadcast: Arc::new(RwLock::new(Some(self.broadcast.subscribe()))),
+        }
     }
 
     /// Called at the beginning of the simulation to start the network running
@@ -268,4 +272,15 @@ impl Network {
     pub fn get_protocol(control: &Control) -> Result<Id, ControlError> {
         Ok(control.get((Self::ID, 2))?.ok_u64()?.into())
     }
+}
+
+/// An access point to a [`Network`]. A tap can be created by calling
+/// [`Network::tap`]. Taps should be added to a [`crate::protocols::Pci`]
+/// protocol to allow a [`Machine`](crate::Machine) to access the network.
+pub struct Tap {
+    pub(crate) mtu: Mtu,
+    pub(crate) mac: Mac,
+    pub(crate) delivery_sender: mpsc::Sender<Delivery>,
+    pub(crate) broadcast: Arc<RwLock<Option<broadcast::Receiver<Delivery>>>>,
+    pub(crate) unicast_receiver: Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
 }
