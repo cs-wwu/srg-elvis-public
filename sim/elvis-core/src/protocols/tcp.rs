@@ -2,28 +2,16 @@ use self::{
     tcp_parsing::TcpHeader,
     tcp_session::{Iss, SessionId, Socket, TcpSession},
 };
-use super::{
-    ipv4::{LocalAddress, RemoteAddress},
-    Ipv4,
-};
+use super::Ipv4;
 use crate::{
-    control::{
-        self,
-        value::{from_impls, make_key},
-        Key, Primitive,
-    },
-    protocol::{Context, ProtocolId},
+    control::{ControlError, Key, Primitive},
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     session::SharedSession,
     Control, Message, Protocol, Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
-use thiserror::Error as ThisError;
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
-use tracing::error;
 
 mod tcp_parsing;
 mod tcp_session;
@@ -57,6 +45,22 @@ impl Tcp {
             }
         }
     }
+
+    pub fn set_local_port(port: u16, control: &mut Control) {
+        control.insert((Self::ID, 0), port);
+    }
+
+    pub fn get_local_port(control: &Control) -> Result<u16, ControlError> {
+        Ok(control.get((Self::ID, 0))?.ok_u16()?)
+    }
+
+    pub fn set_remote_port(port: u16, control: &mut Control) {
+        control.insert((Self::ID, 1), port);
+    }
+
+    pub fn get_remote_port(control: &Control) -> Result<u16, ControlError> {
+        Ok(control.get((Self::ID, 1))?.ok_u16()?)
+    }
 }
 
 impl Protocol for Tcp {
@@ -69,20 +73,20 @@ impl Protocol for Tcp {
         _upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
         // of the higher-up protocols and we should crash. Therefore, unwrapping
         // is appropriate here.
 
         let local = Socket {
-            address: LocalAddress::try_from(&participants).unwrap().into(),
-            port: LocalPort::try_from(&participants).unwrap().into(),
+            address: Ipv4::get_local_address(&participants).unwrap(),
+            port: Self::get_local_port(&participants).unwrap(),
         };
 
         let remote = Socket {
-            address: RemoteAddress::try_from(&participants).unwrap().into(),
-            port: RemotePort::try_from(&participants).unwrap().into(),
+            address: Ipv4::get_remote_address(&participants).unwrap(),
+            port: Self::get_remote_port(&participants).unwrap(),
         };
 
         let session_id = SessionId {
@@ -90,7 +94,7 @@ impl Protocol for Tcp {
             dst: remote,
         };
         match self.clone().sessions.entry(session_id) {
-            Entry::Occupied(_) => Err(TcpError::SessionExists)?,
+            Entry::Occupied(_) => Err(OpenError::Existing)?,
             Entry::Vacant(entry) => {
                 // Create the session and save it
                 let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
@@ -115,13 +119,13 @@ impl Protocol for Tcp {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
         let socket = Socket {
-            port: LocalPort::try_from(&participants).unwrap().into(),
-            address: LocalAddress::try_from(&participants).unwrap().into(),
+            port: Self::get_local_port(&participants).unwrap(),
+            address: Ipv4::get_local_address(&participants).unwrap(),
         };
         self.listen_bindings.insert(socket, upstream);
         // Ask lower-level protocols to add the binding as well
@@ -136,14 +140,14 @@ impl Protocol for Tcp {
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = LocalAddress::try_from(&context.info).unwrap();
-        let remote_address = RemoteAddress::try_from(&context.info).unwrap();
+        let local_address = Ipv4::get_local_address(&context.info).unwrap();
+        let remote_address = Ipv4::get_remote_address(&context.info).unwrap();
 
         // Parse the header
-        let header =
-            TcpHeader::from_bytes(message.iter(), remote_address.into(), local_address.into())?;
+        let header = TcpHeader::from_bytes(message.iter(), remote_address, local_address)
+            .map_err(|_| DemuxError::Header)?;
         message.slice(20..);
 
         let local = Socket {
@@ -163,8 +167,8 @@ impl Protocol for Tcp {
         };
 
         // Add the header information to the context
-        LocalPort::new(local.port).apply(&mut context.info);
-        RemotePort::new(remote.port).apply(&mut context.info);
+        Tcp::set_local_port(local.port, &mut context.info);
+        Tcp::set_remote_port(remote.port, &mut context.info);
 
         let session = match self.clone().sessions.entry(session_id) {
             Entry::Occupied(entry) => {
@@ -185,7 +189,7 @@ impl Protocol for Tcp {
                         session_entry.insert(session.clone());
                         session
                     }
-                    Entry::Vacant(_) => Err(TcpError::MissingSession)?,
+                    Entry::Vacant(_) => Err(DemuxError::MissingSession)?,
                 }
             }
         };
@@ -198,47 +202,15 @@ impl Protocol for Tcp {
         _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
         });
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, ()> {
-        error!("No such key on TCP");
-        Err(())
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+        tracing::error!("No such key on TCP");
+        Err(QueryError::NonexistentKey)
     }
-}
-
-const LOCAL_PORT_KEY: Key = make_key("TCP Local Port");
-/// A [`control::Value`] for the local port number.
-pub type LocalPort = control::Value<LOCAL_PORT_KEY, u16>;
-from_impls!(LocalPort, u16);
-
-const REMOTE_PORT_KEY: Key = make_key("TCP Remote Port");
-/// A [`control::Value`] for the remote port number.
-pub type RemotePort = control::Value<REMOTE_PORT_KEY, u16>;
-from_impls!(RemotePort, u16);
-
-#[derive(Debug, ThisError)]
-pub enum TcpError {
-    #[error("Tried to create an existing session")]
-    SessionExists,
-    #[error("Tried to demux with a missing session and no listen bindings")]
-    MissingSession,
-    #[error("Too few bytes to constitute a TCP header")]
-    HeaderTooShort,
-    #[error(
-        "The computed checksum {actual:#06x} did not match the header checksum {expected:#06x}"
-    )]
-    InvalidChecksum { actual: u16, expected: u16 },
-    #[error("Data offset was different from that expected for a simple header")]
-    UnexpectedOptions,
-    #[error("The TCP payload is longer than can fit into a single packet")]
-    OverlyLongPayload,
-    #[error("A message failed to send")]
-    Send,
-    #[error("Attempted to send on a TCP session that is closing")]
-    InvalidSend,
 }

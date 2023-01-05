@@ -1,7 +1,4 @@
-use super::{
-    tap_misc::{FirstResponder, TapError},
-    NetworkId, MACHINE_ID_KEY,
-};
+use super::{Tap, MACHINE_ID_KEY};
 use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
@@ -9,10 +6,11 @@ use crate::{
     message::Message,
     network::Delivery,
     protocol::{Context, ProtocolId},
+    session::{QueryError, ReceiveError, SendError},
     Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{error::Error, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 use tokio::sync::mpsc::Sender;
 
 /// The session type for a [`Tap`](super::Tap).
@@ -50,30 +48,54 @@ impl TapSession {
 
     /// Receives a delivery from the network and passes it up the protocol
     /// stack.
+    #[tracing::instrument(name = "TapSession::receive_delivery", skip(delivery, context))]
     pub(super) fn receive_delivery(
         self: Arc<Self>,
         mut delivery: Delivery,
         mut context: Context,
-    ) -> Result<(), Box<dyn Error>> {
-        let first_responder: FirstResponder = take_header(&delivery.message)
-            .ok_or(TapError::HeaderLength)
-            .unwrap()
-            .into();
-        first_responder.apply(&mut context.info);
-        let network_id: NetworkId = delivery.network;
-        network_id.apply(&mut context.info);
+    ) -> Result<(), ReceiveError> {
+        let first_responder = match take_header(&delivery.message) {
+            Some(protocol) => protocol,
+            None => {
+                tracing::error!("Expected eight bytes for the tap header");
+                Err(ReceiveError::Other)?
+            }
+        };
+        Tap::set_first_responder(first_responder, &mut context.info);
+        Tap::set_network_id(delivery.network, &mut context.info);
         delivery.message.slice(8..);
-        let protocol = context
-            .protocol(first_responder.into())
-            .ok_or_else(|| TapError::NoSuchProtocol(first_responder.into()))?;
-        protocol.demux(delivery.message, self, context)
+        let protocol = match context.protocol(first_responder) {
+            Some(protocol) => protocol,
+            None => {
+                tracing::error!(
+                    "Could not find a protocol for the protocol ID {}",
+                    first_responder
+                );
+                Err(ReceiveError::Other)?
+            }
+        };
+        protocol.demux(delivery.message, self, context)?;
+        Ok(())
     }
 }
 
 impl Session for TapSession {
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), Box<dyn Error>> {
-        let network_id = NetworkId::try_from(&context.info)?;
-        let first_responder = FirstResponder::try_from(&context.info)?;
+    #[tracing::instrument(name = "TapSession::send", skip(message, context))]
+    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
+        let network_id = match Tap::get_network_id(&context.info) {
+            Ok(network_id) => network_id,
+            Err(_) => {
+                tracing::error!("Network ID missing from context");
+                Err(SendError::MissingContext)?
+            }
+        };
+        let first_responder = match Tap::get_first_responder(&context.info) {
+            Ok(first_responder) => first_responder,
+            Err(_) => {
+                tracing::error!("First responder missing from context");
+                Err(SendError::MissingContext)?
+            }
+        };
         message.prepend(first_responder.into_inner().to_be_bytes().to_vec());
         let delivery = Delivery {
             message,
@@ -83,7 +105,7 @@ impl Session for TapSession {
         tokio::spawn(async move {
             let sender = self
                 .networks
-                .get(&NetworkHandle::new(network_id.into_inner()))
+                .get(&NetworkHandle::new(network_id))
                 .unwrap()
                 .clone();
             sender.send(delivery).await.unwrap()
@@ -91,20 +113,24 @@ impl Session for TapSession {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        _message: Message,
-        _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ReceiveError> {
         panic!("Use Tap::receive_delivery() instead");
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add support for querying the MTU
         match key {
             MACHINE_ID_KEY => Ok(self.machine_id.into()),
-            _ => Err(TapError::NoSuchKey.into()),
+            _ => Err(QueryError::MissingKey),
         }
+    }
+}
+
+impl Debug for TapSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TapSession")
+            .field("machine_id", &self.machine_id)
+            .finish()
     }
 }
 

@@ -4,11 +4,12 @@
 use crate::{
     control::{Key, Primitive},
     message::Message,
-    protocol::{Context, ProtocolId},
-    session::SharedSession,
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
+    session::{SendError, SharedSession},
     Control, Protocol,
 };
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
+use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 use tracing::error;
 
@@ -29,11 +30,24 @@ pub trait Application {
         context: Context,
         shutdown: Sender<()>,
         initialize: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), ApplicationError>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
+    fn receive(self: Arc<Self>, message: Message, context: Context)
+        -> Result<(), ApplicationError>;
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationError {
+    #[error("A listen call failed")]
+    Listen(#[from] ListenError),
+    #[error("An open call failed")]
+    Open(#[from] OpenError),
+    #[error("A send call failed")]
+    Send(#[from] SendError),
+    #[error("Unspecified error")]
+    Other,
 }
 
 /// A user-level process that sits at the top of the networking stack.
@@ -79,7 +93,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, OpenError> {
         panic!("Cannot active open on a user process")
     }
 
@@ -88,7 +102,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         _upstream: ProtocolId,
         _participants: Control,
         _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ListenError> {
         panic!("Cannot listen on a user process")
     }
 
@@ -97,12 +111,9 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         message: Message,
         _caller: SharedSession,
         context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), DemuxError> {
         let application = self.application.clone();
-        match application.recv(message, context) {
-            Ok(_) => {}
-            Err(e) => eprintln!("{}", e),
-        }
+        application.receive(message, context)?;
         Ok(())
     }
 
@@ -111,17 +122,13 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), StartError> {
         let application = self.application.clone();
-        match application.start(context, shutdown, initialized) {
-            Ok(_) => {}
-            Err(e) => eprintln!("{}", e),
-        }
+        application.start(context, shutdown, initialized)?;
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, ()> {
-        error!("No such key on a user process");
-        Err(())
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+        Err(QueryError::NonexistentKey)
     }
 }

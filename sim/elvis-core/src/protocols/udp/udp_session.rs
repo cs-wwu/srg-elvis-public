@@ -1,39 +1,45 @@
-use super::{
-    udp_misc::{LocalPort, RemotePort},
-    udp_parsing::build_udp_header,
-};
+use super::udp_parsing::build_udp_header;
 use crate::{
     control::{Key, Primitive},
     logging::{receive_message_event, send_message_event},
     message::Message,
     protocol::{Context, ProtocolId},
-    protocols::ipv4::{LocalAddress, RemoteAddress},
-    session::SharedSession,
+    protocols::utility::Socket,
+    session::{QueryError, ReceiveError, SendError, SharedSession},
     Session,
 };
-use std::{error::Error, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
 pub(super) struct UdpSession {
     pub upstream: ProtocolId,
     pub downstream: SharedSession,
-    pub identifier: SessionId,
+    pub id: SessionId,
 }
 
 impl Session for UdpSession {
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), Box<dyn Error>> {
-        let id = self.identifier;
-        let header = build_udp_header(
-            self.identifier.local_address.into(),
-            id.local_port.into(),
-            self.identifier.remote_address.into(),
-            id.remote_port.into(),
+    #[tracing::instrument(name = "UdpSession::send", skip(message, context))]
+    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
+        let id = self.id;
+        // TODO(hardint): Should this fail or just segment the message into
+        // multiple IP packets?
+        let header = match build_udp_header(
+            self.id.local.address,
+            id.local.port,
+            self.id.remote.address,
+            id.remote.port,
             message.iter(),
-        )?;
+        ) {
+            Ok(header) => header,
+            Err(e) => {
+                tracing::error!("{}", e);
+                Err(SendError::Header)?
+            }
+        };
         send_message_event(
-            self.identifier.local_address.into(),
-            self.identifier.remote_address.into(),
-            id.local_port.into(),
-            id.remote_port.into(),
+            self.id.local.address,
+            self.id.remote.address,
+            id.local.port,
+            id.remote.port,
             message.clone(),
         );
         message.prepend(header);
@@ -41,12 +47,13 @@ impl Session for UdpSession {
         Ok(())
     }
 
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+    #[tracing::instrument(name = "UdpSession::receive", skip(message, context))]
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError> {
         receive_message_event(
-            self.identifier.local_address.into(),
-            self.identifier.remote_address.into(),
-            self.identifier.local_port.into(),
-            self.identifier.remote_port.into(),
+            self.id.local.address,
+            self.id.remote.address,
+            self.id.local.port,
+            self.id.remote.port,
             message.clone(),
         );
         context
@@ -56,15 +63,25 @@ impl Session for UdpSession {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         self.downstream.clone().query(key)
+    }
+}
+
+impl Debug for UdpSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UdpSession").field("id", &self.id).finish()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
-    pub local_address: LocalAddress,
-    pub local_port: LocalPort,
-    pub remote_address: RemoteAddress,
-    pub remote_port: RemotePort,
+    pub local: Socket,
+    pub remote: Socket,
+}
+
+impl SessionId {
+    pub fn new(local: Socket, remote: Socket) -> Self {
+        Self { local, remote }
+    }
 }

@@ -2,21 +2,16 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
-    control::{Key, Primitive},
+    control::{ControlError, Key, Primitive},
     message::Message,
-    protocol::{Context, ProtocolId},
-    protocols::ipv4::{Ipv4, LocalAddress, RemoteAddress},
+    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
+    protocols::ipv4::Ipv4,
     session::SharedSession,
     Control, Protocol, Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
-use tracing::error;
-
-mod udp_misc;
-use udp_misc::UdpError;
-pub use udp_misc::{LocalPort, RemotePort};
 
 mod udp_session;
 use udp_session::{SessionId, UdpSession};
@@ -24,10 +19,12 @@ use udp_session::{SessionId, UdpSession};
 mod udp_parsing;
 use self::udp_parsing::UdpHeader;
 
+use super::utility::Socket;
+
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: DashMap<ListenId, ProtocolId>,
+    listen_bindings: DashMap<Socket, ProtocolId>,
     sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
@@ -44,6 +41,22 @@ impl Udp {
     pub fn new_shared() -> Arc<Self> {
         Arc::new(Self::new())
     }
+
+    pub fn set_local_port(port: u16, control: &mut Control) {
+        control.insert((Self::ID, 0), port);
+    }
+
+    pub fn get_local_port(control: &Control) -> Result<u16, ControlError> {
+        Ok(control.get((Self::ID, 0))?.ok_u16()?)
+    }
+
+    pub fn set_remote_port(port: u16, control: &mut Control) {
+        control.insert((Self::ID, 1), port);
+    }
+
+    pub fn get_remote_port(control: &Control) -> Result<u16, ControlError> {
+        Ok(control.get((Self::ID, 1))?.ok_u16()?)
+    }
 }
 
 impl Protocol for Udp {
@@ -51,24 +64,44 @@ impl Protocol for Udp {
         Self::ID
     }
 
+    #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>> {
+    ) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
         // of the higher-up protocols and we should crash. Therefore, unwrapping
         // is appropriate here.
-        let identifier = SessionId {
-            local_port: LocalPort::try_from(&participants).unwrap(),
-            remote_port: RemotePort::try_from(&participants).unwrap(),
-            local_address: LocalAddress::try_from(&participants).unwrap(),
-            remote_address: RemoteAddress::try_from(&participants).unwrap(),
-        };
+        let identifier = SessionId::new(
+            Socket::new(
+                Ipv4::get_local_address(&participants).map_err(|_| {
+                    tracing::error!("Missing local address on context");
+                    OpenError::MissingContext
+                })?,
+                Self::get_local_port(&participants).map_err(|_| {
+                    tracing::error!("Missing local port on context");
+                    OpenError::MissingContext
+                })?,
+            ),
+            Socket::new(
+                Ipv4::get_remote_address(&participants).map_err(|_| {
+                    tracing::error!("Missing remote address on context");
+                    OpenError::MissingContext
+                })?,
+                Self::get_remote_port(&participants).map_err(|_| {
+                    tracing::error!("Missing remote port on context");
+                    OpenError::MissingContext
+                })?,
+            ),
+        );
         match self.sessions.entry(identifier) {
-            Entry::Occupied(_) => Err(UdpError::SessionExists)?,
+            Entry::Occupied(_) => {
+                tracing::error!("Tried to create an existing session");
+                Err(OpenError::Existing)?
+            }
             Entry::Vacant(entry) => {
                 // Create the session and save it
                 let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
@@ -79,7 +112,7 @@ impl Protocol for Udp {
                 let session = Arc::new(UdpSession {
                     upstream,
                     downstream,
-                    identifier,
+                    id: identifier,
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -87,18 +120,25 @@ impl Protocol for Udp {
         }
     }
 
+    #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
-        let identifier = ListenId {
-            port: LocalPort::try_from(&participants).unwrap(),
-            address: LocalAddress::try_from(&participants).unwrap(),
+        let identifier = Socket {
+            port: Self::get_local_port(&participants).map_err(|_| {
+                tracing::error!("Missing local port on context");
+                ListenError::MissingContext
+            })?,
+            address: Ipv4::get_local_address(&participants).map_err(|_| {
+                tracing::error!("Missing local address on context");
+                ListenError::MissingContext
+            })?,
         };
         self.listen_bindings.insert(identifier, upstream);
         // Ask lower-level protocols to add the binding as well
@@ -108,37 +148,43 @@ impl Protocol for Udp {
             .listen(Self::ID, participants, context)
     }
 
+    #[tracing::instrument(name = "Udp::demux", skip_all)]
     fn demux(
         self: Arc<Self>,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = LocalAddress::try_from(&context.info).unwrap();
-        let remote_address = RemoteAddress::try_from(&context.info).unwrap();
+        let local_address = Ipv4::get_local_address(&context.info).map_err(|_| {
+            tracing::error!("Missing local address on context");
+            DemuxError::MissingContext
+        })?;
+        let remote_address = Ipv4::get_remote_address(&context.info).map_err(|_| {
+            tracing::error!("Missing remote address on context");
+            DemuxError::MissingContext
+        })?;
 
         // Parse the header
-        let header = UdpHeader::from_bytes_ipv4(
-            message.iter(),
-            remote_address.into(),
-            local_address.into(),
-        )?;
+        let header = match UdpHeader::from_bytes_ipv4(message.iter(), remote_address, local_address)
+        {
+            Ok(header) => header,
+            Err(e) => {
+                tracing::error!("{}", e);
+                Err(DemuxError::Header)?
+            }
+        };
         message.slice(8..);
 
         // Use the context and the header information to identify the session
-        let local_port = LocalPort::new(header.destination);
-        let remote_port = RemotePort::new(header.source);
-        let session_id = SessionId {
-            local_address,
-            local_port,
-            remote_address,
-            remote_port,
-        };
+        let session_id = SessionId::new(
+            Socket::new(local_address, header.destination),
+            Socket::new(remote_address, header.source),
+        );
 
         // Add the header information to the context
-        local_port.apply(&mut context.info);
-        remote_port.apply(&mut context.info);
+        Self::set_local_port(session_id.local.port, &mut context.info);
+        Self::set_remote_port(session_id.remote.port, &mut context.info);
 
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
@@ -148,9 +194,9 @@ impl Protocol for Udp {
             Entry::Vacant(session_entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
-                let listen_id = ListenId {
+                let listen_id = Socket {
                     address: local_address,
-                    port: local_port,
+                    port: session_id.local.port,
                 };
                 match self.listen_bindings.entry(listen_id) {
                     Entry::Occupied(listen_entry) => {
@@ -159,12 +205,17 @@ impl Protocol for Udp {
                         let session = Arc::new(UdpSession {
                             upstream: *listen_entry.get(),
                             downstream: caller,
-                            identifier: session_id,
+                            id: session_id,
                         });
                         session_entry.insert(session.clone());
                         session
                     }
-                    Entry::Vacant(_) => Err(UdpError::MissingSession)?,
+                    Entry::Vacant(_) => {
+                        tracing::error!(
+                            "Tried to demux with a missing session and no listen bindings"
+                        );
+                        Err(DemuxError::MissingSession)?
+                    }
                 }
             }
         };
@@ -177,24 +228,14 @@ impl Protocol for Udp {
         _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
         });
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, ()> {
-        error!("No such key on UDP");
-        Err(())
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+        Err(QueryError::NonexistentKey)
     }
-}
-
-/// An identifier for listen bindings.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct ListenId {
-    /// The address being listened on
-    address: LocalAddress,
-    /// The port being listened on
-    port: LocalPort,
 }

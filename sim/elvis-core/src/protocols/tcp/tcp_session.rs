@@ -1,16 +1,13 @@
-use super::{tcp_parsing::TcpHeaderBuilder, TcpError};
+use super::tcp_parsing::TcpHeaderBuilder;
 use crate::{
     control::{Key, Primitive},
-    protocol::Context,
+    protocol::{Context, OpenError},
     protocols::ipv4::Ipv4Address,
-    session::SharedSession,
+    session::{QueryError, ReceiveError, SendError, SharedSession},
     Message, Session,
 };
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::{
-    error::Error,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, oneshot};
 use tracing::error;
 
@@ -52,17 +49,18 @@ impl TcpSession {
         id: SessionId,
         downstream: SharedSession,
         iss: Iss,
-    ) -> Result<Self, TcpError> {
+    ) -> Result<Self, OpenError> {
         let send = SendSequenceSpace::new(iss, 0x1000);
 
         let header = TcpHeaderBuilder::new(id, send.iss, send.wnd)
             .syn()
-            .build([].into_iter())?;
+            .build([].into_iter())
+            .map_err(|_| OpenError::Other)?;
         let message = Message::new(header);
         downstream
             .clone()
             .send(message, context)
-            .map_err(|_| TcpError::Send)?;
+            .map_err(|_| OpenError::Other)?;
 
         let (established_barrier_send, established_barrier_recv) = oneshot::channel();
         let (send_queue_send, mut send_queue_recv) = mpsc::unbounded_channel();
@@ -97,7 +95,7 @@ impl TcpSession {
 
 impl Session for TcpSession {
     // See 3.10.2
-    fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
+    fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), SendError> {
         let state = self.tcb.read().unwrap().state;
         use State::*;
         match state {
@@ -108,22 +106,16 @@ impl Session for TcpSession {
                 });
                 Ok(())
             }
-            FinWait1 | FinWait2 | Closing | LastAck | TimeWait => {
-                Err(Box::new(TcpError::InvalidSend))
-            }
+            FinWait1 | FinWait2 | Closing | LastAck | TimeWait => Err(SendError::Other)?,
         }
     }
 
     // See 3.10.3
-    fn receive(
-        self: Arc<Self>,
-        _message: Message,
-        _context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ReceiveError> {
         todo!()
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add queries
         self.downstream.clone().query(key)
     }

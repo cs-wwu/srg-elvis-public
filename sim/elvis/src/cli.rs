@@ -35,11 +35,7 @@ pub fn initialize_from_arguments() {
 /// During Tests -- cargo test -- logs will not be generated for the time being
 fn initialize_logging() {
     let main_path = "./logs";
-    let dir = create_dir_all(main_path);
-    match dir {
-        Ok(dir) => dir,
-        Err(error) => panic!("Error: {:?}", error),
-    };
+    create_dir_all(main_path).unwrap();
     let file_path = format!(
         "{}/debug-{}.log",
         main_path,
@@ -49,19 +45,13 @@ fn initialize_logging() {
         .write(true)
         .append(true)
         .create(true)
-        .open(file_path);
-    let file = match file {
-        Ok(file) => file,
-        Err(error) => panic!("Error: {:?}", error),
-    };
+        .open(file_path)
+        .unwrap();
     let subscriber = FmtSubscriber::builder()
         .with_writer(Arc::new(file))
         .json()
         .finish();
-    // set the global default so all events/logs go to the same subscriber and subsequently the same file
-    // TODO: Talk to tim on handling errors properly
-    match tracing::subscriber::set_global_default(subscriber) {
-        Ok(sub) => sub,
-        Err(error) => println!("{:?}", error),
-    };
+    // set the global default so all events/logs go to the same subscriber and
+    // subsequently the same file TODO: Talk to tim on handling errors properly
+    tracing::subscriber::set_global_default(subscriber).unwrap()
 }

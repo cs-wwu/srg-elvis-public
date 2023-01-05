@@ -1,9 +1,12 @@
 //! The [`Session`] trait and supporting types.
 
-use crate::control::{Key, Primitive};
-
 use super::{protocol::Context, Message};
-use std::{error::Error, sync::Arc};
+use crate::{
+    control::{Key, Primitive},
+    protocol::DemuxError,
+};
+use std::sync::Arc;
+use thiserror::Error as ThisError;
 
 /// A shared handle to a [`Session`]
 pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
@@ -19,12 +22,44 @@ pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 pub trait Session {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
+    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError>;
 
     /// Takes an incoming message and decides which protocol to send it to for
-    /// further processing. Called by the same protocol during demux.
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>>;
+    /// further processing.
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError>;
 
     /// Gets a piece of information from some session in the protocol stack.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>>;
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ReceiveError {
+    #[error("Receive failed due to a demux error")]
+    Demux,
+    #[error("Unspecified error")]
+    Other,
+}
+
+// Cannot have a circular reference between DemuxError and ReceiveError, so the
+// #[from] shorthand is not possible
+impl From<DemuxError> for ReceiveError {
+    fn from(_: DemuxError) -> Self {
+        Self::Demux
+    }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum SendError {
+    #[error("Failed to construct a valid header for the payload")]
+    Header,
+    #[error("Data expected through the context was missing")]
+    MissingContext,
+    #[error("Unspecified error")]
+    Other,
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum QueryError {
+    #[error("No session held a datum matching the given key")]
+    MissingKey,
 }

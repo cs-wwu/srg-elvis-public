@@ -1,15 +1,12 @@
 use elvis_core::{
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort},
-        user_process::Application,
-        Udp, UserProcess,
+        user_process::{Application, ApplicationError},
+        Ipv4, Udp, UserProcess,
     },
     Control, Message,
 };
 use std::{
-    error::Error,
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
@@ -66,15 +63,15 @@ impl Application for UnreliableTester {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         // Synchronous initialization
         *self.shutdown.lock().unwrap() = Some(shutdown);
         *self.last_receipt.lock().unwrap() = SystemTime::now();
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, [0, 0, 0, 0].into());
-        RemoteAddress::set(&mut participants, [0, 0, 0, 1].into());
-        LocalPort::set(&mut participants, 0xdead);
-        RemotePort::set(&mut participants, 0xdead);
+        Ipv4::set_local_address([0, 0, 0, 0].into(), &mut participants);
+        Ipv4::set_remote_address([0, 0, 0, 1].into(), &mut participants);
+        Udp::set_local_port(0xdead, &mut participants);
+        Udp::set_remote_port(0xdead, &mut participants);
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         udp.clone()
             .listen(Self::ID, participants.clone(), context.clone())?;
@@ -105,19 +102,20 @@ impl Application for UnreliableTester {
 
             // Send 100 messages to our peer
             for i in 0..100u32 {
-                match send_session
+                send_session
                     .clone()
                     .send(Message::new(&i.to_be_bytes()), context.clone())
-                {
-                    Ok(_) => {}
-                    Err(e) => eprintln!("{}", e),
-                }
+                    .expect("UnreliableTester failed to send");
             }
         });
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), Box<dyn Error>> {
+    fn receive(
+        self: Arc<Self>,
+        _message: Message,
+        _context: Context,
+    ) -> Result<(), ApplicationError> {
         *self.last_receipt.lock().unwrap() = SystemTime::now();
         *self.receipt_count.lock().unwrap() += 1;
         Ok(())

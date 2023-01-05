@@ -2,17 +2,15 @@ use elvis_core::{
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort, Udp},
-        user_process::{Application, UserProcess},
+        ipv4::Ipv4Address,
+        udp::Udp,
+        user_process::{Application, ApplicationError, UserProcess},
+        Ipv4,
     },
     session::SharedSession,
     Control,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]
@@ -65,12 +63,12 @@ impl Application for Forward {
         context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, self.local_ip);
-        RemoteAddress::set(&mut participants, self.remote_ip);
-        LocalPort::set(&mut participants, self.local_port);
-        RemotePort::set(&mut participants, self.remote_port);
+        Ipv4::set_local_address(self.local_ip, &mut participants);
+        Ipv4::set_remote_address(self.remote_ip, &mut participants);
+        Udp::set_local_port(self.local_port, &mut participants);
+        Udp::set_remote_port(self.remote_port, &mut participants);
 
         let udp = context.protocol(Udp::ID).expect("No such protocol");
         *self.outgoing.lock().unwrap() = Some(udp.clone().open(
@@ -86,7 +84,12 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+        context: Context,
+    ) -> Result<(), ApplicationError> {
+        // TODO(hardint): Use ? again
         self.outgoing
             .clone()
             .lock()

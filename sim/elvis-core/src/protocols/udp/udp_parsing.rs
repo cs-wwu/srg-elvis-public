@@ -1,5 +1,5 @@
-use super::udp_misc::UdpError;
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
+use thiserror::Error as ThisError;
 
 /// The number of bytes in a UDP header
 const HEADER_OCTETS: u16 = 8;
@@ -27,8 +27,9 @@ impl UdpHeader {
         mut bytes: impl Iterator<Item = u8>,
         source_address: Ipv4Address,
         destination_address: Ipv4Address,
-    ) -> Result<Self, UdpError> {
-        let mut next = || -> Result<u8, UdpError> { bytes.next().ok_or(UdpError::HeaderTooShort) };
+    ) -> Result<Self, ParseError> {
+        let mut next =
+            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
 
         let mut checksum = Checksum::new();
 
@@ -55,12 +56,12 @@ impl UdpHeader {
         let bytes_consumed = checksum.accumulate_remainder(&mut bytes) + 8;
 
         if bytes_consumed != length || bytes.next().is_some() {
-            Err(UdpError::LengthMismatch)?
+            Err(ParseError::LengthMismatch)?
         }
 
         let actual_checksum = checksum.as_u16();
         if actual_checksum != expected_checksum {
-            Err(UdpError::InvalidChecksum {
+            Err(ParseError::Checksum {
                 actual: actual_checksum,
                 expected: expected_checksum,
             })?
@@ -75,6 +76,18 @@ impl UdpHeader {
     }
 }
 
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ParseError {
+    #[error("Too few bytes to constitute a UDP header")]
+    HeaderTooShort,
+    #[error(
+        "The computed checksum {actual:#06x} did not match the header checksum {expected:#06x}"
+    )]
+    Checksum { actual: u16, expected: u16 },
+    #[error("The number of message bytes differs from the header")]
+    LengthMismatch,
+}
+
 /// Creates a serialized UDP packet header with the values provided
 pub(super) fn build_udp_header(
     source_address: Ipv4Address,
@@ -82,13 +95,13 @@ pub(super) fn build_udp_header(
     destination_address: Ipv4Address,
     destination_port: u16,
     mut payload: impl Iterator<Item = u8>,
-) -> Result<Vec<u8>, UdpError> {
+) -> Result<Vec<u8>, BuildHeaderError> {
     let mut checksum = Checksum::new();
     let length = checksum.accumulate_remainder(&mut payload);
 
     let length = HEADER_OCTETS
         .checked_add(length)
-        .ok_or(UdpError::OverlyLongPayload)?;
+        .ok_or(BuildHeaderError::OverlyLongPayload)?;
 
     // Once for the header, again for the pseudo header
     checksum.add_u16(length);
@@ -106,6 +119,12 @@ pub(super) fn build_udp_header(
     out.extend_from_slice(&length.to_be_bytes());
     out.extend_from_slice(&checksum.as_u16().to_be_bytes());
     Ok(out)
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BuildHeaderError {
+    #[error("The UDP payload is longer than can fit into a single packet")]
+    OverlyLongPayload,
 }
 
 #[cfg(test)]
