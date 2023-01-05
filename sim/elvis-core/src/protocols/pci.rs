@@ -38,7 +38,7 @@ impl Pci {
     pub const SLOT_COUNT_QUERY_KEY: Key = (Self::ID, 0);
 
     /// The key used to query the MTU of the network
-    pub const MTU_QUERY_KEY: Key = (Self::ID, 0);
+    pub const MTU_QUERY_KEY: Key = (Self::ID, 1);
 
     /// Creates a new network tap.
     pub fn new(taps: impl IntoIterator<Item = Tap>) -> Self {
