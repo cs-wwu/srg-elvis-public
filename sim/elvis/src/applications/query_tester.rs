@@ -6,7 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError},
         Ipv4, Pci, Udp, UserProcess,
     },
-    Control, Id, Message, Network,
+    Control, Id, Message,
 };
 use tokio::sync::{mpsc::Sender, Barrier};
 
@@ -51,7 +51,7 @@ impl Application for QueryTester {
             .expect("Missing UDP protocol")
             .open(Self::ID, participants, context)
             .unwrap()
-            .query(Network::MTU_QUERY_KEY)
+            .query(Pci::MTU_QUERY_KEY)
             .unwrap()
             .ok_u32()
             .unwrap();
