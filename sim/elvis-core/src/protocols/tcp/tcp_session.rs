@@ -51,7 +51,7 @@ impl TcpSession {
         upstream: ProtocolId,
         downstream: SharedSession,
         iss: Iss,
-    ) -> Result<Self, OpenError> {
+    ) -> Result<Arc<Self>, OpenError> {
         let send = SendSequenceSpace::new(iss, 0x1000);
 
         let header = TcpHeaderBuilder::new(id, send.iss, send.wnd)
@@ -61,27 +61,12 @@ impl TcpSession {
         let message = Message::new(header);
         downstream
             .clone()
-            .send(message, context)
+            .send(message, context.clone())
             .map_err(|_| OpenError::Other)?;
 
         let (established_barrier_send, established_barrier_recv) = oneshot::channel();
         let (send_queue_send, mut send_queue_recv) = mpsc::unbounded_channel();
-        tokio::spawn(async move {
-            // Don't start sending until the connection has been established
-            match established_barrier_recv.await {
-                Ok(_) => {}
-                Err(_) => {
-                    error!("Failed to establish the TCP connection");
-                    return;
-                }
-            }
-
-            while let Some(_message) = send_queue_recv.recv().await {
-                todo!()
-            }
-        });
-
-        Ok(Self {
+        let out = Arc::new(Self {
             upstream,
             downstream,
             send_queue: Arc::new(send_queue_send),
@@ -92,7 +77,35 @@ impl TcpSession {
                 send,
                 recv: Default::default(),
             })),
-        })
+        });
+
+        let session = out.clone();
+        tokio::spawn(async move {
+            // Don't start sending until the connection has been established
+            match established_barrier_recv.await {
+                Ok(_) => {}
+                Err(_) => {
+                    error!("Failed to establish the TCP connection");
+                    return;
+                }
+            }
+
+            while let Some(message) = send_queue_recv.recv().await {
+                match context
+                    .clone()
+                    .protocol(upstream)
+                    .expect("Upstream protocol does not exist")
+                    .demux(message, session.clone(), context.clone())
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::error!("Failed to demux a message: {}", e)
+                    }
+                }
+            }
+        });
+
+        Ok(out)
     }
 }
 

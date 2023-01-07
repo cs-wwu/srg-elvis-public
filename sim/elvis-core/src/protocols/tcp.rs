@@ -102,13 +102,8 @@ impl Protocol for Tcp {
                     participants,
                     context.clone(),
                 )?;
-                let session = Arc::new(TcpSession::open(
-                    context,
-                    session_id,
-                    upstream,
-                    downstream,
-                    self.next_iss(),
-                )?);
+                let session =
+                    TcpSession::open(context, session_id, upstream, downstream, self.next_iss())?;
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -181,13 +176,13 @@ impl Protocol for Tcp {
                     Entry::Occupied(listen_entry) => {
                         // If we have a listen binding, create the session and
                         // save it
-                        let session = Arc::new(TcpSession::open(
+                        let session = TcpSession::open(
                             context.clone(),
                             session_id,
                             *listen_entry.get(),
                             caller,
                             self.next_iss(),
-                        )?);
+                        )?;
                         session_entry.insert(session.clone());
                         session
                     }
