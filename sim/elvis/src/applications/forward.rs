@@ -8,7 +8,7 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control,
+    Control, ProtocolMap,
 };
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -60,9 +60,9 @@ impl Application for Forward {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip, &mut participants);
@@ -70,14 +70,14 @@ impl Application for Forward {
         Udp::set_local_port(self.local_port, &mut participants);
         Udp::set_remote_port(self.remote_port, &mut participants);
 
-        let udp = context.protocol(Udp::ID).expect("No such protocol");
+        let udp = protocols.protocol(Udp::ID).expect("No such protocol");
         *self.outgoing.lock().unwrap() = Some(udp.clone().open(
             Self::ID,
             // TODO(hardint): Can these clones be cheaper?
             participants.clone(),
-            context.clone(),
+            protocols.clone(),
         )?);
-        udp.listen(Self::ID, participants, context)?;
+        udp.listen(Self::ID, participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });

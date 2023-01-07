@@ -3,7 +3,7 @@
 use crate::{
     control::{ControlError, Key, Primitive},
     internet::NetworkHandle,
-    machine::MachineId,
+    machine::{MachineId, ProtocolMap},
     message::Message,
     network::Delivery,
     protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
@@ -82,7 +82,7 @@ impl Protocol for Tap {
         self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: Context,
+        _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         Ok(self.session.clone())
     }
@@ -91,7 +91,7 @@ impl Protocol for Tap {
         self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: Context,
+        _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         Ok(())
     }
@@ -112,9 +112,9 @@ impl Protocol for Tap {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         // Move the channel into the task. It cannot not be accessed from
         // `self` after this point.
@@ -128,7 +128,7 @@ impl Protocol for Tap {
                 let _ = self
                     .session
                     .clone()
-                    .receive_delivery(delivery, context.clone());
+                    .receive_delivery(delivery, protocols.clone());
             }
         });
         Ok(())

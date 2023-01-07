@@ -3,6 +3,7 @@
 use super::{message::Message, session::SharedSession, Control};
 use crate::{
     control::{Key, Primitive},
+    machine::ProtocolMap,
     protocols::user_process::ApplicationError,
     session::ReceiveError,
 };
@@ -76,9 +77,9 @@ pub trait Protocol {
     /// the simulation.
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError>;
 
     /// Actively open a new network connection.
@@ -99,7 +100,7 @@ pub trait Protocol {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError>;
 
     /// Listen for new connections.
@@ -121,7 +122,7 @@ pub trait Protocol {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<(), ListenError>;
 
     /// Identifies the session that a message belongs to and forwards the

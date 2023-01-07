@@ -3,6 +3,7 @@
 
 use crate::{
     control::{Key, Primitive},
+    machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     session::{SendError, SharedSession},
@@ -26,9 +27,9 @@ pub trait Application {
     /// is not called in response to specific events.
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialize: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
@@ -91,7 +92,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: Context,
+        _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         panic!("Cannot active open on a user process")
     }
@@ -100,7 +101,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         self: Arc<Self>,
         _upstream: ProtocolId,
         _participants: Control,
-        _context: Context,
+        _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         panic!("Cannot listen on a user process")
     }
@@ -118,12 +119,12 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let application = self.application.clone();
-        application.start(context, shutdown, initialized)?;
+        application.start(shutdown, initialized, protocols)?;
         Ok(())
     }
 

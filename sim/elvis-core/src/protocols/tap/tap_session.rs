@@ -2,7 +2,7 @@ use super::{Tap, MACHINE_ID_KEY};
 use crate::{
     control::{Key, Primitive},
     internet::NetworkHandle,
-    machine::MachineId,
+    machine::{MachineId, ProtocolMap},
     message::Message,
     network::Delivery,
     protocol::{Context, ProtocolId},
@@ -48,11 +48,11 @@ impl TapSession {
 
     /// Receives a delivery from the network and passes it up the protocol
     /// stack.
-    #[tracing::instrument(name = "TapSession::receive_delivery", skip(delivery, context))]
+    #[tracing::instrument(name = "TapSession::receive_delivery", skip(delivery, protocols))]
     pub(super) fn receive_delivery(
         self: Arc<Self>,
         mut delivery: Delivery,
-        mut context: Context,
+        protocols: ProtocolMap,
     ) -> Result<(), ReceiveError> {
         let first_responder = match take_header(&delivery.message) {
             Some(protocol) => protocol,
@@ -61,6 +61,7 @@ impl TapSession {
                 Err(ReceiveError::Other)?
             }
         };
+        let mut context = Context::new(protocols);
         Tap::set_first_responder(first_responder, &mut context.info);
         Tap::set_network_id(delivery.network, &mut context.info);
         delivery.message.slice(8..);

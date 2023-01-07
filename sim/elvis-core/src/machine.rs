@@ -1,6 +1,6 @@
 use super::{
     internet::NetworkHandle,
-    protocol::{Context, ProtocolId, SharedProtocol},
+    protocol::{ProtocolId, SharedProtocol},
 };
 use crate::{logging::machine_creation_event, network::Delivery, protocols::tap::Tap};
 use std::{
@@ -14,7 +14,26 @@ use tokio::sync::{mpsc::Sender, Barrier};
 pub(crate) type MachineId = u64;
 
 /// A mapping of protocol IDs to protocols
-pub(crate) type ProtocolMap = Arc<HashMap<ProtocolId, SharedProtocol>>;
+#[derive(Clone)]
+pub struct ProtocolMap(Arc<HashMap<ProtocolId, SharedProtocol>>);
+
+impl ProtocolMap {
+    pub fn new(protocols: HashMap<ProtocolId, SharedProtocol>) -> Self {
+        Self(Arc::new(protocols))
+    }
+
+    pub fn protocol(&self, id: ProtocolId) -> Option<SharedProtocol> {
+        self.0.get(&id).cloned()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &SharedProtocol> {
+        self.0.values()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
 
 /// A networked computer in the simultation.
 ///
@@ -54,7 +73,7 @@ impl Machine {
         machine_creation_event(id as usize, protocol_ids);
         let machine = Self {
             tap,
-            protocols: Arc::new(protocols_map),
+            protocols: ProtocolMap::new(protocols_map),
         };
         (machine, sender)
     }
@@ -67,14 +86,13 @@ impl Machine {
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
     pub fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
-        let protocol_context = Context::new(self.protocols.clone());
-        for protocol in self.protocols.values() {
+        for protocol in self.protocols.iter() {
             protocol
                 .clone()
                 .start(
-                    protocol_context.clone(),
                     shutdown.clone(),
                     initialized.clone(),
+                    self.protocols.clone(),
                 )
                 .unwrap()
         }

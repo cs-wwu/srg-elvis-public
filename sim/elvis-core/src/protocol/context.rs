@@ -13,7 +13,7 @@ pub struct Context {
 
 impl Context {
     /// Create a new protocol context.
-    pub(crate) fn new(protocols: ProtocolMap) -> Self {
+    pub fn new(protocols: ProtocolMap) -> Self {
         Self {
             protocols,
             info: Control::new(),
@@ -22,6 +22,6 @@ impl Context {
 
     /// Get a handle to the protocol identified by `id`.
     pub fn protocol(&self, id: ProtocolId) -> Option<SharedProtocol> {
-        self.protocols.get(&id).cloned()
+        self.protocols.protocol(id)
     }
 }
