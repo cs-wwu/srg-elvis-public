@@ -70,7 +70,7 @@ impl Protocol for Tcp {
 
     fn open(
         self: Arc<Self>,
-        _upstream: ProtocolId,
+        upstream: ProtocolId,
         participants: Control,
         context: Context,
     ) -> Result<SharedSession, OpenError> {
@@ -105,6 +105,7 @@ impl Protocol for Tcp {
                 let session = Arc::new(TcpSession::open(
                     context,
                     session_id,
+                    upstream,
                     downstream,
                     self.next_iss(),
                 )?);
@@ -177,12 +178,13 @@ impl Protocol for Tcp {
             }
             Entry::Vacant(session_entry) => {
                 match self.clone().listen_bindings.entry(local) {
-                    Entry::Occupied(_listen_entry) => {
+                    Entry::Occupied(listen_entry) => {
                         // If we have a listen binding, create the session and
                         // save it
                         let session = Arc::new(TcpSession::open(
                             context.clone(),
                             session_id,
+                            *listen_entry.get(),
                             caller,
                             self.next_iss(),
                         )?);

@@ -1,7 +1,7 @@
 use super::tcp_parsing::TcpHeaderBuilder;
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, OpenError},
+    protocol::{Context, OpenError, ProtocolId},
     protocols::ipv4::Ipv4Address,
     session::{QueryError, ReceiveError, SendError, SharedSession},
     Message, Session,
@@ -16,6 +16,7 @@ use tracing::error;
 
 pub struct TcpSession {
     tcb: Arc<RwLock<Tcb>>,
+    upstream: ProtocolId,
     downstream: SharedSession,
     /// Messages to be sent are queued here for delivery on a separate thread.
     send_queue: Arc<mpsc::UnboundedSender<Message>>,
@@ -47,6 +48,7 @@ impl TcpSession {
     pub fn open(
         context: Context,
         id: SessionId,
+        upstream: ProtocolId,
         downstream: SharedSession,
         iss: Iss,
     ) -> Result<Self, OpenError> {
@@ -80,6 +82,7 @@ impl TcpSession {
         });
 
         Ok(Self {
+            upstream,
             downstream,
             send_queue: Arc::new(send_queue_send),
             established_barrier: Arc::new(established_barrier_send),
