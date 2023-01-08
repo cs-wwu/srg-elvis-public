@@ -7,7 +7,6 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::ipv4::{IpToNetwork},
     Internet,
-    message::Message,
     protocols::{
         ipv4::{ Ipv4},
         udp::Udp,
@@ -16,12 +15,10 @@ use elvis_core::{
 // Note, the same IP between two different networks seems to break the sim
 
 pub async fn core_generator(s: Sim) {
-    println!("{:?}", s);
     let mut internet = Internet::new();
     // println!("{:?}", network_generator(s.networks, internet));
     let networks = network_generator(s.networks, &mut internet).unwrap();
-    let machines = machine_generator(s.machines, &mut internet, networks);
-
+    machine_generator(s.machines, &mut internet, networks);
     internet.run().await;
 }
 
@@ -165,7 +162,7 @@ fn machine_generator(m: Machines, internet: &mut Internet, networks: HashMap<Str
             } 
         }
         for app in &machine.interfaces.applications{
-            println!("\nApplication: {:?}", app);
+            // println!("\nApplication: {:?}", app);
             // TODO: assert to check for name
             let app_name = app.options.get("name").unwrap().as_str();
             match app_name{
@@ -187,6 +184,7 @@ fn machine_generator(m: Machines, internet: &mut Internet, networks: HashMap<Str
                 "capture" => {
                     assert!(app.options.contains_key("port"));
                     assert!(app.options.contains_key("ip"));
+                    // TODO: Check that this IP is valid in the IP table/Network
                     let ip = ip_string_to_ip(app.options.get("ip").unwrap().to_string(), "capture declaration");
                     let port = string_to_port(app.options.get("port").unwrap().to_string());
                     protocols_to_be_added.push(Capture::new_shared(ip.into(), port));
@@ -213,11 +211,3 @@ fn string_to_port(p: String) -> u16{
         return p.parse::<u16>().expect(&format!("Invalid number for port. Found port: {}", p));
     }
 }
-
-// internet.machine(
-//     [
-//         Udp::new_shared() as SharedProtocol,
-//         Ipv4::new_shared(networks.get("1").unwrap().1.clone()),
-//     ],
-//     networks_to_be_added,
-// );
