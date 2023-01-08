@@ -8,8 +8,7 @@ use crate::{
 };
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc, oneshot};
-use tracing::error;
+use tokio::sync::{mpsc, Barrier};
 
 // TODO(hardint): The unwraps used on channels should be removed and cleaned up
 // along with proper simulation teardown.
@@ -19,10 +18,11 @@ pub struct TcpSession {
     upstream: ProtocolId,
     downstream: SharedSession,
     /// Messages to be sent are queued here for delivery on a separate thread.
-    send_queue: Arc<mpsc::UnboundedSender<Message>>,
+    send_queue: Arc<mpsc::Sender<Message>>,
+    receive_queue: Arc<mpsc::Sender<Message>>,
     /// Sent on once after transitioning to established so that the asyncronous
     /// delivery thread knows when it can start transmitting.
-    established_barrier: Arc<oneshot::Sender<()>>,
+    established_barrier: Arc<Barrier>,
 }
 
 /// The initial send sequence of a connection.
@@ -64,13 +64,15 @@ impl TcpSession {
             .send(message, context.clone())
             .map_err(|_| OpenError::Other)?;
 
-        let (established_barrier_send, established_barrier_recv) = oneshot::channel();
-        let (send_queue_send, mut send_queue_recv) = mpsc::unbounded_channel();
-        let out = Arc::new(Self {
+        let established_barrier = Arc::new(Barrier::new(3));
+        let (send_queue_send, send_queue_recv) = mpsc::channel(16);
+        let (receive_queue_send, receive_queue_recv) = mpsc::channel(16);
+        let session = Arc::new(Self {
             upstream,
             downstream,
             send_queue: Arc::new(send_queue_send),
-            established_barrier: Arc::new(established_barrier_send),
+            receive_queue: Arc::new(receive_queue_send),
+            established_barrier: established_barrier.clone(),
             tcb: Arc::new(RwLock::new(Tcb {
                 state: State::SynSent,
                 id,
@@ -79,34 +81,57 @@ impl TcpSession {
             })),
         });
 
-        let session = out.clone();
-        tokio::spawn(async move {
-            // Don't start sending until the connection has been established
-            match established_barrier_recv.await {
-                Ok(_) => {}
-                Err(_) => {
-                    error!("Failed to establish the TCP connection");
-                    return;
-                }
-            }
+        {
+            let session = session.clone();
+            let established_barrier = established_barrier.clone();
+            tokio::spawn(async move {
+                session
+                    .send_routine(established_barrier, send_queue_recv)
+                    .await
+            });
+        }
 
-            // This is the logic for receive, not send
-            while let Some(message) = send_queue_recv.recv().await {
-                match context
-                    .clone()
-                    .protocol(upstream)
-                    .expect("Upstream protocol does not exist")
-                    .demux(message, session.clone(), context.clone())
-                {
-                    Ok(_) => {}
-                    Err(e) => {
-                        tracing::error!("Failed to demux a message: {}", e)
-                    }
-                }
-            }
-        });
+        {
+            let session = session.clone();
+            let established_barrier = established_barrier.clone();
+            tokio::spawn(async move {
+                session
+                    .receive_routine(established_barrier, receive_queue_recv)
+                    .await;
+            });
+        }
 
-        Ok(out)
+        Ok(session)
+    }
+
+    async fn send_routine(
+        self: Arc<Self>,
+        established_barrier_recv: Arc<Barrier>,
+        mut send_queue: mpsc::Receiver<Message>,
+    ) {
+        // Don't start sending until the connection has been established
+        established_barrier_recv.wait().await;
+
+        while let Some(_message) = send_queue.recv().await {
+            todo!()
+        }
+    }
+
+    async fn receive_routine(
+        self: Arc<Self>,
+        established_barrier: Arc<Barrier>,
+        mut receive_queue: mpsc::Receiver<Message>,
+    ) {
+        // Don't start receiving until the connection has been established
+        established_barrier.wait().await;
+
+        // This is the logic for receive, not send
+        while let Some(_message) = receive_queue.recv().await {
+            todo!()
+            // TODO(hardint): Queue receives unless pushed.
+            // Also need to perform reordering.
+            // Also need to send ACKs.
+        }
     }
 }
 
@@ -119,17 +144,42 @@ impl Session for TcpSession {
             SynSent | SynReceived | Established | CloseWait => {
                 let send_queue = self.send_queue.clone();
                 tokio::spawn(async move {
-                    send_queue.send(message).unwrap();
+                    send_queue.send(message).await.unwrap();
                 });
                 Ok(())
             }
-            FinWait1 | FinWait2 | Closing | LastAck | TimeWait => Err(SendError::Other)?,
+            FinWait1 | FinWait2 | Closing | LastAck | TimeWait => {
+                tracing::error!("Connection closing");
+                Err(SendError::Other)
+            }
         }
     }
 
     // See 3.10.3
-    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ReceiveError> {
-        todo!()
+    fn receive(self: Arc<Self>, message: Message, _context: Context) -> Result<(), ReceiveError> {
+        match self.tcb.read().unwrap().state {
+            State::SynSent
+            | State::SynReceived
+            | State::Established
+            | State::FinWait1
+            | State::FinWait2
+            | State::CloseWait => {
+                let receive_queue = self.receive_queue.clone();
+                tokio::spawn(async move {
+                    match receive_queue.send(message).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("Failed to receive a TCP message: {}", e);
+                        }
+                    }
+                });
+                Ok(())
+            }
+            State::Closing | State::LastAck | State::TimeWait => {
+                tracing::error!("Connection closing");
+                Err(ReceiveError::Other)
+            }
+        }
     }
 
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
