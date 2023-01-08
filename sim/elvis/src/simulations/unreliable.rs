@@ -6,7 +6,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4Address},
-        Ipv4, Udp,
+        Ipv4, Tcp,
     },
     Internet,
 };
@@ -28,7 +28,7 @@ pub async fn unreliable() {
     let tester = UnreliableTester::new_shared();
     internet.machine(
         [
-            Udp::new_shared() as SharedProtocol,
+            Tcp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             tester.clone(),
         ],
@@ -37,7 +37,7 @@ pub async fn unreliable() {
 
     internet.machine(
         [
-            Udp::new_shared() as SharedProtocol,
+            Tcp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table),
             Forward::new_shared(forward_ip, tester_ip, 0xdead, 0xdead),
         ],

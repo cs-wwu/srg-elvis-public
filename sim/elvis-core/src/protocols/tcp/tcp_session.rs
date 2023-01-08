@@ -90,6 +90,7 @@ impl TcpSession {
                 }
             }
 
+            // This is the logic for receive, not send
             while let Some(message) = send_queue_recv.recv().await {
                 match context
                     .clone()

@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp, MACHINE_ID_KEY, TAP_ID,
+        Ipv4, Tcp, MACHINE_ID_KEY, TAP_ID,
     },
     Control,
 };
@@ -40,9 +40,9 @@ impl Application for Query {
         let mut participants = Control::new();
         Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
         Ipv4::set_remote_address(Ipv4Address::LOCALHOST, &mut participants);
-        Udp::set_local_port(0, &mut participants);
-        Udp::set_remote_port(0, &mut participants);
-        let session = context.protocol(Udp::ID).expect("No such protocol").open(
+        Tcp::set_local_port(0, &mut participants);
+        Tcp::set_remote_port(0, &mut participants);
+        let session = context.protocol(Tcp::ID).expect("No such protocol").open(
             Self::ID,
             participants,
             context.clone(),

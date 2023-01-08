@@ -8,7 +8,7 @@ pub use tap::MACHINE_ID_KEY;
 pub const TAP_ID: ProtocolId = tap::Tap::ID;
 
 pub mod udp;
-pub use udp::Udp;
+pub use udp::Tcp;
 
 pub mod user_process;
 pub use user_process::UserProcess;

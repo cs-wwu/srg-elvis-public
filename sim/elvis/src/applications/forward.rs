@@ -3,7 +3,7 @@ use elvis_core::{
     protocol::{Context, ProtocolId},
     protocols::{
         ipv4::Ipv4Address,
-        udp::Udp,
+        udp::Tcp,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4,
     },
@@ -67,10 +67,10 @@ impl Application for Forward {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip, &mut participants);
         Ipv4::set_remote_address(self.remote_ip, &mut participants);
-        Udp::set_local_port(self.local_port, &mut participants);
-        Udp::set_remote_port(self.remote_port, &mut participants);
+        Tcp::set_local_port(self.local_port, &mut participants);
+        Tcp::set_remote_port(self.remote_port, &mut participants);
 
-        let udp = context.protocol(Udp::ID).expect("No such protocol");
+        let udp = context.protocol(Tcp::ID).expect("No such protocol");
         *self.outgoing.lock().unwrap() = Some(udp.clone().open(
             Self::ID,
             // TODO(hardint): Can these clones be cheaper?

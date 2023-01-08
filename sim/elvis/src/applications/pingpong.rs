@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp,
+        Ipv4, Tcp,
     },
     session::SharedSession,
     Control,
@@ -83,9 +83,9 @@ impl Application for PingPong {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip_address, &mut participants);
         Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
-        Udp::set_local_port(self.local_port, &mut participants);
-        Udp::set_remote_port(self.remote_port, &mut participants);
-        let protocol = context.protocol(Udp::ID).expect("No such protocol");
+        Tcp::set_local_port(self.local_port, &mut participants);
+        Tcp::set_remote_port(self.remote_port, &mut participants);
+        let protocol = context.protocol(Tcp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, context.clone())?;
         *self.session.lock().unwrap() = Some(session);
 

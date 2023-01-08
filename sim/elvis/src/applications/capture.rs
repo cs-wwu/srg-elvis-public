@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp,
+        Ipv4, Tcp,
     },
     Control,
 };
@@ -59,9 +59,9 @@ impl Application for Capture {
         *self.shutdown.lock().unwrap() = Some(shutdown);
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
-        Udp::set_local_port(self.port, &mut participants);
+        Tcp::set_local_port(self.port, &mut participants);
         context
-            .protocol(Udp::ID)
+            .protocol(Tcp::ID)
             .expect("No such protocol")
             .listen(Self::ID, participants, context)?;
         tokio::spawn(async move {

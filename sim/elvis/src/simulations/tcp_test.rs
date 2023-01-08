@@ -10,11 +10,7 @@ use elvis_core::{
     Internet,
 };
 
-/// Runs a basic simulation.
-///
-/// In this simulation, a machine sends a message to another machine over a
-/// single network. The simulation ends when the message is received.
-pub async fn basic() {
+pub async fn tcp_basic() {
     let mut internet = Internet::new();
     let network = internet.network(Reliable::new(1500));
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();

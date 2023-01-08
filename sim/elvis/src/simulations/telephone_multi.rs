@@ -5,7 +5,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
-        udp::Udp,
+        udp::Tcp,
     },
     Internet, Message,
 };
@@ -25,7 +25,7 @@ pub async fn telephone_multi() {
     let remote = 0u32.to_be_bytes().into();
     internet.machine(
         [
-            Udp::new_shared() as SharedProtocol,
+            Tcp::new_shared() as SharedProtocol,
             Ipv4::new_shared([(remote, networks[0])].into_iter().collect()),
             SendMessage::new_shared("Hello!", remote, 0xbeef),
         ],
@@ -36,7 +36,7 @@ pub async fn telephone_multi() {
         let (local, remote, table) = create_ip_table(i, &networks);
         internet.machine(
             [
-                Udp::new_shared() as SharedProtocol,
+                Tcp::new_shared() as SharedProtocol,
                 Ipv4::new_shared(table),
                 Forward::new_shared(local, remote, 0xbeef, 0xbeef),
             ],
@@ -50,7 +50,7 @@ pub async fn telephone_multi() {
     let capture = Capture::new_shared(local, 0xbeef);
     internet.machine(
         [
-            Udp::new_shared() as SharedProtocol,
+            Tcp::new_shared() as SharedProtocol,
             Ipv4::new_shared([(local, networks[last_network])].into_iter().collect()),
             capture.clone(),
         ],

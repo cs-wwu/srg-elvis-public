@@ -23,12 +23,12 @@ use super::utility::Socket;
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
-pub struct Udp {
+pub struct Tcp {
     listen_bindings: DashMap<Socket, ProtocolId>,
     sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
-impl Udp {
+impl Tcp {
     /// A unique identifier for the protocol.
     pub const ID: ProtocolId = ProtocolId::new(17);
 
@@ -59,7 +59,7 @@ impl Udp {
     }
 }
 
-impl Protocol for Udp {
+impl Protocol for Tcp {
     fn id(self: Arc<Self>) -> ProtocolId {
         Self::ID
     }

@@ -8,7 +8,7 @@ use crate::{
     protocol::{Context, ProtocolId},
     protocols::{
         tap::{NetworkId, Tap},
-        udp::Udp,
+        udp::Tcp,
     },
     session::{QueryError, ReceiveError, SendError, SharedSession},
     Session,
@@ -49,7 +49,7 @@ impl Session for Ipv4Session {
     fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
-            Udp::ID => ProtocolNumber::Udp,
+            Tcp::ID => ProtocolNumber::Udp,
             _ => panic!("Unknown upstream protocol"),
         };
         let header = match Ipv4HeaderBuilder::new(

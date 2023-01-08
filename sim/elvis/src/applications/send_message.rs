@@ -3,7 +3,7 @@ use elvis_core::{
     protocol::{Context, ProtocolId},
     protocols::{
         ipv4::Ipv4Address,
-        udp::Udp,
+        udp::Tcp,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4,
     },
@@ -54,9 +54,9 @@ impl Application for SendMessage {
         let mut participants = Control::new();
         Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
         Ipv4::set_remote_address(self.ip, &mut participants);
-        Udp::set_local_port(0, &mut participants);
-        Udp::set_remote_port(self.port, &mut participants);
-        let protocol = context.protocol(Udp::ID).expect("No such protocol");
+        Tcp::set_local_port(0, &mut participants);
+        Tcp::set_remote_port(self.port, &mut participants);
+        let protocol = context.protocol(Tcp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, context.clone())?;
         tokio::spawn(async move {
             initialized.wait().await;
