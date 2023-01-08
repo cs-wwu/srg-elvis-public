@@ -5,8 +5,8 @@ use crate::{
     machine::{MachineId, ProtocolMap},
     message::Message,
     network::Delivery,
-    protocol::{Context, ProtocolId},
-    session::{QueryError, ReceiveError, SendError},
+    protocol::{Context, DemuxError, ProtocolId},
+    session::{QueryError, SendError},
     Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
@@ -49,7 +49,7 @@ impl TapSession {
     /// Receives a delivery from the network and passes it up the protocol
     /// stack.
     #[tracing::instrument(name = "TapSession::receive_delivery", skip(delivery, protocols))]
-    pub(super) fn receive_delivery(
+    pub(super) fn receive(
         self: Arc<Self>,
         mut delivery: Delivery,
         protocols: ProtocolMap,
@@ -58,7 +58,7 @@ impl TapSession {
             Some(protocol) => protocol,
             None => {
                 tracing::error!("Expected eight bytes for the tap header");
-                Err(ReceiveError::Other)?
+                Err(ReceiveError::Header)?
             }
         };
         let mut context = Context::new(protocols);
@@ -72,7 +72,7 @@ impl TapSession {
                     "Could not find a protocol for the protocol ID {}",
                     first_responder
                 );
-                Err(ReceiveError::Other)?
+                Err(ReceiveError::Protocol)?
             }
         };
         protocol.demux(delivery.message, self, context)?;
@@ -114,10 +114,6 @@ impl Session for TapSession {
         Ok(())
     }
 
-    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ReceiveError> {
-        panic!("Use Tap::receive_delivery() instead");
-    }
-
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add support for querying the MTU
         match key {
@@ -152,4 +148,14 @@ fn take_header(message: &Message) -> Option<ProtocolId> {
         ])
         .into(),
     )
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReceiveError {
+    #[error("Failed to get the protocol header")]
+    Header,
+    #[error("Failed to find a protocol for the given ID")]
+    Protocol,
+    #[error("{0}")]
+    Demux(#[from] DemuxError),
 }

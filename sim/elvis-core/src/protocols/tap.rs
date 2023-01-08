@@ -125,10 +125,7 @@ impl Protocol for Tap {
             while let Some(delivery) = receiver.recv().await {
                 // Ignore failed deliveries. Rely on sessions to report errors
                 // via tracing.
-                let _ = self
-                    .session
-                    .clone()
-                    .receive_delivery(delivery, protocols.clone());
+                let _ = self.session.clone().receive(delivery, protocols.clone());
             }
         });
         Ok(())

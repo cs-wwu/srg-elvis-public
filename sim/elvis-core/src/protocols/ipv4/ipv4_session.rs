@@ -5,12 +5,12 @@ use super::{
 use crate::{
     control::{Key, Primitive},
     message::Message,
-    protocol::{Context, ProtocolId},
+    protocol::{Context, DemuxError, ProtocolId},
     protocols::{
         tap::{NetworkId, Tap},
         udp::Udp,
     },
-    session::{QueryError, ReceiveError, SendError, SharedSession},
+    session::{QueryError, SendError, SharedSession},
     Session,
 };
 use std::{fmt::Debug, sync::Arc};
@@ -42,6 +42,14 @@ impl Ipv4Session {
             network_id,
         }
     }
+
+    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
+        context
+            .protocol(self.upstream)
+            .expect("No such protocol")
+            .demux(message, self, context)?;
+        Ok(())
+    }
 }
 
 impl Session for Ipv4Session {
@@ -70,15 +78,6 @@ impl Session for Ipv4Session {
         Tap::set_first_responder(Ipv4::ID, &mut context.info);
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
-        Ok(())
-    }
-
-    #[tracing::instrument(name = "Ipv4Session::receive", skip_all)]
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError> {
-        context
-            .protocol(self.upstream)
-            .expect("No such protocol")
-            .demux(message, self, context)?;
         Ok(())
     }
 

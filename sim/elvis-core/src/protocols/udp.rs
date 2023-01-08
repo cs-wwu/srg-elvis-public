@@ -8,7 +8,7 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, Protocol, Session,
+    Control, Protocol,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
