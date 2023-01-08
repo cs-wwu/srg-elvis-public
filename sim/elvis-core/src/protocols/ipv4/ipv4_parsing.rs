@@ -1,5 +1,6 @@
-use super::{ipv4_misc::Ipv4Error, Ipv4Address};
+use super::Ipv4Address;
 use crate::protocols::utility::Checksum;
+use thiserror::Error as ThisError;
 
 // Note: There are many #[allow(dead_code)] flags in this file. None of this
 // stuff is public and not all of it is being used internally, but we want to
@@ -44,26 +45,26 @@ pub(super) struct Ipv4Header {
 
 impl Ipv4Header {
     /// Parses a header from a byte iterator.
-    pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, Ipv4Error> {
+    pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, ParseError> {
         let mut next =
-            || -> Result<u8, Ipv4Error> { bytes.next().ok_or(Ipv4Error::HeaderTooShort) };
+            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
 
         let mut checksum = Checksum::new();
 
         let version_and_ihl = next()?;
         let version = version_and_ihl >> 4;
         if version != 4 {
-            Err(Ipv4Error::IncorrectIpv4Version)?
+            Err(ParseError::IncorrectIpv4Version)?
         }
         let ihl = version_and_ihl & 0b1111;
         if ihl != BASE_WORDS {
             // TODO(hardint): Support optional headers
-            Err(Ipv4Error::InvalidHeaderLength)?
+            Err(ParseError::InvalidHeaderLength)?
         }
         let type_of_service_byte = next()?;
         let reserved = type_of_service_byte & 0b11;
         if reserved != 0 {
-            Err(Ipv4Error::UsedReservedTos)?
+            Err(ParseError::UsedReservedTos)?
         }
         checksum.add_u8(version_and_ihl, type_of_service_byte);
 
@@ -77,7 +78,7 @@ impl Ipv4Header {
         let fragment_offset = flags_and_fragment_offset_bytes & FRAGMENT_OFFSET_MASK;
         let control_flag_bits = (flags_and_fragment_offset_bytes >> 13) as u8;
         if control_flag_bits & 0b100 != 0 {
-            Err(Ipv4Error::UsedReservedFlag)?
+            Err(ParseError::UsedReservedFlag)?
         }
         checksum.add_u16(flags_and_fragment_offset_bytes);
 
@@ -97,7 +98,7 @@ impl Ipv4Header {
 
         let actual_checksum = checksum.as_u16();
         if actual_checksum != expected_checksum {
-            Err(Ipv4Error::IncorrectChecksum {
+            Err(ParseError::Checksum {
                 expected: expected_checksum,
                 actual: actual_checksum,
             })?
@@ -117,6 +118,32 @@ impl Ipv4Header {
             destination,
         })
     }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ParseError {
+    #[error("The IPv4 header is incomplete")]
+    HeaderTooShort,
+    #[error("{0}")]
+    Reliability(#[from] ReliabilityError),
+    #[error("{0}")]
+    Delay(#[from] DelayError),
+    #[error("{0}")]
+    Throughput(#[from] ThroughputError),
+    #[error("{0}")]
+    Precedence(#[from] PrecedenceError),
+    #[error("The reserved bits in type of service are nonzero")]
+    UsedReservedTos,
+    #[error("Expected version 4 in IPv4 header")]
+    IncorrectIpv4Version,
+    #[error("The reserved control flags bit was used")]
+    UsedReservedFlag,
+    #[error("Expected 5 bytes for IPv4 header")]
+    InvalidHeaderLength,
+    #[error(
+        "The header checksum {expected:#06x} does not match the calculated checksum {actual:#06x}"
+    )]
+    Checksum { expected: u16, actual: u16 },
 }
 
 /// A builder for IPv4 headers. The fields align with those found on [`Ipv4Header`].
@@ -184,7 +211,7 @@ impl Ipv4HeaderBuilder {
     }
 
     /// Creates a serialized header from the configuration provided
-    pub fn build(self) -> Result<Vec<u8>, Ipv4Error> {
+    pub fn build(self) -> Result<Vec<u8>, HeaderBuildError> {
         let mut checksum = Checksum::new();
 
         let version_and_ihl = (4u8 << 4) | BASE_WORDS;
@@ -194,19 +221,19 @@ impl Ipv4HeaderBuilder {
         let total_length = self
             .payload_length
             .checked_add(BASE_OCTETS)
-            .ok_or(Ipv4Error::OverlyLongPayload)?;
+            .ok_or(HeaderBuildError::OverlyLongPayload)?;
         checksum.add_u16(total_length);
 
         checksum.add_u16(self.identification);
 
         if self.fragment_offset > FRAGMENT_OFFSET_MASK {
-            Err(Ipv4Error::OverlyLongFragmentOffset)?
+            Err(HeaderBuildError::OverlyLongFragmentOffset)?
         }
         let flags_and_fragment_offset =
             ((self.flags.as_u8() as u16) << 13) | (self.fragment_offset & FRAGMENT_OFFSET_MASK);
         checksum.add_u16(flags_and_fragment_offset);
 
-        checksum.add_u8(self.time_to_live, self.protocol as u8);
+        checksum.add_u8(self.time_to_live, self.protocol);
         checksum.add_u32(self.source.into());
         checksum.add_u32(self.destination.into());
 
@@ -215,12 +242,20 @@ impl Ipv4HeaderBuilder {
         out.extend_from_slice(&self.identification.to_be_bytes());
         out.extend_from_slice(&flags_and_fragment_offset.to_be_bytes());
         out.push(self.time_to_live);
-        out.push(self.protocol as u8);
+        out.push(self.protocol);
         out.extend_from_slice(&checksum.as_u16().to_be_bytes());
         out.extend_from_slice(&self.source.to_u32().to_be_bytes());
         out.extend_from_slice(&self.destination.to_u32().to_be_bytes());
         Ok(out)
     }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum HeaderBuildError {
+    #[error("The payload is longer than is allowed")]
+    OverlyLongPayload,
+    #[error("The fragment offset is too long to fit control flags in the header")]
+    OverlyLongFragmentOffset,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -356,15 +391,21 @@ pub(super) enum Delay {
 }
 
 impl TryFrom<u8> for Delay {
-    type Error = Ipv4Error;
+    type Error = DelayError;
 
     fn try_from(byte: u8) -> Result<Self, Self::Error> {
         match byte {
             0 => Ok(Self::Normal),
             1 => Ok(Self::Low),
-            _ => Err(Ipv4Error::Delay(byte)),
+            _ => Err(DelayError::Conversion(byte)),
         }
     }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum DelayError {
+    #[error("Could not convert from {0}")]
+    Conversion(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -375,15 +416,21 @@ pub(super) enum Throughput {
 }
 
 impl TryFrom<u8> for Throughput {
-    type Error = Ipv4Error;
+    type Error = ThroughputError;
 
     fn try_from(byte: u8) -> Result<Self, Self::Error> {
         match byte {
             0 => Ok(Self::Normal),
             1 => Ok(Self::High),
-            _ => Err(Ipv4Error::Throughput(byte)),
+            _ => Err(ThroughputError::Conversion(byte)),
         }
     }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ThroughputError {
+    #[error("Could not convert from {0}")]
+    Conversion(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -394,15 +441,21 @@ pub(super) enum Reliability {
 }
 
 impl TryFrom<u8> for Reliability {
-    type Error = Ipv4Error;
+    type Error = ReliabilityError;
 
     fn try_from(byte: u8) -> Result<Self, Self::Error> {
         match byte {
             0 => Ok(Self::Normal),
             1 => Ok(Self::High),
-            _ => Err(Ipv4Error::Reliability(byte)),
+            _ => Err(ReliabilityError::Conversion(byte)),
         }
     }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ReliabilityError {
+    #[error("Could not convert from {0}")]
+    Conversion(u8),
 }
 
 /// The Network Control precedence designation is intended to be used within a
@@ -427,7 +480,7 @@ pub(super) enum Precedence {
 }
 
 impl TryFrom<u8> for Precedence {
-    type Error = Ipv4Error;
+    type Error = PrecedenceError;
 
     fn try_from(byte: u8) -> Result<Self, Self::Error> {
         match byte {
@@ -439,9 +492,15 @@ impl TryFrom<u8> for Precedence {
             0b010 => Ok(Self::Immediate),
             0b001 => Ok(Self::Priority),
             0b000 => Ok(Self::Routine),
-            _ => Err(Ipv4Error::Precedence(byte)),
+            _ => Err(PrecedenceError::Conversion(byte)),
         }
     }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum PrecedenceError {
+    #[error("Could not convert from {0}")]
+    Conversion(u8),
 }
 
 #[cfg(test)]

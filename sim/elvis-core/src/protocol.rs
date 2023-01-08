@@ -1,9 +1,14 @@
 //! The [`Protocol`] trait and supporting types.
 
-use crate::control::{Key, Primitive};
-
-use super::{control::value::make_key, message::Message, session::SharedSession, Control};
-use std::{error::Error, sync::Arc};
+use super::{message::Message, session::SharedSession, Control};
+use crate::{
+    control::{Key, Primitive},
+    protocols::user_process::ApplicationError,
+    session::ReceiveError,
+};
+use const_fnv1a_hash::fnv1a_hash_64;
+use std::{fmt::Display, sync::Arc};
+use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 
 mod context;
@@ -24,7 +29,7 @@ impl ProtocolId {
 
     /// Creates a pseudorandom ID by hashing the string identifier.
     pub const fn from_string(string: &'static str) -> Self {
-        Self(make_key(string))
+        Self(fnv1a_hash_64(string.as_bytes(), None))
     }
 
     /// Gets the underlying ID number.
@@ -45,17 +50,36 @@ impl From<ProtocolId> for u64 {
     }
 }
 
+impl Display for ProtocolId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A member of a networking protocol stack.
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
 pub trait Protocol {
-    // TODO(hardint): We need methods that allow other protocols to query info about a
-    // protocol and its sessions. For example, a TCP or an IP protocol will want
-    // a method to learn about a Tap's MTU.
-
     /// Returns a unique identifier for the protocol.
     fn id(self: Arc<Self>) -> ProtocolId;
+
+    /// Starts the protocol running. This gives protocols an opportunity to open
+    /// sessions, spawn tasks, and perform other setup as needed.
+    ///
+    /// All implementors should wait on the barrier after completing synchronous
+    /// operations such as opening sessions or spawning tasks and, critically,
+    /// before sending anything on the network. This allows applications that
+    /// may wish to send messages to delay until the moment that other machines
+    /// are ready to receive the message. Implementors may also store the
+    /// `shutdown` channel and send on it at a later time to cleanly shut down
+    /// the simulation.
+    fn start(
+        self: Arc<Self>,
+        context: Context,
+        shutdown: Sender<()>,
+        initialized: Arc<Barrier>,
+    ) -> Result<(), StartError>;
 
     /// Actively open a new network connection.
     ///
@@ -76,7 +100,7 @@ pub trait Protocol {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<SharedSession, Box<dyn Error>>;
+    ) -> Result<SharedSession, OpenError>;
 
     /// Listen for new connections.
     ///
@@ -98,7 +122,7 @@ pub trait Protocol {
         upstream: ProtocolId,
         participants: Control,
         context: Context,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), ListenError>;
 
     /// Identifies the session that a message belongs to and forwards the
     /// message to it.
@@ -123,25 +147,66 @@ pub trait Protocol {
         message: Message,
         caller: SharedSession,
         context: Context,
-    ) -> Result<(), Box<dyn Error>>;
-
-    /// Starts the protocol running. This gives protocols an opportunity to open
-    /// sessions, spawn tasks, and perform other setup as needed.
-    ///
-    /// All implementors should wait on the barrier after completing synchronous
-    /// operations such as opening sessions or spawning tasks and, critically,
-    /// before sending anything on the network. This allows applications that
-    /// may wish to send messages to delay until the moment that other machines
-    /// are ready to receive the message. Implementors may also store the
-    /// `shutdown` channel and send on it at a later time to cleanly shut down
-    /// the simulation.
-    fn start(
-        self: Arc<Self>,
-        context: Context,
-        shutdown: Sender<()>,
-        initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), DemuxError>;
 
     /// Gets a piece of information from the protocol
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>>;
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum QueryError {
+    #[error("The provided key cannot be queried on this protocol")]
+    NonexistentKey,
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum DemuxError {
+    #[error("Failed due to a session receive error")]
+    Receive,
+    #[error("Failed to find a session to demux to")]
+    MissingSession,
+    #[error("Data expected through the context was missing")]
+    MissingContext,
+    #[error("Failed to parse a header during demux")]
+    Header,
+    #[error("Receive failed during the execution of an Application")]
+    Application(#[from] ApplicationError),
+    #[error("Unspecified demux error")]
+    Other,
+}
+
+// Cannot have a circular reference between DemuxError and ReceiveError, so the
+// #[from] shorthand is not possible
+impl From<ReceiveError> for DemuxError {
+    fn from(_: ReceiveError) -> Self {
+        Self::Receive
+    }
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum ListenError {
+    #[error("The listen binding already exists")]
+    Existing,
+    #[error("Data expected through the context was missing")]
+    MissingContext,
+    #[error("Unspecified error")]
+    Other,
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum StartError {
+    #[error("Protocol failed to start because an application failed to start")]
+    Application(#[from] ApplicationError),
+    #[error("Unspecified error")]
+    Other,
+}
+
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum OpenError {
+    #[error("The session already exists")]
+    Existing,
+    #[error("Data expected through the context was missing")]
+    MissingContext,
+    #[error("Unspecified error")]
+    Other,
 }

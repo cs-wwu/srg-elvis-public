@@ -1,5 +1,5 @@
-use super::udp_misc::UdpError;
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
+use thiserror::Error as ThisError;
 
 /// The number of bytes in a UDP header
 const HEADER_OCTETS: u16 = 8;
@@ -27,8 +27,9 @@ impl UdpHeader {
         mut bytes: impl Iterator<Item = u8>,
         source_address: Ipv4Address,
         destination_address: Ipv4Address,
-    ) -> Result<Self, UdpError> {
-        let mut next = || -> Result<u8, UdpError> { bytes.next().ok_or(UdpError::HeaderTooShort) };
+    ) -> Result<Self, ParseError> {
+        let mut next =
+            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
 
         let mut checksum = Checksum::new();
 
@@ -52,15 +53,15 @@ impl UdpHeader {
         // [zero, UDP protocol number] from pseudo header
         checksum.add_u8(0, 17);
 
-        let bytes_consumed = next_padded(&mut bytes, &mut checksum) + 8;
+        let bytes_consumed = checksum.accumulate_remainder(&mut bytes) + 8;
 
         if bytes_consumed != length || bytes.next().is_some() {
-            Err(UdpError::LengthMismatch)?
+            Err(ParseError::LengthMismatch)?
         }
 
         let actual_checksum = checksum.as_u16();
         if actual_checksum != expected_checksum {
-            Err(UdpError::InvalidChecksum {
+            Err(ParseError::Checksum {
                 actual: actual_checksum,
                 expected: expected_checksum,
             })?
@@ -75,6 +76,18 @@ impl UdpHeader {
     }
 }
 
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ParseError {
+    #[error("Too few bytes to constitute a UDP header")]
+    HeaderTooShort,
+    #[error(
+        "The computed checksum {actual:#06x} did not match the header checksum {expected:#06x}"
+    )]
+    Checksum { actual: u16, expected: u16 },
+    #[error("The number of message bytes differs from the header")]
+    LengthMismatch,
+}
+
 /// Creates a serialized UDP packet header with the values provided
 pub(super) fn build_udp_header(
     source_address: Ipv4Address,
@@ -82,13 +95,13 @@ pub(super) fn build_udp_header(
     destination_address: Ipv4Address,
     destination_port: u16,
     mut payload: impl Iterator<Item = u8>,
-) -> Result<Vec<u8>, UdpError> {
+) -> Result<Vec<u8>, BuildHeaderError> {
     let mut checksum = Checksum::new();
-    let length = next_padded(&mut payload, &mut checksum);
+    let length = checksum.accumulate_remainder(&mut payload);
 
     let length = HEADER_OCTETS
         .checked_add(length)
-        .ok_or(UdpError::OverlyLongPayload)?;
+        .ok_or(BuildHeaderError::OverlyLongPayload)?;
 
     // Once for the header, again for the pseudo header
     checksum.add_u16(length);
@@ -100,7 +113,7 @@ pub(super) fn build_udp_header(
     checksum.add_u16(source_port);
     checksum.add_u16(destination_port);
 
-    let mut out = vec![];
+    let mut out = Vec::with_capacity(HEADER_OCTETS as usize);
     out.extend_from_slice(&source_port.to_be_bytes());
     out.extend_from_slice(&destination_port.to_be_bytes());
     out.extend_from_slice(&length.to_be_bytes());
@@ -108,25 +121,10 @@ pub(super) fn build_udp_header(
     Ok(out)
 }
 
-/// Gets the next two bytes at a `u16` from a byte iterator. If the `payload`
-/// contains an odd number of bytes, the last `u8` will be appended with the
-/// value zero.
-fn next_padded(payload: &mut impl Iterator<Item = u8>, checksum: &mut Checksum) -> u16 {
-    let mut length = 0;
-    while let Some(first) = payload.next() {
-        let second = match payload.next() {
-            Some(second) => {
-                length += 2;
-                second
-            }
-            None => {
-                length += 1;
-                0
-            }
-        };
-        checksum.add_u8(first, second);
-    }
-    length
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BuildHeaderError {
+    #[error("The UDP payload is longer than can fit into a single packet")]
+    OverlyLongPayload,
 }
 
 #[cfg(test)]

@@ -2,22 +2,17 @@ use elvis_core::{
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        ipv4::{Ipv4Address, LocalAddress, RemoteAddress},
-        udp::{LocalPort, RemotePort},
-        user_process::{Application, UserProcess},
-        Udp,
+        ipv4::Ipv4Address,
+        user_process::{Application, ApplicationError, UserProcess},
+        Ipv4, Udp,
     },
     session::SharedSession,
     Control,
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
-use thiserror::Error as ThisError;
+use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 
-/// An application that sends a Time To Live (TTL) to 
+/// An application that sends a Time To Live (TTL) to
 /// another machine from the first machine.
 /// The second machine will then send the TTL back minus 1.
 /// Once the TTL reaches 0 the program ends.
@@ -82,14 +77,14 @@ impl Application for PingPong {
         context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
 
         let mut participants = Control::new();
-        LocalAddress::set(&mut participants, self.local_ip_address);
-        RemoteAddress::set(&mut participants, self.remote_ip_address);
-        LocalPort::set(&mut participants, self.local_port);
-        RemotePort::set(&mut participants, self.remote_port);
+        Ipv4::set_local_address(self.local_ip_address, &mut participants);
+        Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
+        Udp::set_local_port(self.local_port, &mut participants);
+        Udp::set_remote_port(self.remote_port, &mut participants);
         let protocol = context.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, context.clone())?;
         *self.session.lock().unwrap() = Some(session);
@@ -112,27 +107,29 @@ impl Application for PingPong {
         Ok(())
     }
 
-    fn recv(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
-        let ttl = message.iter().next().ok_or(PingPongError::NoMessageBody)?;
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+        context: Context,
+    ) -> Result<(), ApplicationError> {
+        let ttl = message.iter().next().expect("The message contained no TTL");
 
-        if ttl % 2 == 0{
-            println!("Pong {}", ttl);
-        }
-        else{
-            println!("Ping {}", ttl);
+        if ttl % 2 == 0 {
+            tracing::info!("Pong {}", ttl);
+        } else {
+            tracing::info!("Ping {}", ttl);
         }
 
         let ttl = ttl - 1;
-        
+
         if ttl == 0 {
-            println!("TTL has reach 0, PingPong has successfully completed");
+            tracing::info!("TTL has reach 0, PingPong has successfully completed");
             if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
                 tokio::spawn(async move {
                     shutdown.send(()).await.unwrap();
                 });
             }
         } else {
-            // println!("{}", ttl);
             self.session
                 .clone()
                 .lock()
@@ -144,10 +141,4 @@ impl Application for PingPong {
         }
         Ok(())
     }
-}
-
-#[derive(Debug, ThisError)]
-pub enum PingPongError {
-    #[error("The message contained no ttl")]
-    NoMessageBody,
 }

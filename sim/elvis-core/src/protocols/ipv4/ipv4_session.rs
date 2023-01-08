@@ -1,19 +1,19 @@
 use super::{
     ipv4_parsing::{Ipv4HeaderBuilder, ProtocolNumber},
-    Ipv4, LocalAddress, RemoteAddress,
+    Ipv4, Ipv4Address,
 };
 use crate::{
     control::{Key, Primitive},
     message::Message,
     protocol::{Context, ProtocolId},
     protocols::{
-        tap::{FirstResponder, NetworkId},
+        tap::{NetworkId, Tap},
         udp::Udp,
     },
-    session::SharedSession,
+    session::{QueryError, ReceiveError, SendError, SharedSession},
     Session,
 };
-use std::{error::Error, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
@@ -22,7 +22,7 @@ pub struct Ipv4Session {
     /// The session we mux outgoing messages to
     downstream: SharedSession,
     /// The identifying information for this session
-    identifier: SessionId,
+    id: SessionId,
     /// The ID of the network to send on
     network_id: NetworkId,
 }
@@ -38,38 +38,43 @@ impl Ipv4Session {
         Self {
             upstream,
             downstream,
-            identifier,
+            id: identifier,
             network_id,
         }
     }
 }
 
 impl Session for Ipv4Session {
-    fn send(
-        self: Arc<Self>,
-        mut message: Message,
-        mut context: Context,
-    ) -> Result<(), Box<dyn Error>> {
+    #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
+    fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
         let length = message.iter().count();
         let protocol_number = match self.upstream {
             Udp::ID => ProtocolNumber::Udp,
             _ => panic!("Unknown upstream protocol"),
         };
-        let header = Ipv4HeaderBuilder::new(
-            self.identifier.local.into(),
-            self.identifier.remote.into(),
+        let header = match Ipv4HeaderBuilder::new(
+            self.id.local,
+            self.id.remote,
             protocol_number,
             length as u16,
         )
-        .build()?;
-        self.network_id.apply(&mut context.info);
-        FirstResponder::set(&mut context.info, Ipv4::ID.into());
+        .build()
+        {
+            Ok(header) => header,
+            Err(e) => {
+                tracing::error!("{}", e);
+                Err(SendError::Header)?
+            }
+        };
+        Tap::set_network_id(self.network_id, &mut context.info);
+        Tap::set_first_responder(Ipv4::ID, &mut context.info);
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
         Ok(())
     }
 
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), Box<dyn Error>> {
+    #[tracing::instrument(name = "Ipv4Session::receive", skip_all)]
+    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
@@ -77,8 +82,16 @@ impl Session for Ipv4Session {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, Box<dyn Error>> {
+    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         self.downstream.clone().query(key)
+    }
+}
+
+impl Debug for Ipv4Session {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ipv4Session")
+            .field("identifier", &self.id)
+            .finish()
     }
 }
 
@@ -86,7 +99,13 @@ impl Session for Ipv4Session {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
     /// The local address
-    pub local: LocalAddress,
+    pub local: Ipv4Address,
     /// The remote address
-    pub remote: RemoteAddress,
+    pub remote: Ipv4Address,
+}
+
+impl SessionId {
+    pub fn new(local: Ipv4Address, remote: Ipv4Address) -> Self {
+        Self { local, remote }
+    }
 }

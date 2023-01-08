@@ -1,5 +1,7 @@
 //! Contains utilities for implementing protocols.
 
+use super::ipv4::Ipv4Address;
+
 /// A calculator for the checksum used by the UDP, TCP, and IP protocols.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Checksum(u16);
@@ -27,6 +29,27 @@ impl Checksum {
         self.add_u8(value[2], value[3]);
     }
 
+    /// Repeatedly gets the next two bytes at a `u16` from a byte iterator. If the `payload`
+    /// contains an odd number of bytes, the last `u8` will be appended with the
+    /// value zero. Returns the number of bytes consumed.
+    pub fn accumulate_remainder(&mut self, payload: &mut impl Iterator<Item = u8>) -> u16 {
+        let mut length = 0;
+        while let Some(first) = payload.next() {
+            let second = match payload.next() {
+                Some(second) => {
+                    length += 2;
+                    second
+                }
+                None => {
+                    length += 1;
+                    0
+                }
+            };
+            self.add_u8(first, second);
+        }
+        length
+    }
+
     /// Computes the final checksum value.
     pub fn as_u16(&self) -> u16 {
         match self.0 {
@@ -36,5 +59,17 @@ impl Checksum {
             0xffff => 0xffff,
             sum => !sum,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Socket {
+    pub address: Ipv4Address,
+    pub port: u16,
+}
+
+impl Socket {
+    pub fn new(address: Ipv4Address, port: u16) -> Self {
+        Self { address, port }
     }
 }

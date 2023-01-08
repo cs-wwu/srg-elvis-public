@@ -400,7 +400,7 @@ impl Display for PrimitiveKind {
 }
 
 /// An error caused by a [`Primitive`]
-#[derive(Debug, ThisError)]
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveError {
     #[error("Expected {expected} but got {actual}")]
     WrongKind {
