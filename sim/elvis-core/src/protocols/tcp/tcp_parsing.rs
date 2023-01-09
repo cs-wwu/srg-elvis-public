@@ -6,6 +6,7 @@ use super::tcp_session::SessionId;
 const HEADER_WORDS: u16 = 5;
 const HEADER_OCTETS: u16 = HEADER_WORDS * 4;
 
+#[derive(Debug, Copy, Clone, Hash)]
 pub struct TcpHeader {
     /// The source port number
     pub src_port: u16,
@@ -109,6 +110,10 @@ impl TcpHeader {
             })
         }
     }
+
+    pub fn len(&self) -> u32 {
+        20
+    }
 }
 
 #[derive(Debug, ThisError, PartialEq, Eq, Clone, Copy)]
@@ -148,8 +153,9 @@ impl TcpHeaderBuilder {
     }
 
     /// Set the acknowledgement number
-    pub fn acknowledgement(mut self, acknowledgement: u32) -> Self {
+    pub fn ack(mut self, acknowledgement: u32) -> Self {
         self.acknowledgement = acknowledgement;
+        self.control.set_ack(true);
         self
     }
 
@@ -162,12 +168,6 @@ impl TcpHeaderBuilder {
     /// Set the urg bit up
     pub fn urg(mut self) -> Self {
         self.control.set_urg(true);
-        self
-    }
-
-    /// Set the ack bit up
-    pub fn ack(mut self) -> Self {
-        self.control.set_ack(true);
         self
     }
 
@@ -445,9 +445,8 @@ mod tests {
         };
 
         let actual = TcpHeaderBuilder::new(id, sequence, window)
-            .ack()
             .psh()
-            .acknowledgement(acknowledgement)
+            .ack(acknowledgement)
             .build(payload.iter().cloned())?;
 
         assert_eq!(expected, actual);

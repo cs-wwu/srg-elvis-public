@@ -172,6 +172,8 @@ pub enum DemuxError {
     Application(#[from] ApplicationError),
     #[error("Failed to open a session during demux")]
     Open(#[from] OpenError),
+    #[error("Failed to send a message during demux")]
+    Send(#[from] SendError),
     #[error("Unspecified demux error")]
     Other,
 }

@@ -1,8 +1,8 @@
 use self::{
-    tcp_parsing::TcpHeader,
+    tcp_parsing::{TcpHeader, TcpHeaderBuilder},
     tcp_session::{SessionId, Socket, TcpSession},
 };
-use super::Ipv4;
+use super::{ipv4::Ipv4Address, Ipv4};
 use crate::{
     control::{ControlError, Key, Primitive},
     protocol::{
@@ -52,6 +52,43 @@ impl Tcp {
                 out
             }
         }
+    }
+
+    // See 3.10.7.1 for handling of segments in CLOSED state
+    fn respond_to_segment_from_closed_state(
+        &self,
+        header: TcpHeader,
+        seg_len: u32,
+        local_address: Ipv4Address,
+        remote_address: Ipv4Address,
+        session: SharedSession,
+        protocols: ProtocolMap,
+    ) -> Result<(), DemuxError> {
+        if header.control.rst() {
+            // Discard reset segments
+            return Ok(());
+        }
+
+        let id = SessionId::new(
+            Socket::new(local_address, header.dst_port),
+            Socket::new(remote_address, header.src_port),
+        );
+
+        let response = if header.control.ack() {
+            TcpHeaderBuilder::new(id, header.acknowledgement, 0)
+                .rst()
+                .build([].into_iter())
+        } else {
+            TcpHeaderBuilder::new(id, 0, 0)
+                .ack(header.sequence + seg_len)
+                .rst()
+                .build([].into_iter())
+        };
+
+        let response = Message::new(response.map_err(|_| DemuxError::Header)?);
+        let context = Context::new(protocols);
+        session.send(response, context)?;
+        Ok(())
     }
 
     pub fn set_local_port(port: u16, control: &mut Control) {
@@ -193,7 +230,17 @@ impl Protocol for Tcp {
                         session_entry.insert(session.clone());
                         session
                     }
-                    Entry::Vacant(_) => Err(DemuxError::MissingSession)?,
+                    Entry::Vacant(_) => {
+                        self.respond_to_segment_from_closed_state(
+                            header,
+                            header.len() + message.len() as u32,
+                            local_address,
+                            remote_address,
+                            caller,
+                            context.protocols,
+                        )?;
+                        Err(DemuxError::MissingSession)?
+                    }
                 }
             }
         };

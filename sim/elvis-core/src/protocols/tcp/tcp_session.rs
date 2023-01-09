@@ -126,7 +126,6 @@ impl TcpSession {
         _established_notify: Arc<Notify>,
         mut receive_queue: mpsc::Receiver<(TcpHeader, Message)>,
     ) {
-        // This is the logic for receive, not send
         while let Some(_message) = receive_queue.recv().await {
             use State::*;
             match self.tcb.read().unwrap().state {
