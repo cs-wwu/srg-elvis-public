@@ -6,7 +6,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address},
-        udp::Tcp,
+        udp::Udp,
     },
     Internet,
 };
@@ -23,7 +23,7 @@ pub async fn query() {
     for _ in 0..MACHINE_COUNT {
         internet.machine(
             [
-                Tcp::new_shared() as SharedProtocol,
+                Udp::new_shared() as SharedProtocol,
                 Ipv4::new_shared([(Ipv4Address::LOCALHOST, network)].into_iter().collect()),
                 Query::new_shared(tx.clone()),
             ],

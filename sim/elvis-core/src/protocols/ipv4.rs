@@ -4,11 +4,12 @@
 use crate::{
     control::{ControlError, Key, Primitive},
     internet::NetworkHandle,
+    machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     protocols::tap::Tap,
     session::SharedSession,
-    Control, Protocol, Session,
+    Control, Protocol,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
@@ -81,7 +82,7 @@ impl Protocol for Ipv4 {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(
             Self::get_local_address(&participants).map_err(|_| {
@@ -105,11 +106,10 @@ impl Protocol for Ipv4 {
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
                 let network_id = { *self.ip_to_network.get(&key.remote).unwrap() };
-                let tap_session = context.protocol(Tap::ID).expect("No such protocol").open(
-                    Self::ID,
-                    participants,
-                    context,
-                )?;
+                let tap_session = protocols
+                    .protocol(Tap::ID)
+                    .expect("No such protocol")
+                    .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(Ipv4Session::new(
                     tap_session,
                     upstream,
@@ -127,7 +127,7 @@ impl Protocol for Ipv4 {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         let local = Self::get_local_address(&participants).map_err(|_| {
             tracing::error!("Missing local address on context");
@@ -144,10 +144,10 @@ impl Protocol for Ipv4 {
         }
 
         // Essentially a no-op but good for completeness and as an example
-        context
+        protocols
             .protocol(Tap::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, context)
+            .listen(Self::ID, participants, protocols)
     }
 
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
@@ -201,9 +201,9 @@ impl Protocol for Ipv4 {
 
     fn start(
         self: Arc<Self>,
-        _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;

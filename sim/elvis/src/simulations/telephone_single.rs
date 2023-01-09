@@ -5,7 +5,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
-        udp::Tcp,
+        udp::Udp,
     },
     Internet, Message,
 };
@@ -22,7 +22,7 @@ pub async fn telephone_single() {
     let remote = 0u32.to_be_bytes().into();
     internet.machine(
         [
-            Tcp::new_shared() as SharedProtocol,
+            Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared([(remote, network)].into_iter().collect()),
             SendMessage::new_shared("Hello!", remote, 0xbeef),
         ],
@@ -33,7 +33,7 @@ pub async fn telephone_single() {
         let (local, remote, table) = create_ip_table(i, network);
         internet.machine(
             [
-                Tcp::new_shared() as SharedProtocol,
+                Udp::new_shared() as SharedProtocol,
                 Ipv4::new_shared(table),
                 Forward::new_shared(local, remote, 0xbeef, 0xbeef),
             ],
@@ -45,7 +45,7 @@ pub async fn telephone_single() {
     let capture = Capture::new_shared(local, 0xbeef);
     internet.machine(
         [
-            Tcp::new_shared() as SharedProtocol,
+            Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared([(local, network)].into_iter().collect()),
             capture.clone(),
         ],

@@ -3,11 +3,12 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, Protocol, Session,
+    Control, Protocol,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
@@ -23,12 +24,12 @@ use super::utility::Socket;
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
-pub struct Tcp {
+pub struct Udp {
     listen_bindings: DashMap<Socket, ProtocolId>,
     sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
-impl Tcp {
+impl Udp {
     /// A unique identifier for the protocol.
     pub const ID: ProtocolId = ProtocolId::new(17);
 
@@ -59,7 +60,7 @@ impl Tcp {
     }
 }
 
-impl Protocol for Tcp {
+impl Protocol for Udp {
     fn id(self: Arc<Self>) -> ProtocolId {
         Self::ID
     }
@@ -69,7 +70,7 @@ impl Protocol for Tcp {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
@@ -104,11 +105,10 @@ impl Protocol for Tcp {
             }
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
-                    Self::ID,
-                    participants,
-                    context,
-                )?;
+                let downstream = protocols
+                    .protocol(Ipv4::ID)
+                    .expect("No such protocol")
+                    .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(UdpSession {
                     upstream,
                     downstream,
@@ -125,7 +125,7 @@ impl Protocol for Tcp {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
@@ -142,10 +142,10 @@ impl Protocol for Tcp {
         };
         self.listen_bindings.insert(identifier, upstream);
         // Ask lower-level protocols to add the binding as well
-        context
+        protocols
             .protocol(Ipv4::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, context)
+            .listen(Self::ID, participants, protocols)
     }
 
     #[tracing::instrument(name = "Udp::demux", skip_all)]
@@ -225,9 +225,9 @@ impl Protocol for Tcp {
 
     fn start(
         self: Arc<Self>,
-        _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;

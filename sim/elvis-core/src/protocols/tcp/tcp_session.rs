@@ -1,12 +1,11 @@
-use super::tcp_parsing::TcpHeaderBuilder;
+use super::{tcp_parsing::TcpHeaderBuilder, Iss};
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, OpenError, ProtocolId},
     protocols::ipv4::Ipv4Address,
-    session::{QueryError, ReceiveError, SendError, SharedSession},
-    Message, Session,
+    session::{QueryError, SendError, SharedSession},
+    Message, ProtocolMap, Session,
 };
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, Barrier};
 
@@ -25,35 +24,18 @@ pub struct TcpSession {
     established_barrier: Arc<Barrier>,
 }
 
-/// The initial send sequence of a connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Iss {
-    #[default]
-    Random,
-    FromSeed(u64),
-}
-
-impl From<Iss> for u32 {
-    fn from(iss: Iss) -> Self {
-        let mut rng = match iss {
-            Iss::Random => SmallRng::from_entropy(),
-            Iss::FromSeed(c) => SmallRng::seed_from_u64(c),
-        };
-        rng.next_u32()
-    }
-}
-
 impl TcpSession {
     /// Open a new connection. See 3.10.1.
     pub fn open(
-        context: Context,
         id: SessionId,
         upstream: ProtocolId,
         downstream: SharedSession,
         iss: Iss,
+        protocols: ProtocolMap,
     ) -> Result<Arc<Self>, OpenError> {
         let send = SendSequenceSpace::new(iss, 0x1000);
 
+        let context = Context::new(protocols);
         let header = TcpHeaderBuilder::new(id, send.iss, send.wnd)
             .syn()
             .build([].into_iter())
@@ -61,7 +43,7 @@ impl TcpSession {
         let message = Message::new(header);
         downstream
             .clone()
-            .send(message, context.clone())
+            .send(message, context)
             .map_err(|_| OpenError::Other)?;
 
         let established_barrier = Arc::new(Barrier::new(3));
@@ -102,6 +84,33 @@ impl TcpSession {
         }
 
         Ok(session)
+    }
+
+    // See 3.10.3
+    pub fn receive(self: Arc<Self>, message: Message) -> Result<(), ReceiveError> {
+        match self.tcb.read().unwrap().state {
+            State::SynSent
+            | State::SynReceived
+            | State::Established
+            | State::FinWait1
+            | State::FinWait2
+            | State::CloseWait => {
+                let receive_queue = self.receive_queue.clone();
+                tokio::spawn(async move {
+                    match receive_queue.send(message).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("Failed to receive a TCP message: {}", e);
+                        }
+                    }
+                });
+                Ok(())
+            }
+            State::Closing | State::LastAck | State::TimeWait => {
+                tracing::error!("Connection closing");
+                Err(ReceiveError::Closing)
+            }
+        }
     }
 
     async fn send_routine(
@@ -151,33 +160,6 @@ impl Session for TcpSession {
             FinWait1 | FinWait2 | Closing | LastAck | TimeWait => {
                 tracing::error!("Connection closing");
                 Err(SendError::Other)
-            }
-        }
-    }
-
-    // See 3.10.3
-    fn receive(self: Arc<Self>, message: Message, _context: Context) -> Result<(), ReceiveError> {
-        match self.tcb.read().unwrap().state {
-            State::SynSent
-            | State::SynReceived
-            | State::Established
-            | State::FinWait1
-            | State::FinWait2
-            | State::CloseWait => {
-                let receive_queue = self.receive_queue.clone();
-                tokio::spawn(async move {
-                    match receive_queue.send(message).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!("Failed to receive a TCP message: {}", e);
-                        }
-                    }
-                });
-                Ok(())
-            }
-            State::Closing | State::LastAck | State::TimeWait => {
-                tracing::error!("Connection closing");
-                Err(ReceiveError::Other)
             }
         }
     }
@@ -320,4 +302,10 @@ struct Tcb {
 /// Is `b` between `a` and `c` when accounting for modular arithmetic?
 fn is_between_wrapped(a: u32, b: u32, c: u32) -> bool {
     (a < b && b < c) || (c < a && a < b) || (b < c && c < a)
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReceiveError {
+    #[error("Attempted to receive on a closing connection")]
+    Closing,
 }

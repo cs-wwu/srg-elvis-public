@@ -3,8 +3,8 @@
 use super::{message::Message, session::SharedSession, Control};
 use crate::{
     control::{Key, Primitive},
+    machine::ProtocolMap,
     protocols::user_process::ApplicationError,
-    session::ReceiveError,
 };
 use const_fnv1a_hash::fnv1a_hash_64;
 use std::{fmt::Display, sync::Arc};
@@ -76,9 +76,9 @@ pub trait Protocol {
     /// the simulation.
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError>;
 
     /// Actively open a new network connection.
@@ -99,7 +99,7 @@ pub trait Protocol {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError>;
 
     /// Listen for new connections.
@@ -121,7 +121,7 @@ pub trait Protocol {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<(), ListenError>;
 
     /// Identifies the session that a message belongs to and forwards the
@@ -161,8 +161,6 @@ pub enum QueryError {
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
 pub enum DemuxError {
-    #[error("Failed due to a session receive error")]
-    Receive,
     #[error("Failed to find a session to demux to")]
     MissingSession,
     #[error("Data expected through the context was missing")]
@@ -175,14 +173,6 @@ pub enum DemuxError {
     Open(#[from] OpenError),
     #[error("Unspecified demux error")]
     Other,
-}
-
-// Cannot have a circular reference between DemuxError and ReceiveError, so the
-// #[from] shorthand is not possible
-impl From<ReceiveError> for DemuxError {
-    fn from(_: ReceiveError) -> Self {
-        Self::Receive
-    }
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]

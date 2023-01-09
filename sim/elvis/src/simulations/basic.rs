@@ -5,7 +5,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
-        udp::Tcp,
+        udp::Udp,
     },
     Internet,
 };
@@ -22,7 +22,7 @@ pub async fn basic() {
 
     internet.machine(
         [
-            Tcp::new_shared() as SharedProtocol,
+            Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef),
         ],
@@ -32,7 +32,7 @@ pub async fn basic() {
     let capture = Capture::new_shared(capture_ip_address, 0xbeef);
     internet.machine(
         [
-            Tcp::new_shared() as SharedProtocol,
+            Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table),
             capture.clone(),
         ],

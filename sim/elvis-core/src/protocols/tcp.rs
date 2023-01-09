@@ -1,15 +1,19 @@
 use self::{
     tcp_parsing::TcpHeader,
-    tcp_session::{Iss, SessionId, Socket, TcpSession},
+    tcp_session::{SessionId, Socket, TcpSession},
 };
 use super::Ipv4;
 use crate::{
     control::{ControlError, Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
+    protocol::{
+        Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, SharedProtocol,
+        StartError,
+    },
     session::SharedSession,
-    Control, Message, Protocol, Session,
+    Control, Message, Protocol, ProtocolMap,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
+use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 
@@ -32,6 +36,10 @@ impl Tcp {
             sessions: Default::default(),
             iss_seed: Arc::new(Mutex::new(iss)),
         }
+    }
+
+    pub fn new_shared(iss: Iss) -> SharedProtocol {
+        Arc::new(Self::new(iss))
     }
 
     fn next_iss(self: Arc<Self>) -> Iss {
@@ -72,7 +80,7 @@ impl Protocol for Tcp {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
@@ -97,13 +105,12 @@ impl Protocol for Tcp {
             Entry::Occupied(_) => Err(OpenError::Existing)?,
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
-                    Self::ID,
-                    participants,
-                    context.clone(),
-                )?;
+                let downstream = protocols
+                    .protocol(Ipv4::ID)
+                    .expect("No such protocol")
+                    .open(Self::ID, participants, protocols.clone())?;
                 let session =
-                    TcpSession::open(context, session_id, upstream, downstream, self.next_iss())?;
+                    TcpSession::open(session_id, upstream, downstream, self.next_iss(), protocols)?;
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -114,7 +121,7 @@ impl Protocol for Tcp {
         self: Arc<Self>,
         upstream: ProtocolId,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
@@ -125,10 +132,10 @@ impl Protocol for Tcp {
         };
         self.listen_bindings.insert(socket, upstream);
         // Ask lower-level protocols to add the binding as well
-        context
+        protocols
             .protocol(Ipv4::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, context)
+            .listen(Self::ID, participants, protocols)
     }
 
     fn demux(
@@ -177,11 +184,11 @@ impl Protocol for Tcp {
                         // If we have a listen binding, create the session and
                         // save it
                         let session = TcpSession::open(
-                            context.clone(),
                             session_id,
                             *listen_entry.get(),
                             caller,
                             self.next_iss(),
+                            context.protocols,
                         )?;
                         session_entry.insert(session.clone());
                         session
@@ -190,15 +197,15 @@ impl Protocol for Tcp {
                 }
             }
         };
-        session.receive(message, context)?;
+        session.receive(message).map_err(|_| DemuxError::Other)?;
         Ok(())
     }
 
     fn start(
         self: Arc<Self>,
-        _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
@@ -209,5 +216,23 @@ impl Protocol for Tcp {
     fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
         tracing::error!("No such key on TCP");
         Err(QueryError::NonexistentKey)
+    }
+}
+
+/// The initial send sequence of a connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Iss {
+    #[default]
+    Random,
+    FromSeed(u64),
+}
+
+impl From<Iss> for u32 {
+    fn from(iss: Iss) -> Self {
+        let mut rng = match iss {
+            Iss::Random => SmallRng::from_entropy(),
+            Iss::FromSeed(c) => SmallRng::seed_from_u64(c),
+        };
+        rng.next_u32()
     }
 }

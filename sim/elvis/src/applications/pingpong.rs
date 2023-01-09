@@ -4,10 +4,10 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp,
+        Ipv4, Udp,
     },
     session::SharedSession,
-    Control,
+    Control, ProtocolMap,
 };
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -74,21 +74,22 @@ impl Application for PingPong {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
 
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip_address, &mut participants);
         Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
-        Tcp::set_local_port(self.local_port, &mut participants);
-        Tcp::set_remote_port(self.remote_port, &mut participants);
-        let protocol = context.protocol(Tcp::ID).expect("No such protocol");
-        let session = protocol.open(Self::ID, participants, context.clone())?;
+        Udp::set_local_port(self.local_port, &mut participants);
+        Udp::set_remote_port(self.remote_port, &mut participants);
+        let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
+        let session = protocol.open(Self::ID, participants, protocols.clone())?;
         *self.session.lock().unwrap() = Some(session);
 
+        let context = Context::new(protocols);
         tokio::spawn(async move {
             initialized.wait().await;
             if self.is_initiator {

@@ -4,7 +4,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToNetwork, Ipv4, Ipv4Address},
-        udp::Tcp,
+        udp::Udp,
     },
     Internet,
 };
@@ -25,7 +25,7 @@ pub async fn ping_pong() {
 
     internet.machine(
         [
-            Tcp::new_shared() as SharedProtocol,
+            Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             PingPong::new_shared(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface),
         ],
@@ -34,7 +34,7 @@ pub async fn ping_pong() {
 
     internet.machine(
         [
-            Tcp::new_shared() as SharedProtocol,
+            Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             PingPong::new_shared(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef),
         ],

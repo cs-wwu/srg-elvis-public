@@ -4,9 +4,9 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp, MACHINE_ID_KEY, TAP_ID,
+        Ipv4, Udp, MACHINE_ID_KEY, TAP_ID,
     },
-    Control,
+    Control, ProtocolMap,
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -33,21 +33,20 @@ impl Application for Query {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
         Ipv4::set_remote_address(Ipv4Address::LOCALHOST, &mut participants);
-        Tcp::set_local_port(0, &mut participants);
-        Tcp::set_remote_port(0, &mut participants);
-        let session = context.protocol(Tcp::ID).expect("No such protocol").open(
-            Self::ID,
-            participants,
-            context.clone(),
-        )?;
-        let tap = context.protocol(TAP_ID).expect("No such protocol");
+        Udp::set_local_port(0, &mut participants);
+        Udp::set_remote_port(0, &mut participants);
+        let session = protocols
+            .protocol(Udp::ID)
+            .expect("No such protocol")
+            .open(Self::ID, participants, protocols.clone())?;
+        let tap = protocols.protocol(TAP_ID).expect("No such protocol");
         let machine_id_session = session.query(MACHINE_ID_KEY).unwrap().ok_u64().unwrap();
         let machine_id_protocol = tap.query(MACHINE_ID_KEY).unwrap().ok_u64().unwrap();
         assert_eq!(machine_id_session, machine_id_protocol);

@@ -2,9 +2,9 @@ use elvis_core::{
     protocol::{Context, ProtocolId},
     protocols::{
         user_process::{Application, ApplicationError},
-        Ipv4, Tcp, UserProcess,
+        Ipv4, Udp, UserProcess,
     },
-    Control, Message,
+    Control, Message, ProtocolMap,
 };
 use std::{
     sync::{Arc, Mutex},
@@ -60,9 +60,9 @@ impl Application for UnreliableTester {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         // Synchronous initialization
         *self.shutdown.lock().unwrap() = Some(shutdown);
@@ -70,12 +70,14 @@ impl Application for UnreliableTester {
         let mut participants = Control::new();
         Ipv4::set_local_address([0, 0, 0, 0].into(), &mut participants);
         Ipv4::set_remote_address([0, 0, 0, 1].into(), &mut participants);
-        Tcp::set_local_port(0xdead, &mut participants);
-        Tcp::set_remote_port(0xdead, &mut participants);
-        let udp = context.protocol(Tcp::ID).expect("No such protocol");
+        Udp::set_local_port(0xdead, &mut participants);
+        Udp::set_remote_port(0xdead, &mut participants);
+        let udp = protocols.protocol(Udp::ID).expect("No such protocol");
         udp.clone()
-            .listen(Self::ID, participants.clone(), context.clone())?;
-        let send_session = udp.clone().open(Self::ID, participants, context.clone())?;
+            .listen(Self::ID, participants.clone(), protocols.clone())?;
+        let send_session = udp
+            .clone()
+            .open(Self::ID, participants, protocols.clone())?;
 
         tokio::spawn(async move {
             initialized.wait().await;
@@ -100,6 +102,7 @@ impl Application for UnreliableTester {
                 }
             });
 
+            let context = Context::new(protocols);
             // Send 100 messages to our peer
             for i in 0..100u32 {
                 send_session

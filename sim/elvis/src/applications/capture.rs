@@ -4,9 +4,9 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp,
+        Ipv4, Udp,
     },
-    Control,
+    Control, ProtocolMap,
 };
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -52,18 +52,18 @@ impl Application for Capture {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.lock().unwrap() = Some(shutdown);
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
-        Tcp::set_local_port(self.port, &mut participants);
-        context
-            .protocol(Tcp::ID)
+        Udp::set_local_port(self.port, &mut participants);
+        protocols
+            .protocol(Udp::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, context)?;
+            .listen(Self::ID, participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });

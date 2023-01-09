@@ -8,7 +8,7 @@ pub use tap::MACHINE_ID_KEY;
 pub const TAP_ID: ProtocolId = tap::Tap::ID;
 
 pub mod udp;
-pub use udp::Tcp;
+pub use udp::Udp;
 
 pub mod user_process;
 pub use user_process::UserProcess;
@@ -19,4 +19,5 @@ mod utility;
 
 // TODO(hardint): Remove dead code allowance when possible
 #[allow(dead_code)]
-mod tcp;
+pub mod tcp;
+pub use tcp::Tcp;
