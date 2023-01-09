@@ -5,6 +5,7 @@ use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
     protocols::user_process::ApplicationError,
+    session::SendError,
 };
 use const_fnv1a_hash::fnv1a_hash_64;
 use std::{fmt::Display, sync::Arc};
@@ -199,6 +200,8 @@ pub enum OpenError {
     Existing,
     #[error("Data expected through the context was missing")]
     MissingContext,
+    #[error("Send failed while opening a session: {0}")]
+    Send(#[from] SendError),
     #[error("Unspecified error")]
     Other,
 }

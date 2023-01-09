@@ -197,7 +197,9 @@ impl Protocol for Tcp {
                 }
             }
         };
-        session.receive(message).map_err(|_| DemuxError::Other)?;
+        session
+            .receive(message, header)
+            .map_err(|_| DemuxError::Other)?;
         Ok(())
     }
 
