@@ -228,15 +228,15 @@ enum State {
     TimeWait,
 }
 
-///      1         2          3          4
-/// ----------|----------|----------|----------
-///        SND.UNA    SND.NXT    SND.UNA
-///                             +SND.WND
-///
-/// 1 - old sequence numbers which have been acknowledged
-/// 2 - sequence numbers of unacknowledged data
-/// 3 - sequence numbers allowed for new data transmission (send window)
-/// 4 - future sequence numbers which are not yet allowed
+//      1         2          3          4
+// ----------|----------|----------|----------
+//        SND.UNA    SND.NXT    SND.UNA
+//                             +SND.WND
+//
+// 1 - old sequence numbers which have been acknowledged
+// 2 - sequence numbers of unacknowledged data
+// 3 - sequence numbers allowed for new data transmission (send window)
+// 4 - future sequence numbers which are not yet allowed
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct SendSequenceSpace {
     /// Unacknowledged
@@ -267,14 +267,14 @@ impl SendSequenceSpace {
     }
 }
 
-///     1          2          3
-/// ----------|----------|----------
-///        RCV.NXT    RCV.NXT
-///                  +RCV.WND
-///
-/// 1 - old sequence numbers which have been acknowledged
-/// 2 - sequence numbers allowed for new reception
-/// 3 - future sequence numbers which are not yet allowed
+//     1          2          3
+// ----------|----------|----------
+//        RCV.NXT    RCV.NXT
+//                  +RCV.WND
+//
+// 1 - old sequence numbers which have been acknowledged
+// 2 - sequence numbers allowed for new reception
+// 3 - future sequence numbers which are not yet allowed
 #[derive(Debug, Default, PartialEq, Eq, Hash)]
 struct ReceiveSequenceSpace {
     /// Next
