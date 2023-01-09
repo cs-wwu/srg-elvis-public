@@ -65,3 +65,11 @@ fn create_ip_table(i: u32, network: NetworkHandle) -> (Ipv4Address, Ipv4Address,
     let table = [(local, network), (remote, network)].into_iter().collect();
     (local, remote, table)
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn telephone_single() {
+        super::telephone_single().await;
+    }
+}

@@ -48,3 +48,11 @@ pub async fn latent() {
         Some(Message::new("Hello!"))
     );
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn latent() {
+        super::latent().await
+    }
+}

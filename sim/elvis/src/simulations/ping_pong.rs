@@ -43,3 +43,11 @@ pub async fn ping_pong() {
 
     internet.run().await;
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn ping_pong() {
+        super::ping_pong().await;
+    }
+}

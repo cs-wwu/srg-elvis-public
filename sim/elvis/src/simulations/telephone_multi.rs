@@ -76,3 +76,11 @@ fn create_ip_table(
         .collect();
     (local, remote, table)
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn telephone_multi() {
+        super::telephone_multi().await;
+    }
+}

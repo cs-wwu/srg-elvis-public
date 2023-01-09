@@ -43,3 +43,11 @@ pub async fn query() {
         assert!(ids.contains(&Some(i)));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn query() {
+        super::query().await;
+    }
+}

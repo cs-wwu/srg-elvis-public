@@ -45,3 +45,11 @@ pub async fn basic() {
         Some(Message::new("Hello!"))
     );
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn basic() {
+        super::basic().await
+    }
+}

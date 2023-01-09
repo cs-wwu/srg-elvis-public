@@ -51,3 +51,11 @@ pub async fn unreliable() {
     const EXPECTED_RECEIPTS: u16 = 23;
     assert_eq!(tester.application().receipt_count(), EXPECTED_RECEIPTS);
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn unreliable() {
+        super::unreliable().await;
+    }
+}
