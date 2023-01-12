@@ -55,7 +55,7 @@ impl Tcp {
     }
 
     // See 3.10.7.1 for handling of segments in CLOSED state
-    fn respond_to_segment_from_closed_state(
+    fn handle_segment_in_closed_state(
         &self,
         header: TcpHeader,
         seg_len: u32,
@@ -218,6 +218,9 @@ impl Protocol for Tcp {
             Entry::Vacant(session_entry) => {
                 match self.clone().listen_bindings.entry(local) {
                     Entry::Occupied(listen_entry) => {
+                        // TODO(hardint): Incomplete. See 3.10.7.2 for handling
+                        // of segments in LISTEN state.
+
                         // If we have a listen binding, create the session and
                         // save it
                         let session = TcpSession::open(
@@ -230,8 +233,9 @@ impl Protocol for Tcp {
                         session_entry.insert(session.clone());
                         session
                     }
+
                     Entry::Vacant(_) => {
-                        self.respond_to_segment_from_closed_state(
+                        self.handle_segment_in_closed_state(
                             header,
                             header.len() + message.len() as u32,
                             local_address,

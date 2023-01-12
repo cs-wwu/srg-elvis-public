@@ -28,7 +28,7 @@ pub struct TcpSession {
     downstream: SharedSession,
     /// Messages to be sent are queued here for delivery on a separate thread.
     send_queue: Arc<mpsc::Sender<Message>>,
-    receive_queue: Arc<mpsc::Sender<(TcpHeader, Message)>>,
+    receive_queue: Arc<mpsc::Sender<Message>>,
 }
 
 impl TcpSession {
@@ -76,35 +76,18 @@ impl TcpSession {
             });
         }
 
-        let context = Context::new(protocols);
         let header = TcpHeaderBuilder::new(id, iss.into(), WND)
             .syn()
             .build([].into_iter())
             .map_err(|_| SendError::Other)?;
         let message = Message::new(header);
+        let context = Context::new(protocols);
         downstream
             .clone()
             .send(message, context)
             .map_err(|_| SendError::Other)?;
 
         Ok(session)
-    }
-
-    pub fn receive(
-        self: Arc<Self>,
-        message: Message,
-        header: TcpHeader,
-    ) -> Result<(), ReceiveError> {
-        let receive_queue = self.receive_queue.clone();
-        tokio::spawn(async move {
-            match receive_queue.send((header, message)).await {
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!("Failed to receive a TCP message: {}", e);
-                }
-            }
-        });
-        Ok(())
     }
 
     async fn poll_send_queue(
@@ -123,12 +106,26 @@ impl TcpSession {
     // See 3.10.7
     async fn poll_receive_queue(
         self: Arc<Self>,
-        _established_notify: Arc<Notify>,
-        mut receive_queue: mpsc::Receiver<(TcpHeader, Message)>,
+        established_notify: Arc<Notify>,
+        mut receive_queue: mpsc::Receiver<Message>,
     ) {
-        while let Some(_message) = receive_queue.recv().await {
+        // This is the logic for receive, not send
+        while let Some(message) = receive_queue.recv().await {
+            let (src_address, dst_address, state) = {
+                let tcb = self.tcb.read().unwrap();
+                (tcb.id.src.address, tcb.id.dst.address, tcb.state)
+            };
+
+            let header = match TcpHeader::from_bytes(message.iter(), src_address, dst_address) {
+                Ok(header) => header,
+                Err(e) => {
+                    tracing::error!("Failed to parse TCP header: {}", e);
+                    continue;
+                }
+            };
+
             use State::*;
-            match self.tcb.read().unwrap().state {
+            match state {
                 SynSent => todo!(),
                 SynReceived => todo!(),
                 Established => todo!(),
@@ -143,6 +140,23 @@ impl TcpSession {
             // Also need to perform reordering.
             // Also need to send ACKs.
         }
+    }
+
+    pub fn receive(
+        self: Arc<Self>,
+        message: Message,
+        header: TcpHeader,
+    ) -> Result<(), ReceiveError> {
+        let receive_queue = self.receive_queue.clone();
+        tokio::spawn(async move {
+            match receive_queue.send(message).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("Failed to receive a TCP message: {}", e);
+                }
+            }
+        });
+        Ok(())
     }
 }
 
