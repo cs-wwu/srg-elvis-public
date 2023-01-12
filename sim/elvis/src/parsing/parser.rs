@@ -61,7 +61,7 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                                 remaining_string = n.1;
                                 for new_nets in n.0 {
                                     if networks.contains_key(&new_nets.0) {
-                                        return Err(format!("{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", num_tabs_to_string(num_tabs), line_num, new_nets.0));
+                                        return Err(format!("Errors at {}:\n\n{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", file_path, num_tabs_to_string(num_tabs), line_num, new_nets.0));
                                     }
                                     networks.insert(new_nets.0, new_nets.1);
                                 }
