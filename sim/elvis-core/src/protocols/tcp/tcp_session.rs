@@ -84,7 +84,7 @@ impl TcpSession {
         let context = Context::new(protocols);
         downstream
             .clone()
-            .send(message, context)
+            .send(message, context.clone())
             .map_err(|_| SendError::Other)?;
 
         Ok(session)
