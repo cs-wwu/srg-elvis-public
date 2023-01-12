@@ -1,7 +1,7 @@
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 use thiserror::Error as ThisError;
 
-use super::tcp_session::SessionId;
+use super::ConnectionId;
 
 const HEADER_WORDS: u16 = 5;
 const HEADER_OCTETS: u16 = HEADER_WORDS * 4;
@@ -131,7 +131,7 @@ pub enum ParseError {
 /// Used for building a serialized TCP header
 #[derive(Debug)]
 pub struct TcpHeaderBuilder {
-    id: SessionId,
+    id: ConnectionId,
     sequence: u32,
     acknowledgement: u32,
     control: Control,
@@ -141,7 +141,7 @@ pub struct TcpHeaderBuilder {
 
 impl TcpHeaderBuilder {
     /// Initialize the TCP header with defaults and the given values
-    pub fn new(id: SessionId, sequence: u32, window: u16) -> Self {
+    pub fn new(id: ConnectionId, sequence: u32, window: u16) -> Self {
         Self {
             id,
             sequence,
@@ -339,7 +339,7 @@ impl From<Control> for u8 {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocols::tcp::tcp_session::Socket;
+    use crate::protocols::utility::Socket;
 
     use super::*;
 
@@ -410,7 +410,7 @@ mod tests {
         let window = 1024;
         let acknowledgement = 10;
 
-        let id = SessionId {
+        let id = ConnectionId {
             src: Socket {
                 address: Ipv4Address::LOCALHOST,
                 port: 0xcafe,

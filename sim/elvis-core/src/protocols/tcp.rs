@@ -1,8 +1,8 @@
 use self::{
     tcp_parsing::{TcpHeader, TcpHeaderBuilder},
-    tcp_session::{SessionId, Socket, TcpSession},
+    tcp_session::TcpSession,
 };
-use super::{ipv4::Ipv4Address, Ipv4};
+use super::{ipv4::Ipv4Address, utility::Socket, Ipv4};
 use crate::{
     control::{ControlError, Key, Primitive},
     protocol::{
@@ -17,13 +17,14 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc::Sender, Barrier};
 
+mod tcb;
 mod tcp_parsing;
 mod tcp_session;
 
 #[derive(Default)]
 pub struct Tcp {
     listen_bindings: DashMap<Socket, ProtocolId>,
-    sessions: DashMap<SessionId, Arc<TcpSession>>,
+    sessions: DashMap<ConnectionId, Arc<TcpSession>>,
     iss_seed: Arc<Mutex<Iss>>,
 }
 
@@ -69,7 +70,7 @@ impl Tcp {
             return Ok(());
         }
 
-        let id = SessionId::new(
+        let id = ConnectionId::new(
             Socket::new(local_address, header.dst_port),
             Socket::new(remote_address, header.src_port),
         );
@@ -134,7 +135,7 @@ impl Protocol for Tcp {
             port: Self::get_remote_port(&participants).unwrap(),
         };
 
-        let session_id = SessionId {
+        let session_id = ConnectionId {
             src: local,
             dst: remote,
         };
@@ -201,7 +202,7 @@ impl Protocol for Tcp {
         };
 
         // Use the context and the header information to identify the session
-        let session_id = SessionId {
+        let session_id = ConnectionId {
             src: local,
             dst: remote,
         };
@@ -287,5 +288,17 @@ impl From<Iss> for u32 {
             Iss::FromSeed(c) => SmallRng::seed_from_u64(c),
         };
         rng.next_u32()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ConnectionId {
+    pub src: Socket,
+    pub dst: Socket,
+}
+
+impl ConnectionId {
+    pub fn new(src: Socket, dst: Socket) -> Self {
+        Self { src, dst }
     }
 }
