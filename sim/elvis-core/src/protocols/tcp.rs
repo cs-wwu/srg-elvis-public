@@ -25,34 +25,22 @@ mod tcp_session;
 pub struct Tcp {
     listen_bindings: DashMap<Socket, ProtocolId>,
     sessions: DashMap<ConnectionId, Arc<TcpSession>>,
-    iss_seed: Arc<Mutex<Iss>>,
+    iss: Arc<Mutex<IssGenerator>>,
 }
 
 impl Tcp {
     pub const ID: ProtocolId = ProtocolId::new(6);
 
-    pub fn new(iss: Iss) -> Self {
+    pub fn new(iss: IssGenerator) -> Self {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            iss_seed: Arc::new(Mutex::new(iss)),
+            iss: Arc::new(Mutex::new(iss)),
         }
     }
 
-    pub fn new_shared(iss: Iss) -> SharedProtocol {
+    pub fn new_shared(iss: IssGenerator) -> SharedProtocol {
         Arc::new(Self::new(iss))
-    }
-
-    fn next_iss(self: Arc<Self>) -> Iss {
-        let mut lock = self.iss_seed.lock().unwrap();
-        match *lock {
-            Iss::Random => Iss::Random,
-            Iss::FromSeed(c) => {
-                let out = *lock;
-                *lock = Iss::FromSeed(c + 1);
-                out
-            }
-        }
     }
 
     // See 3.10.7.1 for handling of segments in CLOSED state
@@ -65,7 +53,7 @@ impl Tcp {
         session: SharedSession,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        if header.control.rst() {
+        if header.ctl.rst() {
             // Discard reset segments
             return Ok(());
         }
@@ -75,13 +63,13 @@ impl Tcp {
             Socket::new(remote_address, header.src_port),
         );
 
-        let response = if header.control.ack() {
-            TcpHeaderBuilder::new(id, header.acknowledgement, 0)
+        let response = if header.ctl.ack() {
+            TcpHeaderBuilder::new(id, header.ack, 0)
                 .rst()
                 .build([].into_iter())
         } else {
             TcpHeaderBuilder::new(id, 0, 0)
-                .ack(header.sequence + seg_len)
+                .ack(header.seq + seg_len)
                 .rst()
                 .build([].into_iter())
         };
@@ -147,8 +135,13 @@ impl Protocol for Tcp {
                     .protocol(Ipv4::ID)
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols.clone())?;
-                let session =
-                    TcpSession::open(session_id, upstream, downstream, self.next_iss(), protocols)?;
+                let session = TcpSession::open(
+                    session_id,
+                    upstream,
+                    downstream,
+                    self.iss.lock().unwrap().next(),
+                    protocols,
+                )?;
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -228,7 +221,7 @@ impl Protocol for Tcp {
                             session_id,
                             *listen_entry.get(),
                             caller,
-                            self.next_iss(),
+                            self.iss.lock().unwrap().next(),
                             context.protocols,
                         )?;
                         session_entry.insert(session.clone());
@@ -275,23 +268,28 @@ impl Protocol for Tcp {
 
 /// The initial send sequence of a connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Iss {
+pub enum IssGenerator {
     #[default]
     Random,
     FromSeed(u64),
+    Exact(u32),
 }
 
-impl From<Iss> for u32 {
-    fn from(iss: Iss) -> Self {
-        let mut rng = match iss {
-            Iss::Random => SmallRng::from_entropy(),
-            Iss::FromSeed(c) => SmallRng::seed_from_u64(c),
-        };
-        rng.next_u32()
+impl IssGenerator {
+    pub fn next(&mut self) -> u32 {
+        match self {
+            Self::Random => SmallRng::from_entropy().next_u32(),
+            Self::FromSeed(c) => {
+                let out = SmallRng::seed_from_u64(*c).next_u32();
+                *c += 1;
+                out
+            }
+            Self::Exact(n) => *n,
+        }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct ConnectionId {
     pub src: Socket,
     pub dst: Socket,

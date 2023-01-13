@@ -1,7 +1,7 @@
 use super::{
     tcb::Tcb,
     tcp_parsing::{TcpHeader, TcpHeaderBuilder},
-    ConnectionId, Iss,
+    ConnectionId,
 };
 use crate::{
     control::{Key, Primitive},
@@ -38,7 +38,7 @@ impl TcpSession {
         id: ConnectionId,
         upstream: ProtocolId,
         downstream: SharedSession,
-        iss: Iss,
+        iss: u32,
         protocols: ProtocolMap,
     ) -> Result<Arc<Self>, OpenError> {
         const WND: u16 = 4096;
@@ -52,8 +52,8 @@ impl TcpSession {
             tcb: Arc::new(RwLock::new(Tcb {
                 state: State::SynSent,
                 id,
-                send: SendSequenceSpace::new(iss, WND),
-                recv: Default::default(),
+                snd: SendSequenceSpace::new(iss, WND),
+                rcv: Default::default(),
             })),
         });
 
@@ -112,9 +112,9 @@ impl TcpSession {
     ) {
         // This is the logic for receive, not send
         while let Some(message) = receive_queue.recv().await {
-            let (src_address, dst_address, state) = {
+            let (src_address, dst_address) = {
                 let tcb = self.tcb.read().unwrap();
-                (tcb.id.src.address, tcb.id.dst.address, tcb.state)
+                (tcb.id.src.address, tcb.id.dst.address)
             };
 
             let _header = match TcpHeader::from_bytes(message.iter(), src_address, dst_address) {
@@ -125,18 +125,6 @@ impl TcpSession {
                 }
             };
 
-            use State::*;
-            match state {
-                SynSent => todo!(),
-                SynReceived => todo!(),
-                Established => todo!(),
-                FinWait1 => todo!(),
-                FinWait2 => todo!(),
-                CloseWait => todo!(),
-                Closing => todo!(),
-                LastAck => todo!(),
-                TimeWait => todo!(),
-            }
             // TODO(hardint): Queue receives unless pushed.
             // Also need to perform reordering.
             // Also need to send ACKs.

@@ -20,6 +20,3 @@ pub use ping_pong::ping_pong;
 
 mod query;
 pub use query::query;
-
-mod tcp_test;
-pub use tcp_test::tcp_basic;

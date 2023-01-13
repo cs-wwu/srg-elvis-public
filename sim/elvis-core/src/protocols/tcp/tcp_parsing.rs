@@ -15,12 +15,12 @@ pub struct TcpHeader {
     /// The sequence number of the first data octet in this segment (except when
     /// SYN is present). If SYN is present the sequence number is the initial
     /// sequence number (ISN) and the first data octet is ISN+1.
-    pub sequence: u32,
+    pub seq: u32,
     // If the ACK control bit is set this field contains the value of the next
     // sequence number the sender of the segment is expecting to receive. Once
     // a connection is established this is always sent.
-    pub acknowledgement: u32,
-    pub control: Control,
+    pub ack: u32,
+    pub ctl: Control,
     /// The number of data octets beginning with the one indicated in the
     /// acknowledgment field which the sender of this segment is willing to
     /// accept.
@@ -96,9 +96,9 @@ impl TcpHeader {
             Ok(TcpHeader {
                 src_port,
                 dst_port,
-                sequence,
-                acknowledgement,
-                control,
+                seq: sequence,
+                ack: acknowledgement,
+                ctl: control,
                 window,
                 checksum,
                 urgent,
@@ -387,18 +387,18 @@ mod tests {
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.dst_port, dst_port);
-        assert_eq!(actual.sequence, sequence);
-        assert_eq!(actual.acknowledgement, acknowledgement);
-        assert_eq!(actual.control, control);
+        assert_eq!(actual.seq, sequence);
+        assert_eq!(actual.ack, acknowledgement);
+        assert_eq!(actual.ctl, control);
         assert_eq!(actual.window, window);
         assert_eq!(actual.checksum, expected.checksum);
         assert_eq!(actual.urgent, 0);
-        assert!(!actual.control.urg());
-        assert!(actual.control.ack());
-        assert!(actual.control.psh());
-        assert!(!actual.control.rst());
-        assert!(!actual.control.syn());
-        assert!(!actual.control.fin());
+        assert!(!actual.ctl.urg());
+        assert!(actual.ctl.ack());
+        assert!(actual.ctl.psh());
+        assert!(!actual.ctl.rst());
+        assert!(!actual.ctl.syn());
+        assert!(!actual.ctl.fin());
         Ok(())
     }
 
