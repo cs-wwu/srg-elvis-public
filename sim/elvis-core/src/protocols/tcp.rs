@@ -1,8 +1,5 @@
-use self::{
-    tcp_parsing::{TcpHeader, TcpHeaderBuilder},
-    tcp_session::TcpSession,
-};
-use super::{ipv4::Ipv4Address, utility::Socket, Ipv4};
+use self::{tcp_parsing::TcpHeader, tcp_session::TcpSession};
+use super::{utility::Socket, Ipv4};
 use crate::{
     control::{ControlError, Key, Primitive},
     protocol::{
@@ -43,43 +40,6 @@ impl Tcp {
         Arc::new(Self::new(iss))
     }
 
-    // See 3.10.7.1 for handling of segments in CLOSED state
-    fn handle_segment_in_closed_state(
-        &self,
-        header: TcpHeader,
-        seg_len: u32,
-        local_address: Ipv4Address,
-        remote_address: Ipv4Address,
-        session: SharedSession,
-        protocols: ProtocolMap,
-    ) -> Result<(), DemuxError> {
-        if header.ctl.rst() {
-            // Discard reset segments
-            return Ok(());
-        }
-
-        let id = ConnectionId::new(
-            Socket::new(local_address, header.dst_port),
-            Socket::new(remote_address, header.src_port),
-        );
-
-        let response = if header.ctl.ack() {
-            TcpHeaderBuilder::new(id, header.ack, 0)
-                .rst()
-                .build([].into_iter())
-        } else {
-            TcpHeaderBuilder::new(id, 0, 0)
-                .ack(header.seq + seg_len)
-                .rst()
-                .build([].into_iter())
-        };
-
-        let response = Message::new(response.map_err(|_| DemuxError::Header)?);
-        let context = Context::new(protocols);
-        session.send(response, context)?;
-        Ok(())
-    }
-
     pub fn set_local_port(port: u16, control: &mut Control) {
         control.insert((Self::ID, 0), port);
     }
@@ -104,7 +64,7 @@ impl Protocol for Tcp {
 
     fn open(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        _upstream: ProtocolId,
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -127,25 +87,20 @@ impl Protocol for Tcp {
             src: local,
             dst: remote,
         };
+
         match self.clone().sessions.entry(session_id) {
             Entry::Occupied(_) => Err(OpenError::Existing)?,
-            Entry::Vacant(entry) => {
+            Entry::Vacant(_entry) => {
                 // Create the session and save it
-                let downstream = protocols
+                let _downstream = protocols
                     .protocol(Ipv4::ID)
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols.clone())?;
-                let session = TcpSession::open(
-                    session_id,
-                    upstream,
-                    downstream,
-                    self.iss.lock().unwrap().next(),
-                    protocols,
-                )?;
-                entry.insert(session.clone());
-                Ok(session)
+                // TODO(hardint): Open and add session
+                todo!()
             }
         }
+        todo!()
     }
 
     fn listen(
@@ -172,7 +127,7 @@ impl Protocol for Tcp {
     fn demux(
         self: Arc<Self>,
         mut message: Message,
-        caller: SharedSession,
+        _caller: SharedSession,
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
@@ -195,7 +150,7 @@ impl Protocol for Tcp {
         };
 
         // Use the context and the header information to identify the session
-        let session_id = ConnectionId {
+        let connection_id = ConnectionId {
             src: local,
             dst: remote,
         };
@@ -204,48 +159,31 @@ impl Protocol for Tcp {
         Tcp::set_local_port(local.port, &mut context.info);
         Tcp::set_remote_port(remote.port, &mut context.info);
 
-        let session = match self.clone().sessions.entry(session_id) {
+        let _session = match self.clone().sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
                 session
             }
-            Entry::Vacant(session_entry) => {
+            Entry::Vacant(_session_entry) => {
                 match self.clone().listen_bindings.entry(local) {
-                    Entry::Occupied(listen_entry) => {
+                    Entry::Occupied(_listen_entry) => {
                         // TODO(hardint): Incomplete. See 3.10.7.2 for handling
                         // of segments in LISTEN state.
 
                         // If we have a listen binding, create the session and
                         // save it
-                        let session = TcpSession::open(
-                            session_id,
-                            *listen_entry.get(),
-                            caller,
-                            self.iss.lock().unwrap().next(),
-                            context.protocols,
-                        )?;
-                        session_entry.insert(session.clone());
-                        session
+                        todo!()
                     }
 
                     Entry::Vacant(_) => {
-                        self.handle_segment_in_closed_state(
-                            header,
-                            header.len() + message.len() as u32,
-                            local_address,
-                            remote_address,
-                            caller,
-                            context.protocols,
-                        )?;
-                        Err(DemuxError::MissingSession)?
+                        todo!()
                     }
                 }
             }
         };
-        session
-            .receive(message, header)
-            .map_err(|_| DemuxError::Other)?;
-        Ok(())
+
+        // TODO(hardint): Receive message
+        todo!()
     }
 
     fn start(

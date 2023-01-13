@@ -6,7 +6,7 @@ use super::ConnectionId;
 const HEADER_WORDS: u16 = 5;
 const HEADER_OCTETS: u16 = HEADER_WORDS * 4;
 
-#[derive(Debug, Copy, Clone, Hash)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct TcpHeader {
     /// The source port number
     pub src_port: u16,

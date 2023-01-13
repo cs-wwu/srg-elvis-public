@@ -1,12 +1,15 @@
+use std::collections::VecDeque;
+
 use super::{tcp_parsing::TcpHeader, ConnectionId};
 use crate::Message;
 
-#[derive(Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct Tcb {
-    pub id: ConnectionId,
-    pub state: State,
-    pub snd: SendSequenceSpace,
-    pub rcv: ReceiveSequenceSpace,
+    id: ConnectionId,
+    state: State,
+    snd: SendSequenceSpace,
+    rcv: ReceiveSequenceSpace,
+    pub queue: VecDeque<(TcpHeader, Message)>,
 }
 
 impl Tcb {
@@ -30,10 +33,6 @@ impl Tcb {
     }
 
     pub fn receive(&mut self, _header: TcpHeader, _message: Message) {
-        todo!()
-    }
-
-    pub fn next_message(&mut self) -> Option<(TcpHeader, Message)> {
         todo!()
     }
 }
@@ -154,7 +153,7 @@ mod tests {
         // 2
         peer_a.open(100, 4096);
         assert_eq!(peer_a.state, State::SynSent);
-        let (header, message) = peer_a.next_message().unwrap();
+        let (header, message) = peer_a.queue.pop_back().unwrap();
         assert_eq!(header.seq, 100);
         assert!(header.ctl.syn());
 
@@ -162,7 +161,7 @@ mod tests {
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 3
-        let (header, message) = peer_b.next_message().unwrap();
+        let (header, message) = peer_b.queue.pop_back().unwrap();
         assert_eq!(header.seq, 300);
         assert_eq!(header.ack, 101);
         assert!(header.ctl.syn());
@@ -172,7 +171,7 @@ mod tests {
         assert_eq!(peer_a.state, State::Established);
 
         // 4
-        let (header, message) = peer_a.next_message().unwrap();
+        let (header, message) = peer_a.queue.pop_back().unwrap();
         assert_eq!(header.seq, 101);
         assert_eq!(header.ack, 301);
         assert!(header.ctl.ack());
@@ -182,7 +181,7 @@ mod tests {
 
         // 5
         peer_a.send(Message::new("Hello!"));
-        let (header, message) = peer_a.next_message().unwrap();
+        let (header, message) = peer_a.queue.pop_back().unwrap();
         assert_eq!(header.seq, 101);
         assert_eq!(header.ack, 301);
         assert!(header.ctl.ack());
