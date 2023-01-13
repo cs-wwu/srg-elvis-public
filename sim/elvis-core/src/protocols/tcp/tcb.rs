@@ -38,7 +38,7 @@ impl Tcb {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum State {
+enum State {
     /// No connection.
     #[default]
     Closed,
@@ -82,19 +82,19 @@ pub enum State {
 // 3 - sequence numbers allowed for new data transmission (send window)
 // 4 - future sequence numbers which are not yet allowed
 #[derive(Debug, PartialEq, Eq, Hash, Default)]
-pub struct SendSequenceSpace {
+struct SendSequenceSpace {
     /// Unacknowledged
-    pub una: u32,
+    una: u32,
     /// Next
-    pub nxt: u32,
+    nxt: u32,
     /// Window
-    pub wnd: u16,
+    wnd: u16,
     /// Segment sequence number used for last window update
-    pub wl1: u32,
+    wl1: u32,
     /// Segment acknowledgment number used for last window update
-    pub wl2: u32,
+    wl2: u32,
     /// Initial sequence number
-    pub iss: u32,
+    iss: u32,
 }
 
 impl SendSequenceSpace {
@@ -120,13 +120,13 @@ impl SendSequenceSpace {
 // 2 - sequence numbers allowed for new reception
 // 3 - future sequence numbers which are not yet allowed
 #[derive(Debug, Default, PartialEq, Eq, Hash)]
-pub struct ReceiveSequenceSpace {
+struct ReceiveSequenceSpace {
     /// Next
-    pub nxt: u32,
+    nxt: u32,
     /// Window
-    pub wnd: u16,
+    wnd: u16,
     /// Initial receive sequence
-    pub irs: u32,
+    irs: u32,
 }
 
 impl ReceiveSequenceSpace {
