@@ -158,12 +158,16 @@ impl Tcb {
                         self.snd.wl2 = seg.ack;
                         // TODO(hardint): Queue other controls or text for
                         // processing in Established state
-                    }
 
-                    return Ok(ReceiveResult::Success);
+                        return Ok(ReceiveResult::Success);
+                    }
                 }
 
-                return Ok(ReceiveResult::DiscardSegment);
+                if !seg.ctl.syn() && !seg.ctl.rst() {
+                    return Ok(ReceiveResult::DiscardSegment);
+                }
+                // Otherwise, fall through for additional processing with the
+                // sixth step of section 3.10.7.4
             }
 
             // Do First through Fifth, then break. The remaining steps are shared with SynSent.
@@ -176,12 +180,6 @@ impl Tcb {
             | State::Closing
             | State::LastAck
             | State::TimeWait => {
-                // Segments are processed in sequence. Initial tests on arrival
-                // are used to discard old duplicates, but further processing is
-                // done in SEG.SEQ order. If a segment's contents straddle the
-                // boundary between old and new, only the new parts are
-                // processed.
-
                 // TODO(hardint): Must process all queued segments before
                 // sending any ACKs
 
@@ -318,7 +316,19 @@ impl Tcb {
             }
         }
 
+        // NOTE(hardint): Continuing with Other States processing, 3.10.7.4
+
         // Sixth: Check the URG bit. Ignoring this part.
+
+        // First: Doing this late because "special allowance should be made to
+        // accept valid ACKs, URGs, and RSTs"
+        if !self.is_segment_acceptable(message.len() as u32, seg.seq) {
+            self.enqueue(
+                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                [].into(),
+            )?;
+            return Ok(ReceiveResult::DiscardSegment);
+        }
 
         // Seventh: Process the segment text
         match self.state {
