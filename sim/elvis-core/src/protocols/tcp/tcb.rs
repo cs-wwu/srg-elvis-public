@@ -228,22 +228,63 @@ impl Tcb {
                             }
                         }
 
-                        State::Established => {
+                        // ESTABLISHED processing:
+                        State::Established
+                        | State::FinWait1
+                        | State::FinWait2
+                        | State::CloseWait
+                        | State::Closing => {
                             if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
                                 self.snd.una = seg.ack;
                                 // TODO(hardint): Remove acknowledged segments from retransmission queue
                             }
 
-                            if mod_bounded(self.snd.una, Leq, seg.ack, Leq, self.snd.nxt) {}
+                            if mod_bounded(self.snd.una, Leq, seg.ack, Leq, self.snd.nxt) {
+                                // Update the send window
+                                if mod_le(self.snd.wl1, seg.seq)
+                                    || (self.snd.wl1 == seg.seq && mod_leq(self.snd.wl2, seg.ack))
+                                {
+                                    self.snd.wnd = seg.wnd;
+                                    self.snd.wl1 = seg.seq;
+                                    self.snd.wl2 = seg.ack;
+                                }
+                            }
+
+                            // In addition to ESTABLISHED processing:
+                            match self.state {
+                                State::FinWait1 => {
+                                    // TODO(hardint): If the FIN segment is now acknowledged,
+                                    // enter FIN-WAIT-2 and continue processing
+                                }
+
+                                State::FinWait2 => {
+                                    // TODO(hardint): If the retransmission
+                                    // queue is empty, acknowledge the user's
+                                    // CLOSE
+                                }
+
+                                State::Closing => {
+                                    // TODO(hardint): If the ACK acknowledges
+                                    // our FIN, enter TIME-WAIT.
+                                }
+
+                                _ => {}
+                            }
                         }
 
-                        State::FinWait1 => todo!(),
-                        State::FinWait2 => todo!(),
-                        State::CloseWait => todo!(),
-                        State::Closing => todo!(),
-                        State::LastAck => todo!(),
-                        State::TimeWait => todo!(),
+                        State::LastAck => {
+                            // TODO(hardint): If our FIN is now acknowledged,
+                            // close the TCB
+                        }
+
+                        State::TimeWait => {
+                            // TODO(hardint): The only thing that can arrive is
+                            // a retransmission of the remote FIN. Acknowledge
+                            // it and restart the MSL 2 timeout.
+                        }
                     }
+
+                    // Sixth: Check the URG bit. Ignoring this part.
                 }
             }
         }
@@ -262,7 +303,7 @@ impl Tcb {
         } else {
             if RCV_WND == 0 {
                 // When the receive window is zero, only ACKs are acceptible.
-                return false;
+                false
             } else {
                 self.is_in_window(seq) || self.is_in_window(seq + seg_len - 1)
             }
