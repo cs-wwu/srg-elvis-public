@@ -1,4 +1,4 @@
-use elvis::{simulations::parse, cli::initialize_from_arguments};
+use elvis::{cli::initialize_from_arguments, simulations::parse};
 
 #[tokio::main]
 async fn main() {

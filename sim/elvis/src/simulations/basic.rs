@@ -1,4 +1,4 @@
-use crate::{applications::{Capture, SendMessage}};
+use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
     networks::Reliable,

@@ -1,5 +1,5 @@
 //! Main ndl parsing file. Will take in a file path as an argument for the file to be parsed
-use std::{fs};
+use std::fs;
 
 use super::generating::core_generator;
 use super::parsing::general_parser;
@@ -25,15 +25,16 @@ pub async fn generate_sim(file_path: String) {
     }
 }
 
-
-/// This is the core parsing logic that runs through our input file. 
-/// 
+/// This is the core parsing logic that runs through our input file.
+///
 /// Takes in a string of the contents of the file and the file path of that file.
 /// Returns the resulting sim, or an error message.
 // TODO: make it so we only have to pass a file path through to this function
 pub fn core_parser(file_path: String) -> Result<Sim, String> {
     let s = fs::read_to_string(&file_path)
-        .expect("Should have been able to read the file").replace('\r', "").replace("    ", "\t");
+        .expect("Should have been able to read the file")
+        .replace('\r', "")
+        .replace("    ", "\t");
     // let fixed_string = contents.replace('\r', "").replace("    ", "\t");
     let mut networks = Networks::new();
     let mut machines = Machines::new();
@@ -53,11 +54,15 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
 
                 // the only types that won't result in an error are Templates, Networks, and Machines
                 match dectype {
-                    DecType::Template => {
-                        
-                    },
+                    DecType::Template => {}
                     DecType::Networks => {
-                        match networks_parser(dectype, options, remaining_string, num_tabs + 1, &mut line_num) {
+                        match networks_parser(
+                            dectype,
+                            options,
+                            remaining_string,
+                            num_tabs + 1,
+                            &mut line_num,
+                        ) {
                             Ok(n) => {
                                 // update the remaining string and networks list if we got a result
                                 remaining_string = n.1;
@@ -73,15 +78,31 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                                 return Err(format!("Errors at {}:\n\n{}\n", file_path, e));
                             }
                         }
-                    },
+                    }
                     DecType::Network => {
-                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Network));
-                    },
+                        return Err(format!(
+                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
+                            file_path,
+                            line_num - 1,
+                            DecType::Network
+                        ));
+                    }
                     DecType::IP => {
-                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::IP));
-                    },
+                        return Err(format!(
+                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
+                            file_path,
+                            line_num - 1,
+                            DecType::IP
+                        ));
+                    }
                     DecType::Machines => {
-                        match machines_parser(dectype, options, remaining_string, num_tabs + 1, &mut line_num) {
+                        match machines_parser(
+                            dectype,
+                            options,
+                            remaining_string,
+                            num_tabs + 1,
+                            &mut line_num,
+                        ) {
                             Ok(n) => {
                                 // update the remaining string and machines list if we got a result
                                 remaining_string = n.1;
@@ -94,22 +115,47 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                                 return Err(format!("Errors at {}:\n\n{}\n", file_path, e));
                             }
                         }
-                    },
+                    }
                     DecType::Machine => {
-                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Machine));
-                    },
+                        return Err(format!(
+                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
+                            file_path,
+                            line_num - 1,
+                            DecType::Machine
+                        ));
+                    }
                     DecType::Protocols => {
-                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Protocols));
-                    },
+                        return Err(format!(
+                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
+                            file_path,
+                            line_num - 1,
+                            DecType::Protocols
+                        ));
+                    }
                     DecType::Protocol => {
-                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Protocol));
-                    },
+                        return Err(format!(
+                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
+                            file_path,
+                            line_num - 1,
+                            DecType::Protocol
+                        ));
+                    }
                     DecType::Applications => {
-                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Applications));                    
-                    },
+                        return Err(format!(
+                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
+                            file_path,
+                            line_num - 1,
+                            DecType::Applications
+                        ));
+                    }
                     DecType::Application => {
-                        return Err(format!("Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n", file_path, line_num-1, DecType::Application));                    
-                    },
+                        return Err(format!(
+                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
+                            file_path,
+                            line_num - 1,
+                            DecType::Application
+                        ));
+                    }
                 }
             }
 
@@ -119,8 +165,5 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
         }
     }
 
-    Ok(Sim{
-        networks,
-        machines 
-    })
+    Ok(Sim { networks, machines })
 }

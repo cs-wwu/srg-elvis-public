@@ -5,7 +5,7 @@ use super::parsing_data::*;
 
 /// Core machine parser.
 ///
-/// 
+///
 /// Gets called at any [Machines] section.
 /// Goes down the list of machines parses all data into
 /// a Vec of machines to be handled by the coding parser later.
@@ -26,10 +26,8 @@ pub fn machines_parser(
             t += 1;
         }
         // next line doesn't have enough tabs thus a network isn't being declared
-        match t{
-            t if t < num_tabs => {
-                return Ok((machines, remaining_string.to_string()))
-            },
+        match t {
+            t if t < num_tabs => return Ok((machines, remaining_string.to_string())),
             t if t > num_tabs => {
                 return Err(general_error(
                     num_tabs,
@@ -43,7 +41,7 @@ pub fn machines_parser(
                         t
                     ),
                 ))
-            },
+            }
             _ => (),
         }
         //Find the next machine to be parsed
@@ -128,10 +126,10 @@ fn machine_parser(
             t += 1;
         }
         // next line doesn't have enough tabs thus a network isn't being declared
-        match t{
+        match t {
             t if t < num_tabs => {
                 break;
-            },
+            }
             t if t > num_tabs => {
                 return Err(general_error(
                     num_tabs,
@@ -145,8 +143,8 @@ fn machine_parser(
                         t
                     ),
                 ))
-            },
-            _ => ()
+            }
+            _ => (),
         }
         // Find the machine and arguments to be parsed
         let parsed_machine = general_parser(&remaining_string[num_tabs as usize..], line_num);
@@ -273,12 +271,16 @@ fn machine_parser(
             }
         }
     }
-    if !req.is_empty(){
+    if !req.is_empty() {
         return Err(general_error(
             num_tabs,
             machine_line_num,
             dec,
-            format!("{}Failed to include all required types for machine. Still needs types: {:?}", num_tabs_to_string(num_tabs + 1), req),
+            format!(
+                "{}Failed to include all required types for machine. Still needs types: {:?}",
+                num_tabs_to_string(num_tabs + 1),
+                req
+            ),
         ));
     }
     // Return the machine found
@@ -352,18 +354,20 @@ fn machine_networks_parser(
             // next line doesn't have enough tabs thus a network isn't being declared
             t if t < num_tabs => break,
             // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
-            t if t > num_tabs => return Err(general_error(
+            t if t > num_tabs => {
+                return Err(general_error(
                     num_tabs,
                     networks_line_num,
                     dec,
-                format!(
+                    format!(
                         "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
                         num_tabs_to_string(num_tabs + 1),
                         line_num,
                         num_tabs,
                         t
                     ),
-                )),
+                ))
+            }
             _ => (),
         }
     }
@@ -432,18 +436,20 @@ fn machine_protocols_parser(
             // next line doesn't have enough tabs thus a network isn't being declared
             t if t < num_tabs => break,
             // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
-            t if t > num_tabs => return Err(general_error(
+            t if t > num_tabs => {
+                return Err(general_error(
                     num_tabs,
                     protocols_line_num,
                     dec,
-                format!(
+                    format!(
                         "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
                         num_tabs_to_string(num_tabs + 1),
                         line_num,
                         num_tabs,
                         t
                     ),
-                )),
+                ))
+            }
             _ => (),
         }
     }
@@ -509,18 +515,20 @@ fn machine_applications_parser(
             // next line doesn't have enough tabs thus a network isn't being declared
             t if t < num_tabs => break,
             // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
-            t if t > num_tabs => return Err(general_error(
+            t if t > num_tabs => {
+                return Err(general_error(
                     num_tabs,
                     applications_line_num,
                     dec,
-                format!(
+                    format!(
                         "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
                         num_tabs_to_string(num_tabs + 1),
                         line_num,
                         num_tabs,
                         t
                     ),
-                )),
+                ))
+            }
             _ => (),
         }
     }

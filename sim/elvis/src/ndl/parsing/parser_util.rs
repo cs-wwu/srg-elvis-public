@@ -3,15 +3,15 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take_until},
     character::complete::char,
-    error::{context},
-    sequence::{delimited, preceded, separated_pair},
+    error::context,
     multi::many0,
+    sequence::{delimited, preceded, separated_pair},
 };
 
 use std::collections::HashMap;
 
 /// General parsing for any line of our NDL.
-/// 
+///
 ///
 /// Takes in a string and the current line number of the file we are looking it.
 /// Returns either an error string or a tuple containing the DecType it got, the Params it got inside of that DecType, and the remaining string after parsing.
@@ -25,22 +25,28 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
             // parse what was inside of the section to get the type and remaining string
             let dec = get_type(s1);
             let dectype;
-            let mut args : HashMap<String, String> = HashMap::new();
+            let mut args: HashMap<String, String> = HashMap::new();
             match dec {
                 // s2 = (remaining string, dectype)
                 Ok(s2) => {
                     dectype = s2.1;
-                    
+
                     match arguments(s2.0) {
                         Ok(a) => {
                             if !a.0.is_empty() {
-                                return Err(format!("Line {:?}: extra argument at '{}'\n", *line_num, s2.0));
+                                return Err(format!(
+                                    "Line {:?}: extra argument at '{}'\n",
+                                    *line_num, s2.0
+                                ));
                             }
 
                             for arg in &a.1 {
                                 // makes sure that each argument is a unique one, otherwise error
                                 if args.contains_key(arg.0) {
-                                    return Err(format!("Line {:?}: duplicate argument '{}'='{}'\n", *line_num, arg.0, arg.1));
+                                    return Err(format!(
+                                        "Line {:?}: duplicate argument '{}'='{}'\n",
+                                        *line_num, arg.0, arg.1
+                                    ));
                                 }
 
                                 args.insert(arg.0.to_string(), arg.1.to_string());
@@ -48,7 +54,10 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
                         }
 
                         Err(e) => {
-                            return Err(format!("Line {:?}: unable to parse arguments at '{}' due to {}\n", *line_num, s2.0, e));
+                            return Err(format!(
+                                "Line {:?}: unable to parse arguments at '{}' due to {}\n",
+                                *line_num, s2.0, e
+                            ));
                         }
                     }
 
@@ -72,12 +81,12 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
 
         Err(e) => {
             return Err(format!("{}", e));
-        },
+        }
     }
 }
 
 /// Converts a number of tabs into a string with that many tabs in it.
-pub fn num_tabs_to_string(num_tabs: i32) -> String{
+pub fn num_tabs_to_string(num_tabs: i32) -> String {
     let mut temp = "".to_string();
     let mut temp_num = 0;
 
@@ -91,7 +100,13 @@ pub fn num_tabs_to_string(num_tabs: i32) -> String{
 
 /// Formats a general error message and returns that String.
 pub fn general_error(num_tabs: i32, line_num: i32, dec: DecType, msg: String) -> String {
-    format!("{}Line {:?}: Unable to parse inside of {:?} due to: \n{}", num_tabs_to_string(num_tabs), line_num, dec, msg)
+    format!(
+        "{}Line {:?}: Unable to parse inside of {:?} due to: \n{}",
+        num_tabs_to_string(num_tabs),
+        line_num,
+        dec,
+        msg
+    )
 }
 
 /// Grabs the type from the beginning of each section in [general_parser].
@@ -119,15 +134,8 @@ fn get_type(input: &str) -> Res<&str, DecType> {
 /// Grabs everything between brackets "[]" in [general_parser].
 // TODO: add behavior to ignore spaces in here?
 fn section(input: &str) -> Res<&str, &str> {
-    context(
-        "section", 
-        delimited(
-            char('['), 
-           take_until("]"), 
-            char(']')
-        )
-    )(input)
-    .map(|(next_input, res)| (next_input, res))
+    context("section", delimited(char('['), take_until("]"), char(']')))(input)
+        .map(|(next_input, res)| (next_input, res))
 }
 
 /// Breaks down the arguments of our input for the [general_parser].

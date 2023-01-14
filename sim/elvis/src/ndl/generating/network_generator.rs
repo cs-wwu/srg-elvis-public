@@ -1,19 +1,17 @@
 //! Generates networks from a given parse
 
-use std::collections::{HashMap, HashSet};
-use crate::{ndl::generating::generator_utils::{ip_string_to_ip}};
+use crate::ndl::generating::generator_utils::ip_string_to_ip;
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::{
-    internet::{NetworkHandle},
-    protocols::ipv4::{IpToNetwork},
-    Internet, networks::Reliable,
+    internet::NetworkHandle, networks::Reliable, protocols::ipv4::IpToNetwork, Internet,
 };
+use std::collections::{HashMap, HashSet};
 
 /// Network Generator generates networks from a given [Networks] struct and places them in the [Internet]
 /// Returns said networks and corresponding ip tables for later use with machines
 pub fn network_generator(
     n: Networks,
-    internet: &mut Internet
+    internet: &mut Internet,
 ) -> Result<HashMap<String, (NetworkHandle, IpToNetwork, HashSet<[u8; 4]>)>, String> {
     // For each network we need
     // let network = internet.network(Reliable::new(1500));
@@ -41,9 +39,9 @@ pub fn network_generator(
                         );
 
                         let mut start_ip = ip_string_to_ip(temp[0].to_string(), &id);
-                        let end_ip = temp[1]
-                            .parse::<u8>()
-                            .unwrap_or_else(|_| panic!("Network {}: Invalid ending IP range number", id));
+                        let end_ip = temp[1].parse::<u8>().unwrap_or_else(|_| {
+                            panic!("Network {}: Invalid ending IP range number", id)
+                        });
 
                         assert!(
                             end_ip >= start_ip[3],

@@ -1,9 +1,6 @@
 //! Types needed for parsing.
 
-use nom::{
-    error::{VerboseError},
-    IResult
-};
+use nom::{error::VerboseError, IResult};
 use std::collections::HashMap;
 
 /// DecType is the core type of each parse-able item.
@@ -32,8 +29,8 @@ pub type IPs = Vec<IP>;
 
 /// Interfaces Struct.
 /// Holds the various types stored inside a [Machine].
-/// 
-/// 
+///
+///
 /// Contains: [MachineNetworks], [Protocols], and [Applications]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Interfaces {
@@ -45,19 +42,19 @@ pub struct Interfaces {
 /// Machine Struct.
 /// Holds core machine info before turning into code
 ///
-/// 
+///
 /// Contains: [DecType], [Params], and the [Interfaces] used for that machine
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Machine {
     pub dectype: DecType,
     pub options: Option<Params>,
-    pub interfaces: Interfaces
+    pub interfaces: Interfaces,
 }
 
 /// Network Struct.
 /// Holds core Network info before turning into code
-/// 
-/// 
+///
+///
 /// Contains: [DecType], [Params], and [IPs]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Network {
@@ -67,8 +64,8 @@ pub struct Network {
 }
 /// MachineNetwork Struct.
 /// Used to store networks for a machine
-/// 
-/// 
+///
+///
 /// Contains the following:
 /// [DecType], [Params]
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -79,46 +76,46 @@ pub struct MachineNetwork {
 
 /// Protocol Struct.
 /// Used to store information for a protocol.
-/// 
-/// 
+///
+///
 /// Contains: [DecType] and [Params]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Protocol {
     pub dectype: DecType,
-    pub options: Params
+    pub options: Params,
 }
 
 /// IP Struct.
 /// Used to store IP information for a [Network]
-/// 
-/// 
+///
+///
 /// Contains: [DecType] and [Params]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IP {
     pub dectype: DecType,
-    pub options: Params
+    pub options: Params,
 }
 
 /// Application Struct.
 /// Used to store application info for a [Machine]
-/// 
-/// 
+///
+///
 /// Contains: [DecType] and [Params]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Application {
     pub dectype: DecType,
-    pub options: Params
+    pub options: Params,
 }
 
 /// Sim Struct.
 /// Used to store the core parsed Sim.
-/// 
-/// 
+///
+///
 /// Contains: [Networks] and [Machines]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Sim {
     pub networks: Networks,
-    pub machines: Machines
+    pub machines: Machines,
 }
 
 impl From<&str> for DecType {
