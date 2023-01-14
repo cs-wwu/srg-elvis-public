@@ -8,6 +8,9 @@ use crate::{
 };
 use std::collections::VecDeque;
 
+// NOTE(hardint): Section numbers are base on RFC 9293, the updated TCP protocol
+// specification
+
 // TODO(hardint): Do more precise window management
 const RCV_WND: u16 = u16::MAX;
 
@@ -216,6 +219,29 @@ impl Tcb {
                 }
 
                 // Third: Security check. Ignoring this part.
+
+                // Fourth:
+                if seg.ctl.syn() {
+                    // NOTE(hardint): It's hard to tell from the spec if this is
+                    // supposed to happen unconditionally or only if the SYN bit
+                    // is set.
+                    match self.state {
+                        State::SynReceived => match self.initiation {
+                            Initiation::Listen => return Ok(ReceiveResult::CloseSilently),
+                            Initiation::Open => {}
+                        },
+                        _ => {}
+                    }
+
+                    // Getting a SYN in a synchronized state is weird. In
+                    // following with RFC 5961, send a challenge ACK and stop
+                    // further processing:
+                    self.enqueue(
+                        self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                        [].into(),
+                    )?;
+                    return Ok(ReceiveResult::DiscardSegment);
+                }
 
                 // Fifth:
                 if seg.ctl.ack() {
