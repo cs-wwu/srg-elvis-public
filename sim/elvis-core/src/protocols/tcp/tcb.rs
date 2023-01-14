@@ -14,6 +14,7 @@ const RCV_WND: u16 = u16::MAX;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tcb {
     id: ConnectionId,
+    initiation: Initiation,
     state: State,
     snd: SendSequenceSpace,
     rcv: ReceiveSequenceSpace,
@@ -23,12 +24,14 @@ pub struct Tcb {
 impl Tcb {
     fn new(
         id: ConnectionId,
+        initiation: Initiation,
         state: State,
         snd: SendSequenceSpace,
         rcv: ReceiveSequenceSpace,
     ) -> Self {
         Self {
             id,
+            initiation,
             state,
             snd,
             rcv,
@@ -40,6 +43,7 @@ impl Tcb {
         // see 3.10.1
         let mut tcb = Self::new(
             id,
+            Initiation::Open,
             State::SynSent,
             SendSequenceSpace {
                 iss,
@@ -58,10 +62,28 @@ impl Tcb {
         todo!()
     }
 
+    fn header_builder(&self, seq: u32) -> TcpHeaderBuilder {
+        TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seq)
+    }
+
+    fn enqueue(
+        &mut self,
+        header_builder: TcpHeaderBuilder,
+        message: Message,
+    ) -> Result<(), BuildHeaderError> {
+        let header = header_builder.build(
+            self.id.local.address,
+            self.id.remote.address,
+            message.iter(),
+        )?;
+        self.queue.push_back((header, message));
+        Ok(())
+    }
+
     pub fn receive(
         &mut self,
         seg: TcpHeader,
-        _message: Message,
+        message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
         match self.state {
             State::SynSent => {
@@ -69,7 +91,7 @@ impl Tcb {
                 if seg.ctl.ack() {
                     if seg.ctl.rst() {
                         // Discard the segment
-                        return Ok(ReceiveResult::Discard);
+                        return Ok(ReceiveResult::DiscardSegment);
                     }
 
                     if is_between_wrapped(self.snd.nxt, seg.ack, self.snd.iss + 1) {
@@ -89,7 +111,7 @@ impl Tcb {
                 // Second:
                 if seg.ctl.rst() {
                     if seg.seq == self.rcv.nxt {
-                        return Ok(ReceiveResult::Reset);
+                        return Ok(ReceiveResult::ConnectionReset);
                     } else {
                         return Err(ReceiveError::BlindReset);
                     };
@@ -129,10 +151,11 @@ impl Tcb {
                     return Ok(ReceiveResult::Success);
                 }
 
-                return Ok(ReceiveResult::Discard);
+                return Ok(ReceiveResult::DiscardSegment);
             }
 
-            // Do First through Sixth, then break. The remaining steps are shared with SynSent
+            // Do First through Fifth, then break. The remaining steps are shared with SynSent.
+            // 3.10.7.4
             State::SynReceived
             | State::Established
             | State::FinWait1
@@ -140,36 +163,109 @@ impl Tcb {
             | State::CloseWait
             | State::Closing
             | State::LastAck
-            | State::TimeWait => {}
+            | State::TimeWait => {
+                // Segments are processed in sequence. Initial tests on arrival
+                // are used to discard old duplicates, but further processing is
+                // done in SEG.SEQ order. If a segment's contents straddle the
+                // boundary between old and new, only the new parts are
+                // processed.
+
+                // TODO(hardint): Must process all queued segments before
+                // sending any ACKs
+
+                // Must process RST (and URG) of all incoming segments. Should
+                // do this first so that early returns are acceptible. For the
+                // same reason, ACKs should be processed early.
+
+                // Second:
+                if seg.ctl.rst() {
+                    match self.state {
+                        // We already handled this state
+                        State::SynSent => unreachable!(),
+
+                        State::SynReceived => match self.initiation {
+                            Initiation::Listen => {
+                                return Ok(ReceiveResult::CloseSilently);
+                            }
+                            Initiation::Open => {
+                                return Ok(ReceiveResult::ConnectionRefused);
+                            }
+                        },
+
+                        State::Established
+                        | State::FinWait1
+                        | State::FinWait2
+                        | State::CloseWait => {
+                            // TODO(hardint): Outstanding RECEIVEs and SENDs
+                            // should receive reset responses.
+                            return Ok(ReceiveResult::ConnectionReset);
+                        }
+
+                        State::Closing | State::LastAck | State::TimeWait => {
+                            return Ok(ReceiveResult::CloseSilently);
+                        }
+                    }
+                }
+            }
         }
 
         Ok(ReceiveResult::Success)
     }
 
-    fn header_builder(&self, seq: u32) -> TcpHeaderBuilder {
-        TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seq)
+    fn is_segment_acceptible(&self, seg_len: u32, seq: u32) -> bool {
+        // Test segment acceptability. See Table 6.
+        if seg_len == 0 {
+            // TODO(hardint): Unreachable right now, but when window
+            // management is added, this will be more important
+            if RCV_WND == 0 {
+                if seq == self.rcv.nxt {
+                    // Okay!
+                } else {
+                    return false;
+                }
+            } else {
+                if self.is_seq_in_window(seq) {
+                    // Okay!
+                } else {
+                    return false;
+                }
+            }
+        } else {
+            // TODO(hardint): Unreachable right now, but when window
+            // management is added, this will be more important
+            if RCV_WND == 0 {
+                // When the receive window is zero, only ACKs are acceptible.
+                return false;
+            } else {
+                if self.is_seq_in_window(seq)
+                    || is_between_wrapped(
+                        self.rcv.nxt - 1,
+                        seq + seg_len - 1,
+                        self.rcv.nxt + RCV_WND as u32,
+                    )
+                {
+                    // Okay!
+                } else {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
-    fn enqueue(
-        &mut self,
-        header_builder: TcpHeaderBuilder,
-        message: Message,
-    ) -> Result<(), BuildHeaderError> {
-        let header = header_builder.build(
-            self.id.local.address,
-            self.id.remote.address,
-            message.iter(),
-        )?;
-        self.queue.push_back((header, message));
-        Ok(())
+    fn is_seq_in_window(&self, seq: u32) -> bool {
+        is_between_wrapped(self.rcv.nxt - 1, seq, self.rcv.nxt + RCV_WND as u32)
     }
 }
 
 pub enum ReceiveResult {
     Success,
-    Discard,
+    DiscardSegment,
     InvalidAck,
-    Reset,
+    UnacceptableSegment,
+    CloseSilently,
+    ConnectionReset,
+    ConnectionRefused,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -180,9 +276,16 @@ pub enum ReceiveError {
     BlindReset,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum Initiation {
+    Listen,
+    Open,
+}
+
 pub fn handle_closed(
     seg: TcpHeader,
-    payload_len: u32,
+    // Specifically the length of the payload. Does not count the header.
+    seg_len: u32,
     local: Ipv4Address,
     remote: Ipv4Address,
 ) -> Option<TcpHeader> {
@@ -195,7 +298,6 @@ pub fn handle_closed(
     if seg.ctl.ack() {
         TcpHeaderBuilder::new(seg.dst_port, seg.src_port, seg.ack).rst()
     } else {
-        let seg_len = payload_len + seg.bytes() as u32;
         TcpHeaderBuilder::new(seg.dst_port, seg.src_port, 0)
             .rst()
             .ack(seg.seq + seg_len)
@@ -244,6 +346,7 @@ pub fn handle_listen(
                     port: seg.src_port,
                 },
             },
+            Initiation::Listen,
             State::SynReceived,
             SendSequenceSpace {
                 iss,
