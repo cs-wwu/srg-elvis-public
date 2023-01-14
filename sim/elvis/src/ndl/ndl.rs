@@ -1,4 +1,4 @@
-//! Main parsing file. Will take in a file path as an argument for the file to be parsed
+//! Main ndl parsing file. Will take in a file path as an argument for the file to be parsed
 use std::{fs};
 
 use super::generating::core_generator;

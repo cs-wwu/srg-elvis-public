@@ -1,3 +1,4 @@
+//! Tests for machine parsing
 use elvis::ndl::core_parser;
 use elvis::ndl::parsing::parsing_data::*;
 

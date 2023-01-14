@@ -1,3 +1,4 @@
+//! Tests for valid parsing
 use std::collections::HashMap;
 use elvis::ndl::core_parser;
 use elvis::ndl::parsing::parsing_data::*;
