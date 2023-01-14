@@ -80,10 +80,15 @@ impl Tcb {
         Ok(())
     }
 
+    pub fn advance_time(_ms: u64) {
+        // TODO(hardint): See 3.10.8 for timeout handling
+        todo!()
+    }
+
     pub fn receive(
         &mut self,
         seg: TcpHeader,
-        _message: Message,
+        message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
         match self.state {
             State::SynSent => {
@@ -283,8 +288,68 @@ impl Tcb {
                             // it and restart the MSL 2 timeout.
                         }
                     }
+                }
+            }
+        }
 
-                    // Sixth: Check the URG bit. Ignoring this part.
+        // Sixth: Check the URG bit. Ignoring this part.
+
+        // Seventh: Process the segment text
+        match self.state {
+            State::Established | State::FinWait1 | State::FinWait2 => {
+                // TODO(hardint): Once in the ESTABLISHED state, it is possible
+                // to deliver segment data to user RECEIVE buffers. Data from
+                // segments can be moved into buffers until either the buffer is
+                // full or the segment is empty. If the segment empties and
+                // carries a PUSH flag, then the user is informed, when the
+                // buffer is returned, that a PUSH has been received. When the
+                // TCP endpoint takes responsibility for delivering the data to
+                // the user, it must also acknowledge the receipt of the data.
+                // Once the TCP endpoint takes responsibility for the data, it
+                // advances RCV.NXT over the data accepted, and adjusts RCV.WND
+                // as appropriate to the current buffer availability. The total
+                // of RCV.NXT and RCV.WND should not be reduced. A TCP
+                // implementation MAY send an ACK segment acknowledging RCV.NXT
+                // when a valid segment arrives that is in the window but not at
+                // the left window edge (MAY-13). Please note the window
+                // management suggestions in Section 3.8. Send an acknowledgment
+                // of the form: <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK> This
+                // acknowledgment should be piggybacked on a segment being
+                // transmitted if possible without incurring undue delay.
+            }
+
+            State::SynSent
+            | State::SynReceived
+            | State::CloseWait
+            | State::Closing
+            | State::LastAck
+            | State::TimeWait => {}
+        }
+
+        // Eighth:
+        if seg.ctl.fin() {
+            match self.state {
+                State::SynSent | State::CloseWait | State::Closing | State::LastAck => {}
+
+                State::SynReceived | State::Established => {
+                    self.state = State::CloseWait;
+                }
+
+                State::FinWait1 => {
+                    // TODO(hardint): If our FIN has been ACKed (perhaps in this
+                    // segment), then enter TIME-WAIT, start the time-wait
+                    // timer, turn off the other timers; otherwise, enter the
+                    // CLOSING state.
+                }
+
+                State::FinWait2 => {
+                    self.state = State::TimeWait;
+                    // TODO(hardint): Start the time-wait timer, turn off the
+                    // other timers.
+                }
+
+                State::TimeWait => {
+                    // TODO(hardint): Restart the 2 MSL time-wait timeout.
                 }
             }
         }
