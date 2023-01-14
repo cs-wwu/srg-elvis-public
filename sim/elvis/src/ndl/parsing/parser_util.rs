@@ -23,7 +23,7 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
         // s0 = remaining string, s1 = string gotten by parsing
         Ok((s0, s1)) => {
             // parse what was inside of the section to get the type and remaining string
-            let dec = get_type(&s1);
+            let dec = get_type(s1);
             let dectype;
             let mut args : HashMap<String, String> = HashMap::new();
             match dec {

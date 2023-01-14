@@ -4,11 +4,13 @@
 /// 
 /// Ex: Converts 0xbeef into u16
 pub fn string_to_port(p: String) -> u16{
-    if p.starts_with("0x"){
-        return u16::from_str_radix(&p[2..], 16).expect(&format!("Port declaration error. Found port: {}", p));
+    if let Some(stripped) = p.strip_prefix("0x"){
+        u16::from_str_radix(stripped, 16)
+        .unwrap_or_else(|_| panic!("Port declaration error. Found port: {}", p))
     }
     else {
-        return p.parse::<u16>().expect(&format!("Invalid number for port. Found port: {}", p));
+        p.parse::<u16>()
+        .unwrap_or_else(|_| panic!("Invalid number for port. Found port: {}", p))
     }
 }
 
@@ -17,13 +19,11 @@ pub fn string_to_port(p: String) -> u16{
 /// 
 /// Ex: Turns "192.168.1.121" into [192, 168, 1, 121]
 pub fn ip_string_to_ip(s: String, net_id: &str) -> [u8; 4] {
-    let temp: Vec<&str> = s.split(".").collect();
+    let temp: Vec<&str> = s.split('.').collect();
     let mut new_ip: Vec<u8> = Vec::new();
     for val in temp {
-        new_ip.push(val.parse::<u8>().expect(&format!(
-            "Network {}: Invalid IP octet (expecting a u8)",
-            net_id
-        )));
+        new_ip.push(val.parse::<u8>()
+        .unwrap_or_else(|_| panic!("Network {}: Invalid IP octet (expecting a u8)", net_id)));
     }
 
     assert_eq!(

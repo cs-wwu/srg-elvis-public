@@ -31,7 +31,7 @@ pub fn network_generator(
             for (option_id, value) in ip.options {
                 match option_id.to_ascii_lowercase().as_str() {
                     "range" => {
-                        let temp: Vec<&str> = value.split("/").collect();
+                        let temp: Vec<&str> = value.split('/').collect();
                         assert_eq!(
                             temp.len(),
                             2,
@@ -43,7 +43,7 @@ pub fn network_generator(
                         let mut start_ip = ip_string_to_ip(temp[0].to_string(), &id);
                         let end_ip = temp[1]
                             .parse::<u8>()
-                            .expect(&format!("Network {}: Invalid ending IP range number", id));
+                            .unwrap_or_else(|_| panic!("Network {}: Invalid ending IP range number", id));
 
                         assert!(
                             end_ip >= start_ip[3],

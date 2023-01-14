@@ -80,7 +80,7 @@ pub fn networks_parser(dec: DecType, _args: Params, s0: String, num_tabs: i32, l
 
 /// Parses a single [Network]. Takes in a [DecType], [Params], remaining string, current number of tabs, and the current line number.
 /// Returns either an error String, or a tuple containing [Network] and the remaining string.
-fn network_parser<'a>(dec: DecType, args: Params, s0: String, num_tabs: i32, line_num: &mut i32) -> Result<(Network, String), String>{
+fn network_parser(dec: DecType, args: Params, s0: String, num_tabs: i32, line_num: &mut i32) -> Result<(Network, String), String>{
     let mut ips = IPs::new();
 	let mut remaining_string = s0;
     // save the beginning of this declarations line num

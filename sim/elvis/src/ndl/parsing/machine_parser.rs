@@ -9,7 +9,7 @@ use super::parsing_data::*;
 /// Gets called at any [Machines] section.
 /// Goes down the list of machines parses all data into
 /// a Vec of machines to be handled by the coding parser later.
-pub fn machines_parser<'a>(
+pub fn machines_parser(
     dec: DecType,
     _args: Params,
     s0: String,
@@ -278,7 +278,7 @@ fn machine_parser(
             num_tabs,
             machine_line_num,
             dec,
-            format!("{}{}", num_tabs_to_string(num_tabs + 1), format!("Failed to include all required types for machine. Still needs types: {:?}", req)),
+            format!("{}Failed to include all required types for machine. Still needs types: {:?}", num_tabs_to_string(num_tabs + 1), req),
         ));
     }
     // Return the machine found
@@ -453,7 +453,7 @@ fn machine_protocols_parser(
 /// Parses the [Application] from a machine.
 /// Machine Applications will contain a variety of information
 /// Items such as the type of application and data for the application will be parsed here
-fn machine_applications_parser<'a>(
+fn machine_applications_parser(
     dec: DecType,
     _args: Params,
     s0: String,
