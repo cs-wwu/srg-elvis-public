@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use crate::{applications::{Capture, SendMessage}};
-use super::parsing_data::*;
+use crate::ndl::parsing::parsing_data::*;
 use elvis_core::{
     internet::{NetworkHandle},
     networks::Reliable,

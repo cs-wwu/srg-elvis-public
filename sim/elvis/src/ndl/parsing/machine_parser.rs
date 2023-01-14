@@ -1,6 +1,6 @@
 //! Contains all methods relevant to parsing [Machines] and their data
 
-use super::core_parser::{general_error, general_parser, num_tabs_to_string};
+use super::parser_util::{general_error, general_parser, num_tabs_to_string};
 use super::parsing_data::*;
 
 /// Core machine parser.

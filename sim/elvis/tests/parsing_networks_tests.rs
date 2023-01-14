@@ -1,5 +1,5 @@
-use elvis::parsing::core_parser;
-use elvis::parsing::parsing_data::*;
+use elvis::ndl::core_parser;
+use elvis::ndl::parsing::parsing_data::*;
 
 /// main wrapper for parsing testing.
 pub fn parser_testing(file_path: &str) -> Result<Sim, String> {

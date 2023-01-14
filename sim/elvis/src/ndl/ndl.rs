@@ -1,10 +1,12 @@
 //! Main parsing file. Will take in a file path as an argument for the file to be parsed
 use std::{fs};
-use super::{parsing_data::*, num_tabs_to_string};
-use super::machine_parser::machines_parser;
-use super::network_parser::networks_parser;
-use super::core_parser::general_parser;
-use super::generator::core_generator;
+
+use super::generating::core_generator;
+use super::parsing::general_parser;
+use super::parsing::machines_parser;
+use super::parsing::networks_parser;
+use super::parsing::num_tabs_to_string;
+use super::parsing::parsing_data::*;
 
 // TODO: Will be configured to accept full files in the future
 /// main wrapper for parsing.

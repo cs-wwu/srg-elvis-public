@@ -1,6 +1,6 @@
 //! Contains all methods relevant to parsing [Networks] and their data
 use super::parsing_data::*;
-use super::core_parser::{general_error, general_parser, num_tabs_to_string};
+use super::parser_util::{general_error, general_parser, num_tabs_to_string};
 
 /// Parses an entire [Networks] section. 
 /// 
