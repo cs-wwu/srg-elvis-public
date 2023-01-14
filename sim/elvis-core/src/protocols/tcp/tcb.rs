@@ -1,49 +1,191 @@
+use super::{
+    tcp_parsing::{BuildHeaderError, TcpHeader, TcpHeaderBuilder},
+    ConnectionId,
+};
+use crate::{
+    protocols::{ipv4::Ipv4Address, utility::Socket},
+    Message,
+};
 use std::collections::VecDeque;
 
-use super::{tcp_parsing::TcpHeader, ConnectionId};
-use crate::Message;
-
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tcb {
     id: ConnectionId,
     state: State,
     snd: SendSequenceSpace,
     rcv: ReceiveSequenceSpace,
-    pub queue: VecDeque<(TcpHeader, Message)>,
+    queue: VecDeque<(TcpHeader, Message)>,
 }
 
 impl Tcb {
-    pub fn closed() -> Self {
-        Default::default()
-    }
-
-    pub fn listen() -> Self {
+    fn new(
+        id: ConnectionId,
+        state: State,
+        snd: SendSequenceSpace,
+        rcv: ReceiveSequenceSpace,
+    ) -> Self {
         Self {
-            state: State::Listen,
-            ..Default::default()
+            id,
+            state,
+            snd,
+            rcv,
+            queue: Default::default(),
         }
     }
 
-    pub fn open(&mut self, iss: u32, wnd: u16) {
-        self.snd = SendSequenceSpace::new(iss, wnd);
+    pub fn open(id: ConnectionId, iss: u32, wnd: u16) -> Self {
+        // TODO(hardint): Queue up SYN segment
+        Self::new(
+            id,
+            State::SynSent,
+            SendSequenceSpace::new(iss, wnd),
+            Default::default(),
+        );
+        todo!()
     }
 
-    pub fn send(&mut self, _message: Message) {
-        todo!()
+    pub fn send(&mut self, message: Message) -> Result<(), BuildHeaderError> {
+        self.enqueue(self.header_builder(), message)
     }
 
     pub fn receive(&mut self, _header: TcpHeader, _message: Message) {
-        todo!()
+        match self.state {
+            State::SynSent => todo!(),
+            State::SynReceived => todo!(),
+            State::Established => todo!(),
+            State::FinWait1 => todo!(),
+            State::FinWait2 => todo!(),
+            State::CloseWait => todo!(),
+            State::Closing => todo!(),
+            State::LastAck => todo!(),
+            State::TimeWait => todo!(),
+        }
+    }
+
+    fn header_builder(&self) -> TcpHeaderBuilder {
+        TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, self.snd.iss)
+            // TODO(hardint): Do we always want this ack? What about for initial SYN?
+            .ack(self.rcv.nxt)
+    }
+
+    fn enqueue(
+        &mut self,
+        header_builder: TcpHeaderBuilder,
+        message: Message,
+    ) -> Result<(), BuildHeaderError> {
+        let header = header_builder.build(
+            self.id.local.address,
+            self.id.remote.address,
+            message.iter(),
+        )?;
+        self.queue.push_back((header, message));
+        Ok(())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub fn handle_closed(
+    seg: TcpHeader,
+    payload_len: u32,
+    local: Ipv4Address,
+    remote: Ipv4Address,
+) -> Option<TcpHeader> {
+    // 3.10.7.1
+    if seg.ctl.rst() {
+        // Discard RST segments
+        return None;
+    }
+
+    if seg.ctl.ack() {
+        TcpHeaderBuilder::new(seg.dst_port, seg.src_port, seg.ack).rst()
+    } else {
+        let seg_len = payload_len + seg.bytes() as u32;
+        TcpHeaderBuilder::new(seg.dst_port, seg.src_port, 0)
+            .rst()
+            .ack(seg.seq + seg_len)
+    }
+    .build(local, remote, [].into_iter())
+    .ok()
+}
+
+pub fn handle_listen(
+    seg: TcpHeader,
+    local: Ipv4Address,
+    remote: Ipv4Address,
+    iss: u32,
+    snd_wnd: u16,
+) -> Option<ListenResult> {
+    // 3.10.7.2
+    if seg.ctl.rst() {
+        // First:
+        // Could not be valid, ignore
+        return None;
+    }
+
+    if seg.ctl.ack() {
+        // Second:
+        // Bad acknowledgement, reset
+        TcpHeaderBuilder::new(seg.dst_port, seg.src_port, seg.ack)
+            .rst()
+            .build(local, remote, [].into_iter())
+            .ok()
+            .map(|header| ListenResult::Response(header))
+    } else if seg.ctl.syn() {
+        // Third:
+        // Open the connection
+
+        // NOTE: Ignore security check for simplicity
+
+        // TODO(hardint): Any other control or text should be queued for
+        // processing later
+        let mut tcb = Tcb::new(
+            ConnectionId {
+                local: Socket {
+                    address: local,
+                    port: seg.dst_port,
+                },
+                remote: Socket {
+                    address: remote,
+                    port: seg.src_port,
+                },
+            },
+            State::SynReceived,
+            SendSequenceSpace::new(iss, snd_wnd),
+            ReceiveSequenceSpace::new(seg.seq, seg.wnd),
+        );
+        tcb.rcv.nxt = seg.seq + 1;
+        tcb.rcv.irs = seg.seq;
+        tcb.enqueue(tcb.header_builder(), [].into()).ok()?;
+        Some(ListenResult::Tcb(tcb))
+    } else {
+        // Fourth:
+        // Any other control or data-bearing segment should be discarded
+        None
+    }
+}
+
+pub enum ListenResult {
+    Response(TcpHeader),
+    Tcb(Tcb),
+}
+
+impl ListenResult {
+    fn response(self) -> Option<TcpHeader> {
+        match self {
+            ListenResult::Response(response) => Some(response),
+            ListenResult::Tcb(_) => None,
+        }
+    }
+
+    fn tcb(self) -> Option<Tcb> {
+        match self {
+            ListenResult::Response(_) => None,
+            ListenResult::Tcb(tcb) => Some(tcb),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum State {
-    /// No connection.
-    #[default]
-    Closed,
-    /// Waiting for a connection request from any remote TCP peer and port.
-    Listen,
     /// Waiting for a matching connection request after having sent a connection
     /// request.
     SynSent,
@@ -81,7 +223,7 @@ enum State {
 // 2 - sequence numbers of unacknowledged data
 // 3 - sequence numbers allowed for new data transmission (send window)
 // 4 - future sequence numbers which are not yet allowed
-#[derive(Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct SendSequenceSpace {
     /// Unacknowledged
     una: u32,
@@ -119,7 +261,7 @@ impl SendSequenceSpace {
 // 1 - old sequence numbers which have been acknowledged
 // 2 - sequence numbers allowed for new reception
 // 3 - future sequence numbers which are not yet allowed
-#[derive(Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 struct ReceiveSequenceSpace {
     /// Next
     nxt: u32,
@@ -130,8 +272,12 @@ struct ReceiveSequenceSpace {
 }
 
 impl ReceiveSequenceSpace {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(irs: u32, wnd: u16) -> Self {
+        Self {
+            irs,
+            nxt: irs + 1,
+            wnd,
+        }
     }
 }
 
@@ -147,17 +293,38 @@ mod tests {
     #[test]
     fn section_3_5_fig_6() {
         // 1
-        let mut peer_a = Tcb::closed();
-        let mut peer_b = Tcb::listen();
+        // Peer A: CLOSED
+        // Peer B: LISTEN
+
+        let peer_a_id = ConnectionId {
+            local: Socket {
+                address: 0.into(),
+                port: 0xcafe,
+            },
+            remote: Socket {
+                address: 1.into(),
+                port: 0xdead,
+            },
+        };
+        let peer_b_id = peer_a_id.reverse();
 
         // 2
-        peer_a.open(100, 4096);
+        let mut peer_a = Tcb::open(peer_a_id, 100, 4096);
         assert_eq!(peer_a.state, State::SynSent);
-        let (header, message) = peer_a.queue.pop_back().unwrap();
+        let (header, _message) = peer_a.queue.pop_back().unwrap();
         assert_eq!(header.seq, 100);
         assert!(header.ctl.syn());
 
-        peer_b.receive(header, message);
+        let mut peer_b = handle_listen(
+            header,
+            peer_b_id.local.address,
+            peer_b_id.remote.address,
+            300,
+            4096,
+        )
+        .unwrap()
+        .tcb()
+        .unwrap();
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 3
@@ -180,7 +347,7 @@ mod tests {
         assert_eq!(peer_b.state, State::Established);
 
         // 5
-        peer_a.send(Message::new("Hello!"));
+        peer_a.send(Message::new("Hello!")).unwrap();
         let (header, message) = peer_a.queue.pop_back().unwrap();
         assert_eq!(header.seq, 101);
         assert_eq!(header.ack, 301);

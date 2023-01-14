@@ -173,3 +173,21 @@ enum WrappedMessage {
     Header(Chunk, Arc<WrappedMessage>),
     Body(Chunk),
 }
+
+impl Into<Message> for Vec<u8> {
+    fn into(self) -> Message {
+        Message::new(self)
+    }
+}
+
+impl Into<Message> for &[u8] {
+    fn into(self) -> Message {
+        Message::new(self)
+    }
+}
+
+impl<const L: usize> Into<Message> for [u8; L] {
+    fn into(self) -> Message {
+        Message::new(&self)
+    }
+}

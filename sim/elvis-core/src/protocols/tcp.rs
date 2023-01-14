@@ -83,10 +83,7 @@ impl Protocol for Tcp {
             port: Self::get_remote_port(&participants).unwrap(),
         };
 
-        let session_id = ConnectionId {
-            src: local,
-            dst: remote,
-        };
+        let session_id = ConnectionId { local, remote };
 
         match self.clone().sessions.entry(session_id) {
             Entry::Occupied(_) => Err(OpenError::Existing)?,
@@ -150,10 +147,7 @@ impl Protocol for Tcp {
         };
 
         // Use the context and the header information to identify the session
-        let connection_id = ConnectionId {
-            src: local,
-            dst: remote,
-        };
+        let connection_id = ConnectionId { local, remote };
 
         // Add the header information to the context
         Tcp::set_local_port(local.port, &mut context.info);
@@ -229,12 +223,19 @@ impl IssGenerator {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct ConnectionId {
-    pub src: Socket,
-    pub dst: Socket,
+    pub local: Socket,
+    pub remote: Socket,
 }
 
 impl ConnectionId {
-    pub fn new(src: Socket, dst: Socket) -> Self {
-        Self { src, dst }
+    pub fn new(local: Socket, remote: Socket) -> Self {
+        Self { local, remote }
+    }
+
+    pub fn reverse(self) -> Self {
+        Self {
+            local: self.remote,
+            remote: self.local,
+        }
     }
 }
