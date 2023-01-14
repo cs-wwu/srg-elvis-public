@@ -83,7 +83,7 @@ impl Tcb {
     pub fn receive(
         &mut self,
         seg: TcpHeader,
-        message: Message,
+        _message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
         match self.state {
             State::SynSent => {
@@ -94,7 +94,7 @@ impl Tcb {
                         return Ok(ReceiveResult::DiscardSegment);
                     }
 
-                    if is_between_wrapped(self.snd.nxt, seg.ack, self.snd.iss + 1) {
+                    if mod_bounded(self.snd.nxt, Le, seg.ack, Leq, self.snd.iss) {
                         // Send a reset and discard the segment
                         self.enqueue(
                             TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seg.ack)
@@ -103,7 +103,9 @@ impl Tcb {
                         )?;
                     }
 
-                    if !is_between_wrapped(self.snd.una, seg.ack, self.snd.nxt) {
+                    if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
+                        // Acceptible ACK
+                    } else {
                         return Ok(ReceiveResult::InvalidAck);
                     }
                 }
@@ -127,9 +129,11 @@ impl Tcb {
 
                     // TODO(hardint): Remove acknowledged segments from the
                     // retransmission queue
+
+                    // FIX(hardint): Only advance, and only if this segment is an ACK
                     self.snd.una = seg.ack;
 
-                    if self.snd.una > self.snd.iss {
+                    if mod_ge(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
                         self.enqueue(
                             self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
@@ -180,7 +184,6 @@ impl Tcb {
                 // Second:
                 if seg.ctl.rst() {
                     match self.state {
-                        // We already handled this state
                         State::SynSent => unreachable!(),
 
                         State::SynReceived => match self.initiation {
@@ -206,55 +209,68 @@ impl Tcb {
                         }
                     }
                 }
+
+                // Third: Security check. Ignoring this part.
+
+                // Fifth:
+                if seg.ctl.ack() {
+                    match self.state {
+                        State::SynSent => unreachable!(),
+
+                        State::SynReceived => {
+                            if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
+                                self.state = State::Established;
+                                self.snd.wnd = seg.wnd;
+                                self.snd.wl1 = seg.seq;
+                                self.snd.wl2 = seg.ack;
+                            } else {
+                                self.enqueue(self.header_builder(seg.ack).rst(), [].into())?;
+                            }
+                        }
+
+                        State::Established => {
+                            if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
+                                self.snd.una = seg.ack;
+                                // TODO(hardint): Remove acknowledged segments from retransmission queue
+                            }
+
+                            if mod_bounded(self.snd.una, Leq, seg.ack, Leq, self.snd.nxt) {}
+                        }
+
+                        State::FinWait1 => todo!(),
+                        State::FinWait2 => todo!(),
+                        State::CloseWait => todo!(),
+                        State::Closing => todo!(),
+                        State::LastAck => todo!(),
+                        State::TimeWait => todo!(),
+                    }
+                }
             }
         }
 
         Ok(ReceiveResult::Success)
     }
 
-    fn is_segment_acceptible(&self, seg_len: u32, seq: u32) -> bool {
+    fn is_segment_acceptable(&self, seg_len: u32, seq: u32) -> bool {
         // Test segment acceptability. See Table 6.
         if seg_len == 0 {
-            // TODO(hardint): Unreachable right now, but when window
-            // management is added, this will be more important
             if RCV_WND == 0 {
-                if seq == self.rcv.nxt {
-                    // Okay!
-                } else {
-                    return false;
-                }
+                seq == self.rcv.nxt
             } else {
-                if self.is_seq_in_window(seq) {
-                    // Okay!
-                } else {
-                    return false;
-                }
+                self.is_in_window(seq)
             }
         } else {
-            // TODO(hardint): Unreachable right now, but when window
-            // management is added, this will be more important
             if RCV_WND == 0 {
                 // When the receive window is zero, only ACKs are acceptible.
                 return false;
             } else {
-                if self.is_seq_in_window(seq)
-                    || is_between_wrapped(
-                        self.rcv.nxt - 1,
-                        seq + seg_len - 1,
-                        self.rcv.nxt + RCV_WND as u32,
-                    )
-                {
-                    // Okay!
-                } else {
-                    return false;
-                }
+                self.is_in_window(seq) || self.is_in_window(seq + seg_len - 1)
             }
         }
-        true
     }
 
-    fn is_seq_in_window(&self, seq: u32) -> bool {
-        is_between_wrapped(self.rcv.nxt - 1, seq, self.rcv.nxt + RCV_WND as u32)
+    fn is_in_window(&self, n: u32) -> bool {
+        mod_bounded(self.rcv.nxt, Leq, n, Le, self.rcv.nxt + RCV_WND as u32)
     }
 }
 
@@ -462,14 +478,107 @@ struct ReceiveSequenceSpace {
     nxt: u32,
 }
 
+use ModCmp::*;
+
+/// a < b under modular arithmetic
+fn mod_le(a: u32, b: u32) -> bool {
+    // k is on the opposite side of the ring of integers mod 32 from b
+    let k = b.wrapping_add(u32::MAX / 2);
+
+    // There are six cases:
+    //  0123456789
+    // |a b    k  | a<b, a<k, b<k -> a<b
+    // |a k    b  | a<b, a<k, b>k -> a>b
+    // |  b a  k  | a>b, a<k, b<k -> a>b
+    // |  k a  b  | a<b, a>k, b>k -> a<b
+    // |  b    k a| a>b, a>k, b<k -> a<b
+    // |  k    b a| a>b, a>k, b>k -> a>b
+
+    (a < b) ^ (a < k) ^ (b < k)
+}
+
+/// a <= b under modular arithmetic
+fn mod_leq(a: u32, b: u32) -> bool {
+    mod_le(a, b.wrapping_add(1))
+}
+
+/// a > b under modular arithmetic
+fn mod_ge(a: u32, b: u32) -> bool {
+    mod_le(b, a)
+}
+
+/// a > b under modular arithmetic
+fn mod_geq(a: u32, b: u32) -> bool {
+    mod_le(b.wrapping_sub(1), a)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModCmp {
+    Le,
+    Leq,
+}
+
+impl ModCmp {
+    pub fn offset(self) -> u32 {
+        match self {
+            Le => 0,
+            Leq => 1,
+        }
+    }
+}
+
 /// Is `b` between `a` and `c` when accounting for modular arithmetic?
-fn is_between_wrapped(a: u32, b: u32, c: u32) -> bool {
-    (a < b && b < c) || (c < a && a < b) || (b < c && c < a)
+fn mod_bounded(a: u32, ab_cmp: ModCmp, b: u32, bc_cmp: ModCmp, c: u32) -> bool {
+    let a = a.wrapping_sub(ab_cmp.offset());
+    let c = c.wrapping_add(bc_cmp.offset());
+
+    // a < b < c holds under the following conditions:
+    // j: | a b c |
+    // k: | c a b |
+    // l: | b c a |
+
+    let j = a < b && b < c && a < c;
+    let k = a < b && b > c && a > c;
+    let l = a > b && b < c && a > c;
+    j || k || l
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn modular_comparison() {
+        // 2**31 = 2_147_483_648
+        assert!(mod_le(10, 20));
+        assert!(!mod_le(20, 10));
+        assert!(mod_le(2_000_000_000, 3_000_000_000));
+        assert!(!mod_le(3_000_000_000, 2_000_000_000));
+        assert!(mod_le(3_000_000_000, 4_000_000_000));
+        assert!(!mod_le(4_000_000_000, 3_000_000_000));
+
+        assert!(!mod_le(5, 5));
+        assert!(mod_leq(5, 5));
+
+        assert!(mod_ge(20, 10));
+        assert!(!mod_ge(5, 5));
+        assert!(mod_geq(5, 5));
+
+        assert!(mod_bounded(5, Le, 10, Le, 15));
+        assert!(!mod_bounded(15, Le, 10, Le, 5));
+
+        assert!(mod_bounded(u32::MAX - 5, Le, 5, Le, 10));
+        assert!(!mod_bounded(10, Le, 5, Le, u32::MAX - 5));
+
+        assert!(mod_bounded(u32::MAX - 10, Le, u32::MAX - 5, Le, 5));
+        assert!(!mod_bounded(5, Le, u32::MAX - 5, Le, u32::MAX - 10));
+
+        assert!(!mod_bounded(5, Le, 5, Le, 15));
+        assert!(mod_bounded(5, Leq, 5, Le, 15));
+        assert!(!mod_bounded(5, Le, 15, Le, 15));
+        assert!(mod_bounded(5, Le, 15, Leq, 15));
+        assert!(mod_bounded(10, Leq, 10, Leq, 10));
+    }
 
     #[test]
     fn section_3_5_fig_6() {
