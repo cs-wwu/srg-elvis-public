@@ -8,6 +8,9 @@ use crate::{
 };
 use std::collections::VecDeque;
 
+// TODO(hardint): Do more precise window management
+const RCV_WND: u16 = u16::MAX;
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tcb {
     id: ConnectionId,
@@ -33,39 +36,118 @@ impl Tcb {
         }
     }
 
-    pub fn open(id: ConnectionId, iss: u32, wnd: u16) -> Self {
-        // TODO(hardint): Queue up SYN segment
-        Self::new(
+    pub fn open(id: ConnectionId, iss: u32) -> Self {
+        // see 3.10.1
+        let mut tcb = Self::new(
             id,
             State::SynSent,
-            SendSequenceSpace::new(iss, wnd),
-            Default::default(),
+            SendSequenceSpace {
+                iss,
+                una: iss,
+                nxt: iss + 1,
+                ..Default::default()
+            },
+            ReceiveSequenceSpace::default(),
         );
+        tcb.enqueue(tcb.header_builder(iss).syn(), [].into())
+            .unwrap();
+        tcb
+    }
+
+    pub fn send(&mut self, _message: Message) -> Result<(), BuildHeaderError> {
         todo!()
     }
 
-    pub fn send(&mut self, message: Message) -> Result<(), BuildHeaderError> {
-        self.enqueue(self.header_builder(), message)
-    }
-
-    pub fn receive(&mut self, _header: TcpHeader, _message: Message) {
+    pub fn receive(
+        &mut self,
+        seg: TcpHeader,
+        _message: Message,
+    ) -> Result<ReceiveResult, ReceiveError> {
         match self.state {
-            State::SynSent => todo!(),
-            State::SynReceived => todo!(),
-            State::Established => todo!(),
-            State::FinWait1 => todo!(),
-            State::FinWait2 => todo!(),
-            State::CloseWait => todo!(),
-            State::Closing => todo!(),
-            State::LastAck => todo!(),
-            State::TimeWait => todo!(),
+            State::SynSent => {
+                // First:
+                if seg.ctl.ack() {
+                    if seg.ctl.rst() {
+                        // Discard the segment
+                        return Ok(ReceiveResult::Discard);
+                    }
+
+                    if is_between_wrapped(self.snd.nxt, seg.ack, self.snd.iss + 1) {
+                        // Send a reset and discard the segment
+                        self.enqueue(
+                            TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seg.ack)
+                                .rst(),
+                            [].into(),
+                        )?;
+                    }
+
+                    if !is_between_wrapped(self.snd.una, seg.ack, self.snd.nxt) {
+                        return Ok(ReceiveResult::InvalidAck);
+                    }
+                }
+
+                // Second:
+                if seg.ctl.rst() {
+                    if seg.seq == self.rcv.nxt {
+                        return Ok(ReceiveResult::Reset);
+                    } else {
+                        return Err(ReceiveError::BlindReset);
+                    };
+                }
+
+                // Third:
+                // NOTE: Ignore security check
+
+                // Fourth:
+                if seg.ctl.syn() {
+                    self.rcv.irs = seg.seq;
+                    self.rcv.nxt = seg.seq + 1;
+
+                    // TODO(hardint): Remove acknowledged segments from the
+                    // retransmission queue
+                    self.snd.una = seg.ack;
+
+                    if self.snd.una > self.snd.iss {
+                        self.state = State::Established;
+                        self.enqueue(
+                            self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                            [].into(),
+                        )?;
+                    } else {
+                        self.state = State::SynReceived;
+                        self.enqueue(
+                            self.header_builder(self.snd.iss).syn().ack(self.rcv.nxt),
+                            [].into(),
+                        )?;
+                        self.snd.wnd = seg.wnd;
+                        self.snd.wl1 = seg.seq;
+                        self.snd.wl2 = seg.ack;
+                        // TODO(hardint): Queue other controls or text for
+                        // processing in Established state
+                    }
+
+                    return Ok(ReceiveResult::Success);
+                }
+
+                return Ok(ReceiveResult::Discard);
+            }
+
+            // Do First through Sixth, then break. The remaining steps are shared with SynSent
+            State::SynReceived
+            | State::Established
+            | State::FinWait1
+            | State::FinWait2
+            | State::CloseWait
+            | State::Closing
+            | State::LastAck
+            | State::TimeWait => {}
         }
+
+        Ok(ReceiveResult::Success)
     }
 
-    fn header_builder(&self) -> TcpHeaderBuilder {
-        TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, self.snd.iss)
-            // TODO(hardint): Do we always want this ack? What about for initial SYN?
-            .ack(self.rcv.nxt)
+    fn header_builder(&self, seq: u32) -> TcpHeaderBuilder {
+        TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seq)
     }
 
     fn enqueue(
@@ -81,6 +163,21 @@ impl Tcb {
         self.queue.push_back((header, message));
         Ok(())
     }
+}
+
+pub enum ReceiveResult {
+    Success,
+    Discard,
+    InvalidAck,
+    Reset,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReceiveError {
+    #[error("{0}")]
+    Header(#[from] BuildHeaderError),
+    #[error("SEG.RST and RCV.NXT != SEG.SEQ")]
+    BlindReset,
 }
 
 pub fn handle_closed(
@@ -112,7 +209,6 @@ pub fn handle_listen(
     local: Ipv4Address,
     remote: Ipv4Address,
     iss: u32,
-    snd_wnd: u16,
 ) -> Option<ListenResult> {
     // 3.10.7.2
     if seg.ctl.rst() {
@@ -149,12 +245,20 @@ pub fn handle_listen(
                 },
             },
             State::SynReceived,
-            SendSequenceSpace::new(iss, snd_wnd),
-            ReceiveSequenceSpace::new(seg.seq, seg.wnd),
+            SendSequenceSpace {
+                iss,
+                una: iss,
+                nxt: iss + 1,
+                wnd: seg.wnd,
+                wl1: seg.seq,
+                wl2: seg.ack,
+            },
+            ReceiveSequenceSpace {
+                irs: seg.seq,
+                nxt: seg.seq + 1,
+            },
         );
-        tcb.rcv.nxt = seg.seq + 1;
-        tcb.rcv.irs = seg.seq;
-        tcb.enqueue(tcb.header_builder(), [].into()).ok()?;
+        tcb.enqueue(tcb.header_builder(iss), [].into()).ok()?;
         Some(ListenResult::Tcb(tcb))
     } else {
         // Fourth:
@@ -223,7 +327,7 @@ enum State {
 // 2 - sequence numbers of unacknowledged data
 // 3 - sequence numbers allowed for new data transmission (send window)
 // 4 - future sequence numbers which are not yet allowed
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 struct SendSequenceSpace {
     /// Unacknowledged
     una: u32,
@@ -239,20 +343,6 @@ struct SendSequenceSpace {
     iss: u32,
 }
 
-impl SendSequenceSpace {
-    pub fn new(iss: u32, wnd: u16) -> Self {
-        let iss = iss.into();
-        Self {
-            iss,
-            una: iss,
-            nxt: iss + 1,
-            wnd,
-            wl1: 0,
-            wl2: 0,
-        }
-    }
-}
-
 //     1          2          3
 // ----------|----------|----------
 //        RCV.NXT    RCV.NXT
@@ -263,22 +353,10 @@ impl SendSequenceSpace {
 // 3 - future sequence numbers which are not yet allowed
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 struct ReceiveSequenceSpace {
-    /// Next
-    nxt: u32,
-    /// Window
-    wnd: u16,
     /// Initial receive sequence
     irs: u32,
-}
-
-impl ReceiveSequenceSpace {
-    pub fn new(irs: u32, wnd: u16) -> Self {
-        Self {
-            irs,
-            nxt: irs + 1,
-            wnd,
-        }
-    }
+    /// Next
+    nxt: u32,
 }
 
 /// Is `b` between `a` and `c` when accounting for modular arithmetic?
@@ -309,7 +387,7 @@ mod tests {
         let peer_b_id = peer_a_id.reverse();
 
         // 2
-        let mut peer_a = Tcb::open(peer_a_id, 100, 4096);
+        let mut peer_a = Tcb::open(peer_a_id, 100);
         assert_eq!(peer_a.state, State::SynSent);
         let (header, _message) = peer_a.queue.pop_back().unwrap();
         assert_eq!(header.seq, 100);
@@ -320,7 +398,6 @@ mod tests {
             peer_b_id.local.address,
             peer_b_id.remote.address,
             300,
-            4096,
         )
         .unwrap()
         .tcb()
@@ -334,7 +411,7 @@ mod tests {
         assert!(header.ctl.syn());
         assert!(header.ctl.ack());
 
-        peer_a.receive(header, message);
+        peer_a.receive(header, message).unwrap();
         assert_eq!(peer_a.state, State::Established);
 
         // 4
@@ -343,7 +420,7 @@ mod tests {
         assert_eq!(header.ack, 301);
         assert!(header.ctl.ack());
 
-        peer_b.receive(header, message);
+        peer_b.receive(header, message).unwrap();
         assert_eq!(peer_b.state, State::Established);
 
         // 5
@@ -354,7 +431,7 @@ mod tests {
         assert!(header.ctl.ack());
         assert_eq!(message.len(), 6);
 
-        peer_b.receive(header, message);
+        peer_b.receive(header, message).unwrap();
         assert_eq!(peer_b.state, State::Established);
     }
 }
