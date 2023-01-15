@@ -188,6 +188,37 @@ impl Tcb {
             }
         }
 
+        if seg.ctl.rst() {
+            match self.state {
+                State::SynSent => {
+                    if seg.seq == self.rcv.nxt {
+                        return Ok(ReceiveResult::ConnectionReset);
+                    } else {
+                        return Err(ReceiveError::BlindReset);
+                    };
+                }
+
+                State::SynReceived => match self.initiation {
+                    Initiation::Listen => {
+                        return Ok(ReceiveResult::CloseSilently);
+                    }
+                    Initiation::Open => {
+                        return Ok(ReceiveResult::ConnectionRefused);
+                    }
+                },
+
+                State::Established | State::FinWait1 | State::FinWait2 | State::CloseWait => {
+                    // TODO(hardint): Outstanding RECEIVEs and SENDs
+                    // should receive reset responses.
+                    return Ok(ReceiveResult::ConnectionReset);
+                }
+
+                State::Closing | State::LastAck | State::TimeWait => {
+                    return Ok(ReceiveResult::CloseSilently);
+                }
+            }
+        }
+
         // 3.10.7 with special handling of CLOSED and LISTEN in freestanding
         // functions
         match self.state {
@@ -196,13 +227,7 @@ impl Tcb {
                 // ACK check moved up
 
                 // Second:
-                if seg.ctl.rst() {
-                    if seg.seq == self.rcv.nxt {
-                        return Ok(ReceiveResult::ConnectionReset);
-                    } else {
-                        return Err(ReceiveError::BlindReset);
-                    };
-                }
+                // RST check moved up
 
                 // Third:
                 // NOTE: Ignore security check
@@ -265,33 +290,7 @@ impl Tcb {
                 // same reason, ACKs should be processed early.
 
                 // Second:
-                if seg.ctl.rst() {
-                    match self.state {
-                        State::SynSent => unreachable!(),
-
-                        State::SynReceived => match self.initiation {
-                            Initiation::Listen => {
-                                return Ok(ReceiveResult::CloseSilently);
-                            }
-                            Initiation::Open => {
-                                return Ok(ReceiveResult::ConnectionRefused);
-                            }
-                        },
-
-                        State::Established
-                        | State::FinWait1
-                        | State::FinWait2
-                        | State::CloseWait => {
-                            // TODO(hardint): Outstanding RECEIVEs and SENDs
-                            // should receive reset responses.
-                            return Ok(ReceiveResult::ConnectionReset);
-                        }
-
-                        State::Closing | State::LastAck | State::TimeWait => {
-                            return Ok(ReceiveResult::CloseSilently);
-                        }
-                    }
-                }
+                // RST check moved up
 
                 // Third: Security check. Ignoring this part.
 
