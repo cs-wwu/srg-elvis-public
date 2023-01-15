@@ -756,7 +756,15 @@ mod tests {
     }
 
     #[test]
-    fn section_3_5_fig_6() {
+    fn basic_synchronization() {
+        // Based on 3.5 Figure 6:
+        //     TCP Peer A                                            TCP Peer B
+        // 1.  CLOSED                                                LISTEN
+        // 2.  SYN-SENT    --> <SEQ=100><CTL=SYN>                --> SYN-RECEIVED
+        // 3.  ESTABLISHED <-- <SEQ=300><ACK=101><CTL=SYN,ACK>   <-- SYN-RECEIVED
+        // 4.  ESTABLISHED --> <SEQ=101><ACK=301><CTL=ACK>       --> ESTABLISHED
+        // 5.  ESTABLISHED --> <SEQ=101><ACK=301><CTL=ACK><DATA> --> ESTABLISHED
+
         // 1
         // Peer A: CLOSED
         // Peer B: LISTEN
@@ -811,6 +819,19 @@ mod tests {
         peer_b.segment_arrives(header, message).unwrap();
         assert_eq!(peer_b.state, State::Established);
 
-        // 5 TODO(hardint): Needs data segment transmission to wore
+        // 5 TODO(hardint): Needs data segment transmission to work
+    }
+
+    #[test]
+    fn simulataneous_initiation() {
+        // Based on 3.5 Figure 7:
+        //     TCP Peer A                                       TCP Peer B
+        // 1.  CLOSED                                           CLOSED
+        // 2.  SYN-SENT     --> <SEQ=100><CTL=SYN>              ...
+        // 3.  SYN-RECEIVED <-- <SEQ=300><CTL=SYN>              <-- SYN-SENT
+        // 4.               ... <SEQ=100><CTL=SYN>              --> SYN-RECEIVED
+        // 5.  SYN-RECEIVED --> <SEQ=100><ACK=301><CTL=SYN,ACK> ...
+        // 6.  ESTABLISHED  <-- <SEQ=300><ACK=101><CTL=SYN,ACK> <-- SYN-RECEIVED
+        // 7.               ... <SEQ=100><ACK=301><CTL=SYN,ACK> --> ESTABLISHED
     }
 }
