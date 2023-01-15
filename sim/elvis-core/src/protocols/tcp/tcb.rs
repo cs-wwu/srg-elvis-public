@@ -43,7 +43,9 @@ impl Tcb {
     }
 
     pub fn open(id: ConnectionId, iss: u32) -> Self {
-        // 3.10.1
+        // 3.10.1 Specifically for the case of an active open. Handling for
+        // packets in a passive open LISTEN state is provided in a freestanding
+        // function.
         let mut tcb = Self::new(
             id,
             Initiation::Open,
@@ -91,8 +93,8 @@ impl Tcb {
         seg: TcpHeader,
         message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
-        // 3.10.7 (special handling of CLOSED and LISTEN in freestanding
-        // functions)
+        // 3.10.7 with special handling of CLOSED and LISTEN in freestanding
+        // functions
         match self.state {
             State::SynSent => {
                 // First:
