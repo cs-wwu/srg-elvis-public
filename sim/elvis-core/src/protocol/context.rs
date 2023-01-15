@@ -1,6 +1,5 @@
-use crate::{machine::ProtocolMap, Control};
-
 use super::{Id, SharedProtocol};
+use crate::{machine::ProtocolMap, Control};
 
 /// Provides a [`Protocol`](super::Protocol) with information about its
 /// execution environment.
@@ -22,7 +21,7 @@ impl Context {
     }
 
     /// Get a handle to the protocol identified by `id`.
-    pub fn protocol(&self, id: ProtocolId) -> Option<SharedProtocol> {
+    pub fn protocol(&self, id: Id) -> Option<SharedProtocol> {
         self.protocols.protocol(id)
     }
 }

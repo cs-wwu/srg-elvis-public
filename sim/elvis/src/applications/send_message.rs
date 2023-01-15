@@ -67,7 +67,6 @@ impl Application for SendMessage {
 
     fn start(
         self: Arc<Self>,
-        mut context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -79,7 +78,7 @@ impl Application for SendMessage {
         Udp::set_remote_port(self.port, &mut participants);
         let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
-        let context = Context::new(protocols);
+        let mut context = Context::new(protocols);
         tokio::spawn(async move {
             initialized.wait().await;
             if let Some(destination_mac) = self.destination_mac {
