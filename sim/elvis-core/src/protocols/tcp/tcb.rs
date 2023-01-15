@@ -326,7 +326,7 @@ impl Tcb {
 
         // First: Doing this late because "special allowance should be made to
         // accept valid ACKs, URGs, and RSTs"
-        if !self.is_segment_acceptable(message.len() as u32, seg.seq) {
+        if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
             self.enqueue_outgoing(
                 self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
                 [].into(),
@@ -420,7 +420,12 @@ impl Tcb {
         todo!()
     }
 
-    fn is_segment_acceptable(&self, seg_len: u32, seq: u32) -> bool {
+    fn is_ack_ok(&self, ack: u32) -> bool {
+        mod_bounded(self.snd.una, Le, ack, Leq, self.snd.nxt)
+    }
+
+    fn is_seq_ok(&self, data_len: u32, seq: u32, syn: bool, fin: bool) -> bool {
+        let seg_len = data_len + fin as u32 + syn as u32;
         // Test segment acceptability. See Table 6.
         if seg_len == 0 {
             if RCV_WND == 0 {
