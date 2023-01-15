@@ -2,18 +2,18 @@
 //!
 //! This module primarily implements the [`Control`] key-value store.
 
+use self::primitive::PrimitiveError;
+use crate::id::Id;
 use std::collections::HashMap;
 use thiserror::Error as ThisError;
 
 pub(crate) mod primitive;
 pub use primitive::Primitive;
 
-use crate::protocol::ProtocolId;
-
-use self::primitive::PrimitiveError;
+pub type PropertyKey = u64;
 
 /// A key for a [`Control`].
-pub type Key = (ProtocolId, u64);
+pub type Key = (Id, PropertyKey);
 
 /// A key-value store with which to exchange data between protocols.
 ///

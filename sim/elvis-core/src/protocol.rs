@@ -3,11 +3,11 @@
 use super::{message::Message, session::SharedSession, Control};
 use crate::{
     control::{Key, Primitive},
+    id::Id,
     protocols::user_process::ApplicationError,
     session::ReceiveError,
 };
-use const_fnv1a_hash::fnv1a_hash_64;
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
 
@@ -17,52 +17,13 @@ pub use context::Context;
 /// A shared handle to a [`Protocol`].
 pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
 
-/// A unique identifier for a [`Protocol`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProtocolId(u64);
-
-impl ProtocolId {
-    /// Creates a new protocol ID with the given number.
-    pub const fn new(id: u64) -> Self {
-        Self(id)
-    }
-
-    /// Creates a pseudorandom ID by hashing the string identifier.
-    pub const fn from_string(string: &'static str) -> Self {
-        Self(fnv1a_hash_64(string.as_bytes(), None))
-    }
-
-    /// Gets the underlying ID number.
-    pub fn into_inner(self) -> u64 {
-        self.0
-    }
-}
-
-impl From<u64> for ProtocolId {
-    fn from(n: u64) -> Self {
-        Self(n)
-    }
-}
-
-impl From<ProtocolId> for u64 {
-    fn from(id: ProtocolId) -> Self {
-        id.0
-    }
-}
-
-impl Display for ProtocolId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 /// A member of a networking protocol stack.
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
 pub trait Protocol {
     /// Returns a unique identifier for the protocol.
-    fn id(self: Arc<Self>) -> ProtocolId;
+    fn id(self: Arc<Self>) -> Id;
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
@@ -97,7 +58,7 @@ pub trait Protocol {
     /// `{local_address, local_port, remote_address, remote_port}`.
     fn open(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         participants: Control,
         context: Context,
     ) -> Result<SharedSession, OpenError>;
@@ -119,7 +80,7 @@ pub trait Protocol {
     /// its participant set to include {local_address, local_port}.
     fn listen(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         participants: Control,
         context: Context,
     ) -> Result<(), ListenError>;
