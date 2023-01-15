@@ -219,21 +219,9 @@ impl Tcb {
             }
         }
 
-        // 3.10.7 with special handling of CLOSED and LISTEN in freestanding
-        // functions
-        match self.state {
-            State::SynSent => {
-                // First:
-                // ACK check moved up
-
-                // Second:
-                // RST check moved up
-
-                // Third:
-                // NOTE: Ignore security check
-
-                // Fourth:
-                if seg.ctl.syn() {
+        if seg.ctl.syn() {
+            match self.state {
+                State::SynSent => {
                     self.rcv.irs = seg.seq;
                     self.rcv.nxt = seg.seq + 1;
 
@@ -265,40 +253,14 @@ impl Tcb {
                     }
                 }
 
-                if !seg.ctl.syn() && !seg.ctl.rst() {
-                    return Ok(ReceiveResult::DiscardSegment);
-                }
-                // Otherwise, fall through for additional processing with the
-                // sixth step of section 3.10.7.4
-            }
-
-            // Do First through Fifth, then break. The remaining steps are shared with SynSent.
-            // 3.10.7.4
-            State::SynReceived
-            | State::Established
-            | State::FinWait1
-            | State::FinWait2
-            | State::CloseWait
-            | State::Closing
-            | State::LastAck
-            | State::TimeWait => {
-                // TODO(hardint): Must process all queued segments before
-                // sending any ACKs
-
-                // Must process RST (and URG) of all incoming segments. Should
-                // do this first so that early returns are acceptible. For the
-                // same reason, ACKs should be processed early.
-
-                // Second:
-                // RST check moved up
-
-                // Third: Security check. Ignoring this part.
-
-                // Fourth:
-                if seg.ctl.syn() {
-                    // NOTE(hardint): It's hard to tell from the spec if this is
-                    // supposed to happen unconditionally or only if the SYN bit
-                    // is set.
+                State::Established
+                | State::FinWait1
+                | State::FinWait2
+                | State::CloseWait
+                | State::Closing
+                | State::LastAck
+                | State::TimeWait
+                | State::SynReceived => {
                     if self.state == State::SynReceived && self.initiation == Initiation::Listen {
                         return Ok(ReceiveResult::CloseSilently);
                     }
@@ -312,18 +274,9 @@ impl Tcb {
                     )?;
                     return Ok(ReceiveResult::DiscardSegment);
                 }
-
-                // Fifth:
-                // ACK check moved up
             }
         }
 
-        // NOTE(hardint): Continuing with Other States processing, 3.10.7.4
-
-        // Sixth: Check the URG bit. Ignoring this part.
-
-        // First: Doing this late because "special allowance should be made to
-        // accept valid ACKs, URGs, and RSTs"
         if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
             self.enqueue_outgoing(
                 self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
@@ -332,7 +285,7 @@ impl Tcb {
             return Ok(ReceiveResult::DiscardSegment);
         }
 
-        // Seventh: Process the segment text
+        // Process the segment text
         match self.state {
             State::Established | State::FinWait1 | State::FinWait2 => {
                 // TODO(hardint): Once in the ESTABLISHED state, it is possible
@@ -364,7 +317,6 @@ impl Tcb {
             | State::TimeWait => {}
         }
 
-        // Eighth:
         if seg.ctl.fin() {
             match self.state {
                 State::SynSent | State::CloseWait | State::Closing | State::LastAck => {}
