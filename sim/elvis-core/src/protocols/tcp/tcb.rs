@@ -98,12 +98,9 @@ impl Tcb {
         seg: TcpHeader,
         message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
-        // 3.10.7 with special handling of CLOSED and LISTEN in freestanding
-        // functions
-        match self.state {
-            State::SynSent => {
-                // First:
-                if seg.ctl.ack() {
+        if seg.ctl.ack() {
+            match self.state {
+                State::SynSent => {
                     if seg.ctl.rst() {
                         // Discard the segment
                         return Ok(ReceiveResult::DiscardSegment);
@@ -122,6 +119,81 @@ impl Tcb {
                         return Ok(ReceiveResult::InvalidAck);
                     }
                 }
+
+                State::SynReceived => {
+                    if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
+                        self.state = State::Established;
+                        self.snd.wnd = seg.wnd;
+                        self.snd.wl1 = seg.seq;
+                        self.snd.wl2 = seg.ack;
+                    } else {
+                        self.enqueue_outgoing(self.header_builder(seg.ack).rst(), [].into())?;
+                    }
+                }
+
+                // ESTABLISHED processing:
+                State::Established
+                | State::FinWait1
+                | State::FinWait2
+                | State::CloseWait
+                | State::Closing => {
+                    if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
+                        self.snd.una = seg.ack;
+                        // TODO(hardint): Remove acknowledged segments from retransmission queue
+                    }
+
+                    if mod_bounded(self.snd.una, Leq, seg.ack, Leq, self.snd.nxt) {
+                        // Update the send window
+                        if mod_le(self.snd.wl1, seg.seq)
+                            || (self.snd.wl1 == seg.seq && mod_leq(self.snd.wl2, seg.ack))
+                        {
+                            self.snd.wnd = seg.wnd;
+                            self.snd.wl1 = seg.seq;
+                            self.snd.wl2 = seg.ack;
+                        }
+                    }
+
+                    // In addition to ESTABLISHED processing:
+                    match self.state {
+                        State::FinWait1 => {
+                            // TODO(hardint): If the FIN segment is now acknowledged,
+                            // enter FIN-WAIT-2 and continue processing
+                        }
+
+                        State::FinWait2 => {
+                            // TODO(hardint): If the retransmission
+                            // queue is empty, acknowledge the user's
+                            // CLOSE
+                        }
+
+                        State::Closing => {
+                            // TODO(hardint): If the ACK acknowledges
+                            // our FIN, enter TIME-WAIT.
+                        }
+
+                        _ => {}
+                    }
+                }
+
+                State::LastAck => {
+                    // TODO(hardint): If our FIN is now acknowledged,
+                    // close the TCB
+                }
+
+                State::TimeWait => {
+                    // TODO(hardint): The only thing that can arrive is
+                    // a retransmission of the remote FIN. Acknowledge
+                    // it and restart the MSL 2 timeout.
+                }
+            }
+        }
+
+        // 3.10.7 with special handling of CLOSED and LISTEN in freestanding
+        // functions
+        match self.state {
+            State::SynSent => {
+                // First:
+                // ACK check moved up
 
                 // Second:
                 if seg.ctl.rst() {
@@ -243,80 +315,7 @@ impl Tcb {
                 }
 
                 // Fifth:
-                if seg.ctl.ack() {
-                    match self.state {
-                        State::SynSent => unreachable!(),
-
-                        State::SynReceived => {
-                            if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
-                                self.state = State::Established;
-                                self.snd.wnd = seg.wnd;
-                                self.snd.wl1 = seg.seq;
-                                self.snd.wl2 = seg.ack;
-                            } else {
-                                self.enqueue_outgoing(
-                                    self.header_builder(seg.ack).rst(),
-                                    [].into(),
-                                )?;
-                            }
-                        }
-
-                        // ESTABLISHED processing:
-                        State::Established
-                        | State::FinWait1
-                        | State::FinWait2
-                        | State::CloseWait
-                        | State::Closing => {
-                            if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
-                                self.snd.una = seg.ack;
-                                // TODO(hardint): Remove acknowledged segments from retransmission queue
-                            }
-
-                            if mod_bounded(self.snd.una, Leq, seg.ack, Leq, self.snd.nxt) {
-                                // Update the send window
-                                if mod_le(self.snd.wl1, seg.seq)
-                                    || (self.snd.wl1 == seg.seq && mod_leq(self.snd.wl2, seg.ack))
-                                {
-                                    self.snd.wnd = seg.wnd;
-                                    self.snd.wl1 = seg.seq;
-                                    self.snd.wl2 = seg.ack;
-                                }
-                            }
-
-                            // In addition to ESTABLISHED processing:
-                            match self.state {
-                                State::FinWait1 => {
-                                    // TODO(hardint): If the FIN segment is now acknowledged,
-                                    // enter FIN-WAIT-2 and continue processing
-                                }
-
-                                State::FinWait2 => {
-                                    // TODO(hardint): If the retransmission
-                                    // queue is empty, acknowledge the user's
-                                    // CLOSE
-                                }
-
-                                State::Closing => {
-                                    // TODO(hardint): If the ACK acknowledges
-                                    // our FIN, enter TIME-WAIT.
-                                }
-
-                                _ => {}
-                            }
-                        }
-
-                        State::LastAck => {
-                            // TODO(hardint): If our FIN is now acknowledged,
-                            // close the TCB
-                        }
-
-                        State::TimeWait => {
-                            // TODO(hardint): The only thing that can arrive is
-                            // a retransmission of the remote FIN. Acknowledge
-                            // it and restart the MSL 2 timeout.
-                        }
-                    }
-                }
+                // ACK check moved up
             }
         }
 
