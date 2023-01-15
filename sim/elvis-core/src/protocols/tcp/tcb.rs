@@ -755,6 +755,19 @@ mod tests {
         assert!(mod_bounded(10, Leq, 10, Leq, 10));
     }
 
+    const PEER_A_ID: ConnectionId = ConnectionId {
+        local: Socket {
+            address: Ipv4Address::new([0, 0, 0, 0]),
+            port: 0xcafe,
+        },
+        remote: Socket {
+            address: Ipv4Address::new([0, 0, 0, 1]),
+            port: 0xdead,
+        },
+    };
+
+    const PEER_B_ID: ConnectionId = PEER_A_ID.reverse();
+
     #[test]
     fn basic_synchronization() {
         // Based on 3.5 Figure 6:
@@ -769,20 +782,8 @@ mod tests {
         // Peer A: CLOSED
         // Peer B: LISTEN
 
-        let peer_a_id = ConnectionId {
-            local: Socket {
-                address: 0.into(),
-                port: 0xcafe,
-            },
-            remote: Socket {
-                address: 1.into(),
-                port: 0xdead,
-            },
-        };
-        let peer_b_id = peer_a_id.reverse();
-
         // 2
-        let mut peer_a = Tcb::open(peer_a_id, 100);
+        let mut peer_a = Tcb::open(PEER_A_ID, 100);
         assert_eq!(peer_a.state, State::SynSent);
         let (header, message) = peer_a.outgoing.pop_back().unwrap();
         assert_eq!(header.seq, 100);
@@ -791,8 +792,8 @@ mod tests {
         let mut peer_b = handle_listen(
             header,
             message,
-            peer_b_id.local.address,
-            peer_b_id.remote.address,
+            PEER_B_ID.local.address,
+            PEER_B_ID.remote.address,
             300,
         )
         .unwrap()
@@ -819,7 +820,7 @@ mod tests {
         peer_b.segment_arrives(header, message).unwrap();
         assert_eq!(peer_b.state, State::Established);
 
-        // 5 TODO(hardint): Needs data segment transmission to work
+        // 5 TODO(hardint): Needs data segment transmission to wore
     }
 
     #[test]

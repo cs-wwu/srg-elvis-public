@@ -232,7 +232,7 @@ impl ConnectionId {
         Self { local, remote }
     }
 
-    pub fn reverse(self) -> Self {
+    pub const fn reverse(self) -> Self {
         Self {
             local: self.remote,
             remote: self.local,
