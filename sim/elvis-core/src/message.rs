@@ -174,20 +174,20 @@ enum WrappedMessage {
     Body(Chunk),
 }
 
-impl Into<Message> for Vec<u8> {
-    fn into(self) -> Message {
-        Message::new(self)
+impl From<Vec<u8>> for Message {
+    fn from(val: Vec<u8>) -> Self {
+        Message::new(val)
     }
 }
 
-impl Into<Message> for &[u8] {
-    fn into(self) -> Message {
-        Message::new(self)
+impl From<&[u8]> for Message {
+    fn from(val: &[u8]) -> Self {
+        Message::new(val)
     }
 }
 
-impl<const L: usize> Into<Message> for [u8; L] {
-    fn into(self) -> Message {
-        Message::new(&self)
+impl<const L: usize> From<[u8; L]> for Message {
+    fn from(val: [u8; L]) -> Self {
+        Message::new(&val)
     }
 }

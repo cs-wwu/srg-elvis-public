@@ -85,7 +85,7 @@ impl Protocol for Tcp {
 
         let session_id = ConnectionId { local, remote };
 
-        match self.clone().sessions.entry(session_id) {
+        match self.sessions.entry(session_id) {
             Entry::Occupied(_) => Err(OpenError::Existing)?,
             Entry::Vacant(_entry) => {
                 // Create the session and save it
@@ -137,12 +137,12 @@ impl Protocol for Tcp {
         message.slice(20..);
 
         let local = Socket {
-            address: local_address.into(),
+            address: local_address,
             port: header.dst_port,
         };
 
         let remote = Socket {
-            address: remote_address.into(),
+            address: remote_address,
             port: header.src_port,
         };
 
@@ -153,13 +153,13 @@ impl Protocol for Tcp {
         Tcp::set_local_port(local.port, &mut context.info);
         Tcp::set_remote_port(remote.port, &mut context.info);
 
-        let _session = match self.clone().sessions.entry(connection_id) {
+        let _session = match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
                 session
             }
             Entry::Vacant(_session_entry) => {
-                match self.clone().listen_bindings.entry(local) {
+                match self.listen_bindings.entry(local) {
                     Entry::Occupied(_listen_entry) => {
                         // TODO(hardint): Incomplete. See 3.10.7.2 for handling
                         // of segments in LISTEN state.

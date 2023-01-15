@@ -432,13 +432,11 @@ impl Tcb {
             } else {
                 self.is_in_window(seq)
             }
+        } else if RCV_WND == 0 {
+            // When the receive window is zero, only ACKs are acceptible.
+            false
         } else {
-            if RCV_WND == 0 {
-                // When the receive window is zero, only ACKs are acceptible.
-                false
-            } else {
-                self.is_in_window(seq) || self.is_in_window(seq + seg_len - 1)
-            }
+            self.is_in_window(seq) || self.is_in_window(seq + seg_len - 1)
         }
     }
 
@@ -516,7 +514,7 @@ pub fn handle_listen(
             .rst()
             .build(local, remote, [].into_iter())
             .ok()
-            .map(|header| ListenResult::Response(header))
+            .map(ListenResult::Response)
     } else if seg.ctl.syn() {
         // Third:
         // NOTE: Ignore security check for simplicity
