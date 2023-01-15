@@ -228,12 +228,8 @@ impl Tcb {
                     // NOTE(hardint): It's hard to tell from the spec if this is
                     // supposed to happen unconditionally or only if the SYN bit
                     // is set.
-                    match self.state {
-                        State::SynReceived => match self.initiation {
-                            Initiation::Listen => return Ok(ReceiveResult::CloseSilently),
-                            Initiation::Open => {}
-                        },
-                        _ => {}
+                    if self.state == State::SynReceived && self.initiation == Initiation::Listen {
+                        return Ok(ReceiveResult::CloseSilently);
                     }
 
                     // Getting a SYN in a synchronized state is weird. In
@@ -815,6 +811,6 @@ mod tests {
         peer_b.segment_arrives(header, message).unwrap();
         assert_eq!(peer_b.state, State::Established);
 
-        // 5 TODO(hardint): Needs data segment transmission to work
+        // 5 TODO(hardint): Needs data segment transmission to wore
     }
 }

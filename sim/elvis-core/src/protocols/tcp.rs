@@ -208,7 +208,7 @@ pub enum IssGenerator {
 }
 
 impl IssGenerator {
-    pub fn next(&mut self) -> u32 {
+    pub fn next_iss(&mut self) -> u32 {
         match self {
             Self::Random => SmallRng::from_entropy().next_u32(),
             Self::FromSeed(c) => {
