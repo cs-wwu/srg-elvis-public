@@ -21,11 +21,12 @@ pub fn ip_string_to_ip(s: String, net_id: &str) -> [u8; 4] {
     let temp: Vec<&str> = s.split('.').collect();
     let mut new_ip: Vec<u8> = Vec::new();
     for val in temp {
-        new_ip.push(
-            val.parse::<u8>().unwrap_or_else(|_| {
-                panic!("Network {}: Invalid IP octet (expecting a u8)", net_id)
-            }),
-        );
+        new_ip.push(val.parse::<u8>().unwrap_or_else(|_| {
+            panic!(
+                "Invalid IP octet expected u8. In Network {}, found: {}",
+                net_id, val
+            )
+        }));
     }
 
     assert_eq!(

@@ -11,6 +11,7 @@ use elvis_core::{
     protocols::{ipv4::Ipv4, udp::Udp},
     Internet,
 };
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
 /// Machine Generator generates machines from a given [Machines] struct and places them in the [Internet]
@@ -29,7 +30,9 @@ pub fn machine_generator(
             // TODO: test and change errors
             assert!(
                 networks.contains_key(net.options.get("id").expect("Invalid ID found")),
-                "Invalid ID found assert"
+                "Invalid Network ID found. Got {} expected {:?}",
+                net.options.get("id").unwrap(),
+                networks.keys().sorted().join(" , ")
             );
             let network_adding = networks.get(net.options.get("id").unwrap()).unwrap();
             networks_to_be_added.push(network_adding.0);
@@ -45,7 +48,10 @@ pub fn machine_generator(
                     "IPv4" => protocols_to_be_added.push(Ipv4::new_shared(ip_table.clone())),
                     _ => {
                         // TODO: when machine ID/name get found, add to the error
-                        panic!("Invalid Protocol found in machine")
+                        panic!(
+                            "Invalid Protocol found in machine. Found: {}",
+                            option.1.as_str()
+                        )
                     }
                 }
             }
