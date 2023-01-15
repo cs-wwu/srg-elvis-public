@@ -778,10 +778,6 @@ mod tests {
         // 4.  ESTABLISHED --> <SEQ=101><ACK=301><CTL=ACK>       --> ESTABLISHED
         // 5.  ESTABLISHED --> <SEQ=101><ACK=301><CTL=ACK><DATA> --> ESTABLISHED
 
-        // 1
-        // Peer A: CLOSED
-        // Peer B: LISTEN
-
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100);
         assert_eq!(peer_a.state, State::SynSent);
@@ -824,7 +820,7 @@ mod tests {
     }
 
     #[test]
-    fn simulataneous_initiation() {
+    fn simultaneous_initiation() {
         // Based on 3.5 Figure 7:
         //     TCP Peer A                                       TCP Peer B
         // 1.  CLOSED                                           CLOSED
@@ -834,5 +830,47 @@ mod tests {
         // 5.  SYN-RECEIVED --> <SEQ=100><ACK=301><CTL=SYN,ACK> ...
         // 6.  ESTABLISHED  <-- <SEQ=300><ACK=101><CTL=SYN,ACK> <-- SYN-RECEIVED
         // 7.               ... <SEQ=100><ACK=301><CTL=SYN,ACK> --> ESTABLISHED
+
+        // 2
+        let mut peer_a = Tcb::open(PEER_A_ID, 100);
+        assert_eq!(peer_a.state, State::SynSent);
+        let a_syn = peer_a.outgoing.pop_back().unwrap();
+        assert_eq!(a_syn.0.seq, 100);
+        assert!(a_syn.0.ctl.syn());
+
+        // 3
+        let mut peer_b = Tcb::open(PEER_B_ID, 300);
+        assert_eq!(peer_b.state, State::SynSent);
+        let b_syn = peer_b.outgoing.pop_back().unwrap();
+        assert_eq!(b_syn.0.seq, 300);
+        assert!(b_syn.0.ctl.syn());
+
+        peer_a.segment_arrives(b_syn.0, b_syn.1).unwrap();
+        assert_eq!(peer_a.state, State::SynReceived);
+
+        // 4
+        peer_b.segment_arrives(a_syn.0, a_syn.1).unwrap();
+        assert_eq!(peer_b.state, State::SynReceived);
+
+        // 5
+        let a_syn_ack = peer_a.outgoing.pop_back().unwrap();
+        assert!(a_syn_ack.0.ctl.syn());
+        assert!(a_syn_ack.0.ctl.ack());
+        assert_eq!(a_syn_ack.0.seq, 100);
+        assert_eq!(a_syn_ack.0.ack, 301);
+
+        // 6
+        let b_syn_ack = peer_b.outgoing.pop_back().unwrap();
+        assert!(b_syn_ack.0.ctl.syn());
+        assert!(b_syn_ack.0.ctl.ack());
+        assert_eq!(b_syn_ack.0.seq, 300);
+        assert_eq!(b_syn_ack.0.ack, 101);
+
+        peer_a.segment_arrives(b_syn_ack.0, b_syn_ack.1).unwrap();
+        assert_eq!(peer_a.state, State::Established);
+
+        // 7
+        peer_b.segment_arrives(a_syn_ack.0, a_syn_ack.1).unwrap();
+        assert_eq!(peer_b.state, State::Established);
     }
 }
