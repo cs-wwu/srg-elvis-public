@@ -11,8 +11,8 @@ use std::collections::VecDeque;
 // NOTE(hardint): Section numbers are base on RFC 9293, the updated TCP protocol
 // specification
 
-// TODO(hardint): Do more precise window management
-const RCV_WND: u16 = u16::MAX;
+// TODO(hardint): Do actual window management
+const RCV_WND: u16 = 4096;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tcb {
@@ -43,7 +43,7 @@ impl Tcb {
     }
 
     pub fn open(id: ConnectionId, iss: u32) -> Self {
-        // see 3.10.1
+        // 3.10.1
         let mut tcb = Self::new(
             id,
             Initiation::Open,
@@ -56,43 +56,43 @@ impl Tcb {
             },
             ReceiveSequenceSpace::default(),
         );
-        tcb.enqueue(tcb.header_builder(iss).syn(), [].into())
+        tcb.enqueue_outgoing(tcb.header_builder(iss).syn(), [].into())
             .unwrap();
         tcb
     }
 
     pub fn send(&mut self, _message: Message) -> Result<(), BuildHeaderError> {
+        // 3.10.2
         todo!()
     }
 
-    fn header_builder(&self, seq: u32) -> TcpHeaderBuilder {
-        TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seq)
-    }
-
-    fn enqueue(
-        &mut self,
-        header_builder: TcpHeaderBuilder,
-        message: Message,
-    ) -> Result<(), BuildHeaderError> {
-        let header = header_builder.build(
-            self.id.local.address,
-            self.id.remote.address,
-            message.iter(),
-        )?;
-        self.queue.push_back((header, message));
-        Ok(())
-    }
-
-    pub fn advance_time(_ms: u64) {
-        // TODO(hardint): See 3.10.8 for timeout handling
+    pub fn receive(&mut self) {
+        // 3.10.3
         todo!()
     }
 
-    pub fn receive(
+    pub fn close(&mut self) {
+        // 3.10.4
+        todo!()
+    }
+
+    pub fn abort(&mut self) {
+        // 3.10.5
+        todo!()
+    }
+
+    pub fn status(&mut self) {
+        // 3.10.6
+        todo!()
+    }
+
+    pub fn segment_arrives(
         &mut self,
         seg: TcpHeader,
         message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
+        // 3.10.7 (special handling of CLOSED and LISTEN in freestanding
+        // functions)
         match self.state {
             State::SynSent => {
                 // First:
@@ -104,7 +104,7 @@ impl Tcb {
 
                     if mod_bounded(self.snd.nxt, Le, seg.ack, Leq, self.snd.iss) {
                         // Send a reset and discard the segment
-                        self.enqueue(
+                        self.enqueue_outgoing(
                             TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seg.ack)
                                 .rst(),
                             [].into(),
@@ -143,13 +143,13 @@ impl Tcb {
 
                     if mod_ge(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
-                        self.enqueue(
+                        self.enqueue_outgoing(
                             self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
                             [].into(),
                         )?;
                     } else {
                         self.state = State::SynReceived;
-                        self.enqueue(
+                        self.enqueue_outgoing(
                             self.header_builder(self.snd.iss).syn().ack(self.rcv.nxt),
                             [].into(),
                         )?;
@@ -234,7 +234,7 @@ impl Tcb {
                     // Getting a SYN in a synchronized state is weird. In
                     // following with RFC 5961, send a challenge ACK and stop
                     // further processing:
-                    self.enqueue(
+                    self.enqueue_outgoing(
                         self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
                         [].into(),
                     )?;
@@ -253,7 +253,10 @@ impl Tcb {
                                 self.snd.wl1 = seg.seq;
                                 self.snd.wl2 = seg.ack;
                             } else {
-                                self.enqueue(self.header_builder(seg.ack).rst(), [].into())?;
+                                self.enqueue_outgoing(
+                                    self.header_builder(seg.ack).rst(),
+                                    [].into(),
+                                )?;
                             }
                         }
 
@@ -323,7 +326,7 @@ impl Tcb {
         // First: Doing this late because "special allowance should be made to
         // accept valid ACKs, URGs, and RSTs"
         if !self.is_segment_acceptable(message.len() as u32, seg.seq) {
-            self.enqueue(
+            self.enqueue_outgoing(
                 self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
                 [].into(),
             )?;
@@ -391,6 +394,29 @@ impl Tcb {
         }
 
         Ok(ReceiveResult::Success)
+    }
+
+    fn header_builder(&self, seq: u32) -> TcpHeaderBuilder {
+        TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seq)
+    }
+
+    fn enqueue_outgoing(
+        &mut self,
+        header_builder: TcpHeaderBuilder,
+        message: Message,
+    ) -> Result<(), BuildHeaderError> {
+        let header = header_builder.build(
+            self.id.local.address,
+            self.id.remote.address,
+            message.iter(),
+        )?;
+        self.queue.push_back((header, message));
+        Ok(())
+    }
+
+    pub fn advance_time(_ms: u64) {
+        // TODO(hardint): See 3.10.8 for timeout handling
+        todo!()
     }
 
     fn is_segment_acceptable(&self, seg_len: u32, seq: u32) -> bool {
@@ -519,7 +545,8 @@ pub fn handle_listen(
                 nxt: seg.seq + 1,
             },
         );
-        tcb.enqueue(tcb.header_builder(iss), [].into()).ok()?;
+        tcb.enqueue_outgoing(tcb.header_builder(iss), [].into())
+            .ok()?;
         Some(ListenResult::Tcb(tcb))
     } else {
         // Fourth:
@@ -765,7 +792,7 @@ mod tests {
         assert!(header.ctl.syn());
         assert!(header.ctl.ack());
 
-        peer_a.receive(header, message).unwrap();
+        peer_a.segment_arrives(header, message).unwrap();
         assert_eq!(peer_a.state, State::Established);
 
         // 4
@@ -774,7 +801,7 @@ mod tests {
         assert_eq!(header.ack, 301);
         assert!(header.ctl.ack());
 
-        peer_b.receive(header, message).unwrap();
+        peer_b.segment_arrives(header, message).unwrap();
         assert_eq!(peer_b.state, State::Established);
 
         // 5
@@ -785,7 +812,7 @@ mod tests {
         assert!(header.ctl.ack());
         assert_eq!(message.len(), 6);
 
-        peer_b.receive(header, message).unwrap();
+        peer_b.segment_arrives(header, message).unwrap();
         assert_eq!(peer_b.state, State::Established);
     }
 }
