@@ -21,7 +21,8 @@ pub struct Tcb {
     state: State,
     snd: SendSequenceSpace,
     rcv: ReceiveSequenceSpace,
-    queue: VecDeque<(TcpHeader, Message)>,
+    outgoing: VecDeque<(TcpHeader, Message)>,
+    incoming: VecDeque<(TcpHeader, Message)>,
 }
 
 impl Tcb {
@@ -38,7 +39,8 @@ impl Tcb {
             state,
             snd,
             rcv,
-            queue: Default::default(),
+            outgoing: Default::default(),
+            incoming: Default::default(),
         }
     }
 
@@ -412,7 +414,7 @@ impl Tcb {
             self.id.remote.address,
             message.iter(),
         )?;
-        self.queue.push_back((header, message));
+        self.outgoing.push_back((header, message));
         Ok(())
     }
 
@@ -493,7 +495,8 @@ pub fn handle_closed(
 }
 
 pub fn handle_listen(
-    seg: TcpHeader,
+    mut seg: TcpHeader,
+    message: Message,
     local: Ipv4Address,
     remote: Ipv4Address,
     iss: u32,
@@ -515,12 +518,7 @@ pub fn handle_listen(
             .map(|header| ListenResult::Response(header))
     } else if seg.ctl.syn() {
         // Third:
-        // Open the connection
-
         // NOTE: Ignore security check for simplicity
-
-        // TODO(hardint): Any other control or text should be queued for
-        // processing later
         let mut tcb = Tcb::new(
             ConnectionId {
                 local: Socket {
@@ -549,6 +547,12 @@ pub fn handle_listen(
         );
         tcb.enqueue_outgoing(tcb.header_builder(iss), [].into())
             .ok()?;
+
+        // Processing of SYN and ACK should not be repeated
+        seg.ctl.set_syn(false);
+        seg.ctl.set_ack(false);
+        tcb.incoming.push_back((seg, message));
+
         Some(ListenResult::Tcb(tcb))
     } else {
         // Fourth:
@@ -772,12 +776,13 @@ mod tests {
         // 2
         let mut peer_a = Tcb::open(peer_a_id, 100);
         assert_eq!(peer_a.state, State::SynSent);
-        let (header, _message) = peer_a.queue.pop_back().unwrap();
+        let (header, message) = peer_a.outgoing.pop_back().unwrap();
         assert_eq!(header.seq, 100);
         assert!(header.ctl.syn());
 
         let mut peer_b = handle_listen(
             header,
+            message,
             peer_b_id.local.address,
             peer_b_id.remote.address,
             300,
@@ -788,7 +793,7 @@ mod tests {
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 3
-        let (header, message) = peer_b.queue.pop_back().unwrap();
+        let (header, message) = peer_b.outgoing.pop_back().unwrap();
         assert_eq!(header.seq, 300);
         assert_eq!(header.ack, 101);
         assert!(header.ctl.syn());
@@ -798,7 +803,7 @@ mod tests {
         assert_eq!(peer_a.state, State::Established);
 
         // 4
-        let (header, message) = peer_a.queue.pop_back().unwrap();
+        let (header, message) = peer_a.outgoing.pop_back().unwrap();
         assert_eq!(header.seq, 101);
         assert_eq!(header.ack, 301);
         assert!(header.ctl.ack());
@@ -808,7 +813,7 @@ mod tests {
 
         // 5
         peer_a.send(Message::new("Hello!")).unwrap();
-        let (header, message) = peer_a.queue.pop_back().unwrap();
+        let (header, message) = peer_a.outgoing.pop_back().unwrap();
         assert_eq!(header.seq, 101);
         assert_eq!(header.ack, 301);
         assert!(header.ctl.ack());
