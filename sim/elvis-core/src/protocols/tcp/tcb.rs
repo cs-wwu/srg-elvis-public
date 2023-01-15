@@ -11,6 +11,9 @@ use std::collections::VecDeque;
 // NOTE(hardint): Section numbers are base on RFC 9293, the updated TCP protocol
 // specification
 
+// NOTE(hardint): In the current implementation, we respond to with ACKs
+// immediately instead of trying to piggyback them for efficiency. This can be revised once the implementation is working.
+
 // TODO(hardint): Do actual window management
 const RCV_WND: u16 = 4096;
 
@@ -115,9 +118,7 @@ impl Tcb {
                         )?;
                     }
 
-                    if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
-                        // Acceptible ACK
-                    } else {
+                    if !mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
                         return Ok(ReceiveResult::InvalidAck);
                     }
                 }
@@ -548,7 +549,12 @@ pub fn handle_listen(
         tcb.enqueue_outgoing(tcb.header_builder(iss), [].into())
             .ok()?;
 
-        // Processing of SYN and ACK should not be repeated
+        // Processing of SYN and ACK should not be repeated.
+
+        // NOTE(hardint): At the moment, ACKs are sent immediately when a
+        // segment arrives rather than trying to defer and piggyback, so this
+        // doesn't really matter as we don't reprocess ACKing segments after
+        // they arrive. Still, setting these fields is here for completeness.
         seg.ctl.set_syn(false);
         seg.ctl.set_ack(false);
         tcb.incoming.push_back((seg, message));
