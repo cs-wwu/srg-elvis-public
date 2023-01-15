@@ -546,7 +546,7 @@ pub fn handle_listen(
                 nxt: seg.seq + 1,
             },
         );
-        tcb.enqueue_outgoing(tcb.header_builder(iss), [].into())
+        tcb.enqueue_outgoing(tcb.header_builder(iss).syn().ack(tcb.rcv.nxt), [].into())
             .ok()?;
 
         // Processing of SYN and ACK should not be repeated.
