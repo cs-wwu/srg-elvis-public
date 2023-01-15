@@ -1,9 +1,9 @@
 use super::tcb::Tcb;
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     session::{QueryError, SendError, SharedSession},
-    Message, Session,
+    Id, Message, Session,
 };
 use std::sync::{Arc, RwLock};
 
@@ -19,7 +19,7 @@ use std::sync::{Arc, RwLock};
 
 pub struct TcpSession {
     tcb: Arc<RwLock<Tcb>>,
-    upstream: ProtocolId,
+    upstream: Id,
     downstream: SharedSession,
 }
 

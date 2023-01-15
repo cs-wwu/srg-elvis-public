@@ -3,9 +3,10 @@
 
 use crate::{
     control::{Key, Primitive},
+    id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::{SendError, SharedSession},
     Control, Protocol,
 };
@@ -22,10 +23,10 @@ use tracing::error;
 /// application to give it time to run.
 pub trait Application {
     /// A unique identifier for the application.
-    const ID: ProtocolId;
+    const ID: Id;
 
-    /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
-    /// is not called in response to specific events.
+    /// Gives the application an opportunity to set up before the simulation
+    /// begins.
     fn start(
         self: Arc<Self>,
         shutdown: Sender<()>,
@@ -85,13 +86,13 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 }
 
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(self: Arc<Self>) -> ProtocolId {
+    fn id(self: Arc<Self>) -> Id {
         A::ID
     }
 
     fn open(
         self: Arc<Self>,
-        _upstream: ProtocolId,
+        _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -100,7 +101,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
 
     fn listen(
         self: Arc<Self>,
-        _upstream: ProtocolId,
+        _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {

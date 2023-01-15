@@ -9,11 +9,11 @@ pub use send_message::SendMessage;
 mod forward;
 pub use forward::Forward;
 
-mod unreliable_tester;
-pub use unreliable_tester::UnreliableTester;
+mod ping_pong;
+pub use ping_pong::PingPong;
 
-mod pingpong;
-pub use pingpong::PingPong;
+mod query_tester;
+pub use query_tester::QueryTester;
 
-mod query;
-pub use query::Query;
+mod throughput_tester;
+pub use throughput_tester::ThroughputTester;

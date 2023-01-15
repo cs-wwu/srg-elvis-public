@@ -1,28 +1,23 @@
-use super::{
-    internet::NetworkHandle,
-    protocol::{ProtocolId, SharedProtocol},
-};
-use crate::{logging::machine_creation_event, network::Delivery, protocols::tap::Tap};
+use crate::{id::Id, logging::machine_creation_event, protocol::SharedProtocol};
 use std::{
     collections::{hash_map::Entry, HashMap},
-    iter,
     sync::Arc,
 };
 use tokio::sync::{mpsc::Sender, Barrier};
 
-/// An identifier for a particular [`Machine`] in the simulation.
-pub(crate) type MachineId = u64;
+/// A tap's PCI slot index
+pub type PciSlot = u32;
 
 /// A mapping of protocol IDs to protocols
 #[derive(Clone)]
-pub struct ProtocolMap(Arc<HashMap<ProtocolId, SharedProtocol>>);
+pub struct ProtocolMap(Arc<HashMap<Id, SharedProtocol>>);
 
 impl ProtocolMap {
-    pub fn new(protocols: HashMap<ProtocolId, SharedProtocol>) -> Self {
+    pub fn new(protocols: HashMap<Id, SharedProtocol>) -> Self {
         Self(Arc::new(protocols))
     }
 
-    pub fn protocol(&self, id: ProtocolId) -> Option<SharedProtocol> {
+    pub fn protocol(&self, id: Id) -> Option<SharedProtocol> {
         self.0.get(&id).cloned()
     }
 
@@ -41,31 +36,21 @@ impl ProtocolMap {
 
 /// A networked computer in the simultation.
 ///
-/// A machine is conceptually a computer attached to the internet. Machines are
-/// managed by the [`Internet`](super::Internet) and communicate through
-/// [`Network`](super::Network)s. Each machine contains a set of
-/// [`Protocol`](super::Protocol)s that it manages. The protocols may be
+/// A machine is conceptually a computer attached to the internet. Machines
+/// communicate through [`Network`](super::Network)s. Each machine contains a
+/// set of [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
-pub(crate) struct Machine {
+pub struct Machine {
     protocols: ProtocolMap,
-    tap: Arc<Tap>,
 }
 
 impl Machine {
     /// Creates a new machine containing the given `protocols`. Returns the
     /// machine and a channel which can be used to send messages to the machine.
-    pub fn new(
-        protocols: impl IntoIterator<Item = SharedProtocol>,
-        id: MachineId,
-    ) -> (Self, Sender<Delivery>) {
-        let (tap, sender) = Tap::new(id);
-        let tap = Arc::new(tap);
+    pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>) -> Machine {
         let mut protocols_map = HashMap::new();
         let mut protocol_ids = Vec::new();
-        for protocol in protocols
-            .into_iter()
-            .chain(iter::once(tap.clone() as SharedProtocol))
-        {
+        for protocol in protocols.into_iter() {
             match protocols_map.entry(protocol.clone().id()) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
@@ -74,22 +59,15 @@ impl Machine {
                 }
             }
         }
-        machine_creation_event(id as usize, protocol_ids);
-        let machine = Self {
-            tap,
+        machine_creation_event(protocol_ids);
+        Self {
             protocols: ProtocolMap::new(protocols_map),
-        };
-        (machine, sender)
-    }
-
-    /// Attaches the machine to the given network.
-    pub fn attach(&mut self, network_id: NetworkHandle, sender: Sender<Delivery>) {
-        self.tap.clone().attach(network_id, sender);
+        }
     }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
+    pub(crate) fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
         for protocol in self.protocols.iter() {
             protocol
                 .clone()
@@ -98,7 +76,7 @@ impl Machine {
                     initialized.clone(),
                     self.protocols.clone(),
                 )
-                .unwrap()
+                .expect("A protocol failed to start")
         }
     }
 

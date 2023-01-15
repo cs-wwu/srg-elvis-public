@@ -3,11 +3,10 @@ use super::{utility::Socket, Ipv4};
 use crate::{
     control::{ControlError, Key, Primitive},
     protocol::{
-        Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, SharedProtocol,
-        StartError,
+        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
     session::SharedSession,
-    Control, Message, Protocol, ProtocolMap,
+    Control, Id, Message, Protocol, ProtocolMap,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -20,13 +19,13 @@ mod tcp_session;
 
 #[derive(Default)]
 pub struct Tcp {
-    listen_bindings: DashMap<Socket, ProtocolId>,
+    listen_bindings: DashMap<Socket, Id>,
     sessions: DashMap<ConnectionId, Arc<TcpSession>>,
     iss: Arc<Mutex<IssGenerator>>,
 }
 
 impl Tcp {
-    pub const ID: ProtocolId = ProtocolId::new(6);
+    pub const ID: Id = Id::new(6);
 
     pub fn new(iss: IssGenerator) -> Self {
         Self {
@@ -58,13 +57,13 @@ impl Tcp {
 }
 
 impl Protocol for Tcp {
-    fn id(self: Arc<Self>) -> ProtocolId {
+    fn id(self: Arc<Self>) -> Id {
         Self::ID
     }
 
     fn open(
         self: Arc<Self>,
-        _upstream: ProtocolId,
+        _upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -102,7 +101,7 @@ impl Protocol for Tcp {
 
     fn listen(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
@@ -128,8 +127,8 @@ impl Protocol for Tcp {
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.info).unwrap();
-        let remote_address = Ipv4::get_remote_address(&context.info).unwrap();
+        let local_address = Ipv4::get_local_address(&context.control).unwrap();
+        let remote_address = Ipv4::get_remote_address(&context.control).unwrap();
 
         // Parse the header
         let header = TcpHeader::from_bytes(message.iter(), remote_address, local_address)
@@ -150,8 +149,8 @@ impl Protocol for Tcp {
         let connection_id = ConnectionId { local, remote };
 
         // Add the header information to the context
-        Tcp::set_local_port(local.port, &mut context.info);
-        Tcp::set_remote_port(remote.port, &mut context.info);
+        Tcp::set_local_port(local.port, &mut context.control);
+        Tcp::set_remote_port(remote.port, &mut context.control);
 
         let _session = match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
