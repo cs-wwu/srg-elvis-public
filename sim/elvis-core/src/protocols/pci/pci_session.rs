@@ -4,9 +4,9 @@ use crate::{
     machine::{PciSlot, ProtocolMap},
     message::Message,
     network::{Delivery, Tap},
-    protocol::Context,
+    protocol::{Context, DemuxError},
     session::{QueryError, SendError},
-    Network, Session,
+    Id, Network, Session,
 };
 use std::sync::Arc;
 use tokio::sync::{broadcast::error::RecvError, Barrier};
@@ -89,7 +89,7 @@ impl PciSession {
                     "Could not find a protocol for the protocol ID {}",
                     delivery.protocol
                 );
-                Err(ReceiveError::Other)?
+                Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
         protocol.demux(delivery.message, self, context)?;
@@ -134,15 +134,18 @@ impl Session for PciSession {
         Ok(())
     }
 
-    #[tracing::instrument(name = "PciSession::receive", skip_all)]
-    fn receive(self: Arc<Self>, _message: Message, _context: Context) -> Result<(), ReceiveError> {
-        panic!("Use receive_delivery insteaed")
-    }
-
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         match key {
             Pci::MTU_QUERY_KEY => Ok(self.tap.mtu.into()),
             _ => Err(QueryError::MissingKey),
         }
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReceiveError {
+    #[error("Could not find a protocol for the given id: {0}")]
+    Protocol(Id),
+    #[error("{0}")]
+    Demux(#[from] DemuxError),
 }

@@ -82,7 +82,7 @@ impl Protocol for Ipv4 {
     fn open(
         self: Arc<Self>,
         upstream: Id,
-        participants: Control,
+        mut participants: Control,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(

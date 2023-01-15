@@ -1,5 +1,5 @@
-use super::SharedProtocol;
-use crate::{machine::ProtocolMap, Control, Id};
+use super::{Id, SharedProtocol};
+use crate::{machine::ProtocolMap, Control};
 
 /// Provides a [`Protocol`](super::Protocol) with information about its
 /// execution environment.

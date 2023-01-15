@@ -1,4 +1,4 @@
-use crate::{id::Id, logging::machine_creation_event, protocol::SharedProtocol};
+use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id};
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,

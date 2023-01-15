@@ -1,8 +1,10 @@
 //! The [`Session`] trait and supporting types.
 
 use super::{protocol::Context, Message};
-use crate::control::{Key, Primitive};
-use crate::network::Mtu;
+use crate::{
+    control::{Key, Primitive},
+    network::Mtu,
+};
 use std::sync::Arc;
 use thiserror::Error as ThisError;
 

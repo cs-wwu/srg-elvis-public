@@ -6,7 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Udp,
     },
-    Control, Id,
+    Control, Id, ProtocolMap,
 };
 use std::{
     ops::Range,
@@ -66,18 +66,18 @@ impl Application for ThroughputTester {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
         Udp::set_local_port(self.port, &mut participants);
-        context
+        protocols
             .protocol(Udp::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, context)?;
+            .listen(Self::ID, participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });
