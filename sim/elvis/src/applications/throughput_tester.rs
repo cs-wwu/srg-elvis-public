@@ -8,46 +8,60 @@ use elvis_core::{
     },
     Control, Id, ProtocolMap,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    ops::Range,
+    sync::{Arc, RwLock},
+    time::{Duration, SystemTime},
+};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
 #[derive(Debug, Clone)]
-pub struct Capture {
-    /// The message that was received, if any
-    message: Arc<RwLock<Option<Message>>>,
+pub struct ThroughputTester {
     /// The channel we send on to shut down the simulation
     shutdown: Arc<RwLock<Option<Sender<()>>>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
     port: u16,
+    message_count: u8,
+    expected_delay: Range<Duration>,
+    previous_receipt: Arc<RwLock<Option<SystemTime>>>,
+    received: Arc<RwLock<u8>>,
 }
 
-impl Capture {
+impl ThroughputTester {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16) -> Self {
+    pub fn new(
+        ip_address: Ipv4Address,
+        port: u16,
+        message_count: u8,
+        expected_delay: Range<Duration>,
+    ) -> Self {
         Self {
-            message: Default::default(),
             shutdown: Default::default(),
             ip_address,
             port,
+            message_count,
+            expected_delay,
+            previous_receipt: Arc::new(RwLock::new(None)),
+            received: Arc::new(RwLock::new(0)),
         }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared(ip_address: Ipv4Address, port: u16) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(ip_address, port))
-    }
-
-    /// Gets the message that was received.
-    pub fn message(&self) -> Option<Message> {
-        self.message.read().unwrap().clone()
+    pub fn new_shared(
+        ip_address: Ipv4Address,
+        port: u16,
+        message_count: u8,
+        expected_delay: Range<Duration>,
+    ) -> Arc<UserProcess<Self>> {
+        UserProcess::new_shared(Self::new(ip_address, port, message_count, expected_delay))
     }
 }
 
-impl Application for Capture {
+impl Application for ThroughputTester {
     const ID: Id = Id::from_string("Capture");
 
     fn start(
@@ -72,14 +86,27 @@ impl Application for Capture {
 
     fn receive(
         self: Arc<Self>,
-        message: Message,
+        _message: Message,
         _context: Context,
     ) -> Result<(), ApplicationError> {
-        *self.message.write().unwrap() = Some(message);
-        if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-            tokio::spawn(async move {
-                shutdown.send(()).await.unwrap();
-            });
+        let now = SystemTime::now();
+        if let Some(previous) = self.previous_receipt.write().unwrap().replace(now) {
+            let elapsed = now.duration_since(previous).unwrap();
+            assert!(self.expected_delay.contains(&elapsed));
+        }
+
+        let received = {
+            let mut received = self.received.write().unwrap();
+            *received += 1;
+            *received
+        };
+
+        if received >= self.message_count {
+            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
+                tokio::spawn(async move {
+                    shutdown.send(()).await.unwrap();
+                });
+            }
         }
         Ok(())
     }

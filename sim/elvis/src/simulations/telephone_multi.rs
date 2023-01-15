@@ -1,13 +1,8 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    internet::NetworkHandle,
-    networks::Reliable,
     protocol::SharedProtocol,
-    protocols::{
-        ipv4::{IpToNetwork, Ipv4, Ipv4Address},
-        udp::Udp,
-    },
-    Internet, Message,
+    protocols::{ipv4::Ipv4, udp::Udp, Pci},
+    run_internet, Machine, Message, Network,
 };
 
 /// Simulates a message being forwarded along across many networks.
@@ -16,71 +11,51 @@ use elvis_core::{
 /// across a different network. When the message reaches its destination, the
 /// simulation ends.
 pub async fn telephone_multi() {
-    let mut internet = Internet::new();
-    let end = 1000;
-    let networks: Vec<_> = (0..end)
-        .map(|_| internet.network(Reliable::new(1500)))
-        .collect();
+    const END: u32 = 1000;
+    // Since we are using a broadcast network, the destination MAC is not used
+    let networks: Vec<_> = (0..END).map(|_| Network::basic()).collect();
 
     let remote = 0u32.to_be_bytes().into();
-    internet.machine(
-        [
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared([(remote, networks[0])].into_iter().collect()),
-            SendMessage::new_shared("Hello!", remote, 0xbeef),
-        ],
-        [networks[0]],
-    );
+    let mut machines = vec![Machine::new([
+        Udp::new_shared() as SharedProtocol,
+        Ipv4::new_shared([(remote, 0)].into_iter().collect()),
+        Pci::new_shared([networks[0].tap()]),
+        SendMessage::new_shared("Hello!", remote, 0xbeef, None, 1),
+    ])];
 
-    for i in 0u32..(end - 1) {
-        let (local, remote, table) = create_ip_table(i, &networks);
-        internet.machine(
-            [
-                Udp::new_shared() as SharedProtocol,
-                Ipv4::new_shared(table),
-                Forward::new_shared(local, remote, 0xbeef, 0xbeef),
-            ],
-            [networks[i as usize], networks[i as usize + 1]],
-        );
+    for i in 0u32..(END - 1) {
+        let local = i.to_be_bytes().into();
+        let remote = (i + 1).to_be_bytes().into();
+        let table = [(local, 0), (remote, 1)].into_iter().collect();
+        machines.push(Machine::new([
+            Udp::new_shared() as SharedProtocol,
+            Ipv4::new_shared(table),
+            Forward::new_shared(local, remote, 0xbeef, 0xbeef, None),
+            Pci::new_shared([networks[i as usize].tap(), networks[i as usize + 1].tap()]),
+        ]));
     }
 
-    let last_network = end - 1;
+    let last_network = END - 1;
     let local = last_network.to_be_bytes().into();
-    let last_network = last_network as usize;
     let capture = Capture::new_shared(local, 0xbeef);
-    internet.machine(
-        [
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared([(local, networks[last_network])].into_iter().collect()),
-            capture.clone(),
-        ],
-        [networks[last_network]],
-    );
+    machines.push(Machine::new([
+        Udp::new_shared() as SharedProtocol,
+        Ipv4::new_shared([(local, last_network)].into_iter().collect()),
+        Pci::new_shared([networks[last_network as usize].tap()]),
+        capture.clone(),
+    ]));
 
-    internet.run().await;
+    run_internet(machines, networks).await;
     assert_eq!(
         capture.application().message(),
         Some(Message::new("Hello!"))
     );
 }
 
-fn create_ip_table(
-    network: u32,
-    networks: &[NetworkHandle],
-) -> (Ipv4Address, Ipv4Address, IpToNetwork) {
-    let local: Ipv4Address = network.to_be_bytes().into();
-    let remote: Ipv4Address = (network + 1).to_be_bytes().into();
-    let network = network as usize;
-    let table = [(local, networks[network]), (remote, networks[network + 1])]
-        .into_iter()
-        .collect();
-    (local, remote, table)
-}
-
 #[cfg(test)]
 mod tests {
     #[tokio::test]
     async fn telephone_multi() {
-        super::telephone_multi().await;
+        super::telephone_multi().await
     }
 }
