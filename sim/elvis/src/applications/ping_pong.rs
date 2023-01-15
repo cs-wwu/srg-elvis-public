@@ -1,15 +1,15 @@
 use elvis_core::{
     message::Message,
-    protocol::{Context, ProtocolId},
+    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, ProtocolMap,
+    Control, Id, ProtocolMap,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that sends a Time To Live (TTL) to
@@ -19,9 +19,9 @@ use tokio::sync::{mpsc::Sender, Barrier};
 #[derive(Clone)]
 pub struct PingPong {
     /// The channel we send on to shut down the simulation
-    shutdown: Arc<Mutex<Option<Sender<()>>>>,
+    shutdown: Arc<RwLock<Option<Sender<()>>>>,
     /// The session we send messages on
-    session: Arc<Mutex<Option<SharedSession>>>,
+    session: Arc<RwLock<Option<SharedSession>>>,
     is_initiator: bool,
     /// The address we listen for a message on
     local_ip_address: Ipv4Address,
@@ -70,7 +70,7 @@ impl PingPong {
 }
 
 impl Application for PingPong {
-    const ID: ProtocolId = ProtocolId::from_string("PingPong");
+    const ID: Id = Id::from_string("PingPong");
 
     fn start(
         self: Arc<Self>,
@@ -78,7 +78,7 @@ impl Application for PingPong {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        *self.shutdown.lock().unwrap() = Some(shutdown);
+        *self.shutdown.write().unwrap() = Some(shutdown);
 
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip_address, &mut participants);
@@ -87,7 +87,7 @@ impl Application for PingPong {
         Udp::set_remote_port(self.remote_port, &mut participants);
         let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
-        *self.session.lock().unwrap() = Some(session);
+        *self.session.write().unwrap() = Some(session);
 
         let context = Context::new(protocols);
         tokio::spawn(async move {
@@ -95,7 +95,7 @@ impl Application for PingPong {
             if self.is_initiator {
                 self.session
                     .clone()
-                    .lock()
+                    .read()
                     .unwrap()
                     .as_ref()
                     .unwrap()
@@ -125,7 +125,7 @@ impl Application for PingPong {
 
         if ttl == 0 {
             tracing::info!("TTL has reach 0, PingPong has successfully completed");
-            if let Some(shutdown) = self.shutdown.lock().unwrap().take() {
+            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
                 tokio::spawn(async move {
                     shutdown.send(()).await.unwrap();
                 });
@@ -133,7 +133,7 @@ impl Application for PingPong {
         } else {
             self.session
                 .clone()
-                .lock()
+                .read()
                 .unwrap()
                 .as_ref()
                 .unwrap()

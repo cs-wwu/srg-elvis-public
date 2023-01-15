@@ -1,51 +1,59 @@
-use crate::applications::{Capture, SendMessage};
+use std::time::Duration;
+
+use crate::applications::{SendMessage, ThroughputTester};
 use elvis_core::{
-    message::Message,
+    network::{Baud, NetworkBuilder},
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
         udp::Udp,
         Pci,
     },
-    run_internet, Machine, Network,
+    run_internet, Machine,
 };
 
 /// Runs a basic simulation.
 ///
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
-pub async fn basic() {
-    let network = Network::basic();
+pub async fn throughput() {
+    const UDP_HEADER_SIZE: u64 = 8;
+    const IP_HEADER_SIZE: u64 = 20;
+    const PAYLOAD_LENGTH: u64 = 6;
+    const MESSAGE_LENGTH: u64 = UDP_HEADER_SIZE + IP_HEADER_SIZE + PAYLOAD_LENGTH;
+    let network = NetworkBuilder::new()
+        .throughput(Baud::bytes_per_second(MESSAGE_LENGTH))
+        .build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
-    let capture = Capture::new_shared(capture_ip_address, 0xbeef);
     let machines = vec![
         Machine::new([
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             Pci::new_shared([network.tap()]),
-            SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef, None, 1),
+            SendMessage::new_shared("First ", capture_ip_address, 0xbeef, None, 3),
         ]),
         Machine::new([
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table),
             Pci::new_shared([network.tap()]),
-            capture.clone(),
+            ThroughputTester::new_shared(
+                capture_ip_address,
+                0xbeef,
+                3,
+                Duration::from_millis(900)..Duration::from_millis(1100),
+            ),
         ]),
     ];
 
     run_internet(machines, vec![network]).await;
-    assert_eq!(
-        capture.application().message(),
-        Some(Message::new("Hello!"))
-    );
 }
 
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    async fn basic() {
-        super::basic().await
+    async fn throughput() {
+        super::throughput().await
     }
 }

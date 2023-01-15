@@ -1,45 +1,32 @@
-use std::collections::HashSet;
-
-use crate::applications::Query;
+use crate::applications::QueryTester;
 use elvis_core::{
-    networks::Reliable,
+    network::NetworkBuilder,
     protocol::SharedProtocol,
-    protocols::{
-        ipv4::{Ipv4, Ipv4Address},
-        udp::Udp,
-    },
-    Internet,
+    protocols::{ipv4::Ipv4, udp::Udp, Pci},
+    run_internet, Machine,
 };
-use tokio::sync::mpsc;
 
-/// A simulation that prints the ID of each machine in the simulation.
+/// Runs a basic simulation.
+///
+/// In this simulation, a machine sends a message to another machine over a
+/// single network. The simulation ends when the message is received.
 pub async fn query() {
-    let mut internet = Internet::new();
-    let network = internet.network(Reliable::new(1500));
-    const MACHINE_COUNT: usize = 3;
+    let network = NetworkBuilder::new().mtu(1500).build();
 
-    let (tx, mut rx) = mpsc::channel(MACHINE_COUNT);
+    let machine = Machine::new([
+        Udp::new_shared() as SharedProtocol,
+        Ipv4::new_shared([(0.into(), 0)].into_iter().collect()),
+        QueryTester::new_shared(),
+        Pci::new_shared([network.tap(), network.tap()]),
+    ]);
 
-    for _ in 0..MACHINE_COUNT {
-        internet.machine(
-            [
-                Udp::new_shared() as SharedProtocol,
-                Ipv4::new_shared([(Ipv4Address::LOCALHOST, network)].into_iter().collect()),
-                Query::new_shared(tx.clone()),
-            ],
-            [network],
-        )
-    }
+    run_internet(vec![machine], vec![network]).await;
+}
 
-    internet.run().await;
-
-    let mut ids = HashSet::new();
-    for _ in 0..MACHINE_COUNT {
-        let id = rx.recv().await;
-        ids.insert(id);
-    }
-
-    for i in 0..MACHINE_COUNT as u64 {
-        assert!(ids.contains(&Some(i)));
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    pub async fn query() {
+        super::query().await
     }
 }

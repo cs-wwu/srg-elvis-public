@@ -1,7 +1,10 @@
 //! The [`Session`] trait and supporting types.
 
 use super::{protocol::Context, Message};
-use crate::control::{Key, Primitive};
+use crate::{
+    control::{Key, Primitive},
+    network::Mtu,
+};
 use std::sync::Arc;
 use thiserror::Error as ThisError;
 
@@ -31,6 +34,8 @@ pub enum SendError {
     Header,
     #[error("Data expected through the context was missing")]
     MissingContext,
+    #[error("The message length exceeds the network's MTU: {0}")]
+    Mtu(Mtu),
     #[error("Unspecified error")]
     Other,
 }
