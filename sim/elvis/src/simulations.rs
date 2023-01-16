@@ -21,5 +21,3 @@ pub use ping_pong::ping_pong;
 mod query;
 pub use query::query;
 
-mod parse;
-pub use parse::parse;

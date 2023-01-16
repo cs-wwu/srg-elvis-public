@@ -2,5 +2,5 @@
 mod generating;
 mod ndl;
 pub mod parsing;
-pub use ndl::core_parser;
+pub use crate::ndl::parsing::core_parser;
 pub use ndl::generate_sim;
