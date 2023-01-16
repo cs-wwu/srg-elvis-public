@@ -40,19 +40,19 @@ pub fn network_generator(
 
                         let mut start_ip = ip_string_to_ip(temp[0].to_string(), &id);
                         let end_ip = temp[1].parse::<u8>().unwrap_or_else(|_| {
-                            panic!("Network {}: Invalid ending IP range number", id)
+                            panic!("Network {}: Invalid ending IP range number. Expected <u8> found: {}", id, temp[1])
                         });
 
                         assert!(
                             end_ip >= start_ip[3],
-                            "Network {}: Invalid Cidr format, end IP greater than start IP",
-                            id
+                            "Network {}: Invalid Cidr format, end IP value ({}) greater than start IP value ({})",
+                            id, end_ip, start_ip[3]
                         );
 
                         while start_ip[3] <= end_ip {
                             assert!(
                                 !ip_list.contains(&start_ip),
-                                "Network {}: Duplicate IP found: {:?}",
+                                "Network {}: Duplicate IP found in range: {:?}",
                                 id,
                                 start_ip
                             );
@@ -66,7 +66,7 @@ pub fn network_generator(
                         let real_ip = ip_string_to_ip(value, &id);
                         assert!(
                             !ip_list.contains(&real_ip),
-                            "Network {}: Duplicate IP found: {:?}",
+                            "Network {}: Duplicate IP found in IP: {:?}",
                             id,
                             real_ip
                         );
@@ -75,10 +75,11 @@ pub fn network_generator(
                         ips.push((real_ip.into(), network));
                     }
                     _ => {
-                        return Err(format!(
-                            "Network {}: Invalid argument provided '{}'",
-                            id, option_id
-                        ));
+                        panic!(
+                            "Network {}: Invalid network argument provided. Found: {}",
+                            id,
+                            option_id.to_ascii_lowercase().as_str()
+                        )
                     }
                 }
             }

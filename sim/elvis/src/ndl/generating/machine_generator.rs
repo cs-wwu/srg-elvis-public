@@ -27,9 +27,12 @@ pub fn machine_generator(
         let mut protocols_to_be_added = Vec::new();
         let mut ip_table: IpToNetwork = IpToNetwork::new();
         for net in &machine.interfaces.networks {
-            // TODO: test and change errors
             assert!(
-                networks.contains_key(net.options.get("id").expect("Invalid ID found")),
+                networks.contains_key(
+                    net.options
+                        .get("id")
+                        .expect("No ID found in network being added to machine.")
+                ),
                 "Invalid Network ID found. Got {} expected {:?}",
                 net.options.get("id").unwrap(),
                 networks.keys().sorted().join(" , ")
@@ -47,7 +50,6 @@ pub fn machine_generator(
                     "UDP" => protocols_to_be_added.push(Udp::new_shared() as SharedProtocol),
                     "IPv4" => protocols_to_be_added.push(Ipv4::new_shared(ip_table.clone())),
                     _ => {
-                        // TODO: when machine ID/name get found, add to the error
                         panic!(
                             "Invalid Protocol found in machine. Found: {}",
                             option.1.as_str()
@@ -57,16 +59,27 @@ pub fn machine_generator(
             }
         }
         for app in &machine.interfaces.applications {
-            // TODO: assert to check for name
+            // TODO: add test for this error
+            assert!(
+                app.options.contains_key("name"),
+                "Machine application does not contain a name"
+            );
             let app_name = app.options.get("name").unwrap().as_str();
             match app_name {
                 "send_message" => {
-                    // TODO: write the error messages for these asserts
-                    assert!(app.options.contains_key("port"));
-                    assert!(app.options.contains_key("to"));
-                    assert!(app.options.contains_key("message"));
+                    assert!(
+                        app.options.contains_key("port"),
+                        "Send_Message application doesn't contain port."
+                    );
+                    assert!(
+                        app.options.contains_key("to"),
+                        "Send_Message application doesn't contain to address."
+                    );
+                    assert!(
+                        app.options.contains_key("message"),
+                        "Send_Message application doesn't contain message."
+                    );
 
-                    // TODO: edit this error message?
                     let to = ip_string_to_ip(
                         app.options.get("to").unwrap().to_string(),
                         "send_message declaration",
@@ -83,8 +96,15 @@ pub fn machine_generator(
                 }
 
                 "capture" => {
-                    assert!(app.options.contains_key("port"));
-                    assert!(app.options.contains_key("ip"));
+                    assert!(
+                        app.options.contains_key("port"),
+                        "Capture application doesn't contain port."
+                    );
+                    assert!(
+                        app.options.contains_key("ip"),
+                        "Capture application doesn't contain ip."
+                    );
+
                     // TODO: Check that this IP is valid in the IP table/Network
                     let ip = ip_string_to_ip(
                         app.options.get("ip").unwrap().to_string(),
@@ -94,7 +114,12 @@ pub fn machine_generator(
                     protocols_to_be_added.push(Capture::new_shared(ip.into(), port));
                 }
 
-                _ => {}
+                _ => {
+                    panic!(
+                        "Invalid application in machine. Got application {}",
+                        app_name
+                    );
+                }
             }
         }
 

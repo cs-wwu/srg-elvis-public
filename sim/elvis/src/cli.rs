@@ -22,7 +22,7 @@ use crate::ndl::generate_sim;
 struct Args {
     #[arg(short, long)]
     log: bool,
-    #[arg(short, long, default_value="")]
+    #[arg(short, long, default_value = "")]
     ndl: String,
 }
 
@@ -33,10 +33,9 @@ pub async fn initialize_from_arguments() {
         initialize_logging();
     }
     if !cli.ndl.is_empty() {
-        if cli.ndl.contains('/') || cli.ndl.contains('\\'){
+        if cli.ndl.contains('/') || cli.ndl.contains('\\') {
             generate_sim(cli.ndl).await;
-        }
-        else{
+        } else {
             let file_path: String = "./elvis/src/ndl/".to_string() + &cli.ndl;
             generate_sim(file_path).await;
         }

@@ -9,7 +9,7 @@ pub fn string_to_port(p: String) -> u16 {
             .unwrap_or_else(|_| panic!("Port declaration error. Found port: {}", p))
     } else {
         p.parse::<u16>()
-            .unwrap_or_else(|_| panic!("Invalid number for port. Found port: {}", p))
+            .unwrap_or_else(|_| panic!("Port declaration error. Found port: {}", p))
     }
 }
 
