@@ -6,7 +6,6 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     protocols::user_process::ApplicationError,
-    session::ReceiveError,
 };
 use std::sync::Arc;
 use thiserror::Error as ThisError;
@@ -123,8 +122,6 @@ pub enum QueryError {
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
 pub enum DemuxError {
-    #[error("Failed due to a session receive error")]
-    Receive,
     #[error("Failed to find a session to demux to")]
     MissingSession,
     #[error("Data expected through the context was missing")]
@@ -135,14 +132,6 @@ pub enum DemuxError {
     Application(#[from] ApplicationError),
     #[error("Unspecified demux error")]
     Other,
-}
-
-// Cannot have a circular reference between DemuxError and ReceiveError, so the
-// #[from] shorthand is not possible
-impl From<ReceiveError> for DemuxError {
-    fn from(_: ReceiveError) -> Self {
-        Self::Receive
-    }
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]

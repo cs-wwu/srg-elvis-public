@@ -4,9 +4,9 @@ use crate::{
     id::Id,
     logging::{receive_message_event, send_message_event},
     message::Message,
-    protocol::Context,
+    protocol::{Context, DemuxError},
     protocols::utility::Socket,
-    session::{QueryError, ReceiveError, SendError, SharedSession},
+    session::{QueryError, SendError, SharedSession},
     Session,
 };
 use std::{fmt::Debug, sync::Arc};
@@ -15,6 +15,23 @@ pub(super) struct UdpSession {
     pub upstream: Id,
     pub downstream: SharedSession,
     pub id: SessionId,
+}
+
+impl UdpSession {
+    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
+        receive_message_event(
+            self.id.local.address,
+            self.id.remote.address,
+            self.id.local.port,
+            self.id.remote.port,
+            message.clone(),
+        );
+        context
+            .protocol(self.upstream)
+            .expect("No such protocol")
+            .demux(message, self, context)?;
+        Ok(())
+    }
 }
 
 impl Session for UdpSession {
@@ -45,22 +62,6 @@ impl Session for UdpSession {
         );
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
-        Ok(())
-    }
-
-    #[tracing::instrument(name = "UdpSession::receive", skip(message, context))]
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError> {
-        receive_message_event(
-            self.id.local.address,
-            self.id.remote.address,
-            self.id.local.port,
-            self.id.remote.port,
-            message.clone(),
-        );
-        context
-            .protocol(self.upstream)
-            .expect("No such protocol")
-            .demux(message, self, context)?;
         Ok(())
     }
 

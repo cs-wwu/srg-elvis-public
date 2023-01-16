@@ -10,7 +10,7 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, Protocol, Session,
+    Control, Protocol,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;

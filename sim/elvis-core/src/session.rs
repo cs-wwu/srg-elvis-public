@@ -4,7 +4,6 @@ use super::{protocol::Context, Message};
 use crate::{
     control::{Key, Primitive},
     network::Mtu,
-    protocol::DemuxError,
 };
 use std::sync::Arc;
 use thiserror::Error as ThisError;
@@ -25,28 +24,8 @@ pub trait Session {
     /// in the chain for further processing.
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError>;
 
-    /// Takes an incoming message and decides which protocol to send it to for
-    /// further processing.
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError>;
-
     /// Gets a piece of information from some session in the protocol stack.
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
-}
-
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
-pub enum ReceiveError {
-    #[error("Receive failed due to a demux error")]
-    Demux,
-    #[error("Unspecified error")]
-    Other,
-}
-
-// Cannot have a circular reference between DemuxError and ReceiveError, so the
-// #[from] shorthand is not possible
-impl From<DemuxError> for ReceiveError {
-    fn from(_: DemuxError) -> Self {
-        Self::Demux
-    }
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
