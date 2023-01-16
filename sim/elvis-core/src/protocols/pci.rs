@@ -10,7 +10,7 @@ use crate::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
     session::SharedSession,
-    Control, Protocol,
+    Control, Protocol, ProtocolMap,
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -78,7 +78,7 @@ impl Protocol for Pci {
         self: Arc<Self>,
         _upstream: Id,
         participants: Control,
-        _context: Context,
+        _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let pci_slot = Pci::get_pci_slot(&participants).map_err(|_| {
             tracing::error!("Missing PCI slot on context");
@@ -99,7 +99,7 @@ impl Protocol for Pci {
         self: Arc<Self>,
         _upstream: Id,
         _participants: Control,
-        _context: Context,
+        _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         Ok(())
     }
@@ -115,15 +115,13 @@ impl Protocol for Pci {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let barrier = Arc::new(Barrier::new(self.sessions.len() + 1));
         for session in self.sessions.iter() {
-            session
-                .clone()
-                .start(context.protocols.clone(), barrier.clone());
+            session.clone().start(protocols.clone(), barrier.clone());
         }
         tokio::spawn(async move {
             // Wait until all the taps have started before starting the sim

@@ -7,7 +7,7 @@ use elvis_core::{
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, Id,
+    Control, Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -74,9 +74,9 @@ impl Application for PingPong {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
 
@@ -85,10 +85,11 @@ impl Application for PingPong {
         Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
         Udp::set_local_port(self.local_port, &mut participants);
         Udp::set_remote_port(self.remote_port, &mut participants);
-        let protocol = context.protocol(Udp::ID).expect("No such protocol");
-        let session = protocol.open(Self::ID, participants, context.clone())?;
+        let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
+        let session = protocol.open(Self::ID, participants, protocols.clone())?;
         *self.session.write().unwrap() = Some(session);
 
+        let context = Context::new(protocols);
         tokio::spawn(async move {
             initialized.wait().await;
             if self.is_initiator {

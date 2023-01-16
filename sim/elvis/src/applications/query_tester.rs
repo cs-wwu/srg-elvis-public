@@ -6,7 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError},
         Ipv4, Pci, Udp, UserProcess,
     },
-    Control, Id, Message,
+    Control, Id, Message, ProtocolMap,
 };
 use tokio::sync::{mpsc::Sender, Barrier};
 
@@ -28,11 +28,11 @@ impl Application for QueryTester {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialize: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let slot_count = context
+        let slot_count = protocols
             .protocol(Pci::ID)
             .expect("Missing PCI protocol")
             .query(Pci::SLOT_COUNT_QUERY_KEY)
@@ -46,10 +46,10 @@ impl Application for QueryTester {
         Udp::set_remote_port(0, &mut participants);
         Ipv4::set_local_address(0.into(), &mut participants);
         Ipv4::set_remote_address(0.into(), &mut participants);
-        let mtu = context
+        let mtu = protocols
             .protocol(Udp::ID)
             .expect("Missing UDP protocol")
-            .open(Self::ID, participants, context)
+            .open(Self::ID, participants, protocols)
             .unwrap()
             .query(Pci::MTU_QUERY_KEY)
             .unwrap()

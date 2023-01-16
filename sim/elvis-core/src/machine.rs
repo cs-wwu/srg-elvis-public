@@ -1,5 +1,4 @@
-use super::protocol::{Context, SharedProtocol};
-use crate::{id::Id, logging::machine_creation_event};
+use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id};
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
@@ -10,7 +9,26 @@ use tokio::sync::{mpsc::Sender, Barrier};
 pub type PciSlot = u32;
 
 /// A mapping of protocol IDs to protocols
-pub(crate) type ProtocolMap = Arc<HashMap<Id, SharedProtocol>>;
+#[derive(Clone)]
+pub struct ProtocolMap(Arc<HashMap<Id, SharedProtocol>>);
+
+impl ProtocolMap {
+    pub fn new(protocols: HashMap<Id, SharedProtocol>) -> Self {
+        Self(Arc::new(protocols))
+    }
+
+    pub fn protocol(&self, id: Id) -> Option<SharedProtocol> {
+        self.0.get(&id).cloned()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &SharedProtocol> {
+        self.0.values()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
 
 /// A networked computer in the simultation.
 ///
@@ -39,21 +57,20 @@ impl Machine {
         }
         machine_creation_event(protocol_ids);
         Self {
-            protocols: Arc::new(protocols_map),
+            protocols: ProtocolMap::new(protocols_map),
         }
     }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
     pub(crate) fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
-        let protocol_context = Context::new(self.protocols.clone());
-        for protocol in self.protocols.values() {
+        for protocol in self.protocols.iter() {
             protocol
                 .clone()
                 .start(
-                    protocol_context.clone(),
                     shutdown.clone(),
                     initialized.clone(),
+                    self.protocols.clone(),
                 )
                 .expect("A protocol failed to start")
         }
