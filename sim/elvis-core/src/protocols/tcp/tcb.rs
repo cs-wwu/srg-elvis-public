@@ -6,7 +6,7 @@ use crate::{
     protocols::{ipv4::Ipv4Address, utility::Socket},
     Message,
 };
-use std::collections::VecDeque;
+use std::{collections::VecDeque, time::Duration};
 
 // NOTE(hardint): Section numbers are base on RFC 9293, the updated TCP protocol
 // specification
@@ -16,6 +16,10 @@ use std::collections::VecDeque;
 
 // TODO(hardint): Do actual window management
 const RCV_WND: u16 = 4096;
+
+// TODO(hardint): Choose a more realistic value
+/// The maximum segment lifetime on the Internet
+const MSL: Duration = Duration::new(1, 0);
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tcb {
@@ -66,6 +70,10 @@ impl Tcb {
         tcb.enqueue_outgoing(tcb.header_builder(iss).syn(), [].into())
             .unwrap();
         tcb
+    }
+
+    pub fn advance_time(&mut self, _duration: Duration) -> Timeout {
+        todo!()
     }
 
     pub fn send(&mut self, _message: Message) -> Result<(), BuildHeaderError> {
@@ -360,11 +368,6 @@ impl Tcb {
         Ok(())
     }
 
-    pub fn advance_time(_ms: u64) {
-        // TODO(hardint): See 3.10.8 for timeout handling
-        todo!()
-    }
-
     fn is_ack_ok(&self, ack: u32) -> bool {
         mod_bounded(self.snd.una, Le, ack, Leq, self.snd.nxt)
     }
@@ -415,6 +418,14 @@ pub enum ReceiveError {
 enum Initiation {
     Listen,
     Open,
+}
+
+bitflags! {
+    pub struct Timeout: u8 {
+        const USER = 0b001;
+        const RETRANSMISSION = 0b010;
+        const TIME_WAIT = 0b100;
+    }
 }
 
 pub fn handle_closed(
@@ -605,6 +616,7 @@ struct ReceiveSequenceSpace {
     nxt: u32,
 }
 
+use bitflags::bitflags;
 use ModCmp::*;
 
 /// a < b under modular arithmetic
@@ -921,5 +933,106 @@ mod tests {
         assert!(peer_a_ack.0.ctl.ack());
         assert_eq!(peer_a_ack.0.seq, 101);
         assert_eq!(peer_a_ack.0.ack, 401);
+    }
+
+    // TODO(hardint): Add tests for the exchanges in figures 9 through 11 about
+    // half-open connections
+
+    fn established_pair() -> (Tcb, Tcb) {
+        let mut peer_a = Tcb::open(PEER_A_ID, 100);
+        let peer_a_syn = peer_a.outgoing.pop_back().unwrap();
+        let mut peer_b = handle_listen(
+            peer_a_syn.0,
+            peer_a_syn.1,
+            PEER_B_ID.local.address,
+            PEER_B_ID.remote.address,
+            300,
+        )
+        .unwrap()
+        .tcb()
+        .unwrap();
+        let peer_b_syn_ack = peer_b.outgoing.pop_back().unwrap();
+        peer_a
+            .segment_arrives(peer_b_syn_ack.0, peer_b_syn_ack.1)
+            .unwrap();
+        let peer_a_ack = peer_a.outgoing.pop_back().unwrap();
+        peer_b.segment_arrives(peer_a_ack.0, peer_a_ack.1).unwrap();
+        assert_eq!(peer_a.state, State::Established);
+        assert_eq!(peer_b.state, State::Established);
+        (peer_a, peer_b)
+    }
+
+    #[test]
+    fn normal_close_sequence() {
+        // This test implements the following exchange from 3.6, Figure 12:
+        //
+        //     TCP Peer A                                           TCP Peer B
+        //
+        // 1.  ESTABLISHED                                          ESTABLISHED
+        //
+        // 2.  (Close)
+        //     FIN-WAIT-1  --> <SEQ=100><ACK=300><CTL=FIN,ACK>  --> CLOSE-WAIT
+        //
+        // 3.  FIN-WAIT-2  <-- <SEQ=300><ACK=101><CTL=ACK>      <-- CLOSE-WAIT
+        //
+        // 4.                                                       (Close)
+        //     TIME-WAIT   <-- <SEQ=300><ACK=101><CTL=FIN,ACK>  <-- LAST-ACK
+        //
+        // 5.  TIME-WAIT   --> <SEQ=101><ACK=301><CTL=ACK>      --> CLOSED
+        //
+        // 6.  (2 MSL)
+        //     CLOSED
+        //
+        // NOTE: MSL = Maximum Segment Lifetime
+
+        // 1
+        let (mut peer_a, mut peer_b) = established_pair();
+
+        // 2
+        peer_a.close();
+        assert_eq!(peer_a.state, State::FinWait1);
+
+        let peer_a_fin = peer_a.outgoing.pop_back().unwrap();
+        assert!(peer_a_fin.0.ctl.fin());
+        assert!(peer_a_fin.0.ctl.ack());
+        assert_eq!(peer_a_fin.0.seq, 100);
+        assert_eq!(peer_a_fin.0.ack, 300);
+
+        peer_b.segment_arrives(peer_a_fin.0, peer_a_fin.1).unwrap();
+        assert_eq!(peer_b.state, State::CloseWait);
+
+        // 3
+        let peer_b_ack = peer_b.outgoing.pop_back().unwrap();
+        assert!(peer_b_ack.0.ctl.ack());
+        assert_eq!(peer_b_ack.0.seq, 300);
+        assert_eq!(peer_b_ack.0.ack, 101);
+
+        peer_a.segment_arrives(peer_b_ack.0, peer_b_ack.1).unwrap();
+        assert_eq!(peer_a.state, State::FinWait2);
+
+        // 4
+        peer_b.close();
+        assert_eq!(peer_b.state, State::LastAck);
+
+        let peer_b_fin = peer_b.outgoing.pop_back().unwrap();
+        assert!(peer_b_fin.0.ctl.fin());
+        assert!(peer_b_fin.0.ctl.ack());
+        assert_eq!(peer_b_fin.0.seq, 300);
+        assert_eq!(peer_b_fin.0.ack, 101);
+
+        peer_a.segment_arrives(peer_b_fin.0, peer_b_fin.1).unwrap();
+        assert_eq!(peer_a.state, State::TimeWait);
+
+        // 5
+        let peer_a_ack = peer_a.outgoing.pop_back().unwrap();
+        assert!(peer_a_ack.0.ctl.ack());
+        assert_eq!(peer_a_ack.0.seq, 101);
+        assert_eq!(peer_a_ack.0.ack, 301);
+
+        let receive_result = peer_b.segment_arrives(peer_a_ack.0, peer_a_ack.1).unwrap();
+        assert_eq!(receive_result, ReceiveResult::FinalizeClose);
+
+        let timeout = peer_a.advance_time(MSL.mul_f32(2.1));
+        assert_eq!(timeout & Timeout::TIME_WAIT, Timeout::TIME_WAIT);
     }
 }
