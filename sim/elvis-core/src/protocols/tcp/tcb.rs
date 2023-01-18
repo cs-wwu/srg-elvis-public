@@ -106,16 +106,11 @@ impl Tcb {
                         return Ok(ReceiveResult::DiscardSegment);
                     }
 
-                    if mod_bounded(self.snd.nxt, Le, seg.ack, Leq, self.snd.iss) {
+                    if mod_bounded(self.snd.nxt, Le, seg.ack, Leq, self.snd.iss)
+                        || !mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt)
+                    {
                         // Send a reset and discard the segment
-                        self.enqueue_outgoing(
-                            TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seg.ack)
-                                .rst(),
-                            [].into(),
-                        )?;
-                    }
-
-                    if !mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
+                        self.enqueue_outgoing(self.header_builder(seg.ack).rst(), [].into())?;
                         return Ok(ReceiveResult::InvalidAck);
                     }
                 }
@@ -200,7 +195,7 @@ impl Tcb {
 
                 State::SynReceived => match self.initiation {
                     Initiation::Listen => {
-                        return Ok(ReceiveResult::CloseSilently);
+                        return Ok(ReceiveResult::ReturnToListen);
                     }
                     Initiation::Open => {
                         return Ok(ReceiveResult::ConnectionRefused);
@@ -214,7 +209,7 @@ impl Tcb {
                 }
 
                 State::Closing | State::LastAck | State::TimeWait => {
-                    return Ok(ReceiveResult::CloseSilently);
+                    return Ok(ReceiveResult::FinalizeClose);
                 }
             }
         }
@@ -262,7 +257,7 @@ impl Tcb {
                 | State::TimeWait
                 | State::SynReceived => {
                     if self.state == State::SynReceived && self.initiation == Initiation::Listen {
-                        return Ok(ReceiveResult::CloseSilently);
+                        return Ok(ReceiveResult::ReturnToListen);
                     }
 
                     // Getting a SYN in a synchronized state is weird. In
@@ -402,9 +397,10 @@ pub enum ReceiveResult {
     DiscardSegment,
     InvalidAck,
     UnacceptableSegment,
-    CloseSilently,
+    ReturnToListen,
     ConnectionReset,
     ConnectionRefused,
+    FinalizeClose,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -894,7 +890,7 @@ mod tests {
         assert_eq!(peer_a_rst.0.seq, 91);
 
         let receive_result = peer_b.segment_arrives(peer_a_rst.0, peer_a_rst.1).unwrap();
-        assert_eq!(receive_result, ReceiveResult::ConnectionReset);
+        assert_eq!(receive_result, ReceiveResult::ReturnToListen);
 
         // 6
         let mut peer_b = handle_listen(
