@@ -15,11 +15,32 @@ Then using that data use matplotlib to create pretty representations for
 """
 import pandas
 
+def parse_link_data(link_data, dataset): 
+    print("------------------------")
+    print(link_data)
+
+
 def parse_lines(lines):
     dataset = {
         'link': [],
         'size': [], 
-        'numImages': [], 
+        'numImages': [],
+    }
+    link_data = ''
+    for line in lines: 
+        if line.strip() == '{' or line.strip() == '}': 
+            continue
+        elif line.strip() == '},': 
+            parse_link_data(link_data, dataset)
+            link_data = ''
+        else:
+            link_data = link_data + line
+
+def old_parse_lines(lines):
+    dataset = {
+        'link': [],
+        'size': [], 
+        'numImages': [],
     }
 
     for line in lines: 
