@@ -3,8 +3,10 @@
 
 use crate::{
     control::{Key, Primitive},
+    id::Id,
+    machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::{SendError, SharedSession},
     Control, Protocol,
 };
@@ -20,15 +22,15 @@ use tokio::sync::{mpsc::Sender, Barrier};
 /// application to give it time to run.
 pub trait Application {
     /// A unique identifier for the application.
-    const ID: ProtocolId;
+    const ID: Id;
 
-    /// Gives the application time to run. Unlike [`recv`](Self::recv), `awake`
-    /// is not called in response to specific events.
+    /// Gives the application an opportunity to set up before the simulation
+    /// begins.
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialize: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
@@ -83,24 +85,24 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 }
 
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(self: Arc<Self>) -> ProtocolId {
+    fn id(self: Arc<Self>) -> Id {
         A::ID
     }
 
     fn open(
         self: Arc<Self>,
-        _upstream: ProtocolId,
+        _upstream: Id,
         _participants: Control,
-        _context: Context,
+        _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         panic!("Cannot active open on a user process")
     }
 
     fn listen(
         self: Arc<Self>,
-        _upstream: ProtocolId,
+        _upstream: Id,
         _participants: Control,
-        _context: Context,
+        _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         panic!("Cannot listen on a user process")
     }
@@ -118,12 +120,12 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let application = self.application.clone();
-        application.start(context, shutdown, initialized)?;
+        application.start(shutdown, initialized, protocols)?;
         Ok(())
     }
 

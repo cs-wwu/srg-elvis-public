@@ -3,11 +3,13 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    id::Id,
+    machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, ProtocolId, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, Protocol, Session,
+    Control, Protocol,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
@@ -24,13 +26,13 @@ use super::utility::Socket;
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: DashMap<Socket, ProtocolId>,
+    listen_bindings: DashMap<Socket, Id>,
     sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
     /// A unique identifier for the protocol.
-    pub const ID: ProtocolId = ProtocolId::new(17);
+    pub const ID: Id = Id::new(17);
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
@@ -60,16 +62,16 @@ impl Udp {
 }
 
 impl Protocol for Udp {
-    fn id(self: Arc<Self>) -> ProtocolId {
+    fn id(self: Arc<Self>) -> Id {
         Self::ID
     }
 
     #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
@@ -104,11 +106,10 @@ impl Protocol for Udp {
             }
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = context.protocol(Ipv4::ID).expect("No such protocol").open(
-                    Self::ID,
-                    participants,
-                    context,
-                )?;
+                let downstream = protocols
+                    .protocol(Ipv4::ID)
+                    .expect("No such protocol")
+                    .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(UdpSession {
                     upstream,
                     downstream,
@@ -123,9 +124,9 @@ impl Protocol for Udp {
     #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
-        upstream: ProtocolId,
+        upstream: Id,
         participants: Control,
-        context: Context,
+        protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
@@ -142,10 +143,10 @@ impl Protocol for Udp {
         };
         self.listen_bindings.insert(identifier, upstream);
         // Ask lower-level protocols to add the binding as well
-        context
+        protocols
             .protocol(Ipv4::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, context)
+            .listen(Self::ID, participants, protocols)
     }
 
     #[tracing::instrument(name = "Udp::demux", skip_all)]
@@ -156,11 +157,11 @@ impl Protocol for Udp {
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.info).map_err(|_| {
+        let local_address = Ipv4::get_local_address(&context.control).map_err(|_| {
             tracing::error!("Missing local address on context");
             DemuxError::MissingContext
         })?;
-        let remote_address = Ipv4::get_remote_address(&context.info).map_err(|_| {
+        let remote_address = Ipv4::get_remote_address(&context.control).map_err(|_| {
             tracing::error!("Missing remote address on context");
             DemuxError::MissingContext
         })?;
@@ -183,8 +184,8 @@ impl Protocol for Udp {
         );
 
         // Add the header information to the context
-        Self::set_local_port(session_id.local.port, &mut context.info);
-        Self::set_remote_port(session_id.remote.port, &mut context.info);
+        Self::set_local_port(session_id.local.port, &mut context.control);
+        Self::set_remote_port(session_id.remote.port, &mut context.control);
 
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
@@ -225,9 +226,9 @@ impl Protocol for Udp {
 
     fn start(
         self: Arc<Self>,
-        _context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;

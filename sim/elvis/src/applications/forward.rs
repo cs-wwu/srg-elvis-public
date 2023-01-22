@@ -1,6 +1,7 @@
 use elvis_core::{
     message::Message,
-    protocol::{Context, ProtocolId},
+    network::Mac,
+    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         udp::Udp,
@@ -8,15 +9,15 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control,
+    Control, Id, Network, ProtocolMap,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 #[derive(Clone)]
 pub struct Forward {
     /// The session on which we send any messages we receive
-    outgoing: Arc<Mutex<Option<SharedSession>>>,
+    outgoing: Arc<RwLock<Option<SharedSession>>>,
     /// The IP address for incoming messages
     local_ip: Ipv4Address,
     /// The IP address for outgoing messages
@@ -25,6 +26,7 @@ pub struct Forward {
     local_port: u16,
     /// The port number for outgoing messages
     remote_port: u16,
+    destination_mac: Option<Mac>,
 }
 
 impl Forward {
@@ -34,6 +36,7 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
+        destination_mac: Option<Mac>,
     ) -> Self {
         Self {
             outgoing: Default::default(),
@@ -41,6 +44,7 @@ impl Forward {
             remote_ip,
             local_port,
             remote_port,
+            destination_mac,
         }
     }
 
@@ -50,19 +54,26 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
+        destination_mac: Option<Mac>,
     ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(local_ip, remote_ip, local_port, remote_port))
+        UserProcess::new_shared(Self::new(
+            local_ip,
+            remote_ip,
+            local_port,
+            remote_port,
+            destination_mac,
+        ))
     }
 }
 
 impl Application for Forward {
-    const ID: ProtocolId = ProtocolId::from_string("Forward");
+    const ID: Id = Id::from_string("Forward");
 
     fn start(
         self: Arc<Self>,
-        context: Context,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip, &mut participants);
@@ -70,14 +81,14 @@ impl Application for Forward {
         Udp::set_local_port(self.local_port, &mut participants);
         Udp::set_remote_port(self.remote_port, &mut participants);
 
-        let udp = context.protocol(Udp::ID).expect("No such protocol");
-        *self.outgoing.lock().unwrap() = Some(udp.clone().open(
+        let udp = protocols.protocol(Udp::ID).expect("No such protocol");
+        *self.outgoing.write().unwrap() = Some(udp.clone().open(
             Self::ID,
             // TODO(hardint): Can these clones be cheaper?
             participants.clone(),
-            context.clone(),
+            protocols.clone(),
         )?);
-        udp.listen(Self::ID, participants, context)?;
+        udp.listen(Self::ID, participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });
@@ -87,12 +98,14 @@ impl Application for Forward {
     fn receive(
         self: Arc<Self>,
         message: Message,
-        context: Context,
+        mut context: Context,
     ) -> Result<(), ApplicationError> {
-        // TODO(hardint): Use ? again
+        if let Some(destination_mac) = self.destination_mac {
+            Network::set_destination(destination_mac, &mut context.control);
+        }
         self.outgoing
             .clone()
-            .lock()
+            .read()
             .unwrap()
             .as_ref()
             .unwrap()

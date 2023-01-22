@@ -4,43 +4,50 @@ use super::{
 };
 use crate::{
     control::{Key, Primitive},
+    id::Id,
+    machine::PciSlot,
     message::Message,
-    protocol::{Context, ProtocolId},
-    protocols::{
-        tap::{NetworkId, Tap},
-        udp::Udp,
-    },
-    session::{QueryError, ReceiveError, SendError, SharedSession},
-    Session,
+    protocol::{Context, DemuxError},
+    protocols::{udp::Udp, Pci},
+    session::{QueryError, SendError, SharedSession},
+    Network, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
     /// The protocol that we demux incoming messages to
-    upstream: ProtocolId,
+    upstream: Id,
     /// The session we mux outgoing messages to
     downstream: SharedSession,
     /// The identifying information for this session
     id: SessionId,
-    /// The ID of the network to send on
-    network_id: NetworkId,
+    /// The PCI slot to send on
+    tap_slot: PciSlot,
 }
 
 impl Ipv4Session {
     /// Creates a new IPv4 session
     pub(super) fn new(
         downstream: SharedSession,
-        upstream: ProtocolId,
+        upstream: Id,
         identifier: SessionId,
-        network_id: NetworkId,
+        tap_slot: PciSlot,
     ) -> Self {
         Self {
             upstream,
             downstream,
             id: identifier,
-            network_id,
+            tap_slot,
         }
+    }
+
+    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
+        context
+            .protocol(self.upstream)
+            .expect("No such protocol")
+            .demux(message, self, context)?;
+        Ok(())
     }
 }
 
@@ -66,19 +73,10 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        Tap::set_network_id(self.network_id, &mut context.info);
-        Tap::set_first_responder(Ipv4::ID, &mut context.info);
+        Pci::set_pci_slot(self.tap_slot, &mut context.control);
+        Network::set_protocol(Ipv4::ID, &mut context.control);
         message.prepend(header);
         self.downstream.clone().send(message, context)?;
-        Ok(())
-    }
-
-    #[tracing::instrument(name = "Ipv4Session::receive", skip_all)]
-    fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), ReceiveError> {
-        context
-            .protocol(self.upstream)
-            .expect("No such protocol")
-            .demux(message, self, context)?;
         Ok(())
     }
 

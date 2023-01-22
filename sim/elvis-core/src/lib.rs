@@ -21,7 +21,7 @@
 //! - [`Message`](message::Message) and [`Control`] provide basic utilities
 //!   common to most protocols
 //! - [`Protocol`] and [`Session`] implement individual protocols
-//! - [`Internet`] provides the actual simulation
+//! - [`run_internet`] runs the actual simulation
 //!
 //! # Protocol structure
 //!
@@ -36,7 +36,7 @@
 //!
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
-pub mod networks;
+mod logging;
 pub mod protocols;
 
 pub mod control;
@@ -51,13 +51,15 @@ pub use protocol::Protocol;
 pub mod session;
 pub use session::Session;
 
-pub mod internet;
-pub use internet::Internet;
-
 pub mod network;
 pub use network::Network;
 
-pub(crate) mod machine;
-pub(crate) use machine::Machine;
+mod machine;
+pub use machine::Machine;
 
-pub(crate) mod logging;
+mod internet;
+pub use internet::run_internet;
+pub use machine::ProtocolMap;
+
+mod id;
+pub use id::Id;

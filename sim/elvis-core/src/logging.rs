@@ -5,7 +5,7 @@
 //! These functions are meant to be called from inside elvis core in the core protocols
 //! Messages will be logged as Bytes in Hex formatting for most convenient parsing
 
-use crate::{protocol::ProtocolId, protocols::ipv4::Ipv4Address, Message};
+use crate::{id::Id, protocols::ipv4::Ipv4Address, Message};
 use tracing::{event, Level};
 
 /// Send message event handler.
@@ -55,11 +55,10 @@ pub fn receive_message_event(
 /// Used to log the creation of any machines added to the sim. Will log:
 /// machine_id, list of all protocol id's associated with the machine
 /// This will eventually contain more info as the simulation evolves
-pub fn machine_creation_event(machine_id: usize, protocol_ids: Vec<ProtocolId>) {
+pub fn machine_creation_event(protocol_ids: Vec<Id>) {
     event!(
         target: "MACHINE_CREATION",
         Level::INFO,
-        machine_id=machine_id,
         protocol_ids = format!("{:?}", protocol_ids),
     );
 }
