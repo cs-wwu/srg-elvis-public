@@ -14,6 +14,10 @@ Then using that data use matplotlib to create pretty representations for
     - average size of images 
 """
 import pandas
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
+
 
 def parse_link_data(link_data, dataset): 
     link_count = 0
@@ -23,13 +27,13 @@ def parse_link_data(link_data, dataset):
     for line in link_data: 
         if counting_links: 
             if line.strip() == '],':
-                dataset['numLinks'].append(link_count)
+                dataset['num_links'].append(link_count)
                 counting_links = False
             else:
                 link_count += 1
         elif counting_images:
             if line.strip() == ']':
-                dataset['numImages'].append(image_count)
+                dataset['num_images'].append(image_count)
                 counting_images = False
             else:
                 image_count += 1
@@ -39,7 +43,7 @@ def parse_link_data(link_data, dataset):
                 dataset["link"].append(line[3:end])
             elif line.startswith('    "size":'): 
                 end = line.rindex(',')
-                dataset["size"].append(int(line[12:end]))
+                dataset["size"].append((int(line[12:end])/1000)) #save size in KB
             elif line.strip() == '"links": [':
                 counting_links = True
             elif line.strip() == '"images": [':
@@ -50,8 +54,8 @@ def parse_lines(lines):
     dataset = {
         'link': [],
         'size': [], 
-        'numLinks': [],
-        'numImages': []
+        'num_links': [],
+        'num_images': []
     }
     link_data = []
     for line in lines: 
@@ -71,11 +75,40 @@ def main():
     """
     print(dataset['link'])
     print(dataset['size'])
-    print(dataset['numLinks'])
-    print(dataset['numImages'])
+    print(dataset['num_links'])
+    print(dataset['num_images'])
     """
     dataframe = pandas.DataFrame(dataset)
     print(dataframe)
+    #dataframe.plot()
+    #plt.hist(dataframe.to_numpy())
+    #dataframe.hist(column='size')
+    #plt.title("Number of links")
+    
+    #figsize(7, 5)
+ 
+    plt.hist(dataframe['size'], color='blue', edgecolor='black')
+    plt.xlabel('Page Size (KB)')
+    plt.ylabel('No. of Pages')
+    plt.title('Page Size')
+    plt.savefig('page_size.pdf')
+    plt.close()
+
+    plt.hist(dataframe['num_links'], color='blue', edgecolor='black')
+    plt.xlabel('No. of Links on Page')
+    plt.ylabel('No. of Pages')
+    plt.title('No. of Links')
+    plt.savefig('num_links.pdf')
+    plt.close()
+
+    plt.hist(dataframe['num_images'], color='blue', edgecolor='black')
+    plt.xlabel('No. of Images on Page')
+    plt.ylabel('No. of Pages')
+    plt.title('No. of Images')
+    plt.savefig('num_images.pdf')
+    plt.close()
+
+ 
 
     f.close()
 
