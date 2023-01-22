@@ -2,36 +2,31 @@
 
 use crate::ndl::generating::generator_utils::ip_string_to_ip;
 use crate::ndl::parsing::parsing_data::*;
-use elvis_core::{
-    Network, protocols::ipv4::Ipv4Address,
-};
+use elvis_core::{protocols::ipv4::Ipv4Address, Network};
 use std::collections::{HashMap, HashSet};
 
 use super::generator_data::NetworkInfo;
 
-
 /// Network Generator generates networks from a given [Networks] struct and places them in the [Internet]
 /// Returns said networks and corresponding ip tables for later use with machines
-pub fn network_generator(
-    n: Networks,
-) -> NetworkInfo {
+pub fn network_generator(n: Networks) -> NetworkInfo {
     // For each network we need
     // let network = internet.network(Reliable::new(1500));
     // Additionally we need each IP to be stored in the IP table with that assocaited network:
     // let ip_table: IpToNetwork = [(IP_ADDRESS_1, network), (IP_ADDRESS_2, network)].into_iter().collect();
 
     // HashMap(network_1, (Network, Iptable))
-    
+
     // Networks contains a hashmap linking ids to networks
     // IP_hash contains a hashmap linking ids to vectors of ips
     let mut networks = HashMap::new();
     let mut ip_hash = HashMap::new();
-    
+
     for (id, net) in n {
         // insert networks into the hashmap
         let network = Network::basic();
         networks.insert(id.clone(), network);
-        
+
         let mut ip_vec: Vec<Ipv4Address> = Vec::new();
         let mut temp_ips = HashSet::new();
         for ip in net.ip {
@@ -97,8 +92,8 @@ pub fn network_generator(
         // networks.insert(id, (network, ip_table, ip_list));
         ip_hash.insert(id, ip_vec);
     }
-    NetworkInfo{
+    NetworkInfo {
         nets: networks,
-        ip_hash: ip_hash,
+        ip_hash,
     }
 }

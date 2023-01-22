@@ -13,6 +13,14 @@ use crate::ndl::parsing::parsing_data::*;
 pub async fn core_generator(s: Sim) {
     let networks = network_generator(s.networks);
     let machines = machine_generator(s.machines, &networks);
-    run_internet(machines, networks.nets.clone().into_values().collect::<Vec<Arc<elvis_core::Network>>>()).await;
+    run_internet(
+        machines,
+        networks
+            .nets
+            .clone()
+            .into_values()
+            .collect::<Vec<Arc<elvis_core::Network>>>(),
+    )
+    .await;
     println!("finished internet?");
 }

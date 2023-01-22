@@ -76,7 +76,7 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
                 *line_num += 1;
             }
 
-            Ok((dectype, args, s0[num_new_line as usize..].to_string()))
+            Ok((dectype, args, s0[num_new_line..].to_string()))
         }
 
         Err(e) => {

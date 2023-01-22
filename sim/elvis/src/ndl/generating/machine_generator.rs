@@ -23,8 +23,8 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
         let mut networks_to_be_added = Vec::new();
         let mut protocols_to_be_added = Vec::new();
         let mut ip_table = Vec::new();
-        let mut net_num: u32 = 0;
-        for net in &machine.interfaces.networks {
+
+        for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
             assert!(
                 networks.nets.contains_key(
                     net.options
@@ -42,14 +42,15 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
             let ips = networks
                 .ip_hash
                 .get(net.options.get("id").unwrap())
-                .expect(&format!(
-                    "No IPs found for network with id {}",
-                    net.options.get("id").unwrap()
-                ));
+                .unwrap_or_else(|| {
+                    panic!(
+                        "No IPs found for network with id {}",
+                        net.options.get("id").unwrap()
+                    )
+                });
             for ip in ips {
                 ip_table.push((*ip, net_num));
             }
-            net_num += 1;
         }
         let ip_table: IpToTapSlot = ip_table.into_iter().collect();
         protocols_to_be_added.push(Pci::new_shared(networks_to_be_added));
@@ -134,10 +135,9 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                 }
             }
         }
-        // Add to the protocol list:
-        //  Pci::new_shared([network.tap()]),
+
         machine_list.push(elvis_core::Machine::new(protocols_to_be_added));
     }
 
-    return machine_list;
+    machine_list
 }
