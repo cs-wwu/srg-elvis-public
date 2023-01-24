@@ -54,9 +54,11 @@ ROADMAP:
 0.) implement structs needed for routing table like mask
 1.) implement a routing table
 2.) implement a router with static routing
-3.) implement functionality for configuring a routing table using ndl
+3.) implement functionality for configuring a routing table using the ndl
 4.) implement a router with distance-vector routing
-5.) implement a router using a link-state routing protocol
+
+5.) implement a router using a link-state routing protocol                          -| are these the same?
+6.) implement interior gateway protocols combined with exterior gateway protocal    -|
 
 QUESTIONS?
 -how does NAT (Network address translation) fit into routing
