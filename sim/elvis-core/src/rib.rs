@@ -1,19 +1,29 @@
 /// TODO!
-/// an RIB or routing information base is a Table
+/// a RIB or routing information base is a Table
 /// used to store information about the topology of a network.
 /// This table allows a router to know where to send recieved messages
 /// by first applying a mask to the recieved address and putting the masked
 /// address through a hash. Masking allows for multiple ip addresses to be mapped to one destination
 struct Rib {
-    // what should the result map to?
+    // maps an Ipv4 address to a router table entry
     table: HashMap<Ipv4Address, Entry>,
 
     // the masks to apply to the given ip address
-    // should be ordered from smallest to largest
-    masks: Vec<Mask>,
+    // should be ordered from 'largest' (i.e all ones) to 'smallest' (i.e all zeros)
+    // so that we prefer specific ip routes over fuzzy ones
+    // a mask of all 0s represents the default gateway
+    masks: BTreeSet<Mask>,
 }
 
+#[derive(Eq, PartialEq)]
 pub struct Mask(u32);
+
+// do we need this?
+// impl Compare for Mask {
+//     fn compare(&self, l: &L, r: &R) {
+
+//     }
+// }
 
 // this entry contains the information about the next destination of the message
 // 
@@ -42,6 +52,15 @@ impl Rib {
 
     // adds given mask to the RIB
     pub fn add_mask(mask: Mask) {
+        todo!();
+    }
+
+    // initialize routing table from an input string for static routing
+    pub fn from(input: &String) -> Rib {
+        todo!();
+    }
+
+    pub fn new() -> Rib {
         todo!();
     }
 }
