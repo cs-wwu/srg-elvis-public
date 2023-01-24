@@ -13,7 +13,7 @@ use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Capture {
     /// The message that was received, if any
     message: Arc<RwLock<Option<Message>>>,
@@ -23,22 +23,32 @@ pub struct Capture {
     ip_address: Ipv4Address,
     /// The port we listen for a message on
     port: u16,
+    /// The number of messages it will receive before stopping
+    message_count: u32,
+    /// The number of messages currently recieved
+    cur_count: RwLock<u32>,
 }
 
 impl Capture {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16) -> Self {
+    pub fn new(ip_address: Ipv4Address, port: u16, message_count: u32) -> Self {
         Self {
             message: Default::default(),
             shutdown: Default::default(),
             ip_address,
             port,
+            message_count,
+            cur_count: RwLock::new(0),
         }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared(ip_address: Ipv4Address, port: u16) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(ip_address, port))
+    pub fn new_shared(
+        ip_address: Ipv4Address,
+        port: u16,
+        message_count: u32,
+    ) -> Arc<UserProcess<Self>> {
+        UserProcess::new_shared(Self::new(ip_address, port, message_count))
     }
 
     /// Gets the message that was received.
@@ -76,10 +86,13 @@ impl Application for Capture {
         _context: Context,
     ) -> Result<(), ApplicationError> {
         *self.message.write().unwrap() = Some(message);
-        if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-            tokio::spawn(async move {
-                shutdown.send(()).await.unwrap();
-            });
+        *self.cur_count.write().unwrap() += 1;
+        if *self.cur_count.read().unwrap() >= self.message_count {
+            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
+                tokio::spawn(async move {
+                    shutdown.send(()).await.unwrap();
+                });
+            }
         }
         Ok(())
     }

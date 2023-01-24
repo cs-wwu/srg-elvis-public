@@ -22,5 +22,5 @@ pub async fn core_generator(s: Sim) {
             .collect::<Vec<Arc<elvis_core::Network>>>(),
     )
     .await;
-    println!("finished internet?");
+    println!("finished sim");
 }

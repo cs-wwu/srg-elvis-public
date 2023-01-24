@@ -37,7 +37,7 @@ pub async fn telephone_multi() {
 
     let last_network = END - 1;
     let local = last_network.to_be_bytes().into();
-    let capture = Capture::new_shared(local, 0xbeef);
+    let capture = Capture::new_shared(local, 0xbeef, 1);
     machines.push(Machine::new([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(local, last_network)].into_iter().collect()),

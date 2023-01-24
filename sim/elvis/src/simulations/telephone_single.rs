@@ -39,7 +39,7 @@ pub async fn telephone_single() {
     }
 
     let local = (END - 1).to_be_bytes().into();
-    let capture = Capture::new_shared(local, 0xbeef);
+    let capture = Capture::new_shared(local, 0xbeef, 1);
     machines.push(Machine::new([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(local, 0)].into_iter().collect()),
