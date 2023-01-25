@@ -26,7 +26,7 @@ pub async fn query() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    pub async fn query() {
-        super::query().await
+    async fn query() {
+        super::query().await;
     }
 }
