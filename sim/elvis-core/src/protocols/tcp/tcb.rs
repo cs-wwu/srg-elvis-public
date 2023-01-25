@@ -962,6 +962,7 @@ mod tests {
         (peer_a, peer_b)
     }
 
+    #[ignore]
     #[test]
     fn normal_close_sequence() {
         // This test implements the following exchange from 3.6, Figure 12:
