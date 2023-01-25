@@ -63,3 +63,7 @@ pub use machine::ProtocolMap;
 
 mod id;
 pub use id::Id;
+
+mod rib;
+pub use rib::SubnetMask
+pub use rib::Rib
