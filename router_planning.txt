@@ -30,7 +30,7 @@ c) adding adjacent nodes to routing table
 
 when a packet with an address that is not on the routing table is recieved by the router
 the router will discard the packet. This means the routing table must be initialized before communication can occur.
-
+a
 
 
 start -> the routing table should be populated before the simulation starts so it probably will 
