@@ -1,10 +1,13 @@
 //! Generates machines from a given parse
+use std::collections::HashMap;
+
 use crate::ndl::parsing::parsing_data::*;
 use crate::{
     applications::{Capture, SendMessage},
     ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
 };
-use elvis_core::protocols::ipv4::IpToTapSlot;
+use elvis_core::network::Mac;
+use elvis_core::protocols::ipv4::{IpToTapSlot, Ipv4Address};
 use elvis_core::protocols::Pci;
 use elvis_core::{
     protocol::SharedProtocol,
@@ -17,7 +20,49 @@ use super::generator_data::NetworkInfo;
 /// Machine Generator generates machines from a given [Machines] struct and places them in the [Internet]
 pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core::Machine> {
     // Focusing on Interfaces, protocols, and applications
+    let mut name_to_mac: HashMap<String, Mac> = HashMap::new();
+    let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();
+    let mut cur_mac: Mac = 0;
+
+    for machine in &m {
+        let mut cur_name: String = String::new();
+        if machine.options.is_some() {
+            if machine.options.as_ref().unwrap().contains_key("name"){
+                cur_name = machine.options.as_ref().unwrap().get("name").unwrap().to_string();
+                name_to_mac.insert(cur_name.clone(), cur_mac);
+            }
+        }
+        
+        if cur_name != "" {
+            for app in &machine.interfaces.applications {
+                // TODO: add test for this error
+                assert!(
+                    app.options.contains_key("name"),
+                    "Machine application does not contain a name"
+                );
+                let app_name = app.options.get("name").unwrap().as_str();
+                if app_name == "capture" {
+                    assert!(
+                        app.options.contains_key("ip"),
+                        "Capture application doesn't contain ip."
+                    );
+
+                    let ip = ip_string_to_ip(
+                        app.options.get("ip").unwrap().to_string(),
+                        "capture declaration",
+                    );
+
+                    name_to_ip.insert(cur_name.clone(), ip.into());
+                    
+                }
+            }
+        }
+        cur_mac += 1;
+    }
+    println!("{:?} and then ips {:?}", name_to_mac, name_to_ip);
+
     let mut machine_list = Vec::new();
+
     for machine in &m {
         let mut machine_count = 1;
         // let mut machine_name: String;
@@ -115,21 +160,24 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                             "Send_Message application doesn't contain message."
                         );
 
-                        let to = ip_string_to_ip(
-                            app.options.get("to").unwrap().to_string(),
-                            "send_message declaration",
-                        );
+                        // let to = ip_string_to_ip(
+                        //     app.options.get("to").unwrap().to_string(),
+                        //     "send_message declaration",
+                        // );
+                        // TODO: might want to include both these behaviors (so they could enter IP or enter name)
+                        let to = app.options.get("to").unwrap().to_string();
                         let port = string_to_port(app.options.get("port").unwrap().to_string());
                         let message = app.options.get("message").unwrap().to_owned();
 
                         //TODO: ask Tim about this message Box stuff
                         // TODO: Add count and MAC to parser
+                        // TODO: add error test for invalid name
                         protocols_to_be_added.push(SendMessage::new_shared(
                             Box::leak(message.into_boxed_str()),
-                            to.into(),
+                            *name_to_ip.get(&to).expect("Invalid name for 'to' in send_message"),
                             port,
                             // TODO: This should be a var not static set to first machine
-                            Some(0),
+                            Some(*name_to_mac.get(&to).expect("Invalid name for 'to' in send_message")),
                             1,
                         ));
                     }
@@ -143,6 +191,11 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                             app.options.contains_key("ip"),
                             "Capture application doesn't contain ip."
                         );
+                        // TODO: Add error check
+                        assert!(
+                            app.options.contains_key("message_count"),
+                            "Capture application doesn't contain message_count."
+                        );
 
                         // TODO: Check that this IP is valid in the IP table/Network
                         let ip = ip_string_to_ip(
@@ -150,10 +203,11 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                             "capture declaration",
                         );
                         let port = string_to_port(app.options.get("port").unwrap().to_string());
+                        let message_count = app.options.get("message_count").unwrap().parse::<u32>().expect("Invalid u32 found in Capture for message count");
                         // TODO: Figure out how to get actual number to recieve in
                         // TODO: Add message expected count
                         // maybe default to 1?
-                        protocols_to_be_added.push(Capture::new_shared(ip.into(), port, 50000));
+                        protocols_to_be_added.push(Capture::new_shared(ip.into(), port, message_count));
                     }
 
                     _ => {
