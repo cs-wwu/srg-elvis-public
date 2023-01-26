@@ -6,6 +6,6 @@ use std::env;
 async fn main() {
     println!("Elvis v{}", env!("CARGO_PKG_VERSION"));
     println!("Running default simulation...");
-    simulations::basic().await;
+    simulations::telephone_single().await;
     println!("Done");
 }

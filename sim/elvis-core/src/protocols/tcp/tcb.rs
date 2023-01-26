@@ -291,25 +291,7 @@ impl Tcb {
         // Process the segment text
         match self.state {
             State::Established | State::FinWait1 | State::FinWait2 => {
-                // TODO(hardint): Once in the ESTABLISHED state, it is possible
-                // to deliver segment data to user RECEIVE buffers. Data from
-                // segments can be moved into buffers until either the buffer is
-                // full or the segment is empty. If the segment empties and
-                // carries a PUSH flag, then the user is informed, when the
-                // buffer is returned, that a PUSH has been received. When the
-                // TCP endpoint takes responsibility for delivering the data to
-                // the user, it must also acknowledge the receipt of the data.
-                // Once the TCP endpoint takes responsibility for the data, it
-                // advances RCV.NXT over the data accepted, and adjusts RCV.WND
-                // as appropriate to the current buffer availability. The total
-                // of RCV.NXT and RCV.WND should not be reduced. A TCP
-                // implementation MAY send an ACK segment acknowledging RCV.NXT
-                // when a valid segment arrives that is in the window but not at
-                // the left window edge (MAY-13). Please note the window
-                // management suggestions in Section 3.8. Send an acknowledgment
-                // of the form: <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK> This
-                // acknowledgment should be piggybacked on a segment being
-                // transmitted if possible without incurring undue delay.
+                self.incoming.push_back((seg, message))
             }
 
             State::SynSent
