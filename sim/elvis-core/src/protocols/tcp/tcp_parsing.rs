@@ -130,18 +130,6 @@ impl TcpHeader {
     }
 }
 
-impl PartialOrd for TcpHeader {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for TcpHeader {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.seq.cmp(&other.seq)
-    }
-}
-
 #[derive(Debug, ThisError, PartialEq, Eq, Clone, Copy)]
 pub enum ParseError {
     #[error("Too few bytes to constitute a TCP header")]

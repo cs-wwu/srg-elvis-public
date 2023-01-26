@@ -6,7 +6,10 @@ use crate::{
     protocols::{ipv4::Ipv4Address, utility::Socket},
     Message,
 };
-use std::{collections::VecDeque, time::Duration};
+use std::{
+    collections::{BinaryHeap, VecDeque},
+    time::Duration,
+};
 
 // NOTE(hardint): Section numbers are base on RFC 9293, the updated TCP protocol
 // specification
@@ -21,7 +24,7 @@ const RCV_WND: u16 = 4096;
 /// The maximum segment lifetime on the Internet
 const MSL: Duration = Duration::new(1, 0);
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Tcb {
     id: ConnectionId,
     initiation: Initiation,
@@ -29,7 +32,7 @@ pub struct Tcb {
     snd: SendSequenceSpace,
     rcv: ReceiveSequenceSpace,
     outgoing: VecDeque<(TcpHeader, Message)>,
-    incoming: VecDeque<(TcpHeader, Message)>,
+    incoming: BinaryHeap<Incoming>,
 }
 
 impl Tcb {
@@ -83,6 +86,13 @@ impl Tcb {
 
     pub fn receive(&mut self) {
         // 3.10.3
+        // if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+        //     self.enqueue_outgoing(
+        //         self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+        //         [].into(),
+        //     )?;
+        //     return Ok(ReceiveResult::DiscardSegment);
+        // }
         todo!()
     }
 
@@ -280,18 +290,10 @@ impl Tcb {
             }
         }
 
-        if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
-            self.enqueue_outgoing(
-                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                [].into(),
-            )?;
-            return Ok(ReceiveResult::DiscardSegment);
-        }
-
-        // Process the segment text
+        // Queue the segment text for processing
         match self.state {
             State::Established | State::FinWait1 | State::FinWait2 => {
-                self.incoming.push_back((seg, message))
+                self.incoming.push(Incoming::new(seg, message));
             }
 
             State::SynSent
@@ -299,7 +301,9 @@ impl Tcb {
             | State::CloseWait
             | State::Closing
             | State::LastAck
-            | State::TimeWait => {}
+            | State::TimeWait => {
+                // TODO(hardint)
+            }
         }
 
         if seg.ctl.fin() {
@@ -394,6 +398,38 @@ pub enum ReceiveError {
     Header(#[from] BuildHeaderError),
     #[error("SEG.RST and RCV.NXT != SEG.SEQ")]
     BlindReset,
+}
+
+#[derive(Debug, Clone)]
+struct Incoming {
+    seg: TcpHeader,
+    message: Message,
+}
+
+impl Incoming {
+    pub fn new(seg: TcpHeader, message: Message) -> Self {
+        Self { seg, message }
+    }
+}
+
+impl PartialEq for Incoming {
+    fn eq(&self, other: &Self) -> bool {
+        self.seg.seq == other.seg.seq
+    }
+}
+
+impl Eq for Incoming {}
+
+impl PartialOrd for Incoming {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Incoming {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.seg.seq.cmp(&other.seg.seq)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -496,7 +532,7 @@ pub fn handle_listen(
         // they arrive. Still, setting these fields is here for completeness.
         seg.ctl.set_syn(false);
         seg.ctl.set_ack(false);
-        tcb.incoming.push_back((seg, message));
+        tcb.incoming.push(Incoming::new(seg, message));
 
         Some(ListenResult::Tcb(tcb))
     } else {
