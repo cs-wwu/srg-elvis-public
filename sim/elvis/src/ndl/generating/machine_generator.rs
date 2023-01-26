@@ -22,18 +22,21 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
     // Focusing on Interfaces, protocols, and applications
     let mut name_to_mac: HashMap<String, Mac> = HashMap::new();
     let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();
-    let mut cur_mac: Mac = 0;
 
-    for machine in &m {
+    for (cur_mac, machine) in (0_u64..).zip(m.iter()) {
         let mut cur_name: String = String::new();
-        if machine.options.is_some() {
-            if machine.options.as_ref().unwrap().contains_key("name"){
-                cur_name = machine.options.as_ref().unwrap().get("name").unwrap().to_string();
-                name_to_mac.insert(cur_name.clone(), cur_mac);
-            }
+        if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("name") {
+            cur_name = machine
+                .options
+                .as_ref()
+                .unwrap()
+                .get("name")
+                .unwrap()
+                .to_string();
+            name_to_mac.insert(cur_name.clone(), cur_mac);
         }
-        
-        if cur_name != "" {
+
+        if !cur_name.is_empty() {
             for app in &machine.interfaces.applications {
                 // TODO: add test for this error
                 assert!(
@@ -53,13 +56,10 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                     );
 
                     name_to_ip.insert(cur_name.clone(), ip.into());
-                    
                 }
             }
         }
-        cur_mac += 1;
     }
-    println!("{:?} and then ips {:?}", name_to_mac, name_to_ip);
 
     let mut machine_list = Vec::new();
 
@@ -174,10 +174,16 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                         // TODO: add error test for invalid name
                         protocols_to_be_added.push(SendMessage::new_shared(
                             Box::leak(message.into_boxed_str()),
-                            *name_to_ip.get(&to).expect("Invalid name for 'to' in send_message"),
+                            *name_to_ip
+                                .get(&to)
+                                .expect("Invalid name for 'to' in send_message"),
                             port,
                             // TODO: This should be a var not static set to first machine
-                            Some(*name_to_mac.get(&to).expect("Invalid name for 'to' in send_message")),
+                            Some(
+                                *name_to_mac
+                                    .get(&to)
+                                    .expect("Invalid name for 'to' in send_message"),
+                            ),
                             1,
                         ));
                     }
@@ -203,11 +209,20 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                             "capture declaration",
                         );
                         let port = string_to_port(app.options.get("port").unwrap().to_string());
-                        let message_count = app.options.get("message_count").unwrap().parse::<u32>().expect("Invalid u32 found in Capture for message count");
+                        let message_count = app
+                            .options
+                            .get("message_count")
+                            .unwrap()
+                            .parse::<u32>()
+                            .expect("Invalid u32 found in Capture for message count");
                         // TODO: Figure out how to get actual number to recieve in
                         // TODO: Add message expected count
                         // maybe default to 1?
-                        protocols_to_be_added.push(Capture::new_shared(ip.into(), port, message_count));
+                        protocols_to_be_added.push(Capture::new_shared(
+                            ip.into(),
+                            port,
+                            message_count,
+                        ));
                     }
 
                     _ => {
