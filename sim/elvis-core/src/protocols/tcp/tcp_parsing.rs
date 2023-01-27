@@ -110,6 +110,7 @@ impl TcpHeader {
         }
     }
 
+    /// Size of the header in bytes
     pub fn bytes(&self) -> u8 {
         // Safe to do because data offset is only 4 bits
         self.data_offset * 4

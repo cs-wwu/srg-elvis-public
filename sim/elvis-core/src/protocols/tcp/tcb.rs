@@ -233,6 +233,13 @@ impl Tcb {
         self.state
     }
 
+    pub fn outgoing(&self) -> impl Iterator<Item = (TcpHeader, Message)> + '_ {
+        self.retransmission_queue
+            .iter()
+            .filter(|segment| self.is_in_snd_window(segment.0.seq))
+            .cloned()
+    }
+
     pub fn segment_arrives(
         &mut self,
         seg: TcpHeader,
@@ -536,6 +543,10 @@ impl Tcb {
 
     fn is_in_rcv_window(&self, n: u32) -> bool {
         mod_bounded(self.rcv.nxt, Leq, n, Le, self.rcv.nxt + RCV_WND as u32)
+    }
+
+    fn is_in_snd_window(&self, n: u32) -> bool {
+        mod_bounded(self.snd.nxt, Leq, n, Le, self.snd.nxt + self.snd.wnd as u32)
     }
 }
 
@@ -939,7 +950,7 @@ mod tests {
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         assert_eq!(peer_a.state, State::SynSent);
-        let (header, message) = peer_a.retransmission_queue.pop_back().unwrap();
+        let (header, message) = peer_a.outgoing().next().unwrap();
         assert_eq!(header.seq, 100);
         assert!(header.ctl.syn());
 
@@ -957,7 +968,7 @@ mod tests {
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 3
-        let (header, message) = peer_b.retransmission_queue.pop_back().unwrap();
+        let (header, message) = peer_b.outgoing().next().unwrap();
         assert_eq!(header.seq, 300);
         assert_eq!(header.ack, 101);
         assert!(header.ctl.syn());
@@ -967,7 +978,7 @@ mod tests {
         assert_eq!(peer_a.state, State::Established);
 
         // 4
-        let (header, message) = peer_a.retransmission_queue.pop_back().unwrap();
+        let (header, message) = peer_a.outgoing().next().unwrap();
         assert_eq!(header.seq, 101);
         assert_eq!(header.ack, 301);
         assert!(header.ctl.ack());
@@ -994,14 +1005,14 @@ mod tests {
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         assert_eq!(peer_a.state, State::SynSent);
-        let a_syn = peer_a.retransmission_queue.pop_back().unwrap();
+        let a_syn = peer_a.outgoing().next().unwrap();
         assert_eq!(a_syn.0.seq, 100);
         assert!(a_syn.0.ctl.syn());
 
         // 3
         let mut peer_b = Tcb::open(PEER_B_ID, 300, 1500);
         assert_eq!(peer_b.state, State::SynSent);
-        let b_syn = peer_b.retransmission_queue.pop_back().unwrap();
+        let b_syn = peer_b.outgoing().next().unwrap();
         assert_eq!(b_syn.0.seq, 300);
         assert!(b_syn.0.ctl.syn());
 
@@ -1013,14 +1024,14 @@ mod tests {
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 5
-        let a_syn_ack = peer_a.retransmission_queue.pop_back().unwrap();
+        let a_syn_ack = peer_a.outgoing().next().unwrap();
         assert!(a_syn_ack.0.ctl.syn());
         assert!(a_syn_ack.0.ctl.ack());
         assert_eq!(a_syn_ack.0.seq, 100);
         assert_eq!(a_syn_ack.0.ack, 301);
 
         // 6
-        let b_syn_ack = peer_b.retransmission_queue.pop_back().unwrap();
+        let b_syn_ack = peer_b.outgoing().next().unwrap();
         assert!(b_syn_ack.0.ctl.syn());
         assert!(b_syn_ack.0.ctl.ack());
         assert_eq!(b_syn_ack.0.seq, 300);
@@ -1050,7 +1061,7 @@ mod tests {
 
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
-        let peer_a_syn = peer_a.retransmission_queue.pop_back().unwrap();
+        let peer_a_syn = peer_a.outgoing().next().unwrap();
         assert!(peer_a_syn.0.ctl.syn());
         assert_eq!(peer_a_syn.0.seq, 100);
 
@@ -1062,8 +1073,8 @@ mod tests {
             },
             remote: PEER_B_ID.local,
         };
-        let mut ghost = Tcb::open(GHOST_ID, 90, 1500);
-        let ghost_syn = ghost.retransmission_queue.pop_back().unwrap();
+        let ghost = Tcb::open(GHOST_ID, 90, 1500);
+        let ghost_syn = ghost.outgoing().next().unwrap();
         assert!(ghost_syn.0.ctl.syn());
         assert_eq!(ghost_syn.0.seq, 90);
 
@@ -1080,7 +1091,7 @@ mod tests {
         .unwrap();
 
         // 4
-        let peer_b_syn_ack = peer_b.retransmission_queue.pop_back().unwrap();
+        let peer_b_syn_ack = peer_b.outgoing().next().unwrap();
         assert!(peer_b_syn_ack.0.ctl.syn());
         assert!(peer_b_syn_ack.0.ctl.ack());
         assert_eq!(peer_b_syn_ack.0.seq, 300);
@@ -1092,7 +1103,7 @@ mod tests {
         assert_eq!(peer_a.state, State::SynSent);
 
         // 5
-        let peer_a_rst = peer_a.retransmission_queue.pop_back().unwrap();
+        let peer_a_rst = peer_a.outgoing().next().unwrap();
         assert!(peer_a_rst.0.ctl.rst());
         assert_eq!(peer_a_rst.0.seq, 91);
 
@@ -1100,7 +1111,7 @@ mod tests {
         assert_eq!(receive_result, ReceiveResult::ReturnToListen);
 
         // 6
-        let mut peer_b = handle_listen(
+        let peer_b = handle_listen(
             peer_a_syn.0,
             peer_a_syn.1,
             PEER_B_ID.local.address,
@@ -1113,7 +1124,7 @@ mod tests {
         .unwrap();
 
         // 7
-        let peer_b_syn_ack = peer_b.retransmission_queue.pop_back().unwrap();
+        let peer_b_syn_ack = peer_b.outgoing().next().unwrap();
         assert!(peer_b_syn_ack.0.ctl.syn());
         assert!(peer_b_syn_ack.0.ctl.ack());
         assert_eq!(peer_b_syn_ack.0.seq, 400);
@@ -1125,7 +1136,7 @@ mod tests {
         assert_eq!(peer_a.state, State::Established);
 
         // 8
-        let peer_a_ack = peer_a.retransmission_queue.pop_back().unwrap();
+        let peer_a_ack = peer_a.outgoing().next().unwrap();
         assert!(peer_a_ack.0.ctl.ack());
         assert_eq!(peer_a_ack.0.seq, 101);
         assert_eq!(peer_a_ack.0.ack, 401);
@@ -1136,7 +1147,7 @@ mod tests {
 
     fn established_pair() -> (Tcb, Tcb) {
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
-        let peer_a_syn = peer_a.retransmission_queue.pop_back().unwrap();
+        let peer_a_syn = peer_a.outgoing().next().unwrap();
         let mut peer_b = handle_listen(
             peer_a_syn.0,
             peer_a_syn.1,
@@ -1148,11 +1159,11 @@ mod tests {
         .unwrap()
         .tcb()
         .unwrap();
-        let peer_b_syn_ack = peer_b.retransmission_queue.pop_back().unwrap();
+        let peer_b_syn_ack = peer_b.outgoing().next().unwrap();
         peer_a
             .segment_arrives(peer_b_syn_ack.0, peer_b_syn_ack.1)
             .unwrap();
-        let peer_a_ack = peer_a.retransmission_queue.pop_back().unwrap();
+        let peer_a_ack = peer_a.outgoing().next().unwrap();
         peer_b.segment_arrives(peer_a_ack.0, peer_a_ack.1).unwrap();
         assert_eq!(peer_a.state, State::Established);
         assert_eq!(peer_b.state, State::Established);
@@ -1190,7 +1201,7 @@ mod tests {
         peer_a.close();
         assert_eq!(peer_a.state, State::FinWait1);
 
-        let peer_a_fin = peer_a.retransmission_queue.pop_back().unwrap();
+        let peer_a_fin = peer_a.outgoing().next().unwrap();
         assert!(peer_a_fin.0.ctl.fin());
         assert!(peer_a_fin.0.ctl.ack());
         assert_eq!(peer_a_fin.0.seq, 100);
@@ -1200,7 +1211,7 @@ mod tests {
         assert_eq!(peer_b.state, State::CloseWait);
 
         // 3
-        let peer_b_ack = peer_b.retransmission_queue.pop_back().unwrap();
+        let peer_b_ack = peer_b.outgoing().next().unwrap();
         assert!(peer_b_ack.0.ctl.ack());
         assert_eq!(peer_b_ack.0.seq, 300);
         assert_eq!(peer_b_ack.0.ack, 101);
@@ -1212,7 +1223,7 @@ mod tests {
         peer_b.close();
         assert_eq!(peer_b.state, State::LastAck);
 
-        let peer_b_fin = peer_b.retransmission_queue.pop_back().unwrap();
+        let peer_b_fin = peer_b.outgoing().next().unwrap();
         assert!(peer_b_fin.0.ctl.fin());
         assert!(peer_b_fin.0.ctl.ack());
         assert_eq!(peer_b_fin.0.seq, 300);
@@ -1222,7 +1233,7 @@ mod tests {
         assert_eq!(peer_a.state, State::TimeWait);
 
         // 5
-        let peer_a_ack = peer_a.retransmission_queue.pop_back().unwrap();
+        let peer_a_ack = peer_a.outgoing().next().unwrap();
         assert!(peer_a_ack.0.ctl.ack());
         assert_eq!(peer_a_ack.0.seq, 101);
         assert_eq!(peer_a_ack.0.ack, 301);
