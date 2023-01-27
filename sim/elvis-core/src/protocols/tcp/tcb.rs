@@ -179,12 +179,42 @@ impl Tcb {
         out
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&mut self) -> CloseResult {
         // 3.10.4
-        todo!()
+        match self.state {
+            State::SynSent => CloseResult::CloseConnection,
+
+            State::SynReceived | State::Established => {
+                // TODO(hardint): Should only do this if there is no pending
+                // data to send, but I don't have a good mechanism for queuing
+                // things like this for later processing once we reach
+                // ESTABLISHED as the spec describes, so this is how it is for
+                // now.
+
+                // TODO(hardint): Is this the correct sequence number for a FIN
+                // segment?
+                self.enqueue_outgoing(self.header_builder(self.snd.nxt + 1), Message::new(vec![]))
+                    .unwrap(); // For short segments this is fine
+                self.state = State::FinWait1;
+                CloseResult::Ok
+            }
+
+            State::CloseWait => {
+                self.enqueue_outgoing(self.header_builder(self.snd.nxt + 1), Message::new(vec![]))
+                    .unwrap(); // For short segments this is fine
+                self.state = State::LastAck;
+                CloseResult::Ok
+            }
+
+            State::FinWait1
+            | State::FinWait2
+            | State::Closing
+            | State::LastAck
+            | State::TimeWait => CloseResult::ConnectionClosing,
+        }
     }
 
-    pub fn abort(&mut self) {
+    pub fn abort(&mut self) -> AbortResult {
         // 3.10.5
         todo!()
     }
@@ -732,6 +762,14 @@ impl Ord for Incoming {
         }
     }
 }
+
+pub enum CloseResult {
+    Ok,
+    CloseConnection,
+    ConnectionClosing,
+}
+
+pub enum AbortResult {}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Initiation {
