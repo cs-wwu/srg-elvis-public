@@ -3,6 +3,7 @@ use super::{
     ConnectionId,
 };
 use crate::{
+    network::Mtu,
     protocols::{ipv4::Ipv4Address, utility::Socket},
     Message,
 };
@@ -32,6 +33,7 @@ const RETRANSMISSION_TIMEOUT: Duration = Duration::new(1, 0);
 #[derive(Debug, Clone)]
 pub struct Tcb {
     id: ConnectionId,
+    mtu: Mtu,
     initiation: Initiation,
     state: State,
     snd: SendSequenceSpace,
@@ -45,6 +47,7 @@ pub struct Tcb {
 impl Tcb {
     fn new(
         id: ConnectionId,
+        mtu: Mtu,
         initiation: Initiation,
         state: State,
         snd: SendSequenceSpace,
@@ -52,6 +55,7 @@ impl Tcb {
     ) -> Self {
         Self {
             id,
+            mtu,
             initiation,
             state,
             snd,
@@ -63,12 +67,13 @@ impl Tcb {
         }
     }
 
-    pub fn open(id: ConnectionId, iss: u32) -> Self {
+    pub fn open(id: ConnectionId, iss: u32, mtu: Mtu) -> Self {
         // 3.10.1 Specifically for the case of an active open. Handling for
         // packets in a passive open LISTEN state is provided in a freestanding
         // function.
         let mut tcb = Self::new(
             id,
+            mtu,
             Initiation::Open,
             State::SynSent,
             SendSequenceSpace {
@@ -447,6 +452,7 @@ pub fn handle_listen(
     local: Ipv4Address,
     remote: Ipv4Address,
     iss: u32,
+    mtu: Mtu,
 ) -> Option<ListenResult> {
     // 3.10.7.2
     if seg.ctl.rst() {
@@ -477,6 +483,7 @@ pub fn handle_listen(
                     port: seg.src_port,
                 },
             },
+            mtu,
             Initiation::Listen,
             State::SynReceived,
             SendSequenceSpace {
@@ -801,7 +808,7 @@ mod tests {
         // 5.  ESTABLISHED --> <SEQ=101><ACK=301><CTL=ACK><DATA> --> ESTABLISHED
 
         // 2
-        let mut peer_a = Tcb::open(PEER_A_ID, 100);
+        let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         assert_eq!(peer_a.state, State::SynSent);
         let (header, message) = peer_a.retransmission_queue.pop_back().unwrap();
         assert_eq!(header.seq, 100);
@@ -813,6 +820,7 @@ mod tests {
             PEER_B_ID.local.address,
             PEER_B_ID.remote.address,
             300,
+            1500,
         )
         .unwrap()
         .tcb()
@@ -855,14 +863,14 @@ mod tests {
         // 7.               ... <SEQ=100><ACK=301><CTL=SYN,ACK> --> ESTABLISHED
 
         // 2
-        let mut peer_a = Tcb::open(PEER_A_ID, 100);
+        let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         assert_eq!(peer_a.state, State::SynSent);
         let a_syn = peer_a.retransmission_queue.pop_back().unwrap();
         assert_eq!(a_syn.0.seq, 100);
         assert!(a_syn.0.ctl.syn());
 
         // 3
-        let mut peer_b = Tcb::open(PEER_B_ID, 300);
+        let mut peer_b = Tcb::open(PEER_B_ID, 300, 1500);
         assert_eq!(peer_b.state, State::SynSent);
         let b_syn = peer_b.retransmission_queue.pop_back().unwrap();
         assert_eq!(b_syn.0.seq, 300);
@@ -912,7 +920,7 @@ mod tests {
         // 8.  ESTABLISHED --> <SEQ=101><ACK=401><CTL=ACK>      --> ESTABLISHED
 
         // 2
-        let mut peer_a = Tcb::open(PEER_A_ID, 100);
+        let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         let peer_a_syn = peer_a.retransmission_queue.pop_back().unwrap();
         assert!(peer_a_syn.0.ctl.syn());
         assert_eq!(peer_a_syn.0.seq, 100);
@@ -925,7 +933,7 @@ mod tests {
             },
             remote: PEER_B_ID.local,
         };
-        let mut ghost = Tcb::open(GHOST_ID, 90);
+        let mut ghost = Tcb::open(GHOST_ID, 90, 1500);
         let ghost_syn = ghost.retransmission_queue.pop_back().unwrap();
         assert!(ghost_syn.0.ctl.syn());
         assert_eq!(ghost_syn.0.seq, 90);
@@ -936,6 +944,7 @@ mod tests {
             GHOST_ID.remote.address,
             GHOST_ID.local.address,
             300,
+            1500,
         )
         .unwrap()
         .tcb()
@@ -968,6 +977,7 @@ mod tests {
             PEER_B_ID.local.address,
             PEER_B_ID.remote.address,
             400,
+            1500,
         )
         .unwrap()
         .tcb()
@@ -996,7 +1006,7 @@ mod tests {
     // half-open connections
 
     fn established_pair() -> (Tcb, Tcb) {
-        let mut peer_a = Tcb::open(PEER_A_ID, 100);
+        let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         let peer_a_syn = peer_a.retransmission_queue.pop_back().unwrap();
         let mut peer_b = handle_listen(
             peer_a_syn.0,
@@ -1004,6 +1014,7 @@ mod tests {
             PEER_B_ID.local.address,
             PEER_B_ID.remote.address,
             300,
+            1500,
         )
         .unwrap()
         .tcb()
