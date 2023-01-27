@@ -1426,6 +1426,32 @@ mod tests {
         }
         let received = peer_b.receive();
         assert_eq!(count, 3);
-        assert_eq!(expected.len(), received.len());
+        assert_eq!(expected, received);
+    }
+
+    #[test]
+    fn message_retransmission() {
+        let expected: Vec<_> = std::iter::repeat(0)
+            .enumerate()
+            .map(|(i, _)| i as u8)
+            .take(8000) // This is beyond our receive window now
+            .collect();
+        let (mut peer_a, mut peer_b) = established_pair();
+        peer_a.send(Message::new(expected.clone())).unwrap();
+        let mut received = vec![];
+        while received.len() != expected.len() {
+            for outgoing in peer_a.outgoing() {
+                peer_b
+                    .segment_arrives(outgoing.seg, outgoing.message)
+                    .unwrap();
+            }
+            received.extend(peer_b.receive());
+            for outgoing in peer_b.outgoing() {
+                peer_a
+                    .segment_arrives(outgoing.seg, outgoing.message)
+                    .unwrap();
+            }
+        }
+        assert_eq!(expected, received);
     }
 }
