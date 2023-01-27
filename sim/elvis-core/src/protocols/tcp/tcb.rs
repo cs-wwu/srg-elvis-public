@@ -189,9 +189,9 @@ impl Tcb {
         todo!()
     }
 
-    pub fn status(&mut self) {
+    pub fn status(&self) -> State {
         // 3.10.6
-        todo!()
+        self.state
     }
 
     pub fn segment_arrives(
@@ -599,7 +599,7 @@ pub fn handle_listen(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum State {
+pub enum State {
     /// Waiting for a matching connection request after having sent a connection
     /// request.
     SynSent,
