@@ -13,6 +13,8 @@ use std::{
     time::Duration,
 };
 
+// TODO(hardint): Move acknowledgment queuing to the front so they get delivered first
+
 // NOTE(hardint): Section numbers are base on RFC 9293, the updated TCP protocol
 // specification
 
@@ -168,6 +170,12 @@ impl Tcb {
             out.extend(message.iter().skip(bytes_already_received as usize));
             self.incoming.pop();
         }
+        // TODO(hardint): Piggyback acknowledgement
+        self.enqueue_outgoing(
+            self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+            Message::new(vec![]),
+        )
+        .unwrap(); // Shouldn't fail for short messages
         out
     }
 
