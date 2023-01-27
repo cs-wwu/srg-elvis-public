@@ -115,6 +115,10 @@ impl Tcb {
 
     pub fn send(&mut self, mut message: Message) -> Result<SendResult, BuildHeaderError> {
         // 3.10.2
+
+        // TODO(hardint): Should only queue up parts for transmission up to the
+        // send window, then wait until space is available to queue up more.
+
         match self.state {
             State::SynSent | State::SynReceived | State::Established | State::CloseWait => {
                 // TODO(hardint): This could be incorrect for when optional
@@ -250,18 +254,8 @@ impl Tcb {
         // messages should be transmitted directly on the Outgoing struct.
         let mut mask = 0u64;
         for (i, outgoing) in self.retransmission_queue.iter_mut().take(64).enumerate() {
-            // Inlining this to make borrows work out
-            let is_in_send_window = mod_bounded(
-                self.snd.nxt,
-                Leq,
-                outgoing.seg.seq,
-                Le,
-                self.snd.nxt + self.snd.wnd as u32,
-            );
-            let is_remote_ready = is_in_send_window || outgoing.message.is_empty();
-            let should_transmit = is_remote_ready && outgoing.needs_retransmission;
-            outgoing.needs_retransmission &= !should_transmit;
-            mask |= (should_transmit as u64) << i;
+            mask |= (outgoing.needs_retransmission as u64) << i;
+            outgoing.needs_retransmission = false;
         }
 
         self.retransmission_queue
@@ -1391,5 +1385,19 @@ mod tests {
             peer_b.advance_time(MSL.mul_f32(2.1)),
             AdvanceTimeResult::CloseConnection
         );
+    }
+
+    #[test]
+    fn message_send() {
+        let expected = b"Hello, world!";
+        let (mut peer_a, mut peer_b) = established_pair();
+        peer_a.send(Message::new(expected)).unwrap();
+        for outgoing in peer_a.outgoing() {
+            peer_b
+                .segment_arrives(outgoing.seg, outgoing.message)
+                .unwrap();
+        }
+        let received = peer_b.receive();
+        assert_eq!(expected, received.as_slice());
     }
 }
