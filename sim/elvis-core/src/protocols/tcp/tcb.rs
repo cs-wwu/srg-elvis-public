@@ -179,6 +179,16 @@ impl Tcb {
         out
     }
 
+    fn remove_acked_from_retransmission(&mut self) {
+        while let Some(segment) = self.retransmission_queue.front() {
+            if !self.is_in_snd_window(segment.0.seq) {
+                self.retransmission_queue.pop_front();
+            } else {
+                break;
+            }
+        }
+    }
+
     pub fn close(&mut self) -> CloseResult {
         // 3.10.4
         match self.state {
@@ -236,7 +246,9 @@ impl Tcb {
     pub fn outgoing(&self) -> impl Iterator<Item = (TcpHeader, Message)> + '_ {
         self.retransmission_queue
             .iter()
-            .filter(|segment| self.is_in_snd_window(segment.0.seq))
+            .filter(|segment| {
+                self.is_in_snd_window(segment.0.seq) || segment.0.ctl.syn() || segment.0.ctl.fin()
+            })
             .cloned()
     }
 
@@ -378,11 +390,11 @@ impl Tcb {
                     self.rcv.irs = seg.seq;
                     self.rcv.nxt = seg.seq + 1;
 
-                    // TODO(hardint): Remove acknowledged segments from the
-                    // retransmission queue
+                    if seg.ctl.ack() {
+                        self.snd.una = seg.ack;
+                    }
 
-                    // FIX(hardint): Only advance, and only if this segment is an ACK
-                    self.snd.una = seg.ack;
+                    self.remove_acked_from_retransmission();
 
                     if mod_ge(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
