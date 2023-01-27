@@ -7,6 +7,7 @@ use crate::{
     Message,
 };
 use std::{
+    cmp::Ordering,
     collections::{BinaryHeap, VecDeque},
     time::Duration,
 };
@@ -35,7 +36,7 @@ pub struct Tcb {
     state: State,
     snd: SendSequenceSpace,
     rcv: ReceiveSequenceSpace,
-    outgoing: VecDeque<(TcpHeader, Message)>,
+    retransmission_queue: VecDeque<(TcpHeader, Message)>,
     incoming: BinaryHeap<Incoming>,
     retransmission_timeout: Option<Duration>,
     time_wait_timeout: Option<Duration>,
@@ -55,7 +56,7 @@ impl Tcb {
             state,
             snd,
             rcv,
-            outgoing: Default::default(),
+            retransmission_queue: Default::default(),
             incoming: Default::default(),
             retransmission_timeout: None,
             time_wait_timeout: None,
@@ -177,7 +178,13 @@ impl Tcb {
                 | State::Closing => {
                     if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
                         self.snd.una = seg.ack;
-                        // TODO(hardint): Remove acknowledged segments from retransmission queue
+                        // Remove acknowledged segments from retransmission queue
+                        while let Some(segment) = self.retransmission_queue.front() {
+                            // NOTE(hardint): Should this be leq?
+                            if mod_le(segment.0.seq + segment.1.len() as u32, self.snd.una) {
+                                self.retransmission_queue.pop_front();
+                            }
+                        }
                     }
 
                     if mod_bounded(self.snd.una, Leq, seg.ack, Leq, self.snd.nxt) {
@@ -196,17 +203,20 @@ impl Tcb {
                         State::FinWait1 => {
                             // TODO(hardint): If the FIN segment is now acknowledged,
                             // enter FIN-WAIT-2 and continue processing
+                            todo!()
                         }
 
                         State::FinWait2 => {
                             // TODO(hardint): If the retransmission
                             // queue is empty, acknowledge the user's
                             // CLOSE
+                            todo!()
                         }
 
                         State::Closing => {
                             // TODO(hardint): If the ACK acknowledges
                             // our FIN, enter TIME-WAIT.
+                            todo!()
                         }
 
                         _ => {}
@@ -216,12 +226,14 @@ impl Tcb {
                 State::LastAck => {
                     // TODO(hardint): If our FIN is now acknowledged,
                     // close the TCB
+                    todo!()
                 }
 
                 State::TimeWait => {
                     // TODO(hardint): The only thing that can arrive is
                     // a retransmission of the remote FIN. Acknowledge
                     // it and restart the MSL 2 timeout.
+                    todo!()
                 }
             }
         }
@@ -375,7 +387,7 @@ impl Tcb {
             self.id.remote.address,
             message.iter(),
         )?;
-        self.outgoing.push_back((header, message));
+        self.retransmission_queue.push_back((header, message));
         Ok(())
     }
 
@@ -613,14 +625,20 @@ impl PartialEq for Incoming {
 impl Eq for Incoming {}
 
 impl PartialOrd for Incoming {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Incoming {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.seg.seq.cmp(&other.seg.seq)
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.seg.seq == other.seg.seq {
+            Ordering::Equal
+        } else if mod_le(self.seg.seq, other.seg.seq) {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
     }
 }
 
@@ -785,7 +803,7 @@ mod tests {
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100);
         assert_eq!(peer_a.state, State::SynSent);
-        let (header, message) = peer_a.outgoing.pop_back().unwrap();
+        let (header, message) = peer_a.retransmission_queue.pop_back().unwrap();
         assert_eq!(header.seq, 100);
         assert!(header.ctl.syn());
 
@@ -802,7 +820,7 @@ mod tests {
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 3
-        let (header, message) = peer_b.outgoing.pop_back().unwrap();
+        let (header, message) = peer_b.retransmission_queue.pop_back().unwrap();
         assert_eq!(header.seq, 300);
         assert_eq!(header.ack, 101);
         assert!(header.ctl.syn());
@@ -812,7 +830,7 @@ mod tests {
         assert_eq!(peer_a.state, State::Established);
 
         // 4
-        let (header, message) = peer_a.outgoing.pop_back().unwrap();
+        let (header, message) = peer_a.retransmission_queue.pop_back().unwrap();
         assert_eq!(header.seq, 101);
         assert_eq!(header.ack, 301);
         assert!(header.ctl.ack());
@@ -839,14 +857,14 @@ mod tests {
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100);
         assert_eq!(peer_a.state, State::SynSent);
-        let a_syn = peer_a.outgoing.pop_back().unwrap();
+        let a_syn = peer_a.retransmission_queue.pop_back().unwrap();
         assert_eq!(a_syn.0.seq, 100);
         assert!(a_syn.0.ctl.syn());
 
         // 3
         let mut peer_b = Tcb::open(PEER_B_ID, 300);
         assert_eq!(peer_b.state, State::SynSent);
-        let b_syn = peer_b.outgoing.pop_back().unwrap();
+        let b_syn = peer_b.retransmission_queue.pop_back().unwrap();
         assert_eq!(b_syn.0.seq, 300);
         assert!(b_syn.0.ctl.syn());
 
@@ -858,14 +876,14 @@ mod tests {
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 5
-        let a_syn_ack = peer_a.outgoing.pop_back().unwrap();
+        let a_syn_ack = peer_a.retransmission_queue.pop_back().unwrap();
         assert!(a_syn_ack.0.ctl.syn());
         assert!(a_syn_ack.0.ctl.ack());
         assert_eq!(a_syn_ack.0.seq, 100);
         assert_eq!(a_syn_ack.0.ack, 301);
 
         // 6
-        let b_syn_ack = peer_b.outgoing.pop_back().unwrap();
+        let b_syn_ack = peer_b.retransmission_queue.pop_back().unwrap();
         assert!(b_syn_ack.0.ctl.syn());
         assert!(b_syn_ack.0.ctl.ack());
         assert_eq!(b_syn_ack.0.seq, 300);
@@ -895,7 +913,7 @@ mod tests {
 
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100);
-        let peer_a_syn = peer_a.outgoing.pop_back().unwrap();
+        let peer_a_syn = peer_a.retransmission_queue.pop_back().unwrap();
         assert!(peer_a_syn.0.ctl.syn());
         assert_eq!(peer_a_syn.0.seq, 100);
 
@@ -908,7 +926,7 @@ mod tests {
             remote: PEER_B_ID.local,
         };
         let mut ghost = Tcb::open(GHOST_ID, 90);
-        let ghost_syn = ghost.outgoing.pop_back().unwrap();
+        let ghost_syn = ghost.retransmission_queue.pop_back().unwrap();
         assert!(ghost_syn.0.ctl.syn());
         assert_eq!(ghost_syn.0.seq, 90);
 
@@ -924,7 +942,7 @@ mod tests {
         .unwrap();
 
         // 4
-        let peer_b_syn_ack = peer_b.outgoing.pop_back().unwrap();
+        let peer_b_syn_ack = peer_b.retransmission_queue.pop_back().unwrap();
         assert!(peer_b_syn_ack.0.ctl.syn());
         assert!(peer_b_syn_ack.0.ctl.ack());
         assert_eq!(peer_b_syn_ack.0.seq, 300);
@@ -936,7 +954,7 @@ mod tests {
         assert_eq!(peer_a.state, State::SynSent);
 
         // 5
-        let peer_a_rst = peer_a.outgoing.pop_back().unwrap();
+        let peer_a_rst = peer_a.retransmission_queue.pop_back().unwrap();
         assert!(peer_a_rst.0.ctl.rst());
         assert_eq!(peer_a_rst.0.seq, 91);
 
@@ -956,7 +974,7 @@ mod tests {
         .unwrap();
 
         // 7
-        let peer_b_syn_ack = peer_b.outgoing.pop_back().unwrap();
+        let peer_b_syn_ack = peer_b.retransmission_queue.pop_back().unwrap();
         assert!(peer_b_syn_ack.0.ctl.syn());
         assert!(peer_b_syn_ack.0.ctl.ack());
         assert_eq!(peer_b_syn_ack.0.seq, 400);
@@ -968,7 +986,7 @@ mod tests {
         assert_eq!(peer_a.state, State::Established);
 
         // 8
-        let peer_a_ack = peer_a.outgoing.pop_back().unwrap();
+        let peer_a_ack = peer_a.retransmission_queue.pop_back().unwrap();
         assert!(peer_a_ack.0.ctl.ack());
         assert_eq!(peer_a_ack.0.seq, 101);
         assert_eq!(peer_a_ack.0.ack, 401);
@@ -979,7 +997,7 @@ mod tests {
 
     fn established_pair() -> (Tcb, Tcb) {
         let mut peer_a = Tcb::open(PEER_A_ID, 100);
-        let peer_a_syn = peer_a.outgoing.pop_back().unwrap();
+        let peer_a_syn = peer_a.retransmission_queue.pop_back().unwrap();
         let mut peer_b = handle_listen(
             peer_a_syn.0,
             peer_a_syn.1,
@@ -990,11 +1008,11 @@ mod tests {
         .unwrap()
         .tcb()
         .unwrap();
-        let peer_b_syn_ack = peer_b.outgoing.pop_back().unwrap();
+        let peer_b_syn_ack = peer_b.retransmission_queue.pop_back().unwrap();
         peer_a
             .segment_arrives(peer_b_syn_ack.0, peer_b_syn_ack.1)
             .unwrap();
-        let peer_a_ack = peer_a.outgoing.pop_back().unwrap();
+        let peer_a_ack = peer_a.retransmission_queue.pop_back().unwrap();
         peer_b.segment_arrives(peer_a_ack.0, peer_a_ack.1).unwrap();
         assert_eq!(peer_a.state, State::Established);
         assert_eq!(peer_b.state, State::Established);
@@ -1032,7 +1050,7 @@ mod tests {
         peer_a.close();
         assert_eq!(peer_a.state, State::FinWait1);
 
-        let peer_a_fin = peer_a.outgoing.pop_back().unwrap();
+        let peer_a_fin = peer_a.retransmission_queue.pop_back().unwrap();
         assert!(peer_a_fin.0.ctl.fin());
         assert!(peer_a_fin.0.ctl.ack());
         assert_eq!(peer_a_fin.0.seq, 100);
@@ -1042,7 +1060,7 @@ mod tests {
         assert_eq!(peer_b.state, State::CloseWait);
 
         // 3
-        let peer_b_ack = peer_b.outgoing.pop_back().unwrap();
+        let peer_b_ack = peer_b.retransmission_queue.pop_back().unwrap();
         assert!(peer_b_ack.0.ctl.ack());
         assert_eq!(peer_b_ack.0.seq, 300);
         assert_eq!(peer_b_ack.0.ack, 101);
@@ -1054,7 +1072,7 @@ mod tests {
         peer_b.close();
         assert_eq!(peer_b.state, State::LastAck);
 
-        let peer_b_fin = peer_b.outgoing.pop_back().unwrap();
+        let peer_b_fin = peer_b.retransmission_queue.pop_back().unwrap();
         assert!(peer_b_fin.0.ctl.fin());
         assert!(peer_b_fin.0.ctl.ack());
         assert_eq!(peer_b_fin.0.seq, 300);
@@ -1064,7 +1082,7 @@ mod tests {
         assert_eq!(peer_a.state, State::TimeWait);
 
         // 5
-        let peer_a_ack = peer_a.outgoing.pop_back().unwrap();
+        let peer_a_ack = peer_a.retransmission_queue.pop_back().unwrap();
         assert!(peer_a_ack.0.ctl.ack());
         assert_eq!(peer_a_ack.0.seq, 101);
         assert_eq!(peer_a_ack.0.ack, 301);
