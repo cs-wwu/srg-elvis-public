@@ -6,6 +6,7 @@ use crate::{
     protocols::{ipv4::Ipv4Address, utility::Socket},
     Message,
 };
+use bitflags::bitflags;
 use std::{
     collections::{BinaryHeap, VecDeque},
     time::Duration,
@@ -380,72 +381,6 @@ impl Tcb {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReceiveResult {
-    Success,
-    DiscardSegment,
-    InvalidAck,
-    UnacceptableSegment,
-    ReturnToListen,
-    ConnectionReset,
-    ConnectionRefused,
-    FinalizeClose,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ReceiveError {
-    #[error("{0}")]
-    Header(#[from] BuildHeaderError),
-    #[error("SEG.RST and RCV.NXT != SEG.SEQ")]
-    BlindReset,
-}
-
-#[derive(Debug, Clone)]
-struct Incoming {
-    seg: TcpHeader,
-    message: Message,
-}
-
-impl Incoming {
-    pub fn new(seg: TcpHeader, message: Message) -> Self {
-        Self { seg, message }
-    }
-}
-
-impl PartialEq for Incoming {
-    fn eq(&self, other: &Self) -> bool {
-        self.seg.seq == other.seg.seq
-    }
-}
-
-impl Eq for Incoming {}
-
-impl PartialOrd for Incoming {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Incoming {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.seg.seq.cmp(&other.seg.seq)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum Initiation {
-    Listen,
-    Open,
-}
-
-bitflags! {
-    pub struct Timeout: u8 {
-        const USER = 0b001;
-        const RETRANSMISSION = 0b010;
-        const TIME_WAIT = 0b100;
-    }
-}
-
 pub fn handle_closed(
     seg: TcpHeader,
     // Specifically the length of the payload. Does not count the header.
@@ -542,27 +477,6 @@ pub fn handle_listen(
     }
 }
 
-pub enum ListenResult {
-    Response(TcpHeader),
-    Tcb(Tcb),
-}
-
-impl ListenResult {
-    fn response(self) -> Option<TcpHeader> {
-        match self {
-            ListenResult::Response(response) => Some(response),
-            ListenResult::Tcb(_) => None,
-        }
-    }
-
-    fn tcb(self) -> Option<Tcb> {
-        match self {
-            ListenResult::Response(_) => None,
-            ListenResult::Tcb(tcb) => Some(tcb),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum State {
     /// Waiting for a matching connection request after having sent a connection
@@ -634,8 +548,92 @@ struct ReceiveSequenceSpace {
     nxt: u32,
 }
 
-use bitflags::bitflags;
-use ModCmp::*;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReceiveResult {
+    Success,
+    DiscardSegment,
+    InvalidAck,
+    UnacceptableSegment,
+    ReturnToListen,
+    ConnectionReset,
+    ConnectionRefused,
+    FinalizeClose,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReceiveError {
+    #[error("{0}")]
+    Header(#[from] BuildHeaderError),
+    #[error("SEG.RST and RCV.NXT != SEG.SEQ")]
+    BlindReset,
+}
+
+#[derive(Debug, Clone)]
+struct Incoming {
+    seg: TcpHeader,
+    message: Message,
+}
+
+impl Incoming {
+    pub fn new(seg: TcpHeader, message: Message) -> Self {
+        Self { seg, message }
+    }
+}
+
+impl PartialEq for Incoming {
+    fn eq(&self, other: &Self) -> bool {
+        self.seg.seq == other.seg.seq
+    }
+}
+
+impl Eq for Incoming {}
+
+impl PartialOrd for Incoming {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Incoming {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.seg.seq.cmp(&other.seg.seq)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum Initiation {
+    Listen,
+    Open,
+}
+
+bitflags! {
+    pub struct Timeout: u8 {
+        const USER = 0b001;
+        const RETRANSMISSION = 0b010;
+        const TIME_WAIT = 0b100;
+    }
+}
+
+pub enum ListenResult {
+    Response(TcpHeader),
+    Tcb(Tcb),
+}
+
+impl ListenResult {
+    fn response(self) -> Option<TcpHeader> {
+        match self {
+            ListenResult::Response(response) => Some(response),
+            ListenResult::Tcb(_) => None,
+        }
+    }
+
+    fn tcb(self) -> Option<Tcb> {
+        match self {
+            ListenResult::Response(_) => None,
+            ListenResult::Tcb(tcb) => Some(tcb),
+        }
+    }
+}
 
 /// a < b under modular arithmetic
 fn mod_le(a: u32, b: u32) -> bool {
@@ -669,6 +667,7 @@ fn mod_geq(a: u32, b: u32) -> bool {
     mod_le(b.wrapping_sub(1), a)
 }
 
+use ModCmp::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ModCmp {
     Le,
