@@ -1400,4 +1400,25 @@ mod tests {
         let received = peer_b.receive();
         assert_eq!(expected, received.as_slice());
     }
+
+    #[test]
+    fn message_segmentation() {
+        let expected: Vec<_> = std::iter::repeat(0)
+            .enumerate()
+            .map(|(i, _)| i as u8)
+            .take(7777)
+            .collect();
+        let (mut peer_a, mut peer_b) = established_pair();
+        peer_a.send(Message::new(expected.clone())).unwrap();
+        let mut count = 0;
+        for outgoing in peer_a.outgoing() {
+            count += 1;
+            peer_b
+                .segment_arrives(outgoing.seg, outgoing.message)
+                .unwrap();
+        }
+        let received = peer_b.receive();
+        assert_eq!(count, 6);
+        assert_eq!(expected, received);
+    }
 }
