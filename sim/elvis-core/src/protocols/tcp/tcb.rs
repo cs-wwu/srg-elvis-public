@@ -110,9 +110,38 @@ impl Tcb {
         AdvanceTimeResult::Ignore
     }
 
-    pub fn send(&mut self, _message: Message) -> Result<(), BuildHeaderError> {
+    pub fn send(&mut self, mut message: Message) -> Result<SendResult, BuildHeaderError> {
         // 3.10.2
-        todo!()
+        match self.state {
+            State::SynSent | State::SynReceived | State::Established | State::CloseWait => {
+                // TODO(hardint): This could be incorrect for when optional
+                // headers are used. It also is not as efficient as possible.
+                const SPACE_FOR_HEADERS: u32 = 50;
+                let max_segment_length = (self.mtu + SPACE_FOR_HEADERS) as usize;
+                while message.len() > max_segment_length {
+                    let copy = message.clone();
+                    message.slice(max_segment_length..);
+                    self.enqueue_outgoing(
+                        self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                        copy,
+                    )?;
+                    self.snd.nxt = self.snd.nxt.wrapping_add(max_segment_length as u32);
+                }
+                let message_len = message.len();
+                self.enqueue_outgoing(
+                    self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                    message,
+                )?;
+                self.snd.nxt = self.snd.nxt.wrapping_add(message_len as u32);
+                Ok(SendResult::Ok)
+            }
+
+            State::FinWait1
+            | State::FinWait2
+            | State::Closing
+            | State::LastAck
+            | State::TimeWait => Ok(SendResult::ClosingConnection),
+        }
     }
 
     pub fn receive(&mut self) {
@@ -601,6 +630,11 @@ pub enum ReceiveResult {
     ConnectionReset,
     ConnectionRefused,
     FinalizeClose,
+}
+
+pub enum SendResult {
+    Ok,
+    ClosingConnection,
 }
 
 #[derive(Debug, thiserror::Error)]
