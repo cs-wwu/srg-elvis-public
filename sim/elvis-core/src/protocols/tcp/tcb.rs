@@ -246,9 +246,7 @@ impl Tcb {
     pub fn outgoing(&self) -> impl Iterator<Item = (TcpHeader, Message)> + '_ {
         self.retransmission_queue
             .iter()
-            .filter(|segment| {
-                self.is_in_snd_window(segment.0.seq) || segment.0.ctl.syn() || segment.0.ctl.fin()
-            })
+            .filter(|segment| self.is_in_snd_window(segment.0.seq) || segment.1.is_empty())
             .cloned()
     }
 
@@ -257,6 +255,16 @@ impl Tcb {
         seg: TcpHeader,
         message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
+        // TODO(hardint): Should this check be happening earlier? Should it be
+        // happening later when queued segments are processed?
+        if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+            self.enqueue_outgoing(
+                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                [].into(),
+            )?;
+            return Ok(ReceiveResult::DiscardSegment);
+        }
+
         if seg.ctl.ack() {
             match self.state {
                 State::SynSent => {
@@ -440,16 +448,6 @@ impl Tcb {
                     return Ok(ReceiveResult::DiscardSegment);
                 }
             }
-        }
-
-        // TODO(hardint): Should this check be happening earlier? Should it be
-        // happening later when queued segments are processed?
-        if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
-            self.enqueue_outgoing(
-                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                [].into(),
-            )?;
-            return Ok(ReceiveResult::DiscardSegment);
         }
 
         // Queue the segment text for processing
