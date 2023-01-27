@@ -214,9 +214,21 @@ impl Tcb {
         }
     }
 
-    pub fn abort(&mut self) -> AbortResult {
+    // Should delete the TCB after this call once the final RST segment is
+    // delivered, if present.
+    pub fn abort(&mut self) {
         // 3.10.5
-        todo!()
+        self.retransmission_queue = Default::default();
+        match self.state {
+            State::CloseWait => {
+                self.enqueue_outgoing(
+                    self.header_builder(self.snd.nxt).rst(),
+                    Message::new(vec![]),
+                )
+                .unwrap(); // Okay for short message
+            }
+            _ => {}
+        }
     }
 
     pub fn status(&self) -> State {
@@ -768,8 +780,6 @@ pub enum CloseResult {
     CloseConnection,
     ConnectionClosing,
 }
-
-pub enum AbortResult {}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Initiation {
