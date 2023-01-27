@@ -219,15 +219,12 @@ impl Tcb {
     pub fn abort(&mut self) {
         // 3.10.5
         self.retransmission_queue = Default::default();
-        match self.state {
-            State::CloseWait => {
-                self.enqueue_outgoing(
-                    self.header_builder(self.snd.nxt).rst(),
-                    Message::new(vec![]),
-                )
-                .unwrap(); // Okay for short message
-            }
-            _ => {}
+        if self.state == State::CloseWait {
+            self.enqueue_outgoing(
+                self.header_builder(self.snd.nxt).rst(),
+                Message::new(vec![]),
+            )
+            .unwrap(); // Okay for short message
         }
     }
 
