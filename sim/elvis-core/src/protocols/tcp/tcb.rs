@@ -1315,4 +1315,81 @@ mod tests {
         let timeout = peer_a.advance_time(MSL.mul_f32(2.1));
         assert_eq!(timeout, AdvanceTimeResult::CloseConnection);
     }
+
+    #[ignore]
+    #[test]
+    fn simultaneous_close_sequence() {
+        // This test implements the following exchange from 3.6, Figure 13:
+        //
+        //     TCP Peer A                                           TCP Peer B
+        //
+        // 1.  ESTABLISHED                                          ESTABLISHED
+        //
+        // 2.  (Close)                                              (Close)
+        //     FIN-WAIT-1  --> <SEQ=100><ACK=300><CTL=FIN,ACK>  ... FIN-WAIT-1
+        //                 <-- <SEQ=300><ACK=100><CTL=FIN,ACK>  <--
+        //                 ... <SEQ=100><ACK=300><CTL=FIN,ACK>  -->
+        //
+        // 3.  CLOSING     --> <SEQ=101><ACK=301><CTL=ACK>      ... CLOSING
+        //                 <-- <SEQ=301><ACK=101><CTL=ACK>      <--
+        //                 ... <SEQ=101><ACK=301><CTL=ACK>      -->
+        //
+        // 4.  TIME-WAIT                                            TIME-WAIT
+        //     (2 MSL)                                              (2 MSL)
+        //     CLOSED                                               CLOSED
+
+        // 1
+        let (mut peer_a, mut peer_b) = established_pair();
+
+        // 2
+        peer_a.close();
+        assert_eq!(peer_a.state, State::FinWait1);
+        let fin_ack_a = peer_a.outgoing().next().unwrap();
+        assert_eq!(fin_ack_a.seg.seq, 100);
+        assert_eq!(fin_ack_a.seg.ack, 300);
+        assert!(fin_ack_a.seg.ctl.fin());
+        assert!(fin_ack_a.seg.ctl.ack());
+
+        peer_b.close();
+        assert_eq!(peer_b.state, State::FinWait1);
+        let fin_ack_b = peer_a.outgoing().next().unwrap();
+        assert_eq!(fin_ack_b.seg.seq, 300);
+        assert_eq!(fin_ack_b.seg.ack, 100);
+        assert!(fin_ack_b.seg.ctl.fin());
+        assert!(fin_ack_b.seg.ctl.ack());
+
+        // 3
+        peer_a
+            .segment_arrives(fin_ack_b.seg, fin_ack_b.message)
+            .unwrap();
+        assert_eq!(peer_a.state, State::Closing);
+        let ack_a = peer_a.outgoing().next().unwrap();
+        assert_eq!(ack_a.seg.seq, 101);
+        assert_eq!(ack_a.seg.ack, 301);
+        assert!(ack_a.seg.ctl.ack());
+
+        peer_b
+            .segment_arrives(fin_ack_a.seg, fin_ack_a.message)
+            .unwrap();
+        assert_eq!(peer_b.state, State::Closing);
+        let ack_b = peer_b.outgoing().next().unwrap();
+        assert_eq!(ack_b.seg.seq, 101);
+        assert_eq!(ack_b.seg.ack, 301);
+        assert!(ack_b.seg.ctl.ack());
+
+        // 4
+        peer_a.segment_arrives(ack_b.seg, ack_b.message).unwrap();
+        assert_eq!(peer_a.state, State::TimeWait);
+        assert_eq!(
+            peer_a.advance_time(MSL.mul_f32(2.1)),
+            AdvanceTimeResult::CloseConnection
+        );
+
+        peer_b.segment_arrives(ack_a.seg, ack_a.message).unwrap();
+        assert_eq!(peer_b.state, State::TimeWait);
+        assert_eq!(
+            peer_b.advance_time(MSL.mul_f32(2.1)),
+            AdvanceTimeResult::CloseConnection
+        );
+    }
 }
