@@ -144,16 +144,31 @@ impl Tcb {
         }
     }
 
-    pub fn receive(&mut self) {
+    pub fn receive(&mut self) -> Vec<u8> {
         // 3.10.3
-        // if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
-        //     self.enqueue_outgoing(
-        //         self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-        //         [].into(),
-        //     )?;
-        //     return Ok(ReceiveResult::DiscardSegment);
-        // }
-        todo!()
+        let mut out = vec![];
+        // This processes in order of sequence numbers by using a priority queue
+        // with the Incoming type
+        while let Some(segment) = self.incoming.peek() {
+            let Incoming { seg, message } = segment;
+            if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+                self.incoming.pop();
+                continue;
+            }
+
+            if mod_ge(seg.seq, self.rcv.nxt) {
+                // If this segment is past the next byte we want to receive, we
+                // haven't received the earlier bytes we need to proceed.
+                break;
+            }
+
+            let bytes_already_received = self.rcv.nxt - seg.seq; // Works with modulus
+            self.rcv.nxt =
+                seg.seq + message.len() as u32 + seg.ctl.syn() as u32 + seg.ctl.fin() as u32;
+            out.extend(message.iter().skip(bytes_already_received as usize));
+            self.incoming.pop();
+        }
+        out
     }
 
     pub fn close(&mut self) {
@@ -361,10 +376,33 @@ impl Tcb {
             }
         }
 
+        // TODO(hardint): Should this check be happening earlier? Should it be
+        // happening later when queued segments are processed?
+        if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+            self.enqueue_outgoing(
+                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                [].into(),
+            )?;
+            return Ok(ReceiveResult::DiscardSegment);
+        }
+
         // Queue the segment text for processing
         match self.state {
             State::Established | State::FinWait1 | State::FinWait2 => {
                 self.incoming.push(Incoming::new(seg, message));
+                // TODO(hardint): Adjust rcv.wnd to account for received bytes
+
+                // TODO(hardint): From the spec:
+                //
+                // Once the TCP endpoint takes responsibility for the data, it
+                // advances RCV.NXT over the data accepted. Send an
+                // acknowledgment of the form:
+                // <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
+                //
+                // Am I supposed to advance this no matter what or only if we
+                // have already ACKed all the bytes that came before this
+                // message? Do we only do this is the segment check succeeds? If
+                // we don't generate the ACK here, where?
             }
 
             State::SynSent
@@ -373,7 +411,7 @@ impl Tcb {
             | State::Closing
             | State::LastAck
             | State::TimeWait => {
-                // TODO(hardint)
+                // Ignore the segment text
             }
         }
 
@@ -390,16 +428,19 @@ impl Tcb {
                     // segment), then enter TIME-WAIT, start the time-wait
                     // timer, turn off the other timers; otherwise, enter the
                     // CLOSING state.
+                    todo!()
                 }
 
                 State::FinWait2 => {
                     self.state = State::TimeWait;
-                    // TODO(hardint): Start the time-wait timer, turn off the
-                    // other timers.
+                    // Start the time-wait timer, turn off the other timers.
+                    self.time_wait_timeout = Some(2 * MSL);
+                    self.retransmission_timeout = None;
                 }
 
                 State::TimeWait => {
-                    // TODO(hardint): Restart the 2 MSL time-wait timeout.
+                    // Restart the 2 MSL time-wait timeout.
+                    self.time_wait_timeout = Some(2 * MSL);
                 }
             }
         }
@@ -436,17 +477,17 @@ impl Tcb {
             if RCV_WND == 0 {
                 seq == self.rcv.nxt
             } else {
-                self.is_in_window(seq)
+                self.is_in_rcv_window(seq)
             }
         } else if RCV_WND == 0 {
             // When the receive window is zero, only ACKs are acceptible.
             false
         } else {
-            self.is_in_window(seq) || self.is_in_window(seq + seg_len - 1)
+            self.is_in_rcv_window(seq) || self.is_in_rcv_window(seq + seg_len - 1)
         }
     }
 
-    fn is_in_window(&self, n: u32) -> bool {
+    fn is_in_rcv_window(&self, n: u32) -> bool {
         mod_bounded(self.rcv.nxt, Leq, n, Le, self.rcv.nxt + RCV_WND as u32)
     }
 }
@@ -590,17 +631,17 @@ enum State {
 // 4 - future sequence numbers which are not yet allowed
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 struct SendSequenceSpace {
-    /// Unacknowledged
+    /// Oldest unacknowledged sequence number
     una: u32,
-    /// Next
+    /// Next sequence number to be sent
     nxt: u32,
-    /// Window
+    /// The size of the remote TCP's window
     wnd: u16,
     /// Segment sequence number used for last window update
     wl1: u32,
     /// Segment acknowledgment number used for last window update
     wl2: u32,
-    /// Initial sequence number
+    /// Initial send sequence number
     iss: u32,
 }
 
@@ -614,9 +655,10 @@ struct SendSequenceSpace {
 // 3 - future sequence numbers which are not yet allowed
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 struct ReceiveSequenceSpace {
-    /// Initial receive sequence
+    /// Initial receive sequence number
     irs: u32,
-    /// Next
+    /// Next sequence number expected on an incoming segment, and is the
+    /// left or lower edge of the receive window
     nxt: u32,
 }
 
