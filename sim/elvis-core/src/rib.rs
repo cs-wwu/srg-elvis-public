@@ -1,19 +1,27 @@
 use crate::{protocols::ipv4::Ipv4Address, network::Mac};
-// use std::collections::{HashMap, BTreeMap, BTreeSet};
+use std::{collections::{HashMap, BTreeMap, BTreeSet}, fmt::{Formatter, self}};
 
 // Mask needs to be ordered so mask of all ones is smallest value
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct SubnetMask(u32);
-
 
 impl SubnetMask {
     /// returns a mask of size ones
     /// input should be a number from 0 to 32
+    /// need to remove branch to make faster but this will be for another time
     pub fn from_bitcount(size: u32) -> SubnetMask {
-        let shift = size.clamp(0, 32);
-        SubnetMask((0xffff as u32).wrapping_shl(shift)) 
+        let size = size.clamp(0,32);
+        if size == 0 {
+            return SubnetMask(0)
+        } else if size == 32 {
+            return SubnetMask(0xffffffff)
+        }
+        SubnetMask(((1 << size) - 1) << (32 - size))
+        // let size = size.clamp(0, 32);
+        // SubnetMask((0xffffffff as u32).wrapping_shl(size))
     }
 
+    // change to try from to ensure 
     pub fn from_u32(value: u32) -> SubnetMask {
         SubnetMask(value)
     }
@@ -42,16 +50,17 @@ impl From<SubnetMask> for u32 {
 /// by first applying a mask to the recieved address and putting the masked
 /// address through a hash. Masking allows for multiple ip addresses to be mapped to one destination
 
-// pub struct Rib {
-//     // maps an Ipv4 address to a router table entry
-//     table: HashMap<Ipv4Address, Entry>,
+#[derive(Default, Debug)]
+pub struct Rib {
+    // maps an Ipv4 address to a router table entry
+    table: HashMap<Ipv4Address, Entry>,
 
-//     // the masks to apply to the given ip address
-//     // should be ordered from 'largest' (i.e all ones) to 'smallest' (i.e all zeros)
-//     // so that we prefer specific ip routes over fuzzy ones
-//     // a mask of all 0s represents the default gateway
-//     masks: BTreeSet<SubnetMask>,
-// }
+    // the masks to apply to the given ip address
+    // should be ordered from 'largest' (i.e all ones) to 'smallest' (i.e all zeros)
+    // so that we prefer specific ip routes over fuzzy ones
+    // a mask of all 0s represents the default gateway
+    masks: BTreeSet<SubnetMask>,
+}
 
 // do we need this?
 // impl Compare for SubnetMask {
@@ -61,71 +70,84 @@ impl From<SubnetMask> for u32 {
 // }
 
 /// Entry contains the information about the next destination of the message
-/// 
+/// we will keep the reciever as a string for now
+pub struct Entry {
+    reciever: String
+}
 
-// struct Entry {
-//     reciever: Mac
-// }
+impl fmt::Debug for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Entry")
+            .field("reciever", &self.reciever)
+            .finish()
+    }
+}
 
-// impl Rib {
-//     /// TODO!
-//     /// obtains the location of the next tap to forward to
-//     /// this is done by iterating through the masks from smallest (all ones) to largest (all zeros)
-//     /// and applying the mask to the ipv4address
-//     /// the masked entry is then put through a hashmap and is returned if a match is found
-//     /// if no match is found then discard the message and return none
-//     pub fn get(address: Ipv4Address) -> Option<Entry> {
-//         todo!();
-//     }
+impl Default for Entry {
+    fn default() -> Self {
+        Entry {reciever: String::new() }
+    }
+}
 
-//     // maps given ip address to given entry
-//     pub fn put(address: Ipv4Address, entry: Entry) {
-//         todo!();
-//     }
+impl Rib {
+    /// TODO!
+    /// obtains the location of the next tap to forward to
+    /// this is done by iterating through the masks from smallest (all ones) to largest (all zeros)
+    /// and applying the mask to the ipv4address
+    /// the masked entry is then put through a hashmap and is returned if a match is found
+    /// if no match is found then discard the message and return none
+    pub fn new() -> Self {
+        Rib {table: HashMap::new(), masks: BTreeSet::new()}
+    }
 
-//     // adds given mask to the RIB
-//     pub fn add_mask(mask: SubnetMask) {
-//         todo!();
-//     }
+    pub fn get(&mut self, address: Ipv4Address) -> Option<Entry> {
+        // self.masks.into_iter().rev().
+        todo!()
+    }
 
-//     // initialize routing table from an input string for static routing
-//     pub fn from(input: &String) -> Rib {
-//         todo!();
-//     }
+    // maps given ip address to given entry
+    pub fn put(&mut self, address: Ipv4Address, mask: SubnetMask, entry: Entry) {
+        // TODO figure out how to prevent mask from being moved
+        // when inserted into the table
+        self.table.insert(mask.mask(address), entry);
+        // self.masks.insert(mask);
+    }
 
-//     pub fn new() -> Rib {
-//         todo!();
-//     }
-// }
+    // initialize routing table from an input string for static routing
+    pub fn from(input: &String) -> Rib {
+        todo!()
+    }
+
+}
 
 // Tests go here
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // methods to test should have #[test] appended
     // mask tests
     #[test]
     pub fn test_from_bitcount() {
         // let ip = Ipv4Address::new([192,168,1,1]);
-        // let raw_ips = vec![[192,168,1,1], [192,168,1,0], [192,168,0,0], [192,0,0,0]];
+        let raw_ips = vec![[192,168,1,1], [192,168,1,0], [192,168,0,0], [192,0,0,0], [0,0,0,0]];
 
-        // let ips: Vec<Ipv4Address> = raw_ips
-        //     .into_iter()
-        //     .map(|e| Ipv4Address::new(e))
-        //     .collect();
+        let ip = Ipv4Address::new([192,168,1,1]);
 
-        // for (i, addr) in ips.iter().enumerate() {
-        //     let len: u32 = i.try_into().unwrap();
-        //     let test_addr = SubnetMask::from_bitcount((len - 1)*8).mask(*addr);
-        //     // println!("{}", test_addr.to_string());
-        //     assert_eq!(*addr, test_addr);
-        // }
-        
-        assert_eq!(Ipv4Address::from([192,168,1,0]), 
-            SubnetMask::from_bitcount(0).mask(Ipv4Address::from([192,168,1,1])));
-        
+        let ips: Vec<Ipv4Address> = raw_ips
+            .into_iter()
+            .map(|e| Ipv4Address::new(e))
+            .collect();
+
+        assert_eq!(ips[0], SubnetMask::from_bitcount(32).mask(ip));
+        assert_eq!(ips[1], SubnetMask::from_bitcount(24).mask(ip));
+        assert_eq!(ips[2], SubnetMask::from_bitcount(16).mask(ip));
+        assert_eq!(ips[3], SubnetMask::from_bitcount( 8).mask(ip));
+        assert_eq!(ips[4], SubnetMask::from_bitcount( 0).mask(ip));
     }
 
     // test rib
+    #[test]
+    pub fn test_rib_put() {
+        
+    }
 }

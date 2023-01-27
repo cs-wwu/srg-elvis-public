@@ -66,3 +66,4 @@ pub use id::Id;
 
 mod rib;
 pub use rib::SubnetMask;
+pub use rib::Rib;
