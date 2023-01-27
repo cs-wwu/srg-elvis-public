@@ -6,7 +6,6 @@ use crate::{
     protocols::{ipv4::Ipv4Address, utility::Socket},
     Message,
 };
-use bitflags::bitflags;
 use std::{
     collections::{BinaryHeap, VecDeque},
     time::Duration,
@@ -25,6 +24,10 @@ const RCV_WND: u16 = 4096;
 /// The maximum segment lifetime on the Internet
 const MSL: Duration = Duration::new(1, 0);
 
+// TODO(hardint): Choose a better value
+/// The time that may pass before packets are retransmitted
+const RETRANSMISSION_TIMEOUT: Duration = Duration::new(1, 0);
+
 #[derive(Debug, Clone)]
 pub struct Tcb {
     id: ConnectionId,
@@ -34,6 +37,8 @@ pub struct Tcb {
     rcv: ReceiveSequenceSpace,
     outgoing: VecDeque<(TcpHeader, Message)>,
     incoming: BinaryHeap<Incoming>,
+    retransmission_timeout: Option<Duration>,
+    time_wait_timeout: Option<Duration>,
 }
 
 impl Tcb {
@@ -52,6 +57,8 @@ impl Tcb {
             rcv,
             outgoing: Default::default(),
             incoming: Default::default(),
+            retransmission_timeout: None,
+            time_wait_timeout: None,
         }
     }
 
@@ -76,8 +83,25 @@ impl Tcb {
         tcb
     }
 
-    pub fn advance_time(&mut self, _duration: Duration) -> Timeout {
-        todo!()
+    pub fn advance_time(&mut self, delta_time: Duration) -> AdvanceTimeResult {
+        if let Some(retransmission) = self.retransmission_timeout {
+            if delta_time > retransmission {
+                self.retransmission_timeout = Some(RETRANSMISSION_TIMEOUT);
+                // TODO(hardint): Retransmit data
+                todo!()
+            } else {
+                self.retransmission_timeout = Some(retransmission - delta_time);
+            }
+        }
+
+        if let Some(time_wait) = self.time_wait_timeout {
+            if delta_time > time_wait {
+                return AdvanceTimeResult::CloseConnection;
+            }
+            self.time_wait_timeout = Some(time_wait - delta_time);
+        }
+
+        AdvanceTimeResult::Ignore
     }
 
     pub fn send(&mut self, _message: Message) -> Result<(), BuildHeaderError> {
@@ -606,14 +630,6 @@ enum Initiation {
     Open,
 }
 
-bitflags! {
-    pub struct Timeout: u8 {
-        const USER = 0b001;
-        const RETRANSMISSION = 0b010;
-        const TIME_WAIT = 0b100;
-    }
-}
-
 pub enum ListenResult {
     Response(TcpHeader),
     Tcb(Tcb),
@@ -633,6 +649,12 @@ impl ListenResult {
             ListenResult::Tcb(tcb) => Some(tcb),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdvanceTimeResult {
+    Ignore,
+    CloseConnection,
 }
 
 /// a < b under modular arithmetic
@@ -1051,6 +1073,6 @@ mod tests {
         assert_eq!(receive_result, ReceiveResult::FinalizeClose);
 
         let timeout = peer_a.advance_time(MSL.mul_f32(2.1));
-        assert_eq!(timeout & Timeout::TIME_WAIT, Timeout::TIME_WAIT);
+        assert_eq!(timeout, AdvanceTimeResult::CloseConnection);
     }
 }
