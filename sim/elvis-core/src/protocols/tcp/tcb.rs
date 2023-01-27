@@ -255,16 +255,6 @@ impl Tcb {
         seg: TcpHeader,
         message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
-        // TODO(hardint): Should this check be happening earlier? Should it be
-        // happening later when queued segments are processed?
-        if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
-            self.enqueue_outgoing(
-                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                [].into(),
-            )?;
-            return Ok(ReceiveResult::DiscardSegment);
-        }
-
         if seg.ctl.ack() {
             match self.state {
                 State::SynSent => {
@@ -448,6 +438,16 @@ impl Tcb {
                     return Ok(ReceiveResult::DiscardSegment);
                 }
             }
+        }
+
+        // TODO(hardint): Should this check be happening earlier? Should it be
+        // happening later when queued segments are processed?
+        if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+            self.enqueue_outgoing(
+                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                [].into(),
+            )?;
+            return Ok(ReceiveResult::DiscardSegment);
         }
 
         // Queue the segment text for processing
