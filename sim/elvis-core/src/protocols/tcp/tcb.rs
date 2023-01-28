@@ -42,7 +42,7 @@ pub struct Tcb {
     rcv: ReceiveSequenceSpace,
     retransmission_queue: VecDeque<Outgoing>,
     incoming: BinaryHeap<Incoming>,
-    retransmission_timeout: Option<Duration>,
+    retransmission_timeout: Duration,
     time_wait_timeout: Option<Duration>,
 }
 
@@ -64,7 +64,7 @@ impl Tcb {
             rcv,
             retransmission_queue: Default::default(),
             incoming: Default::default(),
-            retransmission_timeout: None,
+            retransmission_timeout: RETRANSMISSION_TIMEOUT,
             time_wait_timeout: None,
         }
     }
@@ -92,15 +92,13 @@ impl Tcb {
     }
 
     pub fn advance_time(&mut self, delta_time: Duration) -> AdvanceTimeResult {
-        if let Some(retransmission) = self.retransmission_timeout {
-            if delta_time > retransmission {
-                self.retransmission_timeout = Some(RETRANSMISSION_TIMEOUT);
-                for outgoing in self.retransmission_queue.iter_mut() {
-                    outgoing.needs_retransmission = true;
-                }
-            } else {
-                self.retransmission_timeout = Some(retransmission - delta_time);
+        if delta_time > self.retransmission_timeout {
+            self.retransmission_timeout = RETRANSMISSION_TIMEOUT;
+            for outgoing in self.retransmission_queue.iter_mut() {
+                outgoing.needs_retransmission = true;
             }
+        } else {
+            self.retransmission_timeout = self.retransmission_timeout - delta_time;
         }
 
         if let Some(time_wait) = self.time_wait_timeout {
@@ -316,6 +314,8 @@ impl Tcb {
                             if mod_le(segment.seg.seq + segment.message.len() as u32, self.snd.una)
                             {
                                 self.retransmission_queue.pop_front();
+                            } else {
+                                break;
                             }
                         }
                     }
@@ -521,7 +521,7 @@ impl Tcb {
                     self.state = State::TimeWait;
                     // Start the time-wait timer, turn off the other timers.
                     self.time_wait_timeout = Some(2 * MSL);
-                    self.retransmission_timeout = None;
+                    self.retransmission_timeout = RETRANSMISSION_TIMEOUT;
                 }
 
                 State::TimeWait => {
@@ -1451,6 +1451,8 @@ mod tests {
                     .segment_arrives(outgoing.seg, outgoing.message)
                     .unwrap();
             }
+            peer_a.advance_time(Duration::from_millis(666));
+            peer_b.advance_time(Duration::from_millis(666));
         }
         assert_eq!(expected, received);
     }
