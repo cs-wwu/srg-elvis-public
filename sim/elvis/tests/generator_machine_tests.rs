@@ -41,3 +41,40 @@ async fn generator_machine_invalid_application_name() {
         "./tests/generator_tests/machines/invalid_application_name.txt".to_string();
     generate_sim(file_path).await;
 }
+
+#[tokio::test]
+#[should_panic(expected = "Invalid name for 'to' in send_message, found: pizza")]
+async fn generator_machine_invalid_machine_name_in_application() {
+    catch_panic();
+    let file_path: String = "./tests/generator_tests/machines/invalid_machine_name.txt".to_string();
+    generate_sim(file_path).await;
+}
+
+#[tokio::test]
+#[should_panic(expected = "Capture application doesn't contain message_count.")]
+async fn generator_machine_missing_message_count_in_capture() {
+    catch_panic();
+    let file_path: String =
+        "./tests/generator_tests/machines/missing_message_count_in_capture.txt".to_string();
+    generate_sim(file_path).await;
+}
+
+#[tokio::test]
+#[should_panic(
+    expected = "Invalid IP found in capture application. IP does not exist in ip table. Found: [111, 11, 11, 11]"
+)]
+async fn generator_machine_invalid_ip_in_capture() {
+    catch_panic();
+    let file_path: String =
+        "./tests/generator_tests/machines/invalid_ip_in_capture.txt".to_string();
+    generate_sim(file_path).await;
+}
+
+#[tokio::test]
+#[should_panic(expected = "Machine application does not contain a name")]
+async fn generator_machine_missing_application_name() {
+    catch_panic();
+    let file_path: String =
+        "./tests/generator_tests/machines/missing_application_name.txt".to_string();
+    generate_sim(file_path).await;
+}

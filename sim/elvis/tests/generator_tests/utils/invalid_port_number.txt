@@ -14,7 +14,7 @@
 			[Protocol name='IPv4']
 			[Protocol name='UDP']
 		[Applications]
-			[Application name='send_message' message='Hello this is an awesome test message!' to='123.45.67.89' port='beefasdasd']
+			[Application name='send_message' message='Hello this is an awesome test message!' to='test2' port='beefasdasd']
 	[Machine name='test2']
 		[Networks]
 			[Network id='5']

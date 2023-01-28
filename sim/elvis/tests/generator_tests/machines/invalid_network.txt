@@ -14,4 +14,4 @@
 			[Protocol name='IPv4']
 			[Protocol name='TCP']
 		[Applications]
-			[Application name='send_message' message='Hello!' to='10.0.0.1']
+			[Application name='send_message' message='Hello!' to='test2']

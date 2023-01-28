@@ -4,7 +4,7 @@
 		[IP range='123.45.67.92/94']
 		[IP ip='192.168.1.121']
 	[Network id='1']
-		[IP range='12.34.56.89-90']
+		[IP range='12.34.56.89/90']
 
 [Machines]
 	[Machine name='test']
@@ -14,7 +14,7 @@
 			[Protocol name='IPv4']
 			[Protocol name='UDP']
 		[Applications]
-			[Application name='send_message' message='Hello this is an awesome test message!' to='test2' port='0xbeef']
+			[Application name='send_message' message='Hello this is an awesome test message!' to='pizza' port='0xbeef']
 	[Machine name='test2']
 		[Networks]
 			[Network id='5']
