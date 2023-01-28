@@ -1456,4 +1456,23 @@ mod tests {
         }
         assert_eq!(expected, received);
     }
+
+    #[test]
+    fn out_of_order_delivery() {
+        let expected: Vec<_> = std::iter::repeat(0)
+            .enumerate()
+            .map(|(i, _)| i as u8)
+            .take(4000)
+            .collect();
+        let (mut peer_a, mut peer_b) = established_pair();
+        peer_a.send(Message::new(expected.clone())).unwrap();
+        let segments: Vec<_> = peer_a.outgoing().collect();
+        for outgoing in segments.into_iter().rev() {
+            peer_b
+                .segment_arrives(outgoing.seg, outgoing.message)
+                .unwrap();
+        }
+        let received = peer_b.receive();
+        assert_eq!(expected, received);
+    }
 }
