@@ -2,10 +2,12 @@ use crate::{protocols::ipv4::Ipv4Address, network::Mac};
 use std::{collections::{HashMap, BTreeMap, BTreeSet}, fmt::{Formatter, self}};
 
 // Mask needs to be ordered so mask of all ones is smallest value
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone)]
 pub struct SubnetMask(u32);
 
 impl SubnetMask {
+    pub const DEFAULT_GATEWAY: Self = SubnetMask(0);
+
     /// returns a mask of size ones
     /// input should be a number from 0 to 32
     /// need to remove branch to make faster but this will be for another time
@@ -21,7 +23,7 @@ impl SubnetMask {
         // SubnetMask((0xffffffff as u32).wrapping_shl(size))
     }
 
-    // change to try from to ensure 
+    // change to try from to ensure valid subnetmask
     pub fn from_u32(value: u32) -> SubnetMask {
         SubnetMask(value)
     }
@@ -30,16 +32,8 @@ impl SubnetMask {
         Ipv4Address::from(addr.to_u32() & self.to_u32())
     }
 
-    pub fn to_u32(self) -> u32 {
-        self.into()
-    }
-}
-
-// as of now takes u32 as face value but we do not
-// want to return masks that have zeros between 1s
-impl From<SubnetMask> for u32 {
-    fn from(n: SubnetMask) -> u32 {
-        n.0
+    pub fn to_u32(&self) -> u32 {
+        self.0
     }
 }
 
@@ -107,10 +101,14 @@ impl Rib {
 
     // maps given ip address to given entry
     pub fn put(&mut self, address: Ipv4Address, mask: SubnetMask, entry: Entry) {
-        // TODO figure out how to prevent mask from being moved
-        // when inserted into the table
         self.table.insert(mask.mask(address), entry);
-        // self.masks.insert(mask);
+        self.masks.insert(mask);
+    }
+
+    pub fn print(self) {
+        for mask in self.masks {
+            println!("{} {}", Ipv4Address::from(mask.to_u32()).to_string());
+        }
     }
 
     // initialize routing table from an input string for static routing
