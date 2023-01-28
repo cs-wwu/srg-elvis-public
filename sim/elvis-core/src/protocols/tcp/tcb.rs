@@ -98,7 +98,7 @@ impl Tcb {
                 outgoing.needs_retransmission = true;
             }
         } else {
-            self.retransmission_timeout = self.retransmission_timeout - delta_time;
+            self.retransmission_timeout -= delta_time;
         }
 
         if let Some(time_wait) = self.time_wait_timeout {
