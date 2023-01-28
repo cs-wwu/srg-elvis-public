@@ -23,7 +23,7 @@ pub async fn telephone_single() {
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(remote, 0)].into_iter().collect()),
         Pci::new_shared([network.tap()]),
-        SendMessage::new_shared("Hello!", remote, 0xbeef, Some(1), 1),
+        SendMessage::new_shared("Hello!".to_string(), remote, 0xbeef, Some(1), 1),
     ])];
 
     for i in 0u32..(END - 1) {

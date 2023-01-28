@@ -16,7 +16,7 @@ use tokio::sync::{mpsc::Sender, Barrier};
 /// An application that sends a single message over the network.
 pub struct SendMessage {
     /// The text of the message to send
-    text: &'static str,
+    text: String,
     /// The IP address to send to
     ip: Ipv4Address,
     /// The port to send on
@@ -29,7 +29,7 @@ pub struct SendMessage {
 impl SendMessage {
     /// Creates a new send message application.
     pub fn new(
-        text: &'static str,
+        text: String,
         remote_ip: Ipv4Address,
         remote_port: u16,
         destination_mac: Option<Mac>,
@@ -46,7 +46,7 @@ impl SendMessage {
 
     /// Creates a new send message application behind a shared handle.
     pub fn new_shared(
-        text: &'static str,
+        text: String,
         remote_ip: Ipv4Address,
         remote_port: u16,
         destination_mac: Option<Mac>,
@@ -87,7 +87,7 @@ impl Application for SendMessage {
             for _ in 0..self.count {
                 session
                     .clone()
-                    .send(Message::new(self.text), context.clone())
+                    .send(Message::new(self.text.clone()), context.clone())
                     .expect("SendMessage failed to send");
             }
         });

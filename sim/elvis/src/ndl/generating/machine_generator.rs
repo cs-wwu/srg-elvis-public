@@ -22,9 +22,27 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
     // Focusing on Interfaces, protocols, and applications
     let mut name_to_mac: HashMap<String, Mac> = HashMap::new();
     let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();
-
-    for (cur_mac, machine) in (0_u64..).zip(m.iter()) {
+    let mut cur_mac: u64 = 0;
+    for machine in m.iter() {
         let mut cur_name: String = String::new();
+        if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("count") {
+            let machine_count = machine
+                .options
+                .as_ref()
+                .unwrap()
+                .get("count")
+                .unwrap()
+                .parse::<u64>()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Invalid count argument in machine. Expected u64 and found: {}",
+                        machine.options.as_ref().unwrap().get("count").unwrap()
+                    )
+                });
+            assert!(machine_count > 0, "Machine count less than 1.");
+            cur_mac += machine_count - 1;
+        }
+
         if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("name") {
             cur_name = machine
                 .options
@@ -58,6 +76,8 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                 }
             }
         }
+
+        cur_mac += 1;
     }
 
     let mut machine_list = Vec::new();
@@ -68,10 +88,11 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
         if machine.options.is_some() {
             for option in machine.options.as_ref().unwrap() {
                 match option.0.as_str() {
+                    // TODO: Checks may be able to be removed as we checked up above
                     "count" => {
-                        machine_count = option.1.parse::<u32>().unwrap_or_else(|_| {
+                        machine_count = option.1.parse::<u64>().unwrap_or_else(|_| {
                             panic!(
-                                "Invalid count argument in machine. Expected u32 and found: {}",
+                                "Invalid count argument in machine. Expected u64 and found: {}",
                                 option.1
                             )
                         });
@@ -91,6 +112,7 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
             let mut ip_table = Vec::new();
 
             for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
+                // TODO: maybe still need an error test
                 assert!(
                     networks.nets.contains_key(
                         net.options
@@ -158,10 +180,9 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                         let to = app.options.get("to").unwrap().to_string();
                         let port = string_to_port(app.options.get("port").unwrap().to_string());
                         let message = app.options.get("message").unwrap().to_owned();
-
                         //TODO: ask Tim about this message Box stuff
                         protocols_to_be_added.push(SendMessage::new_shared(
-                            Box::leak(message.into_boxed_str()),
+                            message,
                             *name_to_ip.get(&to).unwrap_or_else(|| {
                                 panic!("Invalid name for 'to' in send_message, found: {}", to)
                             }),
@@ -220,6 +241,6 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
             machine_list.push(elvis_core::Machine::new(protocols_to_be_added));
         }
     }
-
+    // println!("{:?}", machine_list);
     machine_list
 }

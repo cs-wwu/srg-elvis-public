@@ -25,7 +25,7 @@ pub async fn basic() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             Pci::new_shared([network.tap()]),
-            SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef, None, 1),
+            SendMessage::new_shared("Hello!".to_string(), capture_ip_address, 0xbeef, None, 1),
         ]),
         Machine::new([
             Udp::new_shared() as SharedProtocol,

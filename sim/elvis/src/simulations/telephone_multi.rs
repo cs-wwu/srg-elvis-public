@@ -20,7 +20,7 @@ pub async fn telephone_multi() {
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(remote, 0)].into_iter().collect()),
         Pci::new_shared([networks[0].tap()]),
-        SendMessage::new_shared("Hello!", remote, 0xbeef, None, 1),
+        SendMessage::new_shared("Hello!".to_string(), remote, 0xbeef, None, 1),
     ])];
 
     for i in 0u32..(END - 1) {

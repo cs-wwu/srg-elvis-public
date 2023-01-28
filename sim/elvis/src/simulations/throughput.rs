@@ -32,7 +32,7 @@ pub async fn throughput() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             Pci::new_shared([network.tap()]),
-            SendMessage::new_shared("First ", capture_ip_address, 0xbeef, None, 3),
+            SendMessage::new_shared("First ".to_string(), capture_ip_address, 0xbeef, None, 3),
         ]),
         Machine::new([
             Udp::new_shared() as SharedProtocol,
