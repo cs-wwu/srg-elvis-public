@@ -47,5 +47,4 @@ impl Protocol for Dns {
     ) -> Result<(), DemuxError> {
         //TODO
     }
-
 }
