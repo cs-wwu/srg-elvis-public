@@ -15,6 +15,9 @@ use tokio::sync::{mpsc::Sender, Barrier};
 mod context;
 pub use context::Context;
 
+// TODO(hardint): Should add a str argument to the Other variant of errors so
+// that the reason for an error shows up in traces and such.
+
 /// A shared handle to a [`Protocol`].
 pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
 
@@ -127,6 +130,8 @@ pub enum DemuxError {
     MissingSession,
     #[error("Data expected through the context was missing")]
     MissingContext,
+    #[error("Could not find the given protocol: {0}")]
+    MissingProtocol(Id),
     #[error("Failed to parse a header during demux")]
     Header,
     #[error("Receive failed during the execution of an Application")]

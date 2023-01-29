@@ -1,16 +1,21 @@
-use self::{tcp_parsing::TcpHeader, tcp_session::TcpSession};
-use super::{utility::Socket, Ipv4};
+use self::{
+    tcb::{ListenResult, Tcb},
+    tcp_parsing::TcpHeader,
+    tcp_session::{ReceiveError, TcpSession},
+};
+use super::{utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
+    protocols::tcp::tcb::handle_listen,
     session::SharedSession,
     Control, Id, Message, Protocol, ProtocolMap,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 mod tcb;
@@ -21,7 +26,7 @@ mod tcp_session;
 pub struct Tcp {
     listen_bindings: DashMap<Socket, Id>,
     sessions: DashMap<ConnectionId, Arc<TcpSession>>,
-    iss: Arc<Mutex<IssGenerator>>,
+    iss: RwLock<IssGenerator>,
 }
 
 impl Tcp {
@@ -31,7 +36,7 @@ impl Tcp {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            iss: Arc::new(Mutex::new(iss)),
+            iss: RwLock::new(iss),
         }
     }
 
@@ -63,7 +68,7 @@ impl Protocol for Tcp {
 
     fn open(
         self: Arc<Self>,
-        _upstream: Id,
+        upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -85,18 +90,32 @@ impl Protocol for Tcp {
         let session_id = ConnectionId { local, remote };
 
         match self.sessions.entry(session_id) {
-            Entry::Occupied(_) => Err(OpenError::Existing)?,
-            Entry::Vacant(_entry) => {
+            Entry::Occupied(_) => return Err(OpenError::Existing),
+            Entry::Vacant(entry) => {
                 // Create the session and save it
-                let _downstream = protocols
+                let downstream = protocols
                     .protocol(Ipv4::ID)
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols.clone())?;
-                // TODO(hardint): Open and add session
-                todo!()
+                let mtu = downstream
+                    .clone()
+                    .query(Pci::MTU_QUERY_KEY)
+                    .map_err(|_| OpenError::Other)?
+                    .ok_u32()
+                    .map_err(|_| OpenError::Other)?;
+                let session = Arc::new(TcpSession::new(
+                    RwLock::new(Tcb::open(
+                        session_id,
+                        self.iss.write().unwrap().next_iss(),
+                        mtu,
+                    )),
+                    upstream,
+                    downstream,
+                ));
+                entry.insert(session.clone());
+                Ok(session)
             }
         }
-        todo!()
     }
 
     fn listen(
@@ -123,7 +142,7 @@ impl Protocol for Tcp {
     fn demux(
         self: Arc<Self>,
         mut message: Message,
-        _caller: SharedSession,
+        caller: SharedSession,
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
@@ -152,31 +171,98 @@ impl Protocol for Tcp {
         Tcp::set_local_port(local.port, &mut context.control);
         Tcp::set_remote_port(remote.port, &mut context.control);
 
-        let _session = match self.sessions.entry(connection_id) {
+        match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
-                session
+                match session.receive(header, message, context) {
+                    Ok(receive_result) => match receive_result {
+                        tcb::ReceiveResult::Success
+                        | tcb::ReceiveResult::DiscardSegment
+                        | tcb::ReceiveResult::InvalidAck
+                        | tcb::ReceiveResult::UnacceptableSegment => {}
+
+                        tcb::ReceiveResult::ReturnToListen
+                        | tcb::ReceiveResult::ConnectionReset
+                        | tcb::ReceiveResult::ConnectionRefused
+                        | tcb::ReceiveResult::FinalizeClose => {
+                            entry.remove_entry();
+                        }
+                    },
+                    Err(e) => match e {
+                        ReceiveError::Closing => {
+                            tracing::error!("The TCP connection is already closing. Cannot demux.");
+                            return Err(DemuxError::Other);
+                        }
+                        ReceiveError::Tcb(e) => match e {
+                            tcb::ReceiveError::Header(e) => {
+                                tracing::error!("{}", e);
+                                return Err(DemuxError::Header);
+                            }
+                            tcb::ReceiveError::BlindReset => {
+                                tracing::error!(
+                                    "A possible blind reset attack was detected. Bailing."
+                                );
+                                return Err(DemuxError::Other);
+                            }
+                        },
+                        ReceiveError::Protocol(id) => return Err(DemuxError::MissingProtocol(id)),
+                        ReceiveError::Demux(e) => Err(e)?,
+                    },
+                }
             }
-            Entry::Vacant(_session_entry) => {
+
+            Entry::Vacant(session_entry) => {
                 match self.listen_bindings.entry(local) {
-                    Entry::Occupied(_listen_entry) => {
+                    Entry::Occupied(listen_entry) => {
                         // TODO(hardint): Incomplete. See 3.10.7.2 for handling
                         // of segments in LISTEN state.
 
                         // If we have a listen binding, create the session and
                         // save it
-                        todo!()
+                        let mtu = caller
+                            .clone()
+                            .query(Pci::MTU_QUERY_KEY)
+                            .map_err(|_| DemuxError::Other)?
+                            .ok_u32()
+                            .map_err(|_| DemuxError::Other)?;
+                        let listen_result = handle_listen(
+                            header,
+                            message,
+                            local.address,
+                            remote.address,
+                            self.iss.write().unwrap().next_iss(),
+                            mtu,
+                        );
+                        match listen_result {
+                            Some(listen_result) => match listen_result {
+                                ListenResult::Response(response) => {
+                                    caller.send(Message::new(response.serialize()), context)?;
+                                }
+                                ListenResult::Tcb(tcb) => {
+                                    let session = Arc::new(TcpSession::new(
+                                        RwLock::new(tcb),
+                                        *listen_entry.get(),
+                                        caller,
+                                    ));
+                                    session_entry.insert(session.clone());
+                                }
+                            },
+                            None => {
+                                // The segment was disposed of :)
+                            }
+                        }
                     }
 
                     Entry::Vacant(_) => {
-                        todo!()
+                        tracing::error!(
+                            "Tried to demux with a missing session and no listen bindings"
+                        );
+                        Err(DemuxError::MissingSession)?
                     }
                 }
             }
-        };
-
-        // TODO(hardint): Receive message
-        todo!()
+        }
+        Ok(())
     }
 
     fn start(
