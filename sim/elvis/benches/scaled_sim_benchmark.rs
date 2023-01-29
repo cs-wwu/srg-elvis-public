@@ -1,6 +1,4 @@
-use criterion::{
-    criterion_group, criterion_main, BenchmarkId, Criterion, PlotConfiguration,
-};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, PlotConfiguration};
 use elvis::ndl::generate_sim;
 
 use tokio::runtime::Runtime;
