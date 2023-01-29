@@ -1,5 +1,5 @@
 use criterion::{
-    criterion_group, criterion_main, BenchmarkId, Criterion, PlotConfiguration, SamplingMode,
+    criterion_group, criterion_main, BenchmarkId, Criterion, PlotConfiguration,
 };
 use elvis::ndl::generate_sim;
 
