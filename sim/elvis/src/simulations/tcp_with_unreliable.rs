@@ -1,6 +1,4 @@
-use std::time::Duration;
-
-use crate::applications::{send_message::Transport, Capture, SendMessage};
+use crate::applications::{Capture, SendMessage, Transport};
 use elvis_core::{
     message::Message,
     network::{Latency, NetworkBuilder},
@@ -11,6 +9,7 @@ use elvis_core::{
     },
     run_internet, Machine,
 };
+use std::time::Duration;
 
 /// Runs a basic simulation.
 ///
@@ -27,7 +26,9 @@ pub async fn tcp_with_unreliable() {
 
     let message: Vec<_> = (0..3000).map(|i| i as u8).collect();
     let message = Message::new(message);
-    let capture = Capture::new(capture_ip_address, 0xbeef).shared();
+    let capture = Capture::new(capture_ip_address, 0xbeef)
+        .transport(Transport::Tcp)
+        .shared();
     let machines = vec![
         Machine::new([
             Tcp::new().shared() as SharedProtocol,
@@ -52,7 +53,7 @@ pub async fn tcp_with_unreliable() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    async fn basic() {
+    async fn tcp_with_unreliable() {
         super::tcp_with_unreliable().await
     }
 }

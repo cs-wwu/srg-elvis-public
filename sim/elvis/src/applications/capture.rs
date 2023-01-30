@@ -4,12 +4,14 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp,
+        Ipv4, Tcp, Udp,
     },
     Control, Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
+
+use super::Transport;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
@@ -23,6 +25,8 @@ pub struct Capture {
     ip_address: Ipv4Address,
     /// The port we listen for a message on
     port: u16,
+    /// The transport protocol to use
+    transport: Transport,
 }
 
 impl Capture {
@@ -33,12 +37,19 @@ impl Capture {
             shutdown: Default::default(),
             ip_address,
             port,
+            transport: Transport::Udp,
         }
     }
 
     /// Creates a new capture behind a shared handle.
     pub fn shared(self) -> Arc<UserProcess<Self>> {
         UserProcess::new(self).shared()
+    }
+
+    /// Set the transport protocol to use
+    pub fn transport(mut self, transport: Transport) -> Self {
+        self.transport = transport;
+        self
     }
 
     /// Gets the message that was received.
@@ -59,9 +70,12 @@ impl Application for Capture {
         *self.shutdown.write().unwrap() = Some(shutdown);
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
-        Udp::set_local_port(self.port, &mut participants);
+        match self.transport {
+            Transport::Udp => Udp::set_local_port(self.port, &mut participants),
+            Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
+        }
         protocols
-            .protocol(Udp::ID)
+            .protocol(self.transport.id())
             .expect("No such protocol")
             .listen(Self::ID, participants, protocols)?;
         tokio::spawn(async move {
