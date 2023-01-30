@@ -44,7 +44,7 @@ impl SendMessage {
 
     /// Wrap the SendMessage in a user process
     pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(self)
+        UserProcess::new(self).shared()
     }
 
     /// Set the MAC address of the machine to send to
@@ -70,7 +70,7 @@ impl Application for SendMessage {
     const ID: Id = Id::from_string("Send Message");
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -83,26 +83,26 @@ impl Application for SendMessage {
         let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
         let mut context = Context::new(protocols);
+
+        let remote_mac = self.remote_mac;
+        let count = self.count;
+        let body = self.body.clone();
         tokio::spawn(async move {
             initialized.wait().await;
-            if let Some(destination_mac) = self.remote_mac {
+            if let Some(destination_mac) = remote_mac {
                 Network::set_destination(destination_mac, &mut context.control);
             }
-            for _ in 0..self.count {
+            for _ in 0..count {
                 session
                     .clone()
-                    .send(self.body.clone(), context.clone())
+                    .send(body.clone(), context.clone())
                     .expect("SendMessage failed to send");
             }
         });
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        _message: Message,
-        _context: Context,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

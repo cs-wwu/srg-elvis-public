@@ -49,20 +49,8 @@ impl Forward {
     }
 
     /// Creates a new forwarding application behind a shared handle.
-    pub fn new_shared(
-        local_ip: Ipv4Address,
-        remote_ip: Ipv4Address,
-        local_port: u16,
-        remote_port: u16,
-        destination_mac: Option<Mac>,
-    ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(
-            local_ip,
-            remote_ip,
-            local_port,
-            remote_port,
-            destination_mac,
-        ))
+    pub fn shared(self) -> Arc<UserProcess<Self>> {
+        UserProcess::new(self).shared()
     }
 }
 
@@ -70,7 +58,7 @@ impl Application for Forward {
     const ID: Id = Id::from_string("Forward");
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -95,11 +83,7 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        message: Message,
-        mut context: Context,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, message: Message, mut context: Context) -> Result<(), ApplicationError> {
         if let Some(destination_mac) = self.destination_mac {
             Network::set_destination(destination_mac, &mut context.control);
         }

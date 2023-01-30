@@ -20,7 +20,7 @@ pub async fn basic() {
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
     let message = Message::new("Hello!");
-    let capture = Capture::new_shared(capture_ip_address, 0xbeef);
+    let capture = Capture::new(capture_ip_address, 0xbeef).shared();
     let machines = vec![
         Machine::new([
             Udp::new_shared() as SharedProtocol,

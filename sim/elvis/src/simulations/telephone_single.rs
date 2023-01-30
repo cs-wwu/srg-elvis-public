@@ -37,12 +37,12 @@ pub async fn telephone_single() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(table),
             Pci::new_shared([network.tap()]),
-            Forward::new_shared(local, remote, 0xbeef, 0xbeef, Some(i as Mac + 2)),
+            Forward::new(local, remote, 0xbeef, 0xbeef, Some(i as Mac + 2)).shared(),
         ]));
     }
 
     let local = (END - 1).to_be_bytes().into();
-    let capture = Capture::new_shared(local, 0xbeef);
+    let capture = Capture::new(local, 0xbeef).shared();
     machines.push(Machine::new([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(local, 0)].into_iter().collect()),

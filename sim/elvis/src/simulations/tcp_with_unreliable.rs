@@ -27,7 +27,7 @@ pub async fn tcp_with_unreliable() {
 
     let message: Vec<_> = (0..3000).map(|i| i as u8).collect();
     let message = Message::new(message);
-    let capture = Capture::new_shared(capture_ip_address, 0xbeef);
+    let capture = Capture::new(capture_ip_address, 0xbeef).shared();
     let machines = vec![
         Machine::new([
             Tcp::new_shared() as SharedProtocol,

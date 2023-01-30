@@ -37,8 +37,8 @@ impl Capture {
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared(ip_address: Ipv4Address, port: u16) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(ip_address, port))
+    pub fn shared(self) -> Arc<UserProcess<Self>> {
+        UserProcess::new(self).shared()
     }
 
     /// Gets the message that was received.
@@ -51,7 +51,7 @@ impl Application for Capture {
     const ID: Id = Id::from_string("Capture");
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -70,11 +70,7 @@ impl Application for Capture {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        message: Message,
-        _context: Context,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
         *self.message.write().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.write().unwrap().take() {
             tokio::spawn(async move {

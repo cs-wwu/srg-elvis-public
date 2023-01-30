@@ -27,7 +27,7 @@ impl Application for QueryTester {
     const ID: Id = Id::from_string("Query tester");
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Sender<()>,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -64,11 +64,7 @@ impl Application for QueryTester {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        _message: Message,
-        _context: Context,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
         unreachable!()
     }
 }

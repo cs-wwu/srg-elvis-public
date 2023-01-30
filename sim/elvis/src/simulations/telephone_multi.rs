@@ -31,14 +31,14 @@ pub async fn telephone_multi() {
         machines.push(Machine::new([
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(table),
-            Forward::new_shared(local, remote, 0xbeef, 0xbeef, None),
+            Forward::new(local, remote, 0xbeef, 0xbeef, None).shared(),
             Pci::new_shared([networks[i as usize].tap(), networks[i as usize + 1].tap()]),
         ]));
     }
 
     let last_network = END - 1;
     let local = last_network.to_be_bytes().into();
-    let capture = Capture::new_shared(local, 0xbeef);
+    let capture = Capture::new(local, 0xbeef).shared();
     machines.push(Machine::new([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(local, last_network)].into_iter().collect()),

@@ -39,12 +39,13 @@ pub async fn throughput() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table),
             Pci::new_shared([network.tap()]),
-            ThroughputTester::new_shared(
+            ThroughputTester::new(
                 capture_ip_address,
                 0xbeef,
                 3,
                 Duration::from_millis(900)..Duration::from_millis(1100),
-            ),
+            )
+            .shared(),
         ]),
     ];
 
