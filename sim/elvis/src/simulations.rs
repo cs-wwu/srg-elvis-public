@@ -20,3 +20,6 @@ pub use latency::latency;
 
 mod throughput;
 pub use throughput::throughput;
+
+mod tcp_with_unreliable;
+pub use tcp_with_unreliable::tcp_with_unreliable;

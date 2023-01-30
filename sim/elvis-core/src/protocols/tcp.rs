@@ -22,6 +22,10 @@ mod tcb;
 mod tcp_parsing;
 mod tcp_session;
 
+// TODO(hardint): Get rid of IssGenerator. Since Tcb got split out and I can
+// pass in whatever ISS I want for testing, having this configuration option is
+// no longer necessary.
+
 #[derive(Default)]
 pub struct Tcp {
     listen_bindings: DashMap<Socket, Id>,
@@ -32,16 +36,16 @@ pub struct Tcp {
 impl Tcp {
     pub const ID: Id = Id::new(6);
 
-    pub fn new(iss: IssGenerator) -> Self {
+    pub fn new() -> Self {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            iss: RwLock::new(iss),
+            iss: RwLock::new(IssGenerator::Random),
         }
     }
 
-    pub fn new_shared(iss: IssGenerator) -> SharedProtocol {
-        Arc::new(Self::new(iss))
+    pub fn new_shared() -> SharedProtocol {
+        Arc::new(Self::new())
     }
 
     pub fn set_local_port(port: u16, control: &mut Control) {

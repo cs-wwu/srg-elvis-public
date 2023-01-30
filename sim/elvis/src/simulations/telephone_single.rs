@@ -18,12 +18,15 @@ pub async fn telephone_single() {
     const END: u32 = 1000;
     let network = Network::basic();
 
+    let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(remote, 0)].into_iter().collect()),
         Pci::new_shared([network.tap()]),
-        SendMessage::new_shared("Hello!", remote, 0xbeef, Some(1), 1),
+        SendMessage::new(message.clone(), remote, 0xbeef)
+            .remote_mac(1)
+            .shared(),
     ])];
 
     for i in 0u32..(END - 1) {
@@ -48,10 +51,7 @@ pub async fn telephone_single() {
     ]));
 
     run_internet(machines, vec![network]).await;
-    assert_eq!(
-        capture.application().message(),
-        Some(Message::new("Hello!"))
-    );
+    assert_eq!(capture.application().message(), Some(message));
 }
 
 #[cfg(test)]

@@ -15,12 +15,13 @@ pub async fn telephone_multi() {
     // Since we are using a broadcast network, the destination MAC is not used
     let networks: Vec<_> = (0..END).map(|_| Network::basic()).collect();
 
+    let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
         Udp::new_shared() as SharedProtocol,
         Ipv4::new_shared([(remote, 0)].into_iter().collect()),
         Pci::new_shared([networks[0].tap()]),
-        SendMessage::new_shared("Hello!", remote, 0xbeef, None, 1),
+        SendMessage::new(message.clone(), remote, 0xbeef).shared(),
     ])];
 
     for i in 0u32..(END - 1) {
@@ -46,10 +47,7 @@ pub async fn telephone_multi() {
     ]));
 
     run_internet(machines, networks).await;
-    assert_eq!(
-        capture.application().message(),
-        Some(Message::new("Hello!"))
-    );
+    assert_eq!(capture.application().message(), Some(message));
 }
 
 #[cfg(test)]

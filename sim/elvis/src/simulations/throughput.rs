@@ -7,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Pci,
     },
-    run_internet, Machine,
+    run_internet, Machine, Message,
 };
 use std::time::Duration;
 
@@ -31,7 +31,9 @@ pub async fn throughput() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             Pci::new_shared([network.tap()]),
-            SendMessage::new_shared("First ", capture_ip_address, 0xbeef, None, 3),
+            SendMessage::new(Message::new("Hello!"), capture_ip_address, 0xbeef)
+                .count(3)
+                .shared(),
         ]),
         Machine::new([
             Udp::new_shared() as SharedProtocol,
