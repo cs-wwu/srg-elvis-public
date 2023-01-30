@@ -28,159 +28,6 @@ use tokio::{
     time::sleep,
 };
 
-/// A network maximum transmission unit.
-///
-/// The largest number of bytes that can be sent over the network at once.
-pub type Mtu = u32;
-
-/// A MAC address that uniquely identifies a [`Tap`] on a network.
-pub type Mac = u64;
-
-/// A data transfer rate
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Baud(u64); // Inner value is given in bytes per second
-
-impl Baud {
-    pub const MAX: Self = Baud(u64::MAX);
-    pub const ZERO: Self = Baud(0);
-
-    /// Specify a baud rate in bits per second
-    pub fn bits_per_second(rate: u64) -> Self {
-        Self(rate / 8)
-    }
-
-    /// Specify a baud rate in bytes per second
-    pub fn bytes_per_second(rate: u64) -> Self {
-        Self(rate)
-    }
-}
-
-/// A builder for network customization. If a simple network is desired,
-/// consider using [`Network::basic()`].
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub struct NetworkBuilder {
-    mtu: Option<Mtu>,
-    latency: Latency,
-    throughput: Throughput,
-}
-
-impl NetworkBuilder {
-    /// Create a new network builder
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    /// Set the maximum transmission unit
-    pub fn mtu(mut self, mtu: Mtu) -> Self {
-        self.mtu = Some(mtu);
-        self
-    }
-
-    /// Set the latency of the network, the amount of time it takes for a
-    /// message to reach its destination without contention. Unlike throughput,
-    /// latency does not affect the delivery time of other messages on the
-    /// network. It only refers to the time an isolated message will spend on
-    /// the wire before it is delivered.
-    pub fn latency(mut self, latency: Latency) -> Self {
-        self.latency = latency;
-        self
-    }
-
-    /// Set the throughput of the network, the amount of data that the network
-    /// can transfer in a given time. A low throughput means that if many
-    /// messages are sent on the network at the same time, later messages will
-    /// be queued for delivery until prior messages have been fully transferred.
-    /// Larger messages take longer to transfer than shorter ones.
-    pub fn throughput(mut self, throughput: Throughput) -> Self {
-        self.throughput = throughput;
-        self
-    }
-
-    /// Create the network with the given settings
-    pub fn build(self) -> Arc<Network> {
-        Arc::new(Network::new(self.mtu, self.latency, self.throughput))
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Latency {
-    base: Duration,
-    randomness: Duration,
-}
-
-impl Latency {
-    pub fn constant(latency: Duration) -> Self {
-        Self {
-            base: latency,
-            randomness: Duration::ZERO,
-        }
-    }
-
-    pub fn variable(latency: Duration, randomness: Duration) -> Self {
-        Self {
-            base: latency,
-            randomness,
-        }
-    }
-
-    pub fn next(&self) -> Duration {
-        self.base + self.randomness.mul_f32(rand::random())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Throughput {
-    base: Baud,
-    randomness: Baud,
-}
-
-impl Throughput {
-    pub fn constant(throughput: Baud) -> Self {
-        Self {
-            base: throughput,
-            randomness: Baud::ZERO,
-        }
-    }
-
-    pub fn variable(throughput: Baud, randomness: Baud) -> Self {
-        Self {
-            base: throughput,
-            randomness,
-        }
-    }
-
-    pub fn next(&self) -> Baud {
-        let uniform =
-            rand::distributions::Uniform::from(self.base.0..self.base.0 + self.randomness.0);
-        Baud::bytes_per_second(uniform.sample(&mut rand::thread_rng()))
-    }
-}
-
-impl Default for Throughput {
-    fn default() -> Self {
-        Self {
-            base: Baud::MAX,
-            randomness: Baud::ZERO,
-        }
-    }
-}
-
-/// A [`Message`] in flight over a network. A delivery includes the information
-/// usually included in a data-link frame and thus abstracts over different
-/// network technologies.
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct Delivery {
-    /// The message being sent
-    pub message: Message,
-    /// Identifies the [`Tap`] that sent the message
-    pub sender: Mac,
-    /// Identifies the [`Tap`] that should receive the message. If the
-    /// destination is `None`, the message should be broadcast.
-    pub destination: Option<Mac>,
-    /// The protocol that should respond to the packet, usually an IP protocol
-    pub protocol: Id,
-}
-
 /// A network that allows the exchange of [`Message`]s between
 /// [`Machine`](crate::Machine)s.
 ///
@@ -342,6 +189,69 @@ impl Network {
     }
 }
 
+/// A builder for network customization. If a simple network is desired,
+/// consider using [`Network::basic()`].
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub struct NetworkBuilder {
+    mtu: Option<Mtu>,
+    latency: Latency,
+    throughput: Throughput,
+}
+
+impl NetworkBuilder {
+    /// Create a new network builder
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Set the maximum transmission unit
+    pub fn mtu(mut self, mtu: Mtu) -> Self {
+        self.mtu = Some(mtu);
+        self
+    }
+
+    /// Set the latency of the network, the amount of time it takes for a
+    /// message to reach its destination without contention. Unlike throughput,
+    /// latency does not affect the delivery time of other messages on the
+    /// network. It only refers to the time an isolated message will spend on
+    /// the wire before it is delivered.
+    pub fn latency(mut self, latency: Latency) -> Self {
+        self.latency = latency;
+        self
+    }
+
+    /// Set the throughput of the network, the amount of data that the network
+    /// can transfer in a given time. A low throughput means that if many
+    /// messages are sent on the network at the same time, later messages will
+    /// be queued for delivery until prior messages have been fully transferred.
+    /// Larger messages take longer to transfer than shorter ones.
+    pub fn throughput(mut self, throughput: Throughput) -> Self {
+        self.throughput = throughput;
+        self
+    }
+
+    /// Create the network with the given settings
+    pub fn build(self) -> Arc<Network> {
+        Arc::new(Network::new(self.mtu, self.latency, self.throughput))
+    }
+}
+
+/// A [`Message`] in flight over a network. A delivery includes the information
+/// usually included in a data-link frame and thus abstracts over different
+/// network technologies.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct Delivery {
+    /// The message being sent
+    pub message: Message,
+    /// Identifies the [`Tap`] that sent the message
+    pub sender: Mac,
+    /// Identifies the [`Tap`] that should receive the message. If the
+    /// destination is `None`, the message should be broadcast.
+    pub destination: Option<Mac>,
+    /// The protocol that should respond to the packet, usually an IP protocol
+    pub protocol: Id,
+}
+
 /// An access point to a [`Network`]. A tap can be created by calling
 /// [`Network::tap`]. Taps should be added to a [`crate::protocols::Pci`]
 /// protocol to allow a [`Machine`](crate::Machine) to access the network.
@@ -351,4 +261,94 @@ pub struct Tap {
     pub(crate) delivery_sender: mpsc::Sender<Delivery>,
     pub(crate) broadcast: Arc<RwLock<Option<broadcast::Receiver<Delivery>>>>,
     pub(crate) unicast_receiver: Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
+}
+
+/// A network maximum transmission unit.
+///
+/// The largest number of bytes that can be sent over the network at once.
+pub type Mtu = u32;
+
+/// A MAC address that uniquely identifies a [`Tap`] on a network.
+pub type Mac = u64;
+
+/// A data transfer rate
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Baud(u64); // Inner value is given in bytes per second
+
+impl Baud {
+    pub const MAX: Self = Baud(u64::MAX);
+    pub const ZERO: Self = Baud(0);
+
+    /// Specify a baud rate in bits per second
+    pub fn bits_per_second(rate: u64) -> Self {
+        Self(rate / 8)
+    }
+
+    /// Specify a baud rate in bytes per second
+    pub fn bytes_per_second(rate: u64) -> Self {
+        Self(rate)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Latency {
+    base: Duration,
+    randomness: Duration,
+}
+
+impl Latency {
+    pub fn constant(latency: Duration) -> Self {
+        Self {
+            base: latency,
+            randomness: Duration::ZERO,
+        }
+    }
+
+    pub fn variable(latency: Duration, randomness: Duration) -> Self {
+        Self {
+            base: latency,
+            randomness,
+        }
+    }
+
+    pub fn next(&self) -> Duration {
+        self.base + self.randomness.mul_f32(rand::random())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Throughput {
+    base: Baud,
+    randomness: Baud,
+}
+
+impl Throughput {
+    pub fn constant(throughput: Baud) -> Self {
+        Self {
+            base: throughput,
+            randomness: Baud::ZERO,
+        }
+    }
+
+    pub fn variable(throughput: Baud, randomness: Baud) -> Self {
+        Self {
+            base: throughput,
+            randomness,
+        }
+    }
+
+    pub fn next(&self) -> Baud {
+        let uniform =
+            rand::distributions::Uniform::from(self.base.0..self.base.0 + self.randomness.0);
+        Baud::bytes_per_second(uniform.sample(&mut rand::thread_rng()))
+    }
+}
+
+impl Default for Throughput {
+    fn default() -> Self {
+        Self {
+            base: Baud::MAX,
+            randomness: Baud::ZERO,
+        }
+    }
 }
