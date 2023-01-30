@@ -24,13 +24,13 @@ pub async fn basic() {
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table.clone()),
+            Ipv4::new(ip_table.clone()).shared(),
             Pci::new_shared([network.tap()]),
             SendMessage::new(message.clone(), capture_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table),
+            Ipv4::new(ip_table).shared(),
             Pci::new_shared([network.tap()]),
             capture.clone(),
         ]),

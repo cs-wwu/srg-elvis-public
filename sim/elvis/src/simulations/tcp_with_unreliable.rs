@@ -31,7 +31,7 @@ pub async fn tcp_with_unreliable() {
     let machines = vec![
         Machine::new([
             Tcp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table.clone()),
+            Ipv4::new(ip_table.clone()).shared(),
             Pci::new_shared([network.tap()]),
             SendMessage::new(message.clone(), capture_ip_address, 0xbeef)
                 .transport(Transport::Tcp)
@@ -39,7 +39,7 @@ pub async fn tcp_with_unreliable() {
         ]),
         Machine::new([
             Tcp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table),
+            Ipv4::new(ip_table).shared(),
             Pci::new_shared([network.tap()]),
             capture.clone(),
         ]),

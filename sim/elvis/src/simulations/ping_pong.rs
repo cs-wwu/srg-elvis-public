@@ -23,13 +23,13 @@ pub async fn ping_pong() {
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table.clone()),
+            Ipv4::new(ip_table.clone()).shared(),
             Pci::new_shared([network.tap()]),
             PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table.clone()),
+            Ipv4::new(ip_table.clone()).shared(),
             Pci::new_shared([network.tap()]),
             PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef).shared(),
         ]),
