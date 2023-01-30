@@ -43,6 +43,7 @@ pub struct Network {
     mtu: Mtu,
     latency: Latency,
     throughput: Throughput,
+    loss_rate: f32,
     /// The sending half of a channel for taps to send messages to the network
     /// for delivery over the network. The other half is `delivery_receiver`.
     /// Each tap gets its own copy of this and the network does not use it.
@@ -57,7 +58,7 @@ pub struct Network {
 
 impl Default for Network {
     fn default() -> Self {
-        Self::new(None, Default::default(), Default::default())
+        Self::new(None, Default::default(), Default::default(), 0.0)
     }
 }
 
@@ -66,12 +67,13 @@ impl Network {
     pub const ID: Id = Id::from_string("Network");
 
     /// Create a new network with the given properties
-    fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput) -> Self {
+    fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
         let funnel = mpsc::channel(16);
         Self {
             mtu: mtu.unwrap_or(Mtu::MAX),
             latency,
             throughput,
+            loss_rate,
             delivery_sender: funnel.0,
             delivery_receiver: Arc::new(RwLock::new(Some(funnel.1))),
             taps: Default::default(),
@@ -111,6 +113,11 @@ impl Network {
         tokio::spawn(async move {
             barrier.wait().await;
             while let Some(delivery) = receiver.recv().await {
+                if rand::random::<f32>() < self.loss_rate {
+                    // Drop the message
+                    continue;
+                }
+
                 let throughput = throughput.next();
                 if throughput.0 > 0 {
                     let ms = delivery.message.len() as u64 * 1000 / throughput.0;
@@ -191,11 +198,12 @@ impl Network {
 
 /// A builder for network customization. If a simple network is desired,
 /// consider using [`Network::basic()`].
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, PartialEq)]
 pub struct NetworkBuilder {
     mtu: Option<Mtu>,
     latency: Latency,
     throughput: Throughput,
+    loss_rate: f32,
 }
 
 impl NetworkBuilder {
@@ -230,9 +238,21 @@ impl NetworkBuilder {
         self
     }
 
+    /// The percentage of packets that are lost in transmission. Should be given
+    /// in the range [0,1].
+    pub fn loss_rate(mut self, loss_rate: f32) -> Self {
+        self.loss_rate = loss_rate;
+        self
+    }
+
     /// Create the network with the given settings
     pub fn build(self) -> Arc<Network> {
-        Arc::new(Network::new(self.mtu, self.latency, self.throughput))
+        Arc::new(Network::new(
+            self.mtu,
+            self.latency,
+            self.throughput,
+            self.loss_rate,
+        ))
     }
 }
 
