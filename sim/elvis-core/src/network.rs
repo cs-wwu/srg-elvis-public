@@ -18,6 +18,7 @@
 //!   add multiple taps to attach to different networks.
 
 use crate::{control::ControlError, id::Id, Control, Message};
+use rand::prelude::Distribution;
 use std::{
     sync::{Arc, RwLock},
     time::Duration,
@@ -36,10 +37,13 @@ pub type Mtu = u32;
 pub type Mac = u64;
 
 /// A data transfer rate
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Baud(u64);
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Baud(u64); // Inner value is given in bytes per second
 
 impl Baud {
+    pub const MAX: Self = Baud(u64::MAX);
+    pub const ZERO: Self = Baud(0);
+
     /// Specify a baud rate in bits per second
     pub fn bits_per_second(rate: u64) -> Self {
         Self(rate / 8)
@@ -56,8 +60,8 @@ impl Baud {
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct NetworkBuilder {
     mtu: Option<Mtu>,
-    latency: Option<Duration>,
-    throughput: Option<Baud>,
+    latency: Latency,
+    throughput: Throughput,
 }
 
 impl NetworkBuilder {
@@ -77,8 +81,8 @@ impl NetworkBuilder {
     /// latency does not affect the delivery time of other messages on the
     /// network. It only refers to the time an isolated message will spend on
     /// the wire before it is delivered.
-    pub fn latency(mut self, latency: Duration) -> Self {
-        self.latency = Some(latency);
+    pub fn latency(mut self, latency: Latency) -> Self {
+        self.latency = latency;
         self
     }
 
@@ -87,14 +91,77 @@ impl NetworkBuilder {
     /// messages are sent on the network at the same time, later messages will
     /// be queued for delivery until prior messages have been fully transferred.
     /// Larger messages take longer to transfer than shorter ones.
-    pub fn throughput(mut self, throughput: Baud) -> Self {
-        self.throughput = Some(throughput);
+    pub fn throughput(mut self, throughput: Throughput) -> Self {
+        self.throughput = throughput;
         self
     }
 
     /// Create the network with the given settings
     pub fn build(self) -> Arc<Network> {
         Arc::new(Network::new(self.mtu, self.latency, self.throughput))
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Latency {
+    base: Duration,
+    randomness: Duration,
+}
+
+impl Latency {
+    pub fn constant(latency: Duration) -> Self {
+        Self {
+            base: latency,
+            randomness: Duration::ZERO,
+        }
+    }
+
+    pub fn variable(latency: Duration, randomness: Duration) -> Self {
+        Self {
+            base: latency,
+            randomness,
+        }
+    }
+
+    pub fn next(&self) -> Duration {
+        self.base + self.randomness.mul_f32(rand::random())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Throughput {
+    base: Baud,
+    randomness: Baud,
+}
+
+impl Throughput {
+    pub fn constant(throughput: Baud) -> Self {
+        Self {
+            base: throughput,
+            randomness: Baud::ZERO,
+        }
+    }
+
+    pub fn variable(throughput: Baud, randomness: Baud) -> Self {
+        Self {
+            base: throughput,
+            randomness,
+        }
+    }
+
+    pub fn next(&self) -> Baud {
+        let uniform =
+            rand::distributions::Uniform::from(self.base.0..self.base.0 + self.randomness.0);
+        Baud::bytes_per_second(uniform.sample(&mut rand::thread_rng()))
+    }
+}
+
+impl Default for Throughput {
+    fn default() -> Self {
+        Self {
+            base: Baud::MAX,
+            randomness: Baud::ZERO,
+        }
     }
 }
 
@@ -127,8 +194,8 @@ pub struct Network {
     /// Each tap subscribes to this.
     broadcast: broadcast::Sender<Delivery>,
     mtu: Mtu,
-    latency: Option<Duration>,
-    throughput: Option<Baud>,
+    latency: Latency,
+    throughput: Throughput,
     /// The sending half of a channel for taps to send messages to the network
     /// for delivery over the network. The other half is `delivery_receiver`.
     /// Each tap gets its own copy of this and the network does not use it.
@@ -143,7 +210,7 @@ pub struct Network {
 
 impl Default for Network {
     fn default() -> Self {
-        Self::new(None, None, None)
+        Self::new(None, Default::default(), Default::default())
     }
 }
 
@@ -152,7 +219,7 @@ impl Network {
     pub const ID: Id = Id::from_string("Network");
 
     /// Create a new network with the given properties
-    fn new(mtu: Option<Mtu>, latency: Option<Duration>, throughput: Option<Baud>) -> Self {
+    fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput) -> Self {
         let funnel = mpsc::channel(16);
         Self {
             mtu: mtu.unwrap_or(Mtu::MAX),
@@ -197,16 +264,17 @@ impl Network {
         tokio::spawn(async move {
             barrier.wait().await;
             while let Some(delivery) = receiver.recv().await {
-                if let Some(throughput) = throughput {
+                let throughput = throughput.next();
+                if throughput.0 > 0 {
                     let ms = delivery.message.len() as u64 * 1000 / throughput.0;
-                    println!("{}, {}, {}", delivery.message.len(), throughput.0, ms);
                     sleep(Duration::from_millis(ms)).await;
                 }
 
                 let taps = taps.clone();
                 let broadcast = broadcast.clone();
                 tokio::spawn(async move {
-                    if let Some(latency) = latency {
+                    let latency = latency.next();
+                    if latency > Duration::ZERO {
                         sleep(latency).await;
                     }
                     match delivery.destination {
