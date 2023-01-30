@@ -44,8 +44,8 @@ impl Tcp {
         }
     }
 
-    pub fn new_shared() -> SharedProtocol {
-        Arc::new(Self::new())
+    pub fn shared(self) -> SharedProtocol {
+        Arc::new(self)
     }
 
     pub fn set_local_port(port: u16, control: &mut Control) {
