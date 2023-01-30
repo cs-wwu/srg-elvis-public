@@ -25,13 +25,13 @@ pub async fn latency() {
     let capture = Capture::new(capture_ip_address, 0xbeef).shared();
     let machines = vec![
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
+            Udp::new().shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             Pci::new_shared([network.tap()]),
             SendMessage::new(Message::new("Hello!"), capture_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
+            Udp::new().shared() as SharedProtocol,
             Ipv4::new_shared(ip_table),
             Pci::new_shared([network.tap()]),
             capture.clone(),
