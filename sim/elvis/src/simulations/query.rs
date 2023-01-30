@@ -17,7 +17,7 @@ pub async fn query() {
         Udp::new().shared() as SharedProtocol,
         Ipv4::new([(0.into(), 0)].into_iter().collect()).shared(),
         QueryTester::new_shared(),
-        Pci::new_shared([network.tap(), network.tap()]),
+        Pci::new([network.tap(), network.tap()]).shared(),
     ]);
 
     run_internet(vec![machine], vec![network]).await;

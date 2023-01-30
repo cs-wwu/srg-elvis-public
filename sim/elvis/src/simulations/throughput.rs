@@ -30,7 +30,7 @@ pub async fn throughput() {
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new_shared([network.tap()]),
+            Pci::new([network.tap()]).shared(),
             SendMessage::new(Message::new("Hello!"), capture_ip_address, 0xbeef)
                 .count(3)
                 .shared(),
@@ -38,7 +38,7 @@ pub async fn throughput() {
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table).shared(),
-            Pci::new_shared([network.tap()]),
+            Pci::new([network.tap()]).shared(),
             ThroughputTester::new(
                 capture_ip_address,
                 0xbeef,

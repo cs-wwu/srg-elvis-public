@@ -32,7 +32,7 @@ pub async fn tcp_with_unreliable() {
         Machine::new([
             Tcp::new_shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new_shared([network.tap()]),
+            Pci::new([network.tap()]).shared(),
             SendMessage::new(message.clone(), capture_ip_address, 0xbeef)
                 .transport(Transport::Tcp)
                 .shared(),
@@ -40,7 +40,7 @@ pub async fn tcp_with_unreliable() {
         Machine::new([
             Tcp::new_shared() as SharedProtocol,
             Ipv4::new(ip_table).shared(),
-            Pci::new_shared([network.tap()]),
+            Pci::new([network.tap()]).shared(),
             capture.clone(),
         ]),
     ];
