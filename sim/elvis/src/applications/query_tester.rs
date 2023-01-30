@@ -18,8 +18,8 @@ impl QueryTester {
         Default::default()
     }
 
-    pub fn new_shared() -> Arc<UserProcess<Self>> {
-        Arc::new(UserProcess::new(Self::new()))
+    pub fn shared(self) -> Arc<UserProcess<Self>> {
+        UserProcess::new(self).shared()
     }
 }
 
