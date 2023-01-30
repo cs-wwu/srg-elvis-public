@@ -18,7 +18,7 @@
 //!   add multiple taps to attach to different networks.
 
 use crate::{control::ControlError, id::Id, Control, Message};
-use rand::prelude::Distribution;
+use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
     sync::{Arc, RwLock},
     time::Duration,
@@ -316,7 +316,7 @@ impl Latency {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Throughput {
     base: Baud,
     randomness: Baud,
@@ -338,17 +338,11 @@ impl Throughput {
     }
 
     pub fn next(&self) -> Baud {
-        let uniform =
-            rand::distributions::Uniform::from(self.base.0..self.base.0 + self.randomness.0);
-        Baud::bytes_per_second(uniform.sample(&mut rand::thread_rng()))
-    }
-}
-
-impl Default for Throughput {
-    fn default() -> Self {
-        Self {
-            base: Baud::MAX,
-            randomness: Baud::ZERO,
+        if self.randomness.0 == 0 {
+            self.base
+        } else {
+            let uniform = Uniform::from(self.base.0..self.base.0 + self.randomness.0);
+            Baud::bytes_per_second(uniform.sample(&mut rand::thread_rng()))
         }
     }
 }
