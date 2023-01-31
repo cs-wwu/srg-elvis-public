@@ -46,9 +46,14 @@ def parse_link_data(link_data, dataset):
                 dataset["size"].append((int(line[12:end])/1000)) #save size in KB
             elif line.strip() == '"links": [':
                 counting_links = True
+            elif line.strip() == '"links": []':
+                dataset['num_links'].append(0)
             elif line.strip() == '"images": [':
                 counting_images = True
-
+            elif line.strip() == '"images": []':
+                dataset['num_images'].append(0)
+            else: 
+                print("RUH ROH: " + line)
 
 def parse_lines(lines):
     dataset = {
@@ -58,7 +63,9 @@ def parse_lines(lines):
         'num_images': []
     }
     link_data = []
+    count = 0
     for line in lines: 
+        count += 1
         if line.strip() == '{' or line.strip() == '}': 
             continue
         elif line.strip() == '},': 
@@ -66,10 +73,11 @@ def parse_lines(lines):
             link_data = []
         else:
             link_data.append(line)
+    print(count)
     return dataset
 
 def main():
-    f = open("test.txt", "r")
+    f = open("BIGboi.txt", "r")
     lines = f.readlines()
     dataset = parse_lines(lines)
     """
@@ -79,7 +87,7 @@ def main():
     print(dataset['num_images'])
     """
     dataframe = pandas.DataFrame(dataset)
-    print(dataframe)
+    #print(dataframe)
     #dataframe.plot()
     #plt.hist(dataframe.to_numpy())
     #dataframe.hist(column='size')
