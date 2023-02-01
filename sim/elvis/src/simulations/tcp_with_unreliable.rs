@@ -19,7 +19,7 @@ pub async fn tcp_with_unreliable() {
     let dst_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(dst_ip_address, 0)].into_iter().collect();
 
-    let message: Vec<_> = (0..3000).map(|i| i as u8).collect();
+    let message: Vec<_> = (0..8000).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
         Machine::new([
