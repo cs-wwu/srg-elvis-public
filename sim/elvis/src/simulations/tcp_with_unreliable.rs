@@ -20,10 +20,10 @@ pub async fn tcp_with_unreliable() {
     let network = NetworkBuilder::new()
         .mtu(500)
         .loss_rate(0.5)
-        // .latency(Latency::variable(
-        //     Duration::ZERO,
-        //     Duration::from_millis(200),
-        // ))
+        .latency(Latency::variable(
+            Duration::ZERO,
+            Duration::from_millis(200),
+        ))
         .build();
     let dst_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(dst_ip_address, 0)].into_iter().collect();
