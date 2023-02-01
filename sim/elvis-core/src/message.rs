@@ -24,6 +24,7 @@ pub use message_bytes::MessageBytes;
 pub struct Message {
     start: usize,
     end: usize,
+    len: usize,
     stack: Arc<WrappedMessage>,
 }
 
@@ -44,6 +45,7 @@ impl Message {
         Self {
             start: 0,
             end: body.len(),
+            len: body.len(),
             stack: Arc::new(WrappedMessage::Body(body)),
         }
     }
@@ -65,6 +67,7 @@ impl Message {
 
     fn prepend_inner(&mut self, header: Chunk) {
         self.end += header.len();
+        self.len += header.len();
         match self.start {
             0 => {
                 self.stack = Arc::new(WrappedMessage::Header(header, self.stack.clone()));
@@ -98,6 +101,9 @@ impl Message {
         self.start += start;
         if let Some(len) = len {
             self.end = self.start + len;
+            self.len = self.len.min(len);
+        } else {
+            self.len -= start;
         }
 
         // We may have sliced far enough into the message that headers toward
@@ -125,7 +131,7 @@ impl Message {
 
     /// The length of the message.
     pub fn len(&self) -> usize {
-        self.end - self.start
+        self.len
     }
 
     /// Whether the message contains no bytes.
@@ -189,5 +195,42 @@ impl From<&[u8]> for Message {
 impl<const L: usize> From<[u8; L]> for Message {
     fn from(val: [u8; L]) -> Self {
         Message::new(&val)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn multi_slice() {
+        let mut message = Message::new(b"Body");
+        message.prepend(b"Header");
+        message.slice(3..8);
+        message.slice(2..4);
+        let expected = b"rB";
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn mixed_operations() {
+        let mut message = Message::new(b"Hello, world");
+        message.slice(0..5);
+        message.prepend(b"Header");
+        message.slice(3..8);
+        let expected = b"derHe";
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn sliced_chunk() {
+        let mut message = Message::new(b"Hello, world");
+        message.slice(7..);
+        message.prepend(b"Header ");
+        let expected = b"Header world";
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
     }
 }
