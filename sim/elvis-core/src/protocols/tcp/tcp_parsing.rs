@@ -253,7 +253,7 @@ pub enum BuildHeaderError {
 }
 
 /// The control bits of a TCP header
-#[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct Control(u8);
 
 impl Control {
@@ -340,6 +340,31 @@ impl From<u8> for Control {
 impl From<Control> for u8 {
     fn from(control: Control) -> Self {
         control.0
+    }
+}
+
+impl std::fmt::Debug for Control {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Control(")?;
+        if self.urg() {
+            write!(f, "URG,")?;
+        }
+        if self.ack() {
+            write!(f, "ACK,")?;
+        }
+        if self.psh() {
+            write!(f, "PSH,")?;
+        }
+        if self.rst() {
+            write!(f, "RST,")?;
+        }
+        if self.syn() {
+            write!(f, "SYN,")?;
+        }
+        if self.fin() {
+            write!(f, "FIN,")?;
+        }
+        write!(f, ")")
     }
 }
 

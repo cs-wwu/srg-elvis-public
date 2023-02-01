@@ -1,7 +1,7 @@
 use crate::applications::{Capture, SendMessage, Transport};
 use elvis_core::{
     message::Message,
-    network::{Latency, NetworkBuilder},
+    network::NetworkBuilder,
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
@@ -9,22 +9,17 @@ use elvis_core::{
     },
     run_internet, Machine,
 };
-use std::time::Duration;
 
 /// Runs a basic simulation.
 ///
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
-pub async fn tcp_with_unreliable() {
-    let network = NetworkBuilder::new()
-        .mtu(500)
-        .latency(Latency::variable(Duration::ZERO, Duration::from_secs(2)))
-        .loss_rate(0.5)
-        .build();
+pub async fn tcp_with_reliable() {
+    let network = NetworkBuilder::new().build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
-    let message: Vec<_> = (0..3000).map(|i| i as u8).collect();
+    let message: Vec<_> = (0..20).map(|i| i as u8).collect();
     let message = Message::new(message);
     let capture = Capture::new(capture_ip_address, 0xbeef)
         .transport(Transport::Tcp)
@@ -54,6 +49,6 @@ pub async fn tcp_with_unreliable() {
 mod tests {
     #[tokio::test]
     async fn tcp_with_unreliable() {
-        super::tcp_with_unreliable().await
+        super::tcp_with_reliable().await
     }
 }

@@ -6,9 +6,12 @@ use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError},
     session::{QueryError, SendError, SharedSession},
-    Id, Message, Session,
+    Id, Message, ProtocolMap, Session,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, RwLock, RwLockWriteGuard},
+    time::Duration,
+};
 
 // TODO(hardint): The unwraps used on channels should be removed and cleaned up
 // along with proper simulation teardown.
@@ -44,12 +47,14 @@ impl TcpSession {
         let mut tcb = self.tcb.write().unwrap();
         match tcb.segment_arrives(seg, message) {
             Ok(result) => {
-                for (seg, mut message) in tcb.outgoing() {
-                    let protocol = context
+                self.deliver_outgoing(&mut tcb, context.clone())?;
+                let received = tcb.receive();
+                if !received.is_empty() {
+                    context
+                        .clone()
                         .protocol(self.upstream)
-                        .ok_or(ReceiveError::Protocol(self.upstream))?;
-                    message.prepend(seg.serialize());
-                    protocol.demux(message, self.clone(), context.clone())?;
+                        .ok_or(ReceiveError::Protocol(self.upstream))?
+                        .demux(Message::new(received), self.clone(), context)?;
                 }
                 Ok(result)
             }
@@ -59,6 +64,30 @@ impl TcpSession {
             }
         }
     }
+
+    pub fn advance_time(self: Arc<Self>, delta_time: Duration, protocols: ProtocolMap) {
+        let mut tcb = self.tcb.write().unwrap();
+        tcb.advance_time(delta_time);
+        let context = Context::new(protocols);
+        match self.deliver_outgoing(&mut tcb, context) {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Send error while advancing time: {}", e);
+            }
+        }
+    }
+
+    fn deliver_outgoing(
+        &self,
+        tcb: &mut RwLockWriteGuard<Tcb>,
+        context: Context,
+    ) -> Result<(), SendError> {
+        for (seg, mut message) in tcb.outgoing() {
+            message.prepend(seg.serialize());
+            self.downstream.clone().send(message, context.clone())?;
+        }
+        Ok(())
+    }
 }
 
 impl Session for TcpSession {
@@ -66,10 +95,7 @@ impl Session for TcpSession {
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
         let mut tcb = self.tcb.write().unwrap();
         tcb.send(message).map_err(|_| SendError::Header)?;
-        for (seg, mut message) in tcb.outgoing() {
-            message.prepend(seg.serialize());
-            self.downstream.clone().send(message, context.clone())?;
-        }
+        self.deliver_outgoing(&mut tcb, context)?;
         Ok(())
     }
 
@@ -89,4 +115,6 @@ pub enum ReceiveError {
     Protocol(Id),
     #[error("{0}")]
     Demux(#[from] DemuxError),
+    #[error("{0}")]
+    Send(#[from] SendError),
 }

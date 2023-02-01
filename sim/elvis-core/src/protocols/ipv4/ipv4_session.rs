@@ -1,14 +1,11 @@
-use super::{
-    ipv4_parsing::{Ipv4HeaderBuilder, ProtocolNumber},
-    Ipv4, Ipv4Address,
-};
+use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address};
 use crate::{
     control::{Key, Primitive},
     id::Id,
     machine::PciSlot,
     message::Message,
     protocol::{Context, DemuxError},
-    protocols::{pci::Pci, udp::Udp},
+    protocols::pci::Pci,
     session::{QueryError, SendError, SharedSession},
     Network, Session,
 };
@@ -55,14 +52,10 @@ impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
     fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
         let length = message.iter().count();
-        let protocol_number = match self.upstream {
-            Udp::ID => ProtocolNumber::Udp,
-            _ => panic!("Unknown upstream protocol"),
-        };
         let header = match Ipv4HeaderBuilder::new(
             self.id.local,
             self.id.remote,
-            protocol_number,
+            self.upstream.into_inner() as u8,
             length as u16,
         )
         .build()

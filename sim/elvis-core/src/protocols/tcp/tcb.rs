@@ -135,11 +135,13 @@ impl Tcb {
                     self.snd.nxt = self.snd.nxt.wrapping_add(max_segment_length as u32);
                 }
                 let message_len = message.len();
-                self.enqueue_outgoing(
-                    self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                    message,
-                )?;
-                self.snd.nxt = self.snd.nxt.wrapping_add(message_len as u32);
+                if message_len > 0 {
+                    self.enqueue_outgoing(
+                        self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                        message,
+                    )?;
+                    self.snd.nxt = self.snd.nxt.wrapping_add(message_len as u32);
+                }
                 Ok(SendResult::Ok)
             }
 
@@ -186,7 +188,7 @@ impl Tcb {
 
     fn remove_acked_from_retransmission(&mut self) {
         while let Some(segment) = self.retransmission_queue.front() {
-            if !self.is_in_snd_window(segment.seg.seq) {
+            if mod_le(segment.seg.seq + segment.message.len() as u32, self.snd.una) {
                 self.retransmission_queue.pop_front();
             } else {
                 break;
@@ -272,7 +274,7 @@ impl Tcb {
         seg: TcpHeader,
         message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
-        // TODO(hardint): Remove ACKed segments from the retransmission queue
+        println!("Segment arrives: {:?}", seg);
         if seg.ctl.ack() {
             match self.state {
                 State::SynSent => {
@@ -309,16 +311,7 @@ impl Tcb {
                 | State::Closing => {
                     if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
                         self.snd.una = seg.ack;
-                        // Remove acknowledged segments from retransmission queue
-                        while let Some(segment) = self.retransmission_queue.front() {
-                            // NOTE(hardint): Should this be leq?
-                            if mod_le(segment.seg.seq + segment.message.len() as u32, self.snd.una)
-                            {
-                                self.retransmission_queue.pop_front();
-                            } else {
-                                break;
-                            }
-                        }
+                        self.remove_acked_from_retransmission();
                     }
 
                     if mod_bounded(self.snd.una, Leq, seg.ack, Leq, self.snd.nxt) {
@@ -473,7 +466,11 @@ impl Tcb {
 
         // Queue the segment text for processing
         match self.state {
-            State::Established | State::FinWait1 | State::FinWait2 => {
+            State::Established
+            | State::SynSent
+            | State::SynReceived
+            | State::FinWait1
+            | State::FinWait2 => {
                 if !message.is_empty() {
                     self.incoming.push(Incoming::new(seg, message));
                 }
@@ -492,12 +489,7 @@ impl Tcb {
                 // we don't generate the ACK here, where?
             }
 
-            State::SynSent
-            | State::SynReceived
-            | State::CloseWait
-            | State::Closing
-            | State::LastAck
-            | State::TimeWait => {
+            State::CloseWait | State::Closing | State::LastAck | State::TimeWait => {
                 // Ignore the segment text
             }
         }

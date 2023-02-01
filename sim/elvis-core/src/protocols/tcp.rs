@@ -1,5 +1,5 @@
 use self::{
-    tcb::{ListenResult, Tcb},
+    tcb::{handle_closed, ListenResult, Tcb},
     tcp_parsing::TcpHeader,
     tcp_session::{ReceiveError, TcpSession},
 };
@@ -11,11 +11,14 @@ use crate::{
     },
     protocols::tcp::tcb::handle_listen,
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap,
+    Control, Id, Message, Protocol, ProtocolMap, Session,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 mod tcb;
@@ -117,6 +120,8 @@ impl Protocol for Tcp {
                     downstream,
                 ));
                 entry.insert(session.clone());
+                // Get that SYN out there!
+                session.clone().send([].into(), Context::new(protocols))?;
                 Ok(session)
             }
         }
@@ -211,6 +216,7 @@ impl Protocol for Tcp {
                         },
                         ReceiveError::Protocol(id) => return Err(DemuxError::MissingProtocol(id)),
                         ReceiveError::Demux(e) => Err(e)?,
+                        ReceiveError::Send(e) => Err(e)?,
                     },
                 }
             }
@@ -249,6 +255,7 @@ impl Protocol for Tcp {
                                         caller,
                                     ));
                                     session_entry.insert(session.clone());
+                                    session.send([].into(), context)?;
                                 }
                             },
                             None => {
@@ -258,9 +265,14 @@ impl Protocol for Tcp {
                     }
 
                     Entry::Vacant(_) => {
-                        tracing::error!(
-                            "Tried to demux with a missing session and no listen bindings"
-                        );
+                        if let Some(response) = handle_closed(
+                            header,
+                            message.len() as u32,
+                            local.address,
+                            remote.address,
+                        ) {
+                            caller.send(Message::new(response.serialize()), context)?;
+                        }
                         Err(DemuxError::MissingSession)?
                     }
                 }
@@ -273,10 +285,19 @@ impl Protocol for Tcp {
         self: Arc<Self>,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
+            loop {
+                const SLEEP_DURATION: Duration = Duration::from_millis(333);
+                tokio::time::sleep(SLEEP_DURATION).await;
+                for session in self.sessions.iter_mut() {
+                    session
+                        .clone()
+                        .advance_time(SLEEP_DURATION, protocols.clone());
+                }
+            }
         });
         Ok(())
     }
