@@ -24,7 +24,6 @@ pub use message_bytes::MessageBytes;
 pub struct Message {
     start: usize,
     end: usize,
-    len: usize,
     stack: Arc<WrappedMessage>,
 }
 
@@ -45,7 +44,6 @@ impl Message {
         Self {
             start: 0,
             end: body.len(),
-            len: body.len(),
             stack: Arc::new(WrappedMessage::Body(body)),
         }
     }
@@ -67,13 +65,13 @@ impl Message {
 
     fn prepend_inner(&mut self, header: Chunk) {
         self.end += header.len();
-        self.len += header.len();
         match self.start {
             0 => {
                 self.stack = Arc::new(WrappedMessage::Header(header, self.stack.clone()));
             }
             n => {
                 self.start = 0;
+                self.end -= n;
                 self.stack = Arc::new(WrappedMessage::Sliced(header, self.stack.clone(), n));
             }
         }
@@ -101,9 +99,6 @@ impl Message {
         self.start += start;
         if let Some(len) = len {
             self.end = self.start + len;
-            self.len = self.len.min(len);
-        } else {
-            self.len -= start;
         }
 
         // We may have sliced far enough into the message that headers toward
@@ -131,7 +126,7 @@ impl Message {
 
     /// The length of the message.
     pub fn len(&self) -> usize {
-        self.len
+        self.end - self.start
     }
 
     /// Whether the message contains no bytes.
@@ -230,6 +225,18 @@ mod tests {
         message.slice(7..);
         message.prepend(b"Header ");
         let expected = b"Header world";
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn remove_headers() {
+        let expected = b"body";
+        let mut message = Message::new(expected);
+        message.prepend(b"ipv4");
+        message.prepend(b"tcp");
+        message.slice(3..);
+        message.slice(4..);
         assert_eq!(message.len(), expected.len());
         assert!(message.iter().eq(expected.iter().cloned()));
     }

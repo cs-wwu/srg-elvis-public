@@ -128,18 +128,12 @@ impl Tcb {
                     let mut copy = message.clone();
                     copy.slice(..max_segment_length);
                     message.slice(max_segment_length..);
-                    self.enqueue_outgoing(
-                        self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                        copy,
-                    )?;
+                    self.enqueue_outgoing(self.header_builder(self.snd.nxt), copy)?;
                     self.snd.nxt = self.snd.nxt.wrapping_add(max_segment_length as u32);
                 }
                 let message_len = message.len();
                 if message_len > 0 {
-                    self.enqueue_outgoing(
-                        self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                        message,
-                    )?;
+                    self.enqueue_outgoing(self.header_builder(self.snd.nxt), message)?;
                     self.snd.nxt = self.snd.nxt.wrapping_add(message_len as u32);
                 }
                 Ok(SendResult::Ok)
@@ -272,7 +266,6 @@ impl Tcb {
                     }
                     State::CloseWait | State::Established => {}
                 }
-                outgoing.seg.ack = self.rcv.nxt;
             }
             mask |= (outgoing.needs_retransmission as u64) << i;
             outgoing.needs_retransmission = false;
@@ -292,7 +285,6 @@ impl Tcb {
         seg: TcpHeader,
         message: Message,
     ) -> Result<ReceiveResult, ReceiveError> {
-        println!("Segment arrives: {:?}", seg);
         if seg.ctl.ack() {
             match self.state {
                 State::SynSent => {
