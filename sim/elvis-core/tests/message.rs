@@ -7,6 +7,7 @@ fn multi_slice() {
     message.slice(3..8);
     message.slice(2..4);
     let expected = b"rB";
+    assert_eq!(message.len(), expected.len());
     assert!(message.iter().eq(expected.iter().cloned()));
 }
 
@@ -17,6 +18,7 @@ fn mixed_operations() {
     message.prepend(b"Header");
     message.slice(3..8);
     let expected = b"derHe";
+    assert_eq!(message.len(), expected.len());
     assert!(message.iter().eq(expected.iter().cloned()));
 }
 
@@ -26,5 +28,6 @@ fn sliced_chunk() {
     message.slice(7..);
     message.prepend(b"Header ");
     let expected = b"Header world";
+    assert_eq!(message.len(), expected.len());
     assert!(message.iter().eq(expected.iter().cloned()));
 }
