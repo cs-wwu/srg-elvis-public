@@ -290,7 +290,7 @@ impl Protocol for Tcp {
         tokio::spawn(async move {
             initialized.wait().await;
             loop {
-                const SLEEP_DURATION: Duration = Duration::from_millis(333);
+                const SLEEP_DURATION: Duration = Duration::from_millis(33);
                 tokio::time::sleep(SLEEP_DURATION).await;
                 for session in self.sessions.iter_mut() {
                     session

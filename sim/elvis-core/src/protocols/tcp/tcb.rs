@@ -26,11 +26,11 @@ const RCV_WND: u16 = 4096;
 
 // TODO(hardint): Choose a more realistic value
 /// The maximum segment lifetime on the Internet
-const MSL: Duration = Duration::new(1, 0);
+const MSL: Duration = Duration::from_secs(1);
 
 // TODO(hardint): Choose a better value
 /// The time that may pass before packets are retransmitted
-const RETRANSMISSION_TIMEOUT: Duration = Duration::new(1, 0);
+const RETRANSMISSION_TIMEOUT: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Clone)]
 pub struct Tcb {
