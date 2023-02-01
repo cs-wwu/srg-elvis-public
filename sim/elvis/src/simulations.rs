@@ -23,3 +23,6 @@ pub use throughput::throughput;
 
 mod tcp_with_reliable;
 pub use tcp_with_reliable::tcp_with_reliable;
+
+mod tcp_with_unreliable;
+pub use tcp_with_unreliable::tcp_with_unreliable;
