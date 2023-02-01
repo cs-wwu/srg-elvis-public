@@ -178,11 +178,13 @@ impl Tcb {
             self.incoming.pop();
         }
         // TODO(hardint): Piggyback acknowledgement
-        self.enqueue_outgoing(
-            self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-            Message::new(vec![]),
-        )
-        .unwrap(); // Shouldn't fail for short messages
+        if !out.is_empty() {
+            self.enqueue_outgoing(
+                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
+                Message::new(vec![]),
+            )
+            .unwrap(); // Shouldn't fail for short messages
+        }
         out
     }
 
@@ -256,6 +258,22 @@ impl Tcb {
         // messages should be transmitted directly on the Outgoing struct.
         let mut mask = 0u64;
         for (i, outgoing) in self.retransmission_queue.iter_mut().take(64).enumerate() {
+            if !outgoing.message.is_empty() {
+                // Only send segment text in established states
+                match self.state {
+                    State::SynSent
+                    | State::SynReceived
+                    | State::Closing
+                    | State::LastAck
+                    | State::FinWait1
+                    | State::FinWait2
+                    | State::TimeWait => {
+                        continue;
+                    }
+                    State::CloseWait | State::Established => {}
+                }
+                outgoing.seg.ack = self.rcv.nxt;
+            }
             mask |= (outgoing.needs_retransmission as u64) << i;
             outgoing.needs_retransmission = false;
         }
