@@ -20,6 +20,9 @@ pub use query_tester::QueryTester;
 mod throughput_tester;
 pub use throughput_tester::ThroughputTester;
 
+mod wait_for_message;
+pub use wait_for_message::WaitForMessage;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Transport {
     #[default]
