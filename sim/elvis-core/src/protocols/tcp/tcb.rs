@@ -120,7 +120,15 @@ impl Tcb {
 
     pub fn receive(&mut self) -> Vec<u8> {
         // 3.10.3
-        todo!()
+
+        // TODO(hardint): Use receive buffer size instead of just taking
+        // everything
+        let bytes = self
+            .received_text
+            .iter()
+            .map(|message| message.len())
+            .fold(0, |acc, x| acc + x);
+        consume_text(&mut self.received_text, bytes)
     }
 
     pub fn close(&mut self) -> CloseResult {
@@ -193,9 +201,7 @@ impl Tcb {
         let mut queued_bytes = self.outgoing.queued_bytes();
         loop {
             let max_bytes = self.snd.wnd as usize - queued_bytes;
-            let text = self
-                .outgoing
-                .consume_text(max_segment_length.min(max_bytes));
+            let text = consume_text(&mut self.outgoing.text, max_segment_length.min(max_bytes));
             if text.is_empty() {
                 break;
             }
@@ -813,27 +819,27 @@ struct Outgoing {
 }
 
 impl Outgoing {
-    pub fn consume_text(&mut self, bytes: usize) -> Vec<u8> {
-        let mut out = vec![];
-        while let Some(mut text) = self.text.pop_front() {
-            if text.len() <= bytes {
-                out.extend(text.iter());
-            } else {
-                out.extend(text.iter().take(bytes));
-                text.slice(bytes..);
-                self.text.push_front(text);
-                break;
-            }
-        }
-        out
-    }
-
     pub fn queued_bytes(&self) -> usize {
         self.retransmit
             .iter()
             .map(|transmit| transmit.segment.text.len())
             .fold(0, |acc, len| acc + len)
     }
+}
+
+fn consume_text(queue: &mut VecDeque<Message>, bytes: usize) -> Vec<u8> {
+    let mut out = vec![];
+    while let Some(mut text) = queue.pop_front() {
+        if text.len() <= bytes {
+            out.extend(text.iter());
+        } else {
+            out.extend(text.iter().take(bytes));
+            text.slice(bytes..);
+            queue.push_front(text);
+            break;
+        }
+    }
+    out
 }
 
 #[derive(Debug, Clone)]
