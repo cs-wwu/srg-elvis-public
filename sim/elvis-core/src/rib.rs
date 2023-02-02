@@ -1,5 +1,6 @@
-use crate::{protocols::ipv4::Ipv4Address, network::Mac};
+
 use std::{collections::{HashMap, BTreeMap, BTreeSet}, fmt::{Formatter, self}};
+use crate::protocols::ipv4::{Ipv4Address, IpToTapSlot};
 
 // Mask needs to be ordered so mask of all ones is smallest value
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone)]
@@ -47,13 +48,13 @@ impl SubnetMask {
 #[derive(Default, Debug)]
 pub struct Rib {
     // maps an Ipv4 address to a router table entry
-    table: HashMap<Ipv4Address, Entry>,
+    table: IpToTapSlot,
 
     // the masks to apply to the given ip address
     // should be ordered from 'largest' (i.e all ones) to 'smallest' (i.e all zeros)
     // so that we prefer specific ip routes over fuzzy ones
     // a mask of all 0s represents the default gateway
-    masks: BTreeSet<SubnetMask>,
+    masks: BTreeSet<Key>,
 }
 
 // do we need this?
@@ -67,6 +68,12 @@ pub struct Rib {
 /// we will keep the reciever as a string for now
 pub struct Entry {
     reciever: String
+}
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct Key {
+    mask: SubnetMask,
+    addr: Ipv4Address
 }
 
 impl fmt::Debug for Entry {
@@ -91,7 +98,7 @@ impl Rib {
     /// the masked entry is then put through a hashmap and is returned if a match is found
     /// if no match is found then discard the message and return none
     pub fn new() -> Self {
-        Rib {table: HashMap::new(), masks: BTreeSet::new()}
+        Rib {table: IpToTapSlot::new(), masks: BTreeSet::new()}
     }
 
     pub fn get(&mut self, address: Ipv4Address) -> Option<Entry> {
@@ -101,14 +108,13 @@ impl Rib {
 
     // maps given ip address to given entry
     pub fn put(&mut self, address: Ipv4Address, mask: SubnetMask, entry: Entry) {
-        self.table.insert(mask.mask(address), entry);
-        self.masks.insert(mask);
+
     }
 
     pub fn print(self) {
-        for mask in self.masks {
-            println!("{} {}", Ipv4Address::from(mask.to_u32()).to_string());
-        }
+        // for mask in self.masks {
+        //     println!("{} {}", Ipv4Address::from(mask.to_u32()).to_string());
+        // }
     }
 
     // initialize routing table from an input string for static routing
