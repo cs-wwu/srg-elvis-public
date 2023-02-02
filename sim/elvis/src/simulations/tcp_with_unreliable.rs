@@ -54,7 +54,6 @@ pub async fn tcp_with_unreliable() {
 
 #[cfg(test)]
 mod tests {
-    #[ignore]
     #[tokio::test]
     async fn tcp_with_unreliable() {
         super::tcp_with_unreliable().await
