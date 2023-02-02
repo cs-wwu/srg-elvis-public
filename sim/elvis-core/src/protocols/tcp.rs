@@ -1,5 +1,5 @@
 use self::{
-    tcb::{handle_closed, ListenResult, Tcb},
+    tcb::{handle_closed, ListenResult, Segment, SegmentArrivesResult, Tcb},
     tcp_parsing::TcpHeader,
     tcp_session::{ReceiveError, TcpSession},
 };
@@ -11,7 +11,7 @@ use crate::{
     },
     protocols::tcp::tcb::handle_listen,
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap, Session,
+    Control, Id, Message, Protocol, ProtocolMap,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -120,8 +120,6 @@ impl Protocol for Tcp {
                     downstream,
                 ));
                 entry.insert(session.clone());
-                // Get that SYN out there!
-                session.clone().send([].into(), Context::new(protocols))?;
                 Ok(session)
             }
         }
@@ -180,40 +178,21 @@ impl Protocol for Tcp {
         Tcp::set_local_port(local.port, &mut context.control);
         Tcp::set_remote_port(remote.port, &mut context.control);
 
+        let segment = Segment::new(header, message);
         match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
-                match session.receive(header, message, context) {
-                    Ok(receive_result) => match receive_result {
-                        tcb::ReceiveResult::Success
-                        | tcb::ReceiveResult::DiscardSegment
-                        | tcb::ReceiveResult::InvalidAck
-                        | tcb::ReceiveResult::UnacceptableSegment => {}
-
-                        tcb::ReceiveResult::ReturnToListen
-                        | tcb::ReceiveResult::ConnectionReset
-                        | tcb::ReceiveResult::ConnectionRefused
-                        | tcb::ReceiveResult::FinalizeClose => {
+                match session.receive(segment, context) {
+                    Ok(receive_result) => {
+                        if receive_result == SegmentArrivesResult::Close {
                             entry.remove_entry();
                         }
-                    },
+                    }
                     Err(e) => match e {
                         ReceiveError::Closing => {
                             tracing::error!("The TCP connection is already closing. Cannot demux.");
                             return Err(DemuxError::Other);
                         }
-                        ReceiveError::Tcb(e) => match e {
-                            tcb::ReceiveError::Header(e) => {
-                                tracing::error!("{}", e);
-                                return Err(DemuxError::Header);
-                            }
-                            tcb::ReceiveError::BlindReset => {
-                                tracing::error!(
-                                    "A possible blind reset attack was detected. Bailing."
-                                );
-                                return Err(DemuxError::Other);
-                            }
-                        },
                         ReceiveError::Protocol(id) => return Err(DemuxError::MissingProtocol(id)),
                         ReceiveError::Demux(e) => Err(e)?,
                         ReceiveError::Send(e) => Err(e)?,
@@ -236,8 +215,7 @@ impl Protocol for Tcp {
                             .ok_u32()
                             .map_err(|_| DemuxError::Other)?;
                         let listen_result = handle_listen(
-                            header,
-                            message,
+                            segment,
                             local.address,
                             remote.address,
                             self.iss.write().unwrap().next_iss(),
@@ -255,7 +233,6 @@ impl Protocol for Tcp {
                                         caller,
                                     ));
                                     session_entry.insert(session.clone());
-                                    session.send([].into(), context)?;
                                 }
                             },
                             None => {
@@ -266,8 +243,8 @@ impl Protocol for Tcp {
 
                     Entry::Vacant(_) => {
                         if let Some(response) = handle_closed(
-                            header,
-                            message.len() as u32,
+                            segment.seg,
+                            segment.text.len() as u32,
                             local.address,
                             remote.address,
                         ) {

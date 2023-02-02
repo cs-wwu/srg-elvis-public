@@ -1,7 +1,4 @@
-use super::{
-    tcb::{self, ReceiveResult, Tcb},
-    tcp_parsing::TcpHeader,
-};
+use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError},
@@ -40,29 +37,21 @@ impl TcpSession {
 
     pub fn receive(
         self: Arc<Self>,
-        seg: TcpHeader,
-        message: Message,
+        segment: Segment,
         context: Context,
-    ) -> Result<ReceiveResult, ReceiveError> {
+    ) -> Result<SegmentArrivesResult, ReceiveError> {
         let mut tcb = self.tcb.write().unwrap();
-        match tcb.segment_arrives(seg, message) {
-            Ok(result) => {
-                self.deliver_outgoing(&mut tcb, context.clone())?;
-                let received = tcb.receive();
-                if !received.is_empty() {
-                    context
-                        .clone()
-                        .protocol(self.upstream)
-                        .ok_or(ReceiveError::Protocol(self.upstream))?
-                        .demux(Message::new(received), self.clone(), context)?;
-                }
-                Ok(result)
-            }
-            Err(e) => {
-                tracing::error!("Failed to handle arriving segment: {0}", e);
-                Err(e)?
-            }
+        let result = tcb.segment_arrives(segment);
+        self.deliver_outgoing(&mut tcb, context.clone())?;
+        let received = tcb.receive();
+        if !received.is_empty() {
+            context
+                .clone()
+                .protocol(self.upstream)
+                .ok_or(ReceiveError::Protocol(self.upstream))?
+                .demux(Message::new(received), self.clone(), context)?;
         }
+        Ok(result)
     }
 
     pub fn advance_time(self: Arc<Self>, delta_time: Duration, protocols: ProtocolMap) {
@@ -82,9 +71,11 @@ impl TcpSession {
         tcb: &mut RwLockWriteGuard<Tcb>,
         context: Context,
     ) -> Result<(), SendError> {
-        for (seg, mut message) in tcb.outgoing() {
-            message.prepend(seg.serialize());
-            self.downstream.clone().send(message, context.clone())?;
+        for mut segment in tcb.segments() {
+            segment.text.prepend(segment.seg.serialize());
+            self.downstream
+                .clone()
+                .send(segment.text, context.clone())?;
         }
         Ok(())
     }
@@ -94,7 +85,7 @@ impl Session for TcpSession {
     // See 3.10.2
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
         let mut tcb = self.tcb.write().unwrap();
-        tcb.send(message).map_err(|_| SendError::Header)?;
+        tcb.send(message);
         self.deliver_outgoing(&mut tcb, context)?;
         Ok(())
     }
@@ -109,8 +100,6 @@ impl Session for TcpSession {
 pub enum ReceiveError {
     #[error("Attempted to receive on a closing connection")]
     Closing,
-    #[error("{0}")]
-    Tcb(#[from] tcb::ReceiveError),
     #[error("Could not get a protocol for the ID {0}")]
     Protocol(Id),
     #[error("{0}")]

@@ -1,5 +1,5 @@
 use super::{
-    tcp_parsing::{BuildHeaderError, TcpHeader, TcpHeaderBuilder},
+    tcp_parsing::{TcpHeader, TcpHeaderBuilder},
     ConnectionId,
 };
 use crate::{
@@ -40,8 +40,10 @@ pub struct Tcb {
     state: State,
     snd: SendSequenceSpace,
     rcv: ReceiveSequenceSpace,
-    retransmission_queue: VecDeque<Outgoing>,
+    outgoing: Outgoing,
     incoming: BinaryHeap<Incoming>,
+    received_text: VecDeque<Message>,
+    should_retransmit: bool,
     retransmission_timeout: Duration,
     time_wait_timeout: Option<Duration>,
 }
@@ -62,8 +64,10 @@ impl Tcb {
             state,
             snd,
             rcv,
-            retransmission_queue: Default::default(),
+            outgoing: Default::default(),
             incoming: Default::default(),
+            received_text: Default::default(),
+            should_retransmit: true,
             retransmission_timeout: RETRANSMISSION_TIMEOUT,
             time_wait_timeout: None,
         }
@@ -86,17 +90,14 @@ impl Tcb {
             },
             ReceiveSequenceSpace::default(),
         );
-        tcb.enqueue_outgoing(tcb.header_builder(iss).syn(), [].into())
-            .unwrap();
+        tcb.enqueue(tcb.header_builder(iss).syn());
         tcb
     }
 
     pub fn advance_time(&mut self, delta_time: Duration) -> AdvanceTimeResult {
         if delta_time > self.retransmission_timeout {
             self.retransmission_timeout = RETRANSMISSION_TIMEOUT;
-            for outgoing in self.retransmission_queue.iter_mut() {
-                outgoing.needs_retransmission = true;
-            }
+            self.should_retransmit = true;
         } else {
             self.retransmission_timeout -= delta_time;
         }
@@ -111,85 +112,16 @@ impl Tcb {
         AdvanceTimeResult::Ignore
     }
 
-    pub fn send(&mut self, mut message: Message) -> Result<SendResult, BuildHeaderError> {
-        // 3.10.2
-
-        // TODO(hardint): Should only queue up parts for transmission up to the
-        // send window, then wait until space is available to queue up more.
-
-        match self.state {
-            State::SynSent | State::SynReceived | State::Established | State::CloseWait => {
-                // TODO(hardint): This could be incorrect for when optional
-                // headers are used. It also is not as efficient as possible.
-                const SPACE_FOR_HEADERS: u32 = 50;
-
-                let max_segment_length = (self.mtu - SPACE_FOR_HEADERS) as usize;
-                while message.len() > max_segment_length {
-                    let mut copy = message.clone();
-                    copy.slice(..max_segment_length);
-                    message.slice(max_segment_length..);
-                    self.enqueue_outgoing(self.header_builder(self.snd.nxt), copy)?;
-                    self.snd.nxt = self.snd.nxt.wrapping_add(max_segment_length as u32);
-                }
-                let message_len = message.len();
-                if message_len > 0 {
-                    self.enqueue_outgoing(self.header_builder(self.snd.nxt), message)?;
-                    self.snd.nxt = self.snd.nxt.wrapping_add(message_len as u32);
-                }
-                Ok(SendResult::Ok)
-            }
-
-            State::FinWait1
-            | State::FinWait2
-            | State::Closing
-            | State::LastAck
-            | State::TimeWait => Ok(SendResult::ClosingConnection),
-        }
+    pub fn send(&mut self, message: Message) {
+        // 3.10.2 (Not compliant, doing things differently. We don't have a
+        // retransmission queue.)
+        self.outgoing.text.push_back(message);
+        self.should_retransmit = true;
     }
 
     pub fn receive(&mut self) -> Vec<u8> {
         // 3.10.3
-        let mut out = vec![];
-        // This processes in order of sequence numbers by using a priority queue
-        // with the Incoming type
-        while let Some(segment) = self.incoming.peek() {
-            let Incoming { seg, message } = segment;
-            if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
-                self.incoming.pop();
-                continue;
-            }
-
-            if mod_ge(seg.seq, self.rcv.nxt) {
-                // If this segment is past the next byte we want to receive, we
-                // haven't received the earlier bytes we need to proceed.
-                break;
-            }
-
-            let bytes_already_received = self.rcv.nxt - seg.seq; // Works with modulus
-            self.rcv.nxt =
-                seg.seq + message.len() as u32 + seg.ctl.syn() as u32 + seg.ctl.fin() as u32;
-            out.extend(message.iter().skip(bytes_already_received as usize));
-            self.incoming.pop();
-        }
-        // TODO(hardint): Piggyback acknowledgement
-        if !out.is_empty() {
-            self.enqueue_outgoing(
-                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                Message::new(vec![]),
-            )
-            .unwrap(); // Shouldn't fail for short messages
-        }
-        out
-    }
-
-    fn remove_acked_from_retransmission(&mut self) {
-        while let Some(segment) = self.retransmission_queue.front() {
-            if mod_le(segment.seg.seq + segment.message.len() as u32, self.snd.una) {
-                self.retransmission_queue.pop_front();
-            } else {
-                break;
-            }
-        }
+        todo!()
     }
 
     pub fn close(&mut self) -> CloseResult {
@@ -206,15 +138,13 @@ impl Tcb {
 
                 // TODO(hardint): Is this the correct sequence number for a FIN
                 // segment?
-                self.enqueue_outgoing(self.header_builder(self.snd.nxt + 1), Message::new(vec![]))
-                    .unwrap(); // For short segments this is fine
+                self.enqueue(self.header_builder(self.snd.nxt + 1));
                 self.state = State::FinWait1;
                 CloseResult::Ok
             }
 
             State::CloseWait => {
-                self.enqueue_outgoing(self.header_builder(self.snd.nxt + 1), Message::new(vec![]))
-                    .unwrap(); // For short segments this is fine
+                self.enqueue(self.header_builder(self.snd.nxt + 1));
                 self.state = State::LastAck;
                 CloseResult::Ok
             }
@@ -231,13 +161,9 @@ impl Tcb {
     // delivered, if present.
     pub fn abort(&mut self) {
         // 3.10.5
-        self.retransmission_queue = Default::default();
+        self.outgoing = Default::default();
         if self.state == State::CloseWait {
-            self.enqueue_outgoing(
-                self.header_builder(self.snd.nxt).rst(),
-                Message::new(vec![]),
-            )
-            .unwrap(); // Okay for short message
+            self.enqueue(self.header_builder(self.snd.nxt).rst());
         }
     }
 
@@ -246,59 +172,118 @@ impl Tcb {
         self.state
     }
 
-    pub fn outgoing(&mut self) -> impl Iterator<Item = (TcpHeader, Message)> + '_ {
-        // This indicates which messages are ready to send. Prepare this in a
-        // loop and move it into the iterator to avoid having to store which
-        // messages should be transmitted directly on the Outgoing struct.
-        let mut mask = 0u64;
-        for (i, outgoing) in self.retransmission_queue.iter_mut().take(64).enumerate() {
-            if !outgoing.message.is_empty() {
-                // Only send segment text in established states
-                match self.state {
-                    State::SynSent
-                    | State::SynReceived
-                    | State::Closing
-                    | State::LastAck
-                    | State::FinWait1
-                    | State::FinWait2
-                    | State::TimeWait => {
-                        continue;
-                    }
-                    State::CloseWait | State::Established => {}
-                }
+    pub fn segments(&mut self) -> Vec<Segment> {
+        let mut out = std::mem::take(&mut self.outgoing.oneshot)
+            .into_iter()
+            .map(|header| Segment::new(header, Message::new([])))
+            .collect();
+
+        match self.state {
+            State::SynSent | State::SynReceived | State::Established | State::CloseWait => {}
+            State::FinWait1
+            | State::FinWait2
+            | State::Closing
+            | State::LastAck
+            | State::TimeWait => return out,
+        }
+        if !self.should_retransmit {
+            return out;
+        }
+        self.should_retransmit = false;
+
+        // TODO(hardint): This could be incorrect for when optional
+        // headers are used. It also is not as efficient as possible.
+        const SPACE_FOR_HEADERS: u32 = 50;
+        let max_segment_length = (self.mtu - SPACE_FOR_HEADERS) as usize;
+        let mut queued_bytes = self.outgoing.queued_bytes();
+        loop {
+            let max_bytes = self.snd.wnd as usize - queued_bytes;
+            let text = self
+                .outgoing
+                .consume_text(max_segment_length.min(max_bytes));
+            if text.is_empty() {
+                break;
             }
-            mask |= (outgoing.needs_retransmission as u64) << i;
-            outgoing.needs_retransmission = false;
+            queued_bytes -= text.len();
+            let header = self
+                .header_builder(self.snd.nxt)
+                .build(
+                    self.id.local.address,
+                    self.id.remote.address,
+                    text.iter().cloned(),
+                )
+                .expect("Unexpectedly large MTU and message");
+            self.outgoing
+                .retransmit
+                .push_back(Segment::new(header, Message::new(text)));
+            self.snd.nxt = self.snd.nxt.wrapping_add(max_segment_length as u32);
         }
 
-        self.retransmission_queue
-            .iter()
-            .take(64)
-            .enumerate()
-            .filter_map(move |(i, outgoing)| {
-                ((mask >> i) & 1 == 1).then_some(outgoing.clone().into_inner())
-            })
+        out.extend(self.outgoing.retransmit.iter().cloned());
+        out
     }
 
-    pub fn segment_arrives(
-        &mut self,
-        seg: TcpHeader,
-        message: Message,
-    ) -> Result<ReceiveResult, ReceiveError> {
+    fn remove_acked_from_retransmission(&mut self) {
+        while let Some(segment) = self.outgoing.retransmit.pop_front() {
+            if mod_ge(segment.seg.seq, self.snd.una) {
+                self.outgoing.retransmit.push_front(segment);
+                break;
+            }
+        }
+    }
+
+    pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
+        self.incoming.push(Incoming::new(segment));
+        while let Some(segment) = self.incoming.peek() {
+            if mod_ge(segment.0.seg.seq, self.rcv.nxt) {
+                // If this segment is past the next byte we want to receive, it
+                // arrived out of order and we haven't received the earlier
+                // bytes we need to proceed.
+                break;
+            }
+            let segment = self.incoming.pop().unwrap().into_inner();
+            let receive_result = self.process_segment(segment);
+            match receive_result {
+                ReceiveResult::Success
+                | ReceiveResult::DiscardSegment
+                | ReceiveResult::InvalidAck => {}
+                ReceiveResult::ReturnToListen
+                | ReceiveResult::ConnectionReset
+                | ReceiveResult::ConnectionRefused
+                | ReceiveResult::FinalizeClose
+                | ReceiveResult::BlindReset => {
+                    return SegmentArrivesResult::Close;
+                }
+            }
+        }
+        SegmentArrivesResult::Ok
+        // TODO(hardint): Aggregate ACK segments
+    }
+
+    fn process_segment(&mut self, segment: Segment) -> ReceiveResult {
+        let (seg, mut text) = segment.into_inner();
+
+        // TODO(hardint): Should this check be happening earlier? Should it be
+        // happening later when queued segments are processed?
+        if !self.is_seq_ok(text.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+            self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+            return ReceiveResult::DiscardSegment;
+        }
+
         if seg.ctl.ack() {
             match self.state {
                 State::SynSent => {
                     if seg.ctl.rst() {
                         // Discard the segment
-                        return Ok(ReceiveResult::DiscardSegment);
+                        return ReceiveResult::DiscardSegment;
                     }
 
                     if mod_bounded(self.snd.nxt, Le, seg.ack, Leq, self.snd.iss)
                         || !mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt)
                     {
                         // Send a reset and discard the segment
-                        self.enqueue_outgoing(self.header_builder(seg.ack).rst(), [].into())?;
-                        return Ok(ReceiveResult::InvalidAck);
+                        self.enqueue(self.header_builder(seg.ack).rst());
+                        return ReceiveResult::InvalidAck;
                     }
                 }
 
@@ -309,7 +294,7 @@ impl Tcb {
                         self.snd.wl1 = seg.seq;
                         self.snd.wl2 = seg.ack;
                     } else {
-                        self.enqueue_outgoing(self.header_builder(seg.ack).rst(), [].into())?;
+                        self.enqueue(self.header_builder(seg.ack).rst());
                     }
                 }
 
@@ -379,29 +364,29 @@ impl Tcb {
             match self.state {
                 State::SynSent => {
                     if seg.seq == self.rcv.nxt {
-                        return Ok(ReceiveResult::ConnectionReset);
+                        return ReceiveResult::ConnectionReset;
                     } else {
-                        return Err(ReceiveError::BlindReset);
+                        return ReceiveResult::BlindReset;
                     };
                 }
 
                 State::SynReceived => match self.initiation {
                     Initiation::Listen => {
-                        return Ok(ReceiveResult::ReturnToListen);
+                        return ReceiveResult::ReturnToListen;
                     }
                     Initiation::Open => {
-                        return Ok(ReceiveResult::ConnectionRefused);
+                        return ReceiveResult::ConnectionRefused;
                     }
                 },
 
                 State::Established | State::FinWait1 | State::FinWait2 | State::CloseWait => {
                     // TODO(hardint): Outstanding RECEIVEs and SENDs
                     // should receive reset responses.
-                    return Ok(ReceiveResult::ConnectionReset);
+                    return ReceiveResult::ConnectionReset;
                 }
 
                 State::Closing | State::LastAck | State::TimeWait => {
-                    return Ok(ReceiveResult::FinalizeClose);
+                    return ReceiveResult::FinalizeClose;
                 }
             }
         }
@@ -420,23 +405,17 @@ impl Tcb {
 
                     if mod_ge(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
-                        self.enqueue_outgoing(
-                            self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                            [].into(),
-                        )?;
+                        self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     } else {
                         self.state = State::SynReceived;
-                        self.enqueue_outgoing(
-                            self.header_builder(self.snd.iss).syn().ack(self.rcv.nxt),
-                            [].into(),
-                        )?;
+                        self.enqueue(self.header_builder(self.snd.iss).syn().ack(self.rcv.nxt));
                         self.snd.wnd = seg.wnd;
                         self.snd.wl1 = seg.seq;
                         self.snd.wl2 = seg.ack;
                         // TODO(hardint): Queue other controls or text for
                         // processing in Established state
 
-                        return Ok(ReceiveResult::Success);
+                        return ReceiveResult::Success;
                     }
                 }
 
@@ -449,58 +428,40 @@ impl Tcb {
                 | State::TimeWait
                 | State::SynReceived => {
                     if self.state == State::SynReceived && self.initiation == Initiation::Listen {
-                        return Ok(ReceiveResult::ReturnToListen);
+                        return ReceiveResult::ReturnToListen;
                     }
 
                     // Getting a SYN in a synchronized state is weird. In
                     // following with RFC 5961, send a challenge ACK and stop
                     // further processing:
-                    self.enqueue_outgoing(
-                        self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                        [].into(),
-                    )?;
-                    return Ok(ReceiveResult::DiscardSegment);
+                    self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+                    return ReceiveResult::DiscardSegment;
                 }
             }
-        }
-
-        // TODO(hardint): Should this check be happening earlier? Should it be
-        // happening later when queued segments are processed?
-        if !self.is_seq_ok(message.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
-            self.enqueue_outgoing(
-                self.header_builder(self.snd.nxt).ack(self.rcv.nxt),
-                [].into(),
-            )?;
-            return Ok(ReceiveResult::DiscardSegment);
         }
 
         // Queue the segment text for processing
-        match self.state {
-            State::Established
-            | State::SynSent
-            | State::SynReceived
-            | State::FinWait1
-            | State::FinWait2 => {
-                if !message.is_empty() {
-                    self.incoming.push(Incoming::new(seg, message));
+        if !text.is_empty() {
+            match self.state {
+                State::Established
+                | State::SynSent
+                | State::SynReceived
+                | State::FinWait1
+                | State::FinWait2 => {
+                    let already_received = self.rcv.nxt - seg.seq; // Works with modulus
+                    let seg_len = text.len() as u32 + seg.ctl.syn() as u32 + seg.ctl.fin() as u32;
+                    let unreceived = seg_len - already_received;
+                    let accept = unreceived.min(RCV_WND as u32);
+                    self.rcv.nxt = seg.seq + accept;
+                    text.slice(already_received as usize..(already_received + accept) as usize);
+                    self.received_text.push_back(text);
+                    self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+                    // TODO(hardint): Adjust rcv.wnd to account for received bytes
                 }
-                // TODO(hardint): Adjust rcv.wnd to account for received bytes
 
-                // TODO(hardint): From the spec:
-                //
-                // Once the TCP endpoint takes responsibility for the data, it
-                // advances RCV.NXT over the data accepted. Send an
-                // acknowledgment of the form:
-                // <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
-                //
-                // Am I supposed to advance this no matter what or only if we
-                // have already ACKed all the bytes that came before this
-                // message? Do we only do this is the segment check succeeds? If
-                // we don't generate the ACK here, where?
-            }
-
-            State::CloseWait | State::Closing | State::LastAck | State::TimeWait => {
-                // Ignore the segment text
+                State::CloseWait | State::Closing | State::LastAck | State::TimeWait => {
+                    // Ignore the segment text
+                }
             }
         }
 
@@ -534,26 +495,29 @@ impl Tcb {
             }
         }
 
-        Ok(ReceiveResult::Success)
+        ReceiveResult::Success
     }
 
     fn header_builder(&self, seq: u32) -> TcpHeaderBuilder {
         TcpHeaderBuilder::new(self.id.local.port, self.id.remote.port, seq)
     }
 
-    fn enqueue_outgoing(
-        &mut self,
-        header_builder: TcpHeaderBuilder,
-        message: Message,
-    ) -> Result<(), BuildHeaderError> {
-        let header = header_builder.build(
-            self.id.local.address,
-            self.id.remote.address,
-            message.iter(),
-        )?;
-        self.retransmission_queue
-            .push_back(Outgoing::new(header, message));
-        Ok(())
+    fn enqueue(&mut self, header_builder: TcpHeaderBuilder) {
+        let header = header_builder
+            .build(
+                self.id.local.address,
+                self.id.remote.address,
+                [].into_iter(),
+            )
+            // Okay for short segments
+            .unwrap();
+        if header.ctl.syn() || header.ctl.fin() {
+            self.outgoing
+                .retransmit
+                .push_back(Segment::new(header, [].into()));
+        } else {
+            self.outgoing.oneshot.push(header);
+        };
     }
 
     fn is_ack_ok(&self, ack: u32) -> bool {
@@ -611,13 +575,13 @@ pub fn handle_closed(
 }
 
 pub fn handle_listen(
-    mut seg: TcpHeader,
-    message: Message,
+    segment: Segment,
     local: Ipv4Address,
     remote: Ipv4Address,
     iss: u32,
     mtu: Mtu,
 ) -> Option<ListenResult> {
+    let (mut seg, message) = segment.into_inner();
     // 3.10.7.2
     if seg.ctl.rst() {
         // First:
@@ -663,18 +627,12 @@ pub fn handle_listen(
                 nxt: seg.seq + 1,
             },
         );
-        tcb.enqueue_outgoing(tcb.header_builder(iss).syn().ack(tcb.rcv.nxt), [].into())
-            .ok()?;
+        tcb.enqueue(tcb.header_builder(iss).syn().ack(tcb.rcv.nxt));
 
         // Processing of SYN and ACK should not be repeated.
-
-        // NOTE(hardint): At the moment, ACKs are sent immediately when a
-        // segment arrives rather than trying to defer and piggyback, so this
-        // doesn't really matter as we don't reprocess ACKing segments after
-        // they arrive. Still, setting these fields is here for completeness.
         seg.ctl.set_syn(false);
         seg.ctl.set_ack(false);
-        tcb.incoming.push(Incoming::new(seg, message));
+        tcb.incoming.push(Incoming::new(Segment::new(seg, message)));
 
         Some(ListenResult::Tcb(tcb))
     } else {
@@ -757,15 +715,22 @@ struct ReceiveSequenceSpace {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReceiveResult {
+#[must_use]
+enum ReceiveResult {
     Success,
     DiscardSegment,
     InvalidAck,
-    UnacceptableSegment,
     ReturnToListen,
     ConnectionReset,
     ConnectionRefused,
     FinalizeClose,
+    BlindReset,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentArrivesResult {
+    Ok,
+    Close,
 }
 
 pub enum SendResult {
@@ -773,50 +738,43 @@ pub enum SendResult {
     ClosingConnection,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ReceiveError {
-    #[error("{0}")]
-    Header(#[from] BuildHeaderError),
-    #[error("SEG.RST and RCV.NXT != SEG.SEQ")]
-    BlindReset,
-}
-
 #[derive(Debug, Clone)]
-pub struct Outgoing {
-    seg: TcpHeader,
-    message: Message,
-    needs_retransmission: bool,
+pub struct Segment {
+    pub seg: TcpHeader,
+    pub text: Message,
 }
 
-impl Outgoing {
+impl Segment {
     pub fn new(seg: TcpHeader, message: Message) -> Self {
-        Self {
-            seg,
-            message,
-            needs_retransmission: true,
-        }
+        Self { seg, text: message }
+    }
+
+    /// The length of the segment data, including any control bits
+    pub fn seg_len(&self) -> usize {
+        self.text.len() + self.seg.ctl.syn() as usize + self.seg.ctl.fin() as usize
     }
 
     pub fn into_inner(self) -> (TcpHeader, Message) {
-        (self.seg, self.message)
+        (self.seg, self.text)
     }
 }
 
 #[derive(Debug, Clone)]
-struct Incoming {
-    seg: TcpHeader,
-    message: Message,
-}
+struct Incoming(Segment);
 
 impl Incoming {
-    pub fn new(seg: TcpHeader, message: Message) -> Self {
-        Self { seg, message }
+    pub fn new(segment: Segment) -> Self {
+        Self(segment)
+    }
+
+    pub fn into_inner(self) -> Segment {
+        self.0
     }
 }
 
 impl PartialEq for Incoming {
     fn eq(&self, other: &Self) -> bool {
-        self.seg.seq == other.seg.seq
+        self.0.seg.seq == other.0.seg.seq
     }
 }
 
@@ -830,15 +788,46 @@ impl PartialOrd for Incoming {
 
 impl Ord for Incoming {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.seg.seq == other.seg.seq {
+        if self.0.seg.seq == other.0.seg.seq {
             Ordering::Equal
-        } else if mod_le(self.seg.seq, other.seg.seq) {
+        } else if mod_le(self.0.seg.seq, other.0.seg.seq) {
             // Reversing the order so the the priority queue handles messages
             // starting from lower sequence numbers
             Ordering::Greater
         } else {
             Ordering::Less
         }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct Outgoing {
+    /// Bytes already gobbled from the front of the first message in `text`.
+    text: VecDeque<Message>,
+    oneshot: Vec<TcpHeader>,
+    retransmit: VecDeque<Segment>,
+}
+
+impl Outgoing {
+    pub fn consume_text(&mut self, bytes: usize) -> Vec<u8> {
+        let mut out = vec![];
+        while let Some(mut text) = self.text.pop_front() {
+            if text.len() <= bytes {
+                out.extend(text.iter());
+            } else {
+                out.extend(text.iter().take(bytes));
+                text.slice(bytes..);
+                self.text.push_front(text);
+            }
+        }
+        out
+    }
+
+    pub fn queued_bytes(&self) -> usize {
+        self.retransmit
+            .iter()
+            .map(|segment| segment.text.len())
+            .fold(0, |acc, len| acc + len)
     }
 }
 
@@ -1009,13 +998,12 @@ mod tests {
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         assert_eq!(peer_a.state, State::SynSent);
-        let (header, message) = peer_a.outgoing().next().unwrap();
-        assert_eq!(header.seq, 100);
-        assert!(header.ctl.syn());
+        let peer_a_syn = peer_a.segments().remove(0);
+        assert_eq!(peer_a_syn.seg.seq, 100);
+        assert!(peer_a_syn.seg.ctl.syn());
 
         let mut peer_b = handle_listen(
-            header,
-            message,
+            peer_a_syn,
             PEER_B_ID.local.address,
             PEER_B_ID.remote.address,
             300,
@@ -1027,25 +1015,25 @@ mod tests {
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 3
-        let (header, message) = peer_b.outgoing().next().unwrap();
-        assert_eq!(header.seq, 300);
-        assert_eq!(header.ack, 101);
-        assert!(header.ctl.syn());
-        assert!(header.ctl.ack());
+        let peer_b_syn_ack = peer_b.segments().remove(0);
+        assert_eq!(peer_b_syn_ack.seg.seq, 300);
+        assert_eq!(peer_b_syn_ack.seg.ack, 101);
+        assert!(peer_b_syn_ack.seg.ctl.syn());
+        assert!(peer_b_syn_ack.seg.ctl.ack());
 
-        peer_a.segment_arrives(header, message).unwrap();
+        peer_a.segment_arrives(peer_b_syn_ack);
         assert_eq!(peer_a.state, State::Established);
 
         // 4
-        let (header, message) = peer_a.outgoing().next().unwrap();
-        assert_eq!(header.seq, 101);
-        assert_eq!(header.ack, 301);
-        assert!(header.ctl.ack());
+        let peer_a_ack = peer_a.segments().remove(0);
+        assert_eq!(peer_a_ack.seg.seq, 101);
+        assert_eq!(peer_a_ack.seg.ack, 301);
+        assert!(peer_a_ack.seg.ctl.ack());
 
-        peer_b.segment_arrives(header, message).unwrap();
+        peer_b.segment_arrives(peer_a_ack);
         assert_eq!(peer_b.state, State::Established);
 
-        // 5 TODO(hardint): Needs data segment transmission to wore
+        // 5 TODO(hardint): Needs data segment transmission to work
     }
 
     #[test]
@@ -1064,43 +1052,43 @@ mod tests {
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         assert_eq!(peer_a.state, State::SynSent);
-        let a_syn = peer_a.outgoing().next().unwrap();
-        assert_eq!(a_syn.0.seq, 100);
-        assert!(a_syn.0.ctl.syn());
+        let a_syn = peer_a.segments().remove(0);
+        assert_eq!(a_syn.seg.seq, 100);
+        assert!(a_syn.seg.ctl.syn());
 
         // 3
         let mut peer_b = Tcb::open(PEER_B_ID, 300, 1500);
         assert_eq!(peer_b.state, State::SynSent);
-        let b_syn = peer_b.outgoing().next().unwrap();
-        assert_eq!(b_syn.0.seq, 300);
-        assert!(b_syn.0.ctl.syn());
+        let b_syn = peer_b.segments().remove(0);
+        assert_eq!(b_syn.seg.seq, 300);
+        assert!(b_syn.seg.ctl.syn());
 
-        peer_a.segment_arrives(b_syn.0, b_syn.1).unwrap();
+        peer_a.segment_arrives(b_syn);
         assert_eq!(peer_a.state, State::SynReceived);
 
         // 4
-        peer_b.segment_arrives(a_syn.0, a_syn.1).unwrap();
+        peer_b.segment_arrives(a_syn);
         assert_eq!(peer_b.state, State::SynReceived);
 
         // 5
-        let a_syn_ack = peer_a.outgoing().next().unwrap();
-        assert!(a_syn_ack.0.ctl.syn());
-        assert!(a_syn_ack.0.ctl.ack());
-        assert_eq!(a_syn_ack.0.seq, 100);
-        assert_eq!(a_syn_ack.0.ack, 301);
+        let a_syn_ack = peer_a.segments().remove(0);
+        assert!(a_syn_ack.seg.ctl.syn());
+        assert!(a_syn_ack.seg.ctl.ack());
+        assert_eq!(a_syn_ack.seg.seq, 100);
+        assert_eq!(a_syn_ack.seg.ack, 301);
 
         // 6
-        let b_syn_ack = peer_b.outgoing().next().unwrap();
-        assert!(b_syn_ack.0.ctl.syn());
-        assert!(b_syn_ack.0.ctl.ack());
-        assert_eq!(b_syn_ack.0.seq, 300);
-        assert_eq!(b_syn_ack.0.ack, 101);
+        let b_syn_ack = peer_b.segments().remove(0);
+        assert!(b_syn_ack.seg.ctl.syn());
+        assert!(b_syn_ack.seg.ctl.ack());
+        assert_eq!(b_syn_ack.seg.seq, 300);
+        assert_eq!(b_syn_ack.seg.ack, 101);
 
-        peer_a.segment_arrives(b_syn_ack.0, b_syn_ack.1).unwrap();
+        peer_a.segment_arrives(b_syn_ack);
         assert_eq!(peer_a.state, State::Established);
 
         // 7
-        peer_b.segment_arrives(a_syn_ack.0, a_syn_ack.1).unwrap();
+        peer_b.segment_arrives(a_syn_ack);
         assert_eq!(peer_b.state, State::Established);
     }
 
@@ -1120,9 +1108,9 @@ mod tests {
 
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
-        let peer_a_syn = peer_a.outgoing().next().unwrap();
-        assert!(peer_a_syn.0.ctl.syn());
-        assert_eq!(peer_a_syn.0.seq, 100);
+        let peer_a_syn = peer_a.segments().remove(0);
+        assert!(peer_a_syn.seg.ctl.syn());
+        assert_eq!(peer_a_syn.seg.seq, 100);
 
         // 3
         const GHOST_ID: ConnectionId = ConnectionId {
@@ -1133,13 +1121,12 @@ mod tests {
             remote: PEER_B_ID.local,
         };
         let mut ghost = Tcb::open(GHOST_ID, 90, 1500);
-        let ghost_syn = ghost.outgoing().next().unwrap();
-        assert!(ghost_syn.0.ctl.syn());
-        assert_eq!(ghost_syn.0.seq, 90);
+        let ghost_syn = ghost.segments().remove(0);
+        assert!(ghost_syn.seg.ctl.syn());
+        assert_eq!(ghost_syn.seg.seq, 90);
 
         let mut peer_b = handle_listen(
-            ghost_syn.0,
-            ghost_syn.1,
+            ghost_syn,
             GHOST_ID.remote.address,
             GHOST_ID.local.address,
             300,
@@ -1150,29 +1137,26 @@ mod tests {
         .unwrap();
 
         // 4
-        let peer_b_syn_ack = peer_b.outgoing().next().unwrap();
-        assert!(peer_b_syn_ack.0.ctl.syn());
-        assert!(peer_b_syn_ack.0.ctl.ack());
-        assert_eq!(peer_b_syn_ack.0.seq, 300);
-        assert_eq!(peer_b_syn_ack.0.ack, 91);
+        let peer_b_syn_ack = peer_b.segments().remove(0);
+        assert!(peer_b_syn_ack.seg.ctl.syn());
+        assert!(peer_b_syn_ack.seg.ctl.ack());
+        assert_eq!(peer_b_syn_ack.seg.seq, 300);
+        assert_eq!(peer_b_syn_ack.seg.ack, 91);
 
-        peer_a
-            .segment_arrives(peer_b_syn_ack.0, peer_b_syn_ack.1)
-            .unwrap();
+        peer_a.segment_arrives(peer_b_syn_ack);
         assert_eq!(peer_a.state, State::SynSent);
 
         // 5
-        let peer_a_rst = peer_a.outgoing().next().unwrap();
-        assert!(peer_a_rst.0.ctl.rst());
-        assert_eq!(peer_a_rst.0.seq, 91);
+        let peer_a_rst = peer_a.segments().remove(0);
+        assert!(peer_a_rst.seg.ctl.rst());
+        assert_eq!(peer_a_rst.seg.seq, 91);
 
-        let receive_result = peer_b.segment_arrives(peer_a_rst.0, peer_a_rst.1).unwrap();
-        assert_eq!(receive_result, ReceiveResult::ReturnToListen);
+        let receive_result = peer_b.segment_arrives(peer_a_rst);
+        assert_eq!(receive_result, SegmentArrivesResult::Close);
 
         // 6
         let mut peer_b = handle_listen(
-            peer_a_syn.0,
-            peer_a_syn.1,
+            peer_a_syn,
             PEER_B_ID.local.address,
             PEER_B_ID.remote.address,
             400,
@@ -1183,22 +1167,20 @@ mod tests {
         .unwrap();
 
         // 7
-        let peer_b_syn_ack = peer_b.outgoing().next().unwrap();
-        assert!(peer_b_syn_ack.0.ctl.syn());
-        assert!(peer_b_syn_ack.0.ctl.ack());
-        assert_eq!(peer_b_syn_ack.0.seq, 400);
-        assert_eq!(peer_b_syn_ack.0.ack, 101);
+        let peer_b_syn_ack = peer_b.segments().remove(0);
+        assert!(peer_b_syn_ack.seg.ctl.syn());
+        assert!(peer_b_syn_ack.seg.ctl.ack());
+        assert_eq!(peer_b_syn_ack.seg.seq, 400);
+        assert_eq!(peer_b_syn_ack.seg.ack, 101);
 
-        peer_a
-            .segment_arrives(peer_b_syn_ack.0, peer_b_syn_ack.1)
-            .unwrap();
+        peer_a.segment_arrives(peer_b_syn_ack);
         assert_eq!(peer_a.state, State::Established);
 
         // 8
-        let peer_a_ack = peer_a.outgoing().next().unwrap();
-        assert!(peer_a_ack.0.ctl.ack());
-        assert_eq!(peer_a_ack.0.seq, 101);
-        assert_eq!(peer_a_ack.0.ack, 401);
+        let peer_a_ack = peer_a.segments().remove(0);
+        assert!(peer_a_ack.seg.ctl.ack());
+        assert_eq!(peer_a_ack.seg.seq, 101);
+        assert_eq!(peer_a_ack.seg.ack, 401);
     }
 
     // TODO(hardint): Add tests for the exchanges in figures 9 through 11 about
@@ -1206,10 +1188,9 @@ mod tests {
 
     fn established_pair() -> (Tcb, Tcb) {
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
-        let peer_a_syn = peer_a.outgoing().next().unwrap();
+        let peer_a_syn = peer_a.segments().remove(0);
         let mut peer_b = handle_listen(
-            peer_a_syn.0,
-            peer_a_syn.1,
+            peer_a_syn,
             PEER_B_ID.local.address,
             PEER_B_ID.remote.address,
             300,
@@ -1218,12 +1199,10 @@ mod tests {
         .unwrap()
         .tcb()
         .unwrap();
-        let peer_b_syn_ack = peer_b.outgoing().next().unwrap();
-        peer_a
-            .segment_arrives(peer_b_syn_ack.0, peer_b_syn_ack.1)
-            .unwrap();
-        let peer_a_ack = peer_a.outgoing().next().unwrap();
-        peer_b.segment_arrives(peer_a_ack.0, peer_a_ack.1).unwrap();
+        let peer_b_syn_ack = peer_b.segments().remove(0);
+        peer_a.segment_arrives(peer_b_syn_ack);
+        let peer_a_ack = peer_a.segments().remove(0);
+        peer_b.segment_arrives(peer_a_ack);
         assert_eq!(peer_a.state, State::Established);
         assert_eq!(peer_b.state, State::Established);
         (peer_a, peer_b)
@@ -1260,45 +1239,45 @@ mod tests {
         peer_a.close();
         assert_eq!(peer_a.state, State::FinWait1);
 
-        let peer_a_fin = peer_a.outgoing().next().unwrap();
-        assert!(peer_a_fin.0.ctl.fin());
-        assert!(peer_a_fin.0.ctl.ack());
-        assert_eq!(peer_a_fin.0.seq, 100);
-        assert_eq!(peer_a_fin.0.ack, 300);
+        let peer_a_fin = peer_a.segments().remove(0);
+        assert!(peer_a_fin.seg.ctl.fin());
+        assert!(peer_a_fin.seg.ctl.ack());
+        assert_eq!(peer_a_fin.seg.seq, 100);
+        assert_eq!(peer_a_fin.seg.ack, 300);
 
-        peer_b.segment_arrives(peer_a_fin.0, peer_a_fin.1).unwrap();
+        peer_b.segment_arrives(peer_a_fin);
         assert_eq!(peer_b.state, State::CloseWait);
 
         // 3
-        let peer_b_ack = peer_b.outgoing().next().unwrap();
-        assert!(peer_b_ack.0.ctl.ack());
-        assert_eq!(peer_b_ack.0.seq, 300);
-        assert_eq!(peer_b_ack.0.ack, 101);
+        let peer_b_ack = peer_b.segments().remove(0);
+        assert!(peer_b_ack.seg.ctl.ack());
+        assert_eq!(peer_b_ack.seg.seq, 300);
+        assert_eq!(peer_b_ack.seg.ack, 101);
 
-        peer_a.segment_arrives(peer_b_ack.0, peer_b_ack.1).unwrap();
+        peer_a.segment_arrives(peer_b_ack);
         assert_eq!(peer_a.state, State::FinWait2);
 
         // 4
         peer_b.close();
         assert_eq!(peer_b.state, State::LastAck);
 
-        let peer_b_fin = peer_b.outgoing().next().unwrap();
-        assert!(peer_b_fin.0.ctl.fin());
-        assert!(peer_b_fin.0.ctl.ack());
-        assert_eq!(peer_b_fin.0.seq, 300);
-        assert_eq!(peer_b_fin.0.ack, 101);
+        let peer_b_fin = peer_b.segments().remove(0);
+        assert!(peer_b_fin.seg.ctl.fin());
+        assert!(peer_b_fin.seg.ctl.ack());
+        assert_eq!(peer_b_fin.seg.seq, 300);
+        assert_eq!(peer_b_fin.seg.ack, 101);
 
-        peer_a.segment_arrives(peer_b_fin.0, peer_b_fin.1).unwrap();
+        peer_a.segment_arrives(peer_b_fin);
         assert_eq!(peer_a.state, State::TimeWait);
 
         // 5
-        let peer_a_ack = peer_a.outgoing().next().unwrap();
-        assert!(peer_a_ack.0.ctl.ack());
-        assert_eq!(peer_a_ack.0.seq, 101);
-        assert_eq!(peer_a_ack.0.ack, 301);
+        let peer_a_ack = peer_a.segments().remove(0);
+        assert!(peer_a_ack.seg.ctl.ack());
+        assert_eq!(peer_a_ack.seg.seq, 101);
+        assert_eq!(peer_a_ack.seg.ack, 301);
 
-        let receive_result = peer_b.segment_arrives(peer_a_ack.0, peer_a_ack.1).unwrap();
-        assert_eq!(receive_result, ReceiveResult::FinalizeClose);
+        let receive_result = peer_b.segment_arrives(peer_a_ack);
+        assert_eq!(receive_result, SegmentArrivesResult::Close);
 
         let timeout = peer_a.advance_time(MSL.mul_f32(2.1));
         assert_eq!(timeout, AdvanceTimeResult::CloseConnection);
@@ -1332,44 +1311,44 @@ mod tests {
         // 2
         peer_a.close();
         assert_eq!(peer_a.state, State::FinWait1);
-        let fin_ack_a = peer_a.outgoing().next().unwrap();
-        assert_eq!(fin_ack_a.0.seq, 100);
-        assert_eq!(fin_ack_a.0.ack, 300);
-        assert!(fin_ack_a.0.ctl.fin());
-        assert!(fin_ack_a.0.ctl.ack());
+        let fin_ack_a = peer_a.segments().remove(0);
+        assert_eq!(fin_ack_a.seg.seq, 100);
+        assert_eq!(fin_ack_a.seg.ack, 300);
+        assert!(fin_ack_a.seg.ctl.fin());
+        assert!(fin_ack_a.seg.ctl.ack());
 
         peer_b.close();
         assert_eq!(peer_b.state, State::FinWait1);
-        let fin_ack_b = peer_a.outgoing().next().unwrap();
-        assert_eq!(fin_ack_b.0.seq, 300);
-        assert_eq!(fin_ack_b.0.ack, 100);
-        assert!(fin_ack_b.0.ctl.fin());
-        assert!(fin_ack_b.0.ctl.ack());
+        let fin_ack_b = peer_a.segments().remove(0);
+        assert_eq!(fin_ack_b.seg.seq, 300);
+        assert_eq!(fin_ack_b.seg.ack, 100);
+        assert!(fin_ack_b.seg.ctl.fin());
+        assert!(fin_ack_b.seg.ctl.ack());
 
         // 3
-        peer_a.segment_arrives(fin_ack_b.0, fin_ack_b.1).unwrap();
+        peer_a.segment_arrives(fin_ack_b);
         assert_eq!(peer_a.state, State::Closing);
-        let ack_a = peer_a.outgoing().next().unwrap();
-        assert_eq!(ack_a.0.seq, 101);
-        assert_eq!(ack_a.0.ack, 301);
-        assert!(ack_a.0.ctl.ack());
+        let ack_a = peer_a.segments().remove(0);
+        assert_eq!(ack_a.seg.seq, 101);
+        assert_eq!(ack_a.seg.ack, 301);
+        assert!(ack_a.seg.ctl.ack());
 
-        peer_b.segment_arrives(fin_ack_a.0, fin_ack_a.1).unwrap();
+        peer_b.segment_arrives(fin_ack_a);
         assert_eq!(peer_b.state, State::Closing);
-        let ack_b = peer_b.outgoing().next().unwrap();
-        assert_eq!(ack_b.0.seq, 101);
-        assert_eq!(ack_b.0.ack, 301);
-        assert!(ack_b.0.ctl.ack());
+        let ack_b = peer_b.segments().remove(0);
+        assert_eq!(ack_b.seg.seq, 101);
+        assert_eq!(ack_b.seg.ack, 301);
+        assert!(ack_b.seg.ctl.ack());
 
         // 4
-        peer_a.segment_arrives(ack_b.0, ack_b.1).unwrap();
+        peer_a.segment_arrives(ack_b);
         assert_eq!(peer_a.state, State::TimeWait);
         assert_eq!(
             peer_a.advance_time(MSL.mul_f32(2.1)),
             AdvanceTimeResult::CloseConnection
         );
 
-        peer_b.segment_arrives(ack_a.0, ack_a.1).unwrap();
+        peer_b.segment_arrives(ack_a);
         assert_eq!(peer_b.state, State::TimeWait);
         assert_eq!(
             peer_b.advance_time(MSL.mul_f32(2.1)),
@@ -1381,9 +1360,9 @@ mod tests {
     fn message_send() {
         let expected = b"Hello, world!";
         let (mut peer_a, mut peer_b) = established_pair();
-        peer_a.send(Message::new(expected)).unwrap();
-        for outgoing in peer_a.outgoing() {
-            peer_b.segment_arrives(outgoing.0, outgoing.1).unwrap();
+        peer_a.send(Message::new(expected));
+        for outgoing in peer_a.segments() {
+            peer_b.segment_arrives(outgoing);
         }
         let received = peer_b.receive();
         assert_eq!(expected, received.as_slice());
@@ -1397,11 +1376,11 @@ mod tests {
             .take(4000)
             .collect();
         let (mut peer_a, mut peer_b) = established_pair();
-        peer_a.send(Message::new(expected.clone())).unwrap();
+        peer_a.send(Message::new(expected.clone()));
         let mut count = 0;
-        for outgoing in peer_a.outgoing() {
+        for outgoing in peer_a.segments() {
             count += 1;
-            peer_b.segment_arrives(outgoing.0, outgoing.1).unwrap();
+            peer_b.segment_arrives(outgoing);
         }
         let received = peer_b.receive();
         assert_eq!(count, 3);
@@ -1416,15 +1395,15 @@ mod tests {
             .take(8000) // This is beyond our receive window now
             .collect();
         let (mut peer_a, mut peer_b) = established_pair();
-        peer_a.send(Message::new(expected.clone())).unwrap();
+        peer_a.send(Message::new(expected.clone()));
         let mut received = vec![];
         while received.len() != expected.len() {
-            for outgoing in peer_a.outgoing() {
-                peer_b.segment_arrives(outgoing.0, outgoing.1).unwrap();
+            for outgoing in peer_a.segments() {
+                peer_b.segment_arrives(outgoing);
             }
             received.extend(peer_b.receive());
-            for outgoing in peer_b.outgoing() {
-                peer_a.segment_arrives(outgoing.0, outgoing.1).unwrap();
+            for outgoing in peer_b.segments() {
+                peer_a.segment_arrives(outgoing);
             }
             peer_a.advance_time(Duration::from_millis(666));
             peer_b.advance_time(Duration::from_millis(666));
@@ -1440,10 +1419,10 @@ mod tests {
             .take(4000)
             .collect();
         let (mut peer_a, mut peer_b) = established_pair();
-        peer_a.send(Message::new(expected.clone())).unwrap();
-        let segments: Vec<_> = peer_a.outgoing().collect();
+        peer_a.send(Message::new(expected.clone()));
+        let segments = peer_a.segments();
         for outgoing in segments.into_iter().rev() {
-            peer_b.segment_arrives(outgoing.0, outgoing.1).unwrap();
+            peer_b.segment_arrives(outgoing);
         }
         let received = peer_b.receive();
         assert_eq!(expected, received);

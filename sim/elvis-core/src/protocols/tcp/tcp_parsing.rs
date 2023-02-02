@@ -346,23 +346,44 @@ impl From<Control> for u8 {
 impl std::fmt::Debug for Control {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Control(")?;
+        let mut wrote = false;
         if self.urg() {
-            write!(f, "URG,")?;
+            wrote = true;
+            write!(f, "URG")?;
         }
         if self.ack() {
-            write!(f, "ACK,")?;
+            if wrote {
+                write!(f, ", ")?;
+            }
+            wrote = true;
+            write!(f, "ACK")?;
         }
         if self.psh() {
-            write!(f, "PSH,")?;
+            if wrote {
+                write!(f, ", ")?;
+            }
+            wrote = true;
+            write!(f, "PSH")?;
         }
         if self.rst() {
-            write!(f, "RST,")?;
+            if wrote {
+                write!(f, ", ")?;
+            }
+            wrote = true;
+            write!(f, "RST")?;
         }
         if self.syn() {
-            write!(f, "SYN,")?;
+            if wrote {
+                write!(f, ", ")?;
+            }
+            wrote = true;
+            write!(f, "SYN")?;
         }
         if self.fin() {
-            write!(f, "FIN,")?;
+            if wrote {
+                write!(f, ", ")?;
+            }
+            write!(f, "FIN")?;
         }
         write!(f, ")")
     }
@@ -370,9 +391,8 @@ impl std::fmt::Debug for Control {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocols::{tcp::ConnectionId, utility::Socket};
-
     use super::*;
+    use crate::protocols::{tcp::ConnectionId, utility::Socket};
 
     #[test]
     fn parses_packet() -> anyhow::Result<()> {
