@@ -17,7 +17,7 @@ pub(super) struct DnsHeader {
     pub id: u16,
     /// the 16 bit wrapper that holds the following fields:
     /// QR, Opcode, AA, TC, RD, RA, Z, RCODE
-    pub properties: DNSHeaderProperties,
+    pub properties: DnsHeaderProperties,
     /// the number of entries in the question section.
     pub qdcount: u16,
     /// the number of resource records in the answer section.
@@ -30,12 +30,19 @@ pub(super) struct DnsHeader {
 
 impl DnsHeader {
     /// Parses a header from a byte iterator.
-    pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, ParseError> {
+    pub fn from_bytes(mut bytes: impl Iterator<Item = u16>) -> Result<Self, ParseError> {
         let mut next =
-            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
+            || -> Result<u16, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
 
-
-        let id = u16::from_be_bytes([next()?, next()?]);
+        let id = next()?;
+        let properties: DnsHeaderProperties = next()?;
+        let qr = properties.get_QR();
+        let opcode = properties.get_Opcode();
+        let aa = properties.get_AA();
+        let tc = properties.get_TC();
+        let rd = properties.get_RD();
+        let ra = properties.get_RA();
+        let rcode = properties.get_RCODE();
     }
 }
 
