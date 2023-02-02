@@ -1,5 +1,5 @@
 use super::Dns;
-
+use crate::bit;
 
 
 /// A DNS header, as described in RFC1035 p25 s4.1.1
@@ -9,74 +9,83 @@ pub(super) struct DnsHeader {
     /// the corresponding reply and can be used by the requester
     ///  to match up replies to outstanding queries.
     pub id: u16,
-    /// A one bit field that specifies whether this message is a
-    /// query (0), or a response (1).
-    pub qr: u8,
-    /// A four bit field that specifies kind of query in this
-    /// message.  This value is set by the originator of a query
-    /// and copied into the response.  The values are:
-    /// 0               a standard query (QUERY)
-    /// 1               an inverse query (IQUERY)
-    /// 2               a server status request (STATUS)
-    pub opcode: u8,
-    /// Authoritative Answer - this bit is valid in responses,
-    /// and specifies that the responding name server is an
-    /// authority for the domain name in question section.
-    pub aa: u8,
-    /// TrunCation - specifies that this message was truncated
-    /// due to length greater than that permitted on the
-    /// transmission channel.
-    pub tc: u8,
-    /// Recursion Desired - this bit may be set in a query and
-    /// is copied into the response.  If RD is set, it directs
-    /// the name server to pursue the query recursively.
-    /// Recursive query support is optional.
-    pub rd: u8,
-    /// Recursion Available - this be is set or cleared in a
-    /// response, and denotes whether recursive query support is
-    /// available in the name server.
-    pub ra: u8,
-    /// Reserved for future use.  Must be zero in all queries
-    /// and responses.
-    pub z: u8,
-    /// Response code - this 4 bit field is set as part of
-    /// responses.  The values have the following
-    /// interpretation:
-    /// 0 - No error condition
-    /// 1 Format error     - The name server was
-    ///                      unable to interpret the query.
-    /// 2 Server failure   - The name server was
-    ///                      unable to process this query due to a
-    ////                     problem with the name server.
-    ///  3 Name Error      - Meaningful only for
-    ///                      responses from an authoritative name
-    ///                      server, this code signifies that the
-    ///                      domain name referenced in the query does
-    ///                      not exist.
-    ///  4 Not Implemented - The name server does
-    ///                      not support the requested kind of query.
-    ///  5 Refused         - The name server refuses to
-    ///                      perform the specified operation for
-    ///                      policy reasons.  For example, a name
-    ///                      server may not wish to provide the
-    ///                      information to the particular requester,
-    ///                      or a name server may not wish to perform
-    ///                      a particular operation (e.g., zonetransfer) 
-    ///                      for particular data.
-    pub rcode: u8,
-    /// an unsigned 16 bit integer specifying the number of
-    /// entries in the question section.
+    /// the 16 bit wrapper that holds the following fields:
+    /// QR, Opcode, AA, TC, RD, RA, Z, RCODE
+    pub properties: DNSHeaderProperties,
+    /// the number of entries in the question section.
     pub qdcount: u16,
-    /// an unsigned 16 bit integer specifying the number of
-    /// resource records in the answer section.
+    /// the number of resource records in the answer section.
     pub ancount: u16,
-    /// an unsigned 16 bit integer specifying the number of name
-    /// server resource records in the authority records
-    /// section.
+    /// the number of name server resource records in the authority records section.
     pub nscount: u16,
-    /// an unsigned 16 bit integer specifying the number of
-    /// resource records in the additional records section.
+    /// the number of resource records in the additional records section.
     pub arcount: u16,
     
 
+}
+
+/// Wrapper struct for holding the QR, Opcode, AA, TC, RD, RA, Z, and RCODE
+/// fields of a DNS Header.
+pub(super) struct DNSHeaderProperties(u16);
+
+impl DNSHeaderProperties {
+    fn get_QR() -> bool {
+        self.bit(0)
+    }
+
+    fn get_Opcode() -> Self {
+        let opcode_range = std::ops::Range {start: 1, end: 5};
+        bit_range(opcode_range)
+    }
+
+    fn get_AA() -> bool {
+        self.bit(5)
+    }
+
+    fn get_TC() -> bool {
+        self.bit(6)
+    }
+
+    fn get_RD() -> bool {
+        self.bit(7)
+    }
+
+    fn get_RA() -> bool {
+        self.bit(8)
+    }
+
+    fn get_RCODE() -> Self {
+        let rcode_range = std::ops::Range {start: 12, end: 16};
+        bit_range(rcode_range)
+    }
+}
+
+impl BitIndex for DNSHeaderProperties {
+    /// DNSHeaderProperties are defined by 2 bytes, 16 bits
+    fn bit_length() -> usize {
+        2
+    }
+
+    fn bit(&self, pos: usize) -> bool {
+        self << pos >> self.bit_length()
+    }
+
+    fn bit_range(&self, pos: Range<usize>) -> Self {
+
+    }
+
+    fn set_bit(&mut self, pos: usize, val: bool) -> &mut Self {
+
+    }
+
+    fn set_bit_range(&mut self, pos: Range<usize>, val: Self) -> &mut Self {
+
+    }
+
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
 }
