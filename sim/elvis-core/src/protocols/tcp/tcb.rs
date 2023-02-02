@@ -235,7 +235,7 @@ impl Tcb {
     pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
         self.incoming.push(Incoming::new(segment));
         while let Some(segment) = self.incoming.peek() {
-            if mod_ge(segment.0.seg.seq, self.rcv.nxt) {
+            if self.state != State::SynSent && mod_ge(segment.0.seg.seq, self.rcv.nxt) {
                 // If this segment is past the next byte we want to receive, it
                 // arrived out of order and we haven't received the earlier
                 // bytes we need to proceed.
