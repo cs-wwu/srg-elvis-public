@@ -21,9 +21,6 @@ use std::{
 // NOTE(hardint): In the current implementation, we respond to with ACKs
 // immediately instead of trying to piggyback them for efficiency. This can be revised once the implementation is working.
 
-// TODO(hardint): Do actual window management
-const RCV_WND: u16 = 4096;
-
 // TODO(hardint): Choose a more realistic value
 /// The maximum segment lifetime on the Internet
 const MSL: Duration = Duration::from_secs(1);
@@ -205,9 +202,10 @@ impl Tcb {
             if text.is_empty() {
                 break;
             }
-            queued_bytes -= text.len();
+            queued_bytes += text.len();
             let header = self
                 .header_builder(self.snd.nxt)
+                .wnd(self.rcv.wnd)
                 .build(
                     self.id.local.address,
                     self.id.remote.address,
@@ -403,18 +401,15 @@ impl Tcb {
 
                     self.remove_acked_from_retransmission();
 
+                    self.snd.wnd = seg.wnd;
+                    self.snd.wl1 = seg.seq;
+                    self.snd.wl2 = seg.ack;
                     if mod_ge(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
                         self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     } else {
                         self.state = State::SynReceived;
                         self.enqueue(self.header_builder(self.snd.iss).syn().ack(self.rcv.nxt));
-                        self.snd.wnd = seg.wnd;
-                        self.snd.wl1 = seg.seq;
-                        self.snd.wl2 = seg.ack;
-                        // TODO(hardint): Queue other controls or text for
-                        // processing in Established state
-
                         return ReceiveResult::Success;
                     }
                 }
@@ -458,7 +453,7 @@ impl Tcb {
                     let already_received = self.rcv.nxt - seg.seq; // Works with modulus
                     let seg_len = text.len() as u32 + seg.ctl.syn() as u32 + seg.ctl.fin() as u32;
                     let unreceived = seg_len - already_received;
-                    let accept = unreceived.min(RCV_WND as u32);
+                    let accept = unreceived.min(self.rcv.wnd as u32);
                     self.rcv.nxt = seg.seq + accept;
                     text.slice(already_received as usize..(already_received + accept) as usize);
                     self.received_text.push_back(text);
@@ -511,6 +506,7 @@ impl Tcb {
 
     fn enqueue(&mut self, header_builder: TcpHeaderBuilder) {
         let header = header_builder
+            .wnd(self.rcv.wnd)
             .build(
                 self.id.local.address,
                 self.id.remote.address,
@@ -535,12 +531,12 @@ impl Tcb {
         let seg_len = data_len + fin as u32 + syn as u32;
         // Test segment acceptability. See Table 6.
         if seg_len == 0 {
-            if RCV_WND == 0 {
+            if self.rcv.wnd == 0 {
                 seq == self.rcv.nxt
             } else {
                 self.is_in_rcv_window(seq)
             }
-        } else if RCV_WND == 0 {
+        } else if self.rcv.wnd == 0 {
             // When the receive window is zero, only ACKs are acceptible.
             false
         } else {
@@ -549,7 +545,7 @@ impl Tcb {
     }
 
     fn is_in_rcv_window(&self, n: u32) -> bool {
-        mod_bounded(self.rcv.nxt, Leq, n, Le, self.rcv.nxt + RCV_WND as u32)
+        mod_bounded(self.rcv.nxt, Leq, n, Le, self.rcv.nxt + self.rcv.wnd as u32)
     }
 
     fn is_in_snd_window(&self, n: u32) -> bool {
@@ -632,6 +628,7 @@ pub fn handle_listen(
             ReceiveSequenceSpace {
                 irs: seg.seq,
                 nxt: seg.seq + 1,
+                ..Default::default()
             },
         );
         tcb.enqueue(tcb.header_builder(iss).syn().ack(tcb.rcv.nxt));
@@ -712,13 +709,25 @@ struct SendSequenceSpace {
 // 1 - old sequence numbers which have been acknowledged
 // 2 - sequence numbers allowed for new reception
 // 3 - future sequence numbers which are not yet allowed
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct ReceiveSequenceSpace {
     /// Initial receive sequence number
     irs: u32,
     /// Next sequence number expected on an incoming segment, and is the
     /// left or lower edge of the receive window
     nxt: u32,
+    /// The number of bytes we can buffer from the remote TCP
+    wnd: u16,
+}
+
+impl Default for ReceiveSequenceSpace {
+    fn default() -> Self {
+        Self {
+            irs: 0,
+            nxt: 0,
+            wnd: 4096,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
