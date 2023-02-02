@@ -212,10 +212,10 @@ impl Tcb {
                     text.iter().cloned(),
                 )
                 .expect("Unexpectedly large MTU and message");
+            self.snd.nxt = self.snd.nxt.wrapping_add(text.len() as u32);
             self.outgoing
                 .retransmit
                 .push_back(Transmit::new(Segment::new(header, Message::new(text))));
-            self.snd.nxt = self.snd.nxt.wrapping_add(max_segment_length as u32);
         }
 
         for transmit in self.outgoing.retransmit.iter_mut() {
