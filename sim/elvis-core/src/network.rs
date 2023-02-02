@@ -113,7 +113,8 @@ impl Network {
         tokio::spawn(async move {
             barrier.wait().await;
             while let Some(delivery) = receiver.recv().await {
-                if rand::random::<f32>() < self.loss_rate {
+                let rng = rand::random::<f32>();
+                if rng < self.loss_rate {
                     // Drop the message
                     continue;
                 }

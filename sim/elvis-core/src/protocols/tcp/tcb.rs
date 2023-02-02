@@ -1423,7 +1423,7 @@ mod tests {
     }
 
     #[test]
-    fn message_retransmission() {
+    fn large_message_transmission() {
         let expected: Vec<_> = std::iter::repeat(0)
             .enumerate()
             .map(|(i, _)| i as u8)
@@ -1440,8 +1440,39 @@ mod tests {
             for outgoing in peer_b.segments() {
                 peer_a.segment_arrives(outgoing);
             }
-            peer_a.advance_time(Duration::from_millis(666));
-            peer_b.advance_time(Duration::from_millis(666));
+            peer_a.advance_time(Duration::from_millis(1));
+            peer_b.advance_time(Duration::from_millis(1));
+        }
+        assert_eq!(expected, received);
+    }
+
+    #[test]
+    fn message_retransmission() {
+        let expected: Vec<_> = std::iter::repeat(0)
+            .enumerate()
+            .map(|(i, _)| i as u8)
+            .take(8000) // This is beyond our receive window now
+            .collect();
+        let (mut peer_a, mut peer_b) = established_pair();
+        peer_a.send(Message::new(expected.clone()));
+        let mut received = vec![];
+        let mut loss = true;
+        while received.len() != expected.len() {
+            for outgoing in peer_a.segments() {
+                if !loss {
+                    peer_b.segment_arrives(outgoing);
+                }
+                loss = !loss;
+            }
+            received.extend(peer_b.receive());
+            for outgoing in peer_b.segments() {
+                if !loss {
+                    peer_b.segment_arrives(outgoing);
+                }
+                loss = !loss;
+            }
+            peer_a.advance_time(Duration::from_millis(1));
+            peer_b.advance_time(Duration::from_millis(1));
         }
         assert_eq!(expected, received);
     }

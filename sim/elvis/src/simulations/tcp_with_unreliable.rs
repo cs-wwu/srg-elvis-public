@@ -19,7 +19,7 @@ use elvis_core::{
 pub async fn tcp_with_unreliable() {
     let network = NetworkBuilder::new()
         .mtu(500)
-        .loss_rate(0.5)
+        .loss_rate(0.05)
         .latency(Latency::variable(
             Duration::ZERO,
             Duration::from_millis(200),
