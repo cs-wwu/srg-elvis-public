@@ -1490,4 +1490,44 @@ mod tests {
         let received = peer_b.receive();
         assert_eq!(expected, received);
     }
+
+    #[test]
+    fn loss_during_initiation() {
+        let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
+        peer_a.segments();
+        peer_a.advance_time(Duration::from_secs(1));
+        let peer_a_syn = peer_a.segments();
+        assert_eq!(peer_a_syn.len(), 1);
+        let peer_a_syn = peer_a_syn.into_iter().next().unwrap();
+
+        let mut peer_b = handle_listen(
+            peer_a_syn.clone(),
+            PEER_B_ID.local.address,
+            PEER_B_ID.remote.address,
+            300,
+            1500,
+        )
+        .unwrap()
+        .tcb()
+        .unwrap();
+        peer_b.segments();
+        peer_b.advance_time(Duration::from_secs(1));
+        let peer_b_syn_ack = peer_b.segments().into_iter().next().unwrap();
+
+        // Lost packet arrives
+        peer_b.segment_arrives(peer_a_syn);
+
+        peer_a.segment_arrives(peer_b_syn_ack.clone());
+        peer_a.segments();
+        peer_a.advance_time(Duration::from_secs(1));
+        peer_a.segment_arrives(peer_b_syn_ack.clone());
+        let peer_a_ack = peer_a.segments().into_iter().next().unwrap();
+
+        // Lost packet arrives
+        peer_a.segment_arrives(peer_b_syn_ack);
+        assert_eq!(peer_a.state, State::Established);
+
+        peer_b.segment_arrives(peer_a_ack);
+        assert_eq!(peer_b.state, State::Established);
+    }
 }
