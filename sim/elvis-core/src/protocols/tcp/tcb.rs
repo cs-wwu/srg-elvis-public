@@ -1530,4 +1530,32 @@ mod tests {
         peer_b.segment_arrives(peer_a_ack);
         assert_eq!(peer_b.state, State::Established);
     }
+
+    #[test]
+    fn send_before_established() {
+        let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
+        peer_a.send(Message::new("Hello!"));
+        let peer_a_syn = peer_a.segments().remove(0);
+        let mut peer_b = handle_listen(
+            peer_a_syn,
+            PEER_B_ID.local.address,
+            PEER_B_ID.remote.address,
+            300,
+            1500,
+        )
+        .unwrap()
+        .tcb()
+        .unwrap();
+        peer_b.send(Message::new("Hi!"));
+        for segment in peer_b.segments() {
+            peer_a.segment_arrives(segment);
+        }
+        for segment in peer_a.segments() {
+            peer_b.segment_arrives(segment);
+        }
+        assert_eq!(peer_a.state, State::Established);
+        assert_eq!(peer_b.state, State::Established);
+        assert_eq!(peer_a.receive(), b"Hi!");
+        assert_eq!(peer_b.receive(), b"Hello!");
+    }
 }
