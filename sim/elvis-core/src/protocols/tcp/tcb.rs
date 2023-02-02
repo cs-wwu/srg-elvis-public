@@ -1456,20 +1456,17 @@ mod tests {
         let (mut peer_a, mut peer_b) = established_pair();
         peer_a.send(Message::new(expected.clone()));
         let mut received = vec![];
-        let mut loss = true;
         while received.len() != expected.len() {
             for outgoing in peer_a.segments() {
-                if !loss {
+                if rand::random::<f32>() < 0.5 {
                     peer_b.segment_arrives(outgoing);
                 }
-                loss = !loss;
             }
             received.extend(peer_b.receive());
             for outgoing in peer_b.segments() {
-                if !loss {
-                    peer_b.segment_arrives(outgoing);
+                if rand::random::<f32>() < 0.5 {
+                    peer_a.segment_arrives(outgoing);
                 }
-                loss = !loss;
             }
             peer_a.advance_time(Duration::from_millis(1));
             peer_b.advance_time(Duration::from_millis(1));
