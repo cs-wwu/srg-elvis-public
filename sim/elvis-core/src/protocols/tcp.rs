@@ -243,7 +243,7 @@ impl Protocol for Tcp {
 
                     Entry::Vacant(_) => {
                         if let Some(response) = handle_closed(
-                            segment.seg,
+                            segment.header,
                             segment.text.len() as u32,
                             local.address,
                             remote.address,

@@ -43,7 +43,6 @@ pub struct Tcb {
     outgoing: Outgoing,
     incoming: BinaryHeap<Incoming>,
     received_text: VecDeque<Message>,
-    should_retransmit: bool,
     retransmission_timeout: Duration,
     time_wait_timeout: Option<Duration>,
 }
@@ -67,7 +66,6 @@ impl Tcb {
             outgoing: Default::default(),
             incoming: Default::default(),
             received_text: Default::default(),
-            should_retransmit: true,
             retransmission_timeout: RETRANSMISSION_TIMEOUT,
             time_wait_timeout: None,
         }
@@ -97,7 +95,9 @@ impl Tcb {
     pub fn advance_time(&mut self, delta_time: Duration) -> AdvanceTimeResult {
         if delta_time > self.retransmission_timeout {
             self.retransmission_timeout = RETRANSMISSION_TIMEOUT;
-            self.should_retransmit = true;
+            for mut transmit in self.outgoing.retransmit.iter_mut() {
+                transmit.needs_transmit = true;
+            }
         } else {
             self.retransmission_timeout -= delta_time;
         }
@@ -116,7 +116,6 @@ impl Tcb {
         // 3.10.2 (Not compliant, doing things differently. We don't have a
         // retransmission queue.)
         self.outgoing.text.push_back(message);
-        self.should_retransmit = true;
     }
 
     pub fn receive(&mut self) -> Vec<u8> {
@@ -186,10 +185,6 @@ impl Tcb {
             | State::LastAck
             | State::TimeWait => return out,
         }
-        if !self.should_retransmit {
-            return out;
-        }
-        self.should_retransmit = false;
 
         // TODO(hardint): This could be incorrect for when optional
         // headers are used. It also is not as efficient as possible.
@@ -215,18 +210,24 @@ impl Tcb {
                 .expect("Unexpectedly large MTU and message");
             self.outgoing
                 .retransmit
-                .push_back(Segment::new(header, Message::new(text)));
+                .push_back(Transmit::new(Segment::new(header, Message::new(text))));
             self.snd.nxt = self.snd.nxt.wrapping_add(max_segment_length as u32);
         }
 
-        out.extend(self.outgoing.retransmit.iter().cloned());
+        for transmit in self.outgoing.retransmit.iter_mut() {
+            if transmit.needs_transmit {
+                out.push(transmit.segment.clone());
+            }
+            transmit.needs_transmit = false;
+        }
+
         out
     }
 
     fn remove_acked_from_retransmission(&mut self) {
-        while let Some(segment) = self.outgoing.retransmit.pop_front() {
-            if mod_ge(segment.seg.seq, self.snd.una) {
-                self.outgoing.retransmit.push_front(segment);
+        while let Some(transmit) = self.outgoing.retransmit.pop_front() {
+            if mod_ge(transmit.segment.header.seq, self.snd.una) {
+                self.outgoing.retransmit.push_front(transmit);
                 break;
             }
         }
@@ -235,7 +236,7 @@ impl Tcb {
     pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
         self.incoming.push(Incoming::new(segment));
         while let Some(segment) = self.incoming.peek() {
-            if self.state != State::SynSent && mod_ge(segment.0.seg.seq, self.rcv.nxt) {
+            if self.state != State::SynSent && mod_ge(segment.0.header.seq, self.rcv.nxt) {
                 // If this segment is past the next byte we want to receive, it
                 // arrived out of order and we haven't received the earlier
                 // bytes we need to proceed.
@@ -514,7 +515,7 @@ impl Tcb {
         if header.ctl.syn() || header.ctl.fin() {
             self.outgoing
                 .retransmit
-                .push_back(Segment::new(header, [].into()));
+                .push_back(Transmit::new(Segment::new(header, [].into())));
         } else {
             self.outgoing.oneshot.push(header);
         };
@@ -740,22 +741,25 @@ pub enum SendResult {
 
 #[derive(Debug, Clone)]
 pub struct Segment {
-    pub seg: TcpHeader,
+    pub header: TcpHeader,
     pub text: Message,
 }
 
 impl Segment {
     pub fn new(seg: TcpHeader, message: Message) -> Self {
-        Self { seg, text: message }
+        Self {
+            header: seg,
+            text: message,
+        }
     }
 
     /// The length of the segment data, including any control bits
     pub fn seg_len(&self) -> usize {
-        self.text.len() + self.seg.ctl.syn() as usize + self.seg.ctl.fin() as usize
+        self.text.len() + self.header.ctl.syn() as usize + self.header.ctl.fin() as usize
     }
 
     pub fn into_inner(self) -> (TcpHeader, Message) {
-        (self.seg, self.text)
+        (self.header, self.text)
     }
 }
 
@@ -774,7 +778,7 @@ impl Incoming {
 
 impl PartialEq for Incoming {
     fn eq(&self, other: &Self) -> bool {
-        self.0.seg.seq == other.0.seg.seq
+        self.0.header.seq == other.0.header.seq
     }
 }
 
@@ -788,9 +792,9 @@ impl PartialOrd for Incoming {
 
 impl Ord for Incoming {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.0.seg.seq == other.0.seg.seq {
+        if self.0.header.seq == other.0.header.seq {
             Ordering::Equal
-        } else if mod_le(self.0.seg.seq, other.0.seg.seq) {
+        } else if mod_le(self.0.header.seq, other.0.header.seq) {
             // Reversing the order so the the priority queue handles messages
             // starting from lower sequence numbers
             Ordering::Greater
@@ -805,7 +809,7 @@ struct Outgoing {
     /// Bytes already gobbled from the front of the first message in `text`.
     text: VecDeque<Message>,
     oneshot: Vec<TcpHeader>,
-    retransmit: VecDeque<Segment>,
+    retransmit: VecDeque<Transmit>,
 }
 
 impl Outgoing {
@@ -826,8 +830,23 @@ impl Outgoing {
     pub fn queued_bytes(&self) -> usize {
         self.retransmit
             .iter()
-            .map(|segment| segment.text.len())
+            .map(|transmit| transmit.segment.text.len())
             .fold(0, |acc, len| acc + len)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Transmit {
+    segment: Segment,
+    needs_transmit: bool,
+}
+
+impl Transmit {
+    pub fn new(segment: Segment) -> Self {
+        Self {
+            segment,
+            needs_transmit: true,
+        }
     }
 }
 
@@ -999,8 +1018,8 @@ mod tests {
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         assert_eq!(peer_a.state, State::SynSent);
         let peer_a_syn = peer_a.segments().remove(0);
-        assert_eq!(peer_a_syn.seg.seq, 100);
-        assert!(peer_a_syn.seg.ctl.syn());
+        assert_eq!(peer_a_syn.header.seq, 100);
+        assert!(peer_a_syn.header.ctl.syn());
 
         let mut peer_b = handle_listen(
             peer_a_syn,
@@ -1016,19 +1035,19 @@ mod tests {
 
         // 3
         let peer_b_syn_ack = peer_b.segments().remove(0);
-        assert_eq!(peer_b_syn_ack.seg.seq, 300);
-        assert_eq!(peer_b_syn_ack.seg.ack, 101);
-        assert!(peer_b_syn_ack.seg.ctl.syn());
-        assert!(peer_b_syn_ack.seg.ctl.ack());
+        assert_eq!(peer_b_syn_ack.header.seq, 300);
+        assert_eq!(peer_b_syn_ack.header.ack, 101);
+        assert!(peer_b_syn_ack.header.ctl.syn());
+        assert!(peer_b_syn_ack.header.ctl.ack());
 
         peer_a.segment_arrives(peer_b_syn_ack);
         assert_eq!(peer_a.state, State::Established);
 
         // 4
         let peer_a_ack = peer_a.segments().remove(0);
-        assert_eq!(peer_a_ack.seg.seq, 101);
-        assert_eq!(peer_a_ack.seg.ack, 301);
-        assert!(peer_a_ack.seg.ctl.ack());
+        assert_eq!(peer_a_ack.header.seq, 101);
+        assert_eq!(peer_a_ack.header.ack, 301);
+        assert!(peer_a_ack.header.ctl.ack());
 
         peer_b.segment_arrives(peer_a_ack);
         assert_eq!(peer_b.state, State::Established);
@@ -1053,15 +1072,15 @@ mod tests {
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         assert_eq!(peer_a.state, State::SynSent);
         let a_syn = peer_a.segments().remove(0);
-        assert_eq!(a_syn.seg.seq, 100);
-        assert!(a_syn.seg.ctl.syn());
+        assert_eq!(a_syn.header.seq, 100);
+        assert!(a_syn.header.ctl.syn());
 
         // 3
         let mut peer_b = Tcb::open(PEER_B_ID, 300, 1500);
         assert_eq!(peer_b.state, State::SynSent);
         let b_syn = peer_b.segments().remove(0);
-        assert_eq!(b_syn.seg.seq, 300);
-        assert!(b_syn.seg.ctl.syn());
+        assert_eq!(b_syn.header.seq, 300);
+        assert!(b_syn.header.ctl.syn());
 
         peer_a.segment_arrives(b_syn);
         assert_eq!(peer_a.state, State::SynReceived);
@@ -1072,17 +1091,17 @@ mod tests {
 
         // 5
         let a_syn_ack = peer_a.segments().remove(0);
-        assert!(a_syn_ack.seg.ctl.syn());
-        assert!(a_syn_ack.seg.ctl.ack());
-        assert_eq!(a_syn_ack.seg.seq, 100);
-        assert_eq!(a_syn_ack.seg.ack, 301);
+        assert!(a_syn_ack.header.ctl.syn());
+        assert!(a_syn_ack.header.ctl.ack());
+        assert_eq!(a_syn_ack.header.seq, 100);
+        assert_eq!(a_syn_ack.header.ack, 301);
 
         // 6
         let b_syn_ack = peer_b.segments().remove(0);
-        assert!(b_syn_ack.seg.ctl.syn());
-        assert!(b_syn_ack.seg.ctl.ack());
-        assert_eq!(b_syn_ack.seg.seq, 300);
-        assert_eq!(b_syn_ack.seg.ack, 101);
+        assert!(b_syn_ack.header.ctl.syn());
+        assert!(b_syn_ack.header.ctl.ack());
+        assert_eq!(b_syn_ack.header.seq, 300);
+        assert_eq!(b_syn_ack.header.ack, 101);
 
         peer_a.segment_arrives(b_syn_ack);
         assert_eq!(peer_a.state, State::Established);
@@ -1109,8 +1128,8 @@ mod tests {
         // 2
         let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
         let peer_a_syn = peer_a.segments().remove(0);
-        assert!(peer_a_syn.seg.ctl.syn());
-        assert_eq!(peer_a_syn.seg.seq, 100);
+        assert!(peer_a_syn.header.ctl.syn());
+        assert_eq!(peer_a_syn.header.seq, 100);
 
         // 3
         const GHOST_ID: ConnectionId = ConnectionId {
@@ -1122,8 +1141,8 @@ mod tests {
         };
         let mut ghost = Tcb::open(GHOST_ID, 90, 1500);
         let ghost_syn = ghost.segments().remove(0);
-        assert!(ghost_syn.seg.ctl.syn());
-        assert_eq!(ghost_syn.seg.seq, 90);
+        assert!(ghost_syn.header.ctl.syn());
+        assert_eq!(ghost_syn.header.seq, 90);
 
         let mut peer_b = handle_listen(
             ghost_syn,
@@ -1138,18 +1157,18 @@ mod tests {
 
         // 4
         let peer_b_syn_ack = peer_b.segments().remove(0);
-        assert!(peer_b_syn_ack.seg.ctl.syn());
-        assert!(peer_b_syn_ack.seg.ctl.ack());
-        assert_eq!(peer_b_syn_ack.seg.seq, 300);
-        assert_eq!(peer_b_syn_ack.seg.ack, 91);
+        assert!(peer_b_syn_ack.header.ctl.syn());
+        assert!(peer_b_syn_ack.header.ctl.ack());
+        assert_eq!(peer_b_syn_ack.header.seq, 300);
+        assert_eq!(peer_b_syn_ack.header.ack, 91);
 
         peer_a.segment_arrives(peer_b_syn_ack);
         assert_eq!(peer_a.state, State::SynSent);
 
         // 5
         let peer_a_rst = peer_a.segments().remove(0);
-        assert!(peer_a_rst.seg.ctl.rst());
-        assert_eq!(peer_a_rst.seg.seq, 91);
+        assert!(peer_a_rst.header.ctl.rst());
+        assert_eq!(peer_a_rst.header.seq, 91);
 
         let receive_result = peer_b.segment_arrives(peer_a_rst);
         assert_eq!(receive_result, SegmentArrivesResult::Close);
@@ -1168,19 +1187,19 @@ mod tests {
 
         // 7
         let peer_b_syn_ack = peer_b.segments().remove(0);
-        assert!(peer_b_syn_ack.seg.ctl.syn());
-        assert!(peer_b_syn_ack.seg.ctl.ack());
-        assert_eq!(peer_b_syn_ack.seg.seq, 400);
-        assert_eq!(peer_b_syn_ack.seg.ack, 101);
+        assert!(peer_b_syn_ack.header.ctl.syn());
+        assert!(peer_b_syn_ack.header.ctl.ack());
+        assert_eq!(peer_b_syn_ack.header.seq, 400);
+        assert_eq!(peer_b_syn_ack.header.ack, 101);
 
         peer_a.segment_arrives(peer_b_syn_ack);
         assert_eq!(peer_a.state, State::Established);
 
         // 8
         let peer_a_ack = peer_a.segments().remove(0);
-        assert!(peer_a_ack.seg.ctl.ack());
-        assert_eq!(peer_a_ack.seg.seq, 101);
-        assert_eq!(peer_a_ack.seg.ack, 401);
+        assert!(peer_a_ack.header.ctl.ack());
+        assert_eq!(peer_a_ack.header.seq, 101);
+        assert_eq!(peer_a_ack.header.ack, 401);
     }
 
     // TODO(hardint): Add tests for the exchanges in figures 9 through 11 about
@@ -1240,19 +1259,19 @@ mod tests {
         assert_eq!(peer_a.state, State::FinWait1);
 
         let peer_a_fin = peer_a.segments().remove(0);
-        assert!(peer_a_fin.seg.ctl.fin());
-        assert!(peer_a_fin.seg.ctl.ack());
-        assert_eq!(peer_a_fin.seg.seq, 100);
-        assert_eq!(peer_a_fin.seg.ack, 300);
+        assert!(peer_a_fin.header.ctl.fin());
+        assert!(peer_a_fin.header.ctl.ack());
+        assert_eq!(peer_a_fin.header.seq, 100);
+        assert_eq!(peer_a_fin.header.ack, 300);
 
         peer_b.segment_arrives(peer_a_fin);
         assert_eq!(peer_b.state, State::CloseWait);
 
         // 3
         let peer_b_ack = peer_b.segments().remove(0);
-        assert!(peer_b_ack.seg.ctl.ack());
-        assert_eq!(peer_b_ack.seg.seq, 300);
-        assert_eq!(peer_b_ack.seg.ack, 101);
+        assert!(peer_b_ack.header.ctl.ack());
+        assert_eq!(peer_b_ack.header.seq, 300);
+        assert_eq!(peer_b_ack.header.ack, 101);
 
         peer_a.segment_arrives(peer_b_ack);
         assert_eq!(peer_a.state, State::FinWait2);
@@ -1262,19 +1281,19 @@ mod tests {
         assert_eq!(peer_b.state, State::LastAck);
 
         let peer_b_fin = peer_b.segments().remove(0);
-        assert!(peer_b_fin.seg.ctl.fin());
-        assert!(peer_b_fin.seg.ctl.ack());
-        assert_eq!(peer_b_fin.seg.seq, 300);
-        assert_eq!(peer_b_fin.seg.ack, 101);
+        assert!(peer_b_fin.header.ctl.fin());
+        assert!(peer_b_fin.header.ctl.ack());
+        assert_eq!(peer_b_fin.header.seq, 300);
+        assert_eq!(peer_b_fin.header.ack, 101);
 
         peer_a.segment_arrives(peer_b_fin);
         assert_eq!(peer_a.state, State::TimeWait);
 
         // 5
         let peer_a_ack = peer_a.segments().remove(0);
-        assert!(peer_a_ack.seg.ctl.ack());
-        assert_eq!(peer_a_ack.seg.seq, 101);
-        assert_eq!(peer_a_ack.seg.ack, 301);
+        assert!(peer_a_ack.header.ctl.ack());
+        assert_eq!(peer_a_ack.header.seq, 101);
+        assert_eq!(peer_a_ack.header.ack, 301);
 
         let receive_result = peer_b.segment_arrives(peer_a_ack);
         assert_eq!(receive_result, SegmentArrivesResult::Close);
@@ -1312,33 +1331,33 @@ mod tests {
         peer_a.close();
         assert_eq!(peer_a.state, State::FinWait1);
         let fin_ack_a = peer_a.segments().remove(0);
-        assert_eq!(fin_ack_a.seg.seq, 100);
-        assert_eq!(fin_ack_a.seg.ack, 300);
-        assert!(fin_ack_a.seg.ctl.fin());
-        assert!(fin_ack_a.seg.ctl.ack());
+        assert_eq!(fin_ack_a.header.seq, 100);
+        assert_eq!(fin_ack_a.header.ack, 300);
+        assert!(fin_ack_a.header.ctl.fin());
+        assert!(fin_ack_a.header.ctl.ack());
 
         peer_b.close();
         assert_eq!(peer_b.state, State::FinWait1);
         let fin_ack_b = peer_a.segments().remove(0);
-        assert_eq!(fin_ack_b.seg.seq, 300);
-        assert_eq!(fin_ack_b.seg.ack, 100);
-        assert!(fin_ack_b.seg.ctl.fin());
-        assert!(fin_ack_b.seg.ctl.ack());
+        assert_eq!(fin_ack_b.header.seq, 300);
+        assert_eq!(fin_ack_b.header.ack, 100);
+        assert!(fin_ack_b.header.ctl.fin());
+        assert!(fin_ack_b.header.ctl.ack());
 
         // 3
         peer_a.segment_arrives(fin_ack_b);
         assert_eq!(peer_a.state, State::Closing);
         let ack_a = peer_a.segments().remove(0);
-        assert_eq!(ack_a.seg.seq, 101);
-        assert_eq!(ack_a.seg.ack, 301);
-        assert!(ack_a.seg.ctl.ack());
+        assert_eq!(ack_a.header.seq, 101);
+        assert_eq!(ack_a.header.ack, 301);
+        assert!(ack_a.header.ctl.ack());
 
         peer_b.segment_arrives(fin_ack_a);
         assert_eq!(peer_b.state, State::Closing);
         let ack_b = peer_b.segments().remove(0);
-        assert_eq!(ack_b.seg.seq, 101);
-        assert_eq!(ack_b.seg.ack, 301);
-        assert!(ack_b.seg.ctl.ack());
+        assert_eq!(ack_b.header.seq, 101);
+        assert_eq!(ack_b.header.ack, 301);
+        assert!(ack_b.header.ctl.ack());
 
         // 4
         peer_a.segment_arrives(ack_b);
