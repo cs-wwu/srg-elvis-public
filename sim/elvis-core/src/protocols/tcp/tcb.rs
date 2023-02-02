@@ -264,13 +264,6 @@ impl Tcb {
     fn process_segment(&mut self, segment: Segment) -> ReceiveResult {
         let (seg, mut text) = segment.into_inner();
 
-        // TODO(hardint): Should this check be happening earlier? Should it be
-        // happening later when queued segments are processed?
-        if !self.is_seq_ok(text.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
-            self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
-            return ReceiveResult::DiscardSegment;
-        }
-
         if seg.ctl.ack() {
             match self.state {
                 State::SynSent => {
@@ -439,6 +432,13 @@ impl Tcb {
                     return ReceiveResult::DiscardSegment;
                 }
             }
+        }
+
+        // TODO(hardint): Should this check be happening earlier? Should it be
+        // happening later when queued segments are processed?
+        if !self.is_seq_ok(text.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+            self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+            return ReceiveResult::DiscardSegment;
         }
 
         // Queue the segment text for processing
