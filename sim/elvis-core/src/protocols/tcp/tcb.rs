@@ -822,6 +822,7 @@ impl Outgoing {
                 out.extend(text.iter().take(bytes));
                 text.slice(bytes..);
                 self.text.push_front(text);
+                break;
             }
         }
         out
