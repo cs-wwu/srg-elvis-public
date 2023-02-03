@@ -112,6 +112,26 @@ impl BitIndex for DnsHeaderProperties {
 
 }
 
+pub(super) struct DnsHeaderBuilder {
+    id: u16,
+    properties: DnsHeaderProperties,
+    qdcount: u16,
+    ancount: u16,
+    nscount: u16,
+    arcount: u16,
+}
+
+impl DnsHeaderBuilder {
+    // Creates a new builder
+    pub fn new(
+
+    ) -> self {
+        self {
+            
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
