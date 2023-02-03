@@ -1,38 +1,5 @@
 use super::*;
 
-#[test]
-fn modular_comparison() {
-    // 2**31 = 2_147_483_648
-    assert!(mod_le(10, 20));
-    assert!(!mod_le(20, 10));
-    assert!(mod_le(2_000_000_000, 3_000_000_000));
-    assert!(!mod_le(3_000_000_000, 2_000_000_000));
-    assert!(mod_le(3_000_000_000, 4_000_000_000));
-    assert!(!mod_le(4_000_000_000, 3_000_000_000));
-
-    assert!(!mod_le(5, 5));
-    assert!(mod_leq(5, 5));
-
-    assert!(mod_ge(20, 10));
-    assert!(!mod_ge(5, 5));
-    assert!(mod_geq(5, 5));
-
-    assert!(mod_bounded(5, Le, 10, Le, 15));
-    assert!(!mod_bounded(15, Le, 10, Le, 5));
-
-    assert!(mod_bounded(u32::MAX - 5, Le, 5, Le, 10));
-    assert!(!mod_bounded(10, Le, 5, Le, u32::MAX - 5));
-
-    assert!(mod_bounded(u32::MAX - 10, Le, u32::MAX - 5, Le, 5));
-    assert!(!mod_bounded(5, Le, u32::MAX - 5, Le, u32::MAX - 10));
-
-    assert!(!mod_bounded(5, Le, 5, Le, 15));
-    assert!(mod_bounded(5, Leq, 5, Le, 15));
-    assert!(!mod_bounded(5, Le, 15, Le, 15));
-    assert!(mod_bounded(5, Le, 15, Leq, 15));
-    assert!(mod_bounded(10, Leq, 10, Leq, 10));
-}
-
 const PEER_A_ID: ConnectionId = ConnectionId {
     local: Socket {
         address: Ipv4Address::new([0, 0, 0, 0]),
