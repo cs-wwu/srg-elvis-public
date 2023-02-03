@@ -177,7 +177,10 @@ impl Tcb {
     }
 
     pub fn segments(&mut self) -> Vec<Segment> {
-        let mut out = vec![];
+        let mut out = std::mem::take(&mut self.outgoing.oneshot)
+            .into_iter()
+            .map(|header| Segment::new(header, [].into()))
+            .collect();
 
         match self.state {
             State::SynSent | State::SynReceived | State::Established | State::CloseWait => {}
@@ -202,6 +205,7 @@ impl Tcb {
             queued_bytes += text.len();
             let header = self
                 .header_builder(self.snd.nxt)
+                .ack(self.rcv.nxt)
                 .wnd(self.rcv.wnd)
                 .build(
                     self.id.local.address,
@@ -230,7 +234,7 @@ impl Tcb {
         while let Some(transmit) = self.outgoing.retransmit.get(i) {
             let seq = transmit.segment.header.seq;
             let seg_len = transmit.segment.seg_len() as u32;
-            if self.is_in_snd_window(seq) || self.is_in_snd_window(seq + seg_len) {
+            if mod_le(self.snd.una, seq + seg_len) {
                 i += 1;
             } else {
                 self.outgoing.retransmit.remove(i);
@@ -239,12 +243,6 @@ impl Tcb {
     }
 
     pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
-        println!(
-            "Segment arrives: {:?}, {:?} bytes, {:?}",
-            self.state,
-            segment.text.len(),
-            segment.header
-        );
         self.incoming.push(Incoming::new(segment));
         while let Some(segment) = self.incoming.peek() {
             if self.state != State::SynSent && mod_ge(segment.0.header.seq, self.rcv.nxt) {
@@ -255,12 +253,11 @@ impl Tcb {
             }
             let segment = self.incoming.pop().unwrap().into_inner();
             let receive_result = self.process_segment(segment);
+            println!("{:?}, {:?}", receive_result, self.state);
             match receive_result {
                 ProcessSegmentResult::Success
                 | ProcessSegmentResult::DiscardSegment
-                | ProcessSegmentResult::InvalidAck => {
-                    println!("{:?}", receive_result);
-                }
+                | ProcessSegmentResult::InvalidAck => {}
                 ProcessSegmentResult::ReturnToListen
                 | ProcessSegmentResult::ConnectionReset
                 | ProcessSegmentResult::ConnectionRefused
@@ -275,6 +272,12 @@ impl Tcb {
     }
 
     fn process_segment(&mut self, segment: Segment) -> ProcessSegmentResult {
+        println!(
+            "Segment arrives: {:?}, {:?} bytes, {:?}",
+            self.state,
+            segment.text.len(),
+            segment.header
+        );
         let (seg, mut text) = segment.into_inner();
 
         match self.state {
@@ -390,10 +393,7 @@ impl Tcb {
                     self.rcv.irs = seg.seq;
                     self.rcv.nxt = seg.seq + 1;
 
-                    if seg.ctl.ack() {
-                        self.snd.una = seg.ack;
-                        self.remove_acked_from_retransmission();
-                    }
+                    // Already did ACK processing
 
                     self.snd.wnd = seg.wnd;
                     self.snd.wl1 = seg.seq;
@@ -437,15 +437,20 @@ impl Tcb {
                 | State::SynReceived
                 | State::FinWait1
                 | State::FinWait2 => {
+                    // If we got here, we already know that SEQ > RCV.NXT
+                    // Should also be in the window, but let's check:
+                    assert!(
+                        self.is_in_rcv_window(seg.seq)
+                            || self.is_in_rcv_window(seg.seq + text.len() as u32)
+                    );
                     let already_received = self.rcv.nxt - seg.seq; // Works with modulus
                     let seg_len = text.len() as u32 + seg.ctl.syn() as u32 + seg.ctl.fin() as u32;
                     let unreceived = seg_len - already_received;
                     let accept = unreceived.min(self.rcv.wnd as u32);
-                    self.rcv.nxt = seg.seq + accept;
+                    self.rcv.nxt += accept;
                     text.slice(already_received as usize..(already_received + accept) as usize);
                     self.received_text.push_back(text);
                     self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
-                    // TODO(hardint): Adjust rcv.wnd to account for received bytes
                 }
 
                 State::CloseWait | State::Closing | State::LastAck | State::TimeWait => {
@@ -550,9 +555,13 @@ impl Tcb {
             )
             // Okay for short segments
             .unwrap();
-        self.outgoing
-            .retransmit
-            .push_back(Transmit::new(Segment::new(header, [].into())));
+        if header.ctl.syn() || header.ctl.fin() {
+            self.outgoing
+                .retransmit
+                .push_back(Transmit::new(Segment::new(header, [].into())));
+        } else {
+            self.outgoing.oneshot.push(header);
+        }
     }
 
     fn is_ack_ok(&self, ack: u32) -> bool {
@@ -867,6 +876,7 @@ struct Outgoing {
     /// Bytes already gobbled from the front of the first message in `text`.
     text: VecDeque<Message>,
     retransmit: VecDeque<Transmit>,
+    oneshot: Vec<TcpHeader>,
 }
 
 impl Outgoing {
@@ -1490,15 +1500,11 @@ mod tests {
 
     #[test]
     fn message_retransmission() {
-        let expected: Vec<_> = std::iter::repeat(0)
-            .enumerate()
-            .map(|(i, _)| i as u8)
-            .take(8000) // This is beyond our receive window now
-            .collect();
+        let expected: Vec<_> = (0..8000).map(|i| i as u8).collect();
         let (mut peer_a, mut peer_b) = established_pair();
         peer_a.send(Message::new(expected.clone()));
         let mut received = vec![];
-        while received.len() != expected.len() {
+        while received.len() < expected.len() {
             for outgoing in peer_a.segments() {
                 if rand::random::<f32>() < 0.5 {
                     peer_b.segment_arrives(outgoing);
@@ -1567,9 +1573,19 @@ mod tests {
             SegmentArrivesResult::Ok
         );
         assert_eq!(peer_a.state, State::Established);
-        peer_a.segments();
-        peer_a.advance_time(Duration::from_secs(1));
+        // Lost, new ACK not generated
+        let _peer_a_ack = peer_a.segments();
+
+        peer_b.segments();
+        peer_b.advance_time(Duration::from_secs(1));
+        let peer_b_syn_ack = peer_b.segments().into_iter().next().unwrap();
+        assert_eq!(
+            // Peer B probes again
+            peer_a.segment_arrives(peer_b_syn_ack.clone()),
+            SegmentArrivesResult::Ok
+        );
         let peer_a_ack = peer_a.segments();
+
         assert_eq!(peer_a_ack.len(), 1);
         let peer_a_ack = peer_a_ack.into_iter().next().unwrap();
         assert!(peer_a_ack.header.ctl.ack());
