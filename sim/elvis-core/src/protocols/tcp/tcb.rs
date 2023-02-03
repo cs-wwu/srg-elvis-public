@@ -1421,7 +1421,6 @@ mod tests {
         assert_eq!(timeout, AdvanceTimeResult::CloseConnection);
     }
 
-    #[ignore]
     #[test]
     fn simultaneous_close_sequence() {
         // This test implements the following exchange from 3.6, Figure 13:
@@ -1457,7 +1456,7 @@ mod tests {
 
         peer_b.close();
         assert_eq!(peer_b.state, State::FinWait1);
-        let fin_ack_b = peer_a.segments().remove(0);
+        let fin_ack_b = peer_b.segments().remove(0);
         assert_eq!(fin_ack_b.header.seq, 300);
         assert_eq!(fin_ack_b.header.ack, 100);
         assert!(fin_ack_b.header.ctl.fin());
@@ -1474,8 +1473,8 @@ mod tests {
         peer_b.segment_arrives(fin_ack_a);
         assert_eq!(peer_b.state, State::Closing);
         let ack_b = peer_b.segments().remove(0);
-        assert_eq!(ack_b.header.seq, 101);
-        assert_eq!(ack_b.header.ack, 301);
+        assert_eq!(ack_b.header.seq, 301);
+        assert_eq!(ack_b.header.ack, 101);
         assert!(ack_b.header.ctl.ack());
 
         // 4
