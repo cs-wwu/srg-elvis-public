@@ -1,3 +1,5 @@
+use self::incoming::Incoming;
+
 use super::{
     tcp_parsing::{TcpHeader, TcpHeaderBuilder},
     ConnectionId,
@@ -8,7 +10,6 @@ use crate::{
     Message,
 };
 use std::{
-    cmp::Ordering,
     collections::{BinaryHeap, VecDeque},
     mem,
     time::Duration,
@@ -19,6 +20,8 @@ mod tests;
 
 mod modular_cmp;
 use modular_cmp::*;
+
+mod incoming;
 
 // TODO(hardint): Move acknowledgment queuing to the front so they get delivered first
 
@@ -277,7 +280,7 @@ impl Tcb {
     pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
         self.incoming.push(Incoming::new(segment));
         while let Some(segment) = self.incoming.peek() {
-            if self.state != State::SynSent && mod_ge(segment.0.header.seq, self.rcv.nxt) {
+            if self.state != State::SynSent && mod_ge(segment.header.seq, self.rcv.nxt) {
                 // If this segment is past the next byte we want to receive, it
                 // arrived out of order and we haven't received the earlier
                 // bytes we need to proceed.
@@ -888,47 +891,6 @@ impl Segment {
     }
 }
 
-#[derive(Debug, Clone)]
-struct Incoming(Segment);
-
-impl Incoming {
-    pub fn new(segment: Segment) -> Self {
-        Self(segment)
-    }
-
-    pub fn into_inner(self) -> Segment {
-        self.0
-    }
-}
-
-impl PartialEq for Incoming {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.header.seq == other.0.header.seq
-    }
-}
-
-impl Eq for Incoming {}
-
-impl PartialOrd for Incoming {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Incoming {
-    fn cmp(&self, other: &Self) -> Ordering {
-        if self.0.header.seq == other.0.header.seq {
-            Ordering::Equal
-        } else if mod_le(self.0.header.seq, other.0.header.seq) {
-            // Reversing the order so the the priority queue handles messages
-            // starting from lower sequence numbers
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        }
-    }
-}
-
 #[derive(Debug, Clone, Default)]
 struct Outgoing {
     /// Bytes already gobbled from the front of the first message in `text`.
@@ -976,6 +938,7 @@ impl Transmit {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CloseResult {
     Ok,
     CloseConnection,
@@ -988,6 +951,7 @@ enum Initiation {
     Open,
 }
 
+#[derive(Debug, Clone)]
 pub enum ListenResult {
     Response(TcpHeader),
     Tcb(Tcb),
