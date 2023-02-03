@@ -1,3 +1,56 @@
+/// The state of the TCP state machine as described in section 3.3.2. The CLOSED
+/// and LISTEN states are not included and are instead handled by the
+/// freestanding functions [`handle_closed`](super::handle_closed) and
+/// [`handle_listen`](super::handle_listen). The TCP state machine is described
+/// by the diagram below.
+///
+/// ```text
+///                            +---------+ ---------\      active OPEN
+///                            |  CLOSED |            \    -----------
+///                            +---------+<---------\   \   create TCB
+///                              |     ^              \   \  snd SYN
+///                 passive OPEN |     |   CLOSE        \   \
+///                 ------------ |     | ----------       \   \
+///                  create TCB  |     | delete TCB         \   \
+///                              V     |                      \   \
+///          rcv RST (note 1)  +---------+            CLOSE    |    \
+///       -------------------->|  LISTEN |          ---------- |     |
+///      /                     +---------+          delete TCB |     |
+///     /           rcv SYN      |     |     SEND              |     |
+///    /           -----------   |     |    -------            |     V
+///+--------+      snd SYN,ACK  /       \   snd SYN          +--------+
+///|        |<-----------------           ------------------>|        |
+///|  SYN   |                    rcv SYN                     |  SYN   |
+///|  RCVD  |<-----------------------------------------------|  SENT  |
+///|        |                  snd SYN,ACK                   |        |
+///|        |------------------           -------------------|        |
+///+--------+   rcv ACK of SYN  \       /  rcv SYN,ACK       +--------+
+///   |         --------------   |     |   -----------
+///   |                x         |     |     snd ACK
+///   |                          V     V
+///   |  CLOSE                 +---------+
+///   | -------                |  ESTAB  |
+///   | snd FIN                +---------+
+///   |                 CLOSE    |     |    rcv FIN
+///   V                -------   |     |    -------
+///+---------+         snd FIN  /       \   snd ACK         +---------+
+///|  FIN    |<----------------          ------------------>|  CLOSE  |
+///| WAIT-1  |------------------                            |   WAIT  |
+///+---------+          rcv FIN  \                          +---------+
+///  | rcv ACK of FIN   -------   |                          CLOSE  |
+///  | --------------   snd ACK   |                         ------- |
+///  V        x                   V                         snd FIN V
+///+---------+               +---------+                    +---------+
+///|FINWAIT-2|               | CLOSING |                    | LAST-ACK|
+///+---------+               +---------+                    +---------+
+///  |              rcv ACK of FIN |                 rcv ACK of FIN |
+///  |  rcv FIN     -------------- |    Timeout=2MSL -------------- |
+///  |  -------            x       V    ------------        x       V
+///   \ snd ACK              +---------+delete TCB          +---------+
+///     -------------------->|TIME-WAIT|------------------->| CLOSED  |
+///                          +---------+                    +---------+
+/// ```
+/// Figure 5: TCP Connection State Diagram
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum State {
     /// Waiting for a matching connection request after having sent a connection

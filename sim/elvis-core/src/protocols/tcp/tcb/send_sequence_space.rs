@@ -1,12 +1,19 @@
-//      1         2          3          4
-// ----------|----------|----------|----------
-//        SND.UNA    SND.NXT    SND.UNA
-//                             +SND.WND
-//
-// 1 - old sequence numbers which have been acknowledged
-// 2 - sequence numbers of unacknowledged data
-// 3 - sequence numbers allowed for new data transmission (send window)
-// 4 - future sequence numbers which are not yet allowed
+/// The receive sequence space for TCP as described in section 3.3.1. Contains
+/// variables that describe a portion of the sequence space related to as
+/// described in the diagram below.
+///
+/// ```text
+///      1         2          3          4
+/// ----------|----------|----------|----------
+///        SND.UNA    SND.NXT    SND.UNA
+///                             +SND.WND
+///
+/// 1 - old sequence numbers which have been acknowledged
+/// 2 - sequence numbers of unacknowledged data
+/// 3 - sequence numbers allowed for new data transmission (send window)
+/// 4 - future sequence numbers which are not yet allowed
+/// ```
+/// Figure 3: Send Sequence Space
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 pub struct SendSequenceSpace {
     /// Oldest unacknowledged sequence number

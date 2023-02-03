@@ -1,3 +1,6 @@
+//! An implementation of the [Transmission Control
+//! Protocol](https://www.rfc-editor.org/rfc/rfc9293.html).
+
 use self::{
     tcb::{handle_closed, ListenResult, Segment, SegmentArrivesResult, Tcb},
     tcp_parsing::TcpHeader,
@@ -24,15 +27,22 @@ mod tcb;
 mod tcp_parsing;
 mod tcp_session;
 
+/// Implements the Transmission Control Protocol. See the module-level
+/// documentation for more details.
 #[derive(Default)]
 pub struct Tcp {
+    /// A record of which protocol requested to listen for connections on
+    /// particular sockets.
     listen_bindings: DashMap<Socket, Id>,
+    /// A lookup table for sessions based on their endpoints.
     sessions: DashMap<ConnectionId, Arc<TcpSession>>,
 }
 
 impl Tcp {
+    /// The simulation-unique ID for TCP.
     pub const ID: Id = Id::new(6);
 
+    /// Creates a new TCP protocol
     pub fn new() -> Self {
         Self {
             listen_bindings: Default::default(),
@@ -40,22 +50,27 @@ impl Tcp {
         }
     }
 
+    /// Converts the TCP into a shared protocol.
     pub fn shared(self) -> SharedProtocol {
         Arc::new(self)
     }
 
+    /// Set the local port number on a control.
     pub fn set_local_port(port: u16, control: &mut Control) {
         control.insert((Self::ID, 0), port);
     }
 
+    /// Get the local port number from a control.
     pub fn get_local_port(control: &Control) -> Result<u16, ControlError> {
         Ok(control.get((Self::ID, 0))?.ok_u16()?)
     }
 
+    /// Set the remote port number on a control.
     pub fn set_remote_port(port: u16, control: &mut Control) {
         control.insert((Self::ID, 1), port);
     }
 
+    /// Get the remote port number from a control.
     pub fn get_remote_port(control: &Control) -> Result<u16, ControlError> {
         Ok(control.get((Self::ID, 1))?.ok_u16()?)
     }
@@ -271,17 +286,22 @@ impl Protocol for Tcp {
     }
 }
 
+/// A pair of endpoints that uniquely identifies a TCP connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct ConnectionId {
+    /// The local endpoint
     pub local: Socket,
+    /// The remote endpoint
     pub remote: Socket,
 }
 
 impl ConnectionId {
+    /// Create a new connection ID from a pair of endpoints
     pub fn new(local: Socket, remote: Socket) -> Self {
         Self { local, remote }
     }
 
+    /// Get a matching connection ID for the remote TCP.
     pub const fn reverse(self) -> Self {
         Self {
             local: self.remote,

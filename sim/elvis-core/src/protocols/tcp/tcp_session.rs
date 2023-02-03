@@ -20,13 +20,18 @@ use std::{
 // unless the PSH flag is set. Optionally, the TCP can start delivering small
 // packets that have been queued after some timeout.
 
+/// The session part of the TCP protocol.
 pub struct TcpSession {
+    /// The transmission control block for the connection
     tcb: RwLock<Tcb>,
+    /// The upstream protocol
     upstream: Id,
+    /// The downstream session
     downstream: SharedSession,
 }
 
 impl TcpSession {
+    /// Create a new TCP session
     pub fn new(tcb: RwLock<Tcb>, upstream: Id, downstream: SharedSession) -> Self {
         Self {
             tcb,
@@ -35,6 +40,7 @@ impl TcpSession {
         }
     }
 
+    /// Receive an incoming message from the TCP as part of the demux flow
     pub fn receive(
         self: Arc<Self>,
         segment: Segment,
@@ -54,6 +60,7 @@ impl TcpSession {
         Ok(result)
     }
 
+    /// Increase the current time by the given delta, used to trigger timeouts
     pub fn advance_time(self: Arc<Self>, delta_time: Duration, protocols: ProtocolMap) {
         let mut tcb = self.tcb.write().unwrap();
         tcb.advance_time(delta_time);
@@ -66,6 +73,7 @@ impl TcpSession {
         }
     }
 
+    /// Transfer outgoing segments from the TCB to the downstream session
     fn deliver_outgoing(
         &self,
         tcb: &mut RwLockWriteGuard<Tcb>,
@@ -82,7 +90,6 @@ impl TcpSession {
 }
 
 impl Session for TcpSession {
-    // See 3.10.2
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
         let mut tcb = self.tcb.write().unwrap();
         tcb.send(message);
@@ -96,6 +103,7 @@ impl Session for TcpSession {
     }
 }
 
+/// An error that occurred during `TcpSession::receive`
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveError {
     #[error("Attempted to receive on a closing connection")]

@@ -22,14 +22,8 @@ use modular_cmp::*;
 mod segment;
 pub use segment::Segment;
 
-mod incoming;
-use incoming::Incoming;
-
 mod outgoing;
-use outgoing::Outgoing;
-
-mod transmit;
-use transmit::Transmit;
+use outgoing::{Outgoing, Transmit};
 
 mod state;
 pub use state::State;
@@ -65,7 +59,7 @@ pub struct Tcb {
     snd: SendSequenceSpace,
     rcv: ReceiveSequenceSpace,
     outgoing: Outgoing,
-    incoming: BinaryHeap<Incoming>,
+    incoming: BinaryHeap<Segment>,
     received_text: VecDeque<Message>,
     retransmission_timeout: Duration,
     time_wait_timeout: Option<Duration>,
@@ -295,7 +289,7 @@ impl Tcb {
     }
 
     pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
-        self.incoming.push(Incoming::new(segment));
+        self.incoming.push(segment);
         while let Some(segment) = self.incoming.peek() {
             if self.state != State::SynSent && mod_ge(segment.header.seq, self.rcv.nxt) {
                 // If this segment is past the next byte we want to receive, it
@@ -303,7 +297,7 @@ impl Tcb {
                 // bytes we need to proceed.
                 break;
             }
-            let segment = self.incoming.pop().unwrap().into_inner();
+            let segment = self.incoming.pop().unwrap();
             let receive_result = self.process_segment(segment);
             match receive_result {
                 ProcessSegmentResult::Success
@@ -766,7 +760,7 @@ pub fn handle_listen(
         // Processing of SYN and ACK should not be repeated.
         seg.ctl.set_syn(false);
         seg.ctl.set_ack(false);
-        tcb.incoming.push(Incoming::new(Segment::new(seg, message)));
+        tcb.incoming.push(Segment::new(seg, message));
 
         Some(ListenResult::Tcb(tcb))
     } else {

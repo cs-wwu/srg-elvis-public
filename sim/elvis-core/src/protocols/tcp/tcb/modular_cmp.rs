@@ -1,4 +1,6 @@
-/// a < b under modular arithmetic
+pub use ModCmp::*;
+
+/// Is a < b under modular arithmetic?
 pub fn mod_le(a: u32, b: u32) -> bool {
     // k is on the opposite side of the ring of integers mod 32 from b
     let k = b.wrapping_add(u32::MAX / 2);
@@ -15,17 +17,17 @@ pub fn mod_le(a: u32, b: u32) -> bool {
     (a < b) ^ (a < k) ^ (b < k)
 }
 
-/// a <= b under modular arithmetic
+/// Is a <= b under modular arithmetic?
 pub fn mod_leq(a: u32, b: u32) -> bool {
     mod_le(a, b.wrapping_add(1))
 }
 
-/// a > b under modular arithmetic
+/// Is a > b under modular arithmetic?
 pub fn mod_ge(a: u32, b: u32) -> bool {
     mod_le(b, a)
 }
 
-/// a > b under modular arithmetic
+/// Is a > b under modular arithmetic?
 pub fn mod_geq(a: u32, b: u32) -> bool {
     mod_le(b.wrapping_sub(1), a)
 }
@@ -46,15 +48,19 @@ pub fn mod_bounded(a: u32, ab_cmp: ModCmp, b: u32, bc_cmp: ModCmp, c: u32) -> bo
     j || k || l
 }
 
-pub use ModCmp::*;
+/// Comparison options for [`mod_bounded`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModCmp {
+    /// Less than
     Le,
+    /// Less than or equal to
     Leq,
 }
 
 impl ModCmp {
-    pub fn offset(self) -> u32 {
+    /// How much to offset one of the bounds to convert a less than comparison
+    /// to the given comparison
+    fn offset(self) -> u32 {
         match self {
             Le => 0,
             Leq => 1,

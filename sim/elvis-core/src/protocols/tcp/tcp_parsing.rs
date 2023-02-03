@@ -1,9 +1,12 @@
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 use thiserror::Error as ThisError;
 
+/// The number of 32-bit words in a TCP header without optional header parts
 const BASE_HEADER_WORDS: u8 = 5;
+/// The number of bytes in a TCP header without optional header parts
 const BASE_HEADER_OCTETS: u8 = BASE_HEADER_WORDS * 4;
 
+/// The data for a TCP header
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct TcpHeader {
     /// The source port number
@@ -116,6 +119,8 @@ impl TcpHeader {
         self.data_offset * 4
     }
 
+    /// Convert the header to its native serialized format, ready to attach to a
+    /// packet and send over the wire.
     pub fn serialize(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(BASE_HEADER_OCTETS as usize);
         out.extend_from_slice(&self.src_port.to_be_bytes());
@@ -131,6 +136,7 @@ impl TcpHeader {
     }
 }
 
+/// An error that occurred while parsing a TCP header
 #[derive(Debug, ThisError, PartialEq, Eq, Clone, Copy)]
 pub enum ParseError {
     #[error("Too few bytes to constitute a TCP header")]
@@ -165,6 +171,7 @@ impl TcpHeaderBuilder {
         })
     }
 
+    /// Set the window size
     pub fn wnd(mut self, wnd: u16) -> Self {
         self.0.wnd = wnd;
         self
@@ -246,6 +253,7 @@ impl TcpHeaderBuilder {
     }
 }
 
+/// An error that occurred while building a TCP header
 #[derive(Debug, ThisError, PartialEq, Eq, Clone, Copy)]
 pub enum BuildHeaderError {
     #[error("The TCP payload is longer than can fit into a single packet")]
@@ -257,6 +265,7 @@ pub enum BuildHeaderError {
 pub struct Control(u8);
 
 impl Control {
+    /// Create a new Control with the given bits
     pub const fn new(urg: bool, ack: bool, psh: bool, rst: bool, syn: bool, fin: bool) -> Self {
         Self(
             fin as u8
@@ -268,64 +277,72 @@ impl Control {
         )
     }
 
-    /// Urgent Pointer field significant
+    /// Get whether the urgent pointer field is significant
     pub const fn urg(self) -> bool {
         self.bit(5)
     }
 
+    /// Set whether the urgent pointer field is significant
     pub fn set_urg(&mut self, state: bool) {
         self.set_bit(5, state);
     }
 
-    /// Acknowledgment field significant
+    /// Get whether the acknowledgment field significant
     pub const fn ack(self) -> bool {
         self.bit(4)
     }
 
+    /// Set whether the acknowledgment field significant
     pub fn set_ack(&mut self, state: bool) {
         self.set_bit(4, state);
     }
 
-    /// Push Function
+    /// Get whether the push function is enabled
     pub const fn psh(self) -> bool {
         self.bit(3)
     }
 
+    /// Set whether the push function is enabled
     pub fn set_psh(&mut self, state: bool) {
         self.set_bit(3, state);
     }
 
-    /// Reset the connection
+    /// Get whether to reset the connection
     pub const fn rst(self) -> bool {
         self.bit(2)
     }
 
+    /// Set whether to reset the connection
     pub fn set_rst(&mut self, state: bool) {
         self.set_bit(2, state);
     }
 
-    /// Synchronize sequence numbers
+    /// Get whether to synchronize sequence numbers
     pub const fn syn(self) -> bool {
         self.bit(1)
     }
 
+    /// Set whether to synchronize sequence numbers
     pub fn set_syn(&mut self, state: bool) {
         self.set_bit(1, state);
     }
 
-    /// No more data from sender
+    /// Get whether there is no more data to send
     pub const fn fin(self) -> bool {
         self.bit(0)
     }
 
+    /// Set whether there is no more data to send
     pub fn set_fin(&mut self, state: bool) {
         self.set_bit(0, state);
     }
 
+    /// Get the given bit
     const fn bit(self, bit: u8) -> bool {
         (self.0 >> bit) & 0b1 == 1
     }
 
+    /// Set the given bit
     fn set_bit(&mut self, bit: u8, state: bool) {
         self.0 = (self.0 & !(1 << bit)) | ((state as u8) << bit);
     }
