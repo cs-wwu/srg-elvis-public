@@ -177,7 +177,7 @@ impl Tcb {
     }
 
     pub fn segments(&mut self) -> Vec<Segment> {
-        let mut out = std::mem::take(&mut self.outgoing.oneshot)
+        let mut out: Vec<_> = std::mem::take(&mut self.outgoing.oneshot)
             .into_iter()
             .map(|header| Segment::new(header, [].into()))
             .collect();
@@ -280,6 +280,12 @@ impl Tcb {
         );
         let (seg, mut text) = segment.into_inner();
 
+        if self.state == State::SynSent && seg.ctl.ack() && !seg.ctl.syn() {
+            println!("*************************");
+            println!("*** Failing situation ***");
+            println!("*************************");
+        }
+
         match self.state {
             // Sequence number checks don't apply for LISTEN, SYN-SENT, or CLOSING
             State::SynSent | State::Closing => {}
@@ -305,11 +311,24 @@ impl Tcb {
                     }
 
                     if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
-                        // The spec doesn't specifically describe what to do for
-                        // on okay ACK in SYN-SENT, but I think this is what is
-                        // supposed to happen
-                        self.snd.una = seg.ack;
-                        self.remove_acked_from_retransmission();
+                        // Valid acknowledgment
+                        if seg.ctl.syn() {
+                            // The spec doesn't specifically describe what to do for
+                            // on okay ACK in SYN-SENT, but I think this is what is
+                            // supposed to happen
+                            self.snd.una = seg.ack;
+                            self.remove_acked_from_retransmission();
+                        } else {
+                            // What has been happening is that the listen side
+                            // of the connection will generate a challenge ACK
+                            // in response to receiving a duplicate SYN. That
+                            // comes back to us first and we update SND.UNA as
+                            // above. Later, when the SYN ACK arrives with the
+                            // same acknowledgment, SND.UNA==SEG.ACK causes the
+                            // acknowledgment to be rejected and the connection
+                            // is reset. Therefore, we only proceed to process
+                            // the ACK segment if it comes along with a SYN.
+                        }
                     } else {
                         // Same ACK twice causes this failure
                         self.enqueue(self.header_builder(seg.ack).rst());
@@ -417,16 +436,16 @@ impl Tcb {
                 | State::LastAck
                 | State::TimeWait
                 | State::SynReceived => {
-                    // NOTE(hardint): According to the specification, we should
-                    // either be sending a challenge ACK or just ending the
-                    // connection if we get a SYN in the window (valid SEQ)
-                    // while in a synchronized state. However, doing either of
-                    // those things causes spurious connection failure. I
-                    // suspect this is an off-by-one issue since our sequence
-                    // number checks are slightly different from the base spec
-                    // in order to account for simultaneous opens. This might be
-                    // something to revisit, but for now, just discarding the
-                    // segment seems to work just fine.
+                    // We are ignoring some of the spec's guidance around
+                    // closing the connection if we get a SYN in an established
+                    // state. It seems to create a lot of failed connections due
+                    // to delayed SYN packets. We do a subset of what the spec
+                    // suggests and just send a challenge ACK, which is
+                    // important for the case where a peer generates an ACK in
+                    // response to a SYN ACK and the ACK gets lost in
+                    // transmission. The challenge ACK regenerates the lost ACK
+                    // segment.
+                    self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     return ProcessSegmentResult::DiscardSegment;
                 }
             }
@@ -454,6 +473,7 @@ impl Tcb {
                     text.slice(already_received as usize..(already_received + accept) as usize);
                     self.received_text.push_back(text);
                     self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+                    // TODO(hardint): Aggregate and piggyback ACK segments
                 }
 
                 State::CloseWait | State::Closing | State::LastAck | State::TimeWait => {
