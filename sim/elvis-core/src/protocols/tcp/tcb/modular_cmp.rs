@@ -2,19 +2,17 @@ pub use ModCmp::*;
 
 /// Is a < b under modular arithmetic?
 pub fn mod_lt(a: u32, b: u32) -> bool {
-    // k is on the opposite side of the ring of integers mod 32 from b
-    let k = b.wrapping_add(u32::MAX / 2);
-
-    // There are six cases:
-    //  0123456789
-    // |a b    k  | a<b, a<k, b<k -> a<b
-    // |a k    b  | a<b, a<k, b>k -> a>b
-    // |  b a  k  | a>b, a<k, b<k -> a>b
-    // |  k a  b  | a<b, a>k, b>k -> a<b
-    // |  b    k a| a>b, a>k, b<k -> a<b
-    // |  k    b a| a>b, a>k, b>k -> a>b
-
-    (a < b) ^ (a < k) ^ (b < k)
+    // Implementation taken from
+    // https://github.com/jonhoo/rust-tcp/blob/master/src/tcp.rs
+    //
+    // From RFC1323:
+    // TCP determines if a data segment is "old" or "new" by testing whether its
+    // sequence number is within 2**31 bytes of the left edge of the window, and
+    // if it is not, discarding the data as "old".  To insure that new data is
+    // never mistakenly considered old and vice- versa, the left edge of the
+    // sender's window has to be at most 2**31 away from the right edge of the
+    // receiver's window.
+    a.wrapping_sub(b) > (1 << 31)
 }
 
 /// Is a <= b under modular arithmetic?
