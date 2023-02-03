@@ -112,7 +112,6 @@ impl Tcb {
     pub fn send(&mut self, message: Message) {
         // 3.10.2 (Not compliant, doing things differently. We don't have a
         // retransmission queue.)
-        self.retransmission_timeout = RETRANSMISSION_TIMEOUT;
         self.outgoing.text.push_back(message);
     }
 
@@ -311,18 +310,9 @@ impl Tcb {
                         // supposed to happen
                         self.snd.una = seg.ack;
                         self.remove_acked_from_retransmission();
-                        if seg.ctl.rst() {
-                            // We handle RST here instead of in the next section
-                            // because it depends on whether the ACK was valid.
-                            return ProcessSegmentResult::ConnectionReset;
-                        }
                     } else {
-                        // The ACK is unacceptable, but the TCP spec doesn't
-                        // state what should happen here in 3.10.7.3. If we try
-                        // to send a reset, connection establishment can
-                        // spuriously fail when old ACK segments arrive. Let's
-                        // just try ignoring the invalid ACK and see if we run
-                        // into any bugs. Adventure!
+                        self.enqueue(self.header_builder(seg.ack).rst());
+                        return ProcessSegmentResult::InvalidAck;
                     }
                 }
 
@@ -369,8 +359,11 @@ impl Tcb {
         if seg.ctl.rst() {
             match self.state {
                 State::SynSent => {
-                    // Partially handled along with ACK processing
-                    return ProcessSegmentResult::DiscardSegment;
+                    if seg.seq == self.rcv.nxt {
+                        return ProcessSegmentResult::ConnectionReset;
+                    } else {
+                        return ProcessSegmentResult::BlindReset;
+                    };
                 }
 
                 State::SynReceived => match self.initiation {
@@ -566,7 +559,6 @@ impl Tcb {
             self.outgoing
                 .retransmit
                 .push_back(Transmit::new(Segment::new(header, [].into())));
-            self.retransmission_timeout = RETRANSMISSION_TIMEOUT;
         } else {
             self.outgoing.oneshot.push(header);
         }
