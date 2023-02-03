@@ -16,12 +16,11 @@ use tokio::sync::{mpsc::Sender, Barrier};
 /// another machine from the first machine.
 /// The second machine will then send the TTL back minus 1.
 /// Once the TTL reaches 0 the program ends.
-#[derive(Clone)]
 pub struct PingPong {
     /// The channel we send on to shut down the simulation
-    shutdown: Arc<RwLock<Option<Sender<()>>>>,
+    shutdown: RwLock<Option<Sender<()>>>,
     /// The session we send messages on
-    session: Arc<RwLock<Option<SharedSession>>>,
+    session: RwLock<Option<SharedSession>>,
     is_initiator: bool,
     /// The address we listen for a message on
     local_ip_address: Ipv4Address,
@@ -94,7 +93,6 @@ impl Application for PingPong {
             initialized.wait().await;
             if self.is_initiator {
                 self.session
-                    .clone()
                     .read()
                     .unwrap()
                     .as_ref()
@@ -132,7 +130,6 @@ impl Application for PingPong {
             }
         } else {
             self.session
-                .clone()
                 .read()
                 .unwrap()
                 .as_ref()
