@@ -364,26 +364,45 @@ impl Tcb {
                 }
 
                 // ESTABLISHED processing:
-                State::Established
-                | State::FinWait1
-                | State::FinWait2
-                | State::CloseWait
-                | State::Closing => match self.ack_established_processing(&seg) {
-                    ProcessSegmentResult::Success => {}
-                    other => return other,
-                },
+                State::Established | State::FinWait2 | State::CloseWait => {
+                    match self.ack_established_processing(&seg) {
+                        ProcessSegmentResult::Success => {}
+                        other => return other,
+                    }
+                }
+
+                State::FinWait1 => {
+                    let result = self.ack_established_processing(&seg);
+                    if self.is_fin_acked() {
+                        self.state = State::FinWait2;
+                    }
+                    if result != ProcessSegmentResult::Success {
+                        return result;
+                    }
+                }
+
+                State::Closing => {
+                    let result = self.ack_established_processing(&seg);
+                    if self.is_fin_acked() {
+                        self.state = State::TimeWait;
+                        self.time_wait_timeout = Some(MSL * 2);
+                    }
+                    if result != ProcessSegmentResult::Success {
+                        return result;
+                    }
+                }
 
                 State::LastAck => {
-                    // TODO(hardint): If our FIN is now acknowledged,
-                    // close the TCB
-                    todo!()
+                    if self.is_fin_acked() {
+                        return ProcessSegmentResult::FinalizeClose;
+                    }
                 }
 
                 State::TimeWait => {
-                    // TODO(hardint): The only thing that can arrive is
-                    // a retransmission of the remote FIN. Acknowledge
-                    // it and restart the MSL 2 timeout.
-                    todo!()
+                    // The only thing that can arrive is a retransmission of the
+                    // remote FIN. Acknowledge it and restart the MSL 2 timeout.
+                    self.enqueue(self.header_builder(self.snd.nxt).ack(seg.seq + 1));
+                    self.time_wait_timeout = Some(MSL * 2);
                 }
             }
         }
@@ -477,15 +496,20 @@ impl Tcb {
                         self.is_in_rcv_window(seg.seq)
                             || self.is_in_rcv_window(seg.seq + text.len() as u32)
                     );
-                    let already_received = self.rcv.nxt - seg.seq; // Works with modulus
-                    let seg_len = text.len() as u32 + seg.ctl.syn() as u32 + seg.ctl.fin() as u32;
-                    let unreceived = seg_len - already_received;
+                    let already_received = self
+                        .rcv
+                        .nxt
+                        .wrapping_sub(seg.seq)
+                        // SYN occupies the first byte of data
+                        .wrapping_add(seg.ctl.syn() as u32);
+                    let unreceived = text.len() as u32 - already_received;
+                    // TODO(hardint): Account for data already buffered
                     let accept = unreceived.min(self.rcv.wnd as u32);
                     self.rcv.nxt += accept;
                     text.slice(already_received as usize..(already_received + accept) as usize);
                     self.received_text.push_back(text);
-                    self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     // TODO(hardint): Aggregate and piggyback ACK segments
+                    self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                 }
 
                 State::CloseWait | State::Closing | State::LastAck | State::TimeWait => {
@@ -503,11 +527,12 @@ impl Tcb {
                 }
 
                 State::FinWait1 => {
-                    // TODO(hardint): If our FIN has been ACKed (perhaps in this
-                    // segment), then enter TIME-WAIT, start the time-wait
-                    // timer, turn off the other timers; otherwise, enter the
-                    // CLOSING state.
-                    todo!()
+                    if self.is_fin_acked() {
+                        self.state = State::TimeWait;
+                        self.time_wait_timeout = Some(2 * MSL);
+                    } else {
+                        self.state = State::Closing;
+                    }
                 }
 
                 State::FinWait2 => {
@@ -525,6 +550,10 @@ impl Tcb {
         }
 
         ProcessSegmentResult::Success
+    }
+
+    fn is_fin_acked(&self) -> bool {
+        self.snd.nxt == self.snd.una
     }
 
     fn ack_established_processing(&mut self, seg: &TcpHeader) -> ProcessSegmentResult {
@@ -548,31 +577,6 @@ impl Tcb {
                 self.snd.wl2 = seg.ack;
             }
         }
-
-        // In addition to ESTABLISHED processing:
-        match self.state {
-            State::FinWait1 => {
-                // TODO(hardint): If the FIN segment is now acknowledged,
-                // enter FIN-WAIT-2 and continue processing
-                todo!()
-            }
-
-            State::FinWait2 => {
-                // TODO(hardint): If the retransmission
-                // queue is empty, acknowledge the user's
-                // CLOSE
-                todo!()
-            }
-
-            State::Closing => {
-                // TODO(hardint): If the ACK acknowledges
-                // our FIN, enter TIME-WAIT.
-                todo!()
-            }
-
-            _ => {}
-        }
-
         ProcessSegmentResult::Success
     }
 
