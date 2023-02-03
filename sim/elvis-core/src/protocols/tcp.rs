@@ -14,7 +14,6 @@ use crate::{
     Control, Id, Message, Protocol, ProtocolMap,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::{
     sync::{Arc, RwLock},
     time::Duration,
@@ -25,15 +24,10 @@ mod tcb;
 mod tcp_parsing;
 mod tcp_session;
 
-// TODO(hardint): Get rid of IssGenerator. Since Tcb got split out and I can
-// pass in whatever ISS I want for testing, having this configuration option is
-// no longer necessary.
-
 #[derive(Default)]
 pub struct Tcp {
     listen_bindings: DashMap<Socket, Id>,
     sessions: DashMap<ConnectionId, Arc<TcpSession>>,
-    iss: RwLock<IssGenerator>,
 }
 
 impl Tcp {
@@ -43,7 +37,6 @@ impl Tcp {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            iss: RwLock::new(IssGenerator::Random),
         }
     }
 
@@ -111,11 +104,7 @@ impl Protocol for Tcp {
                     .ok_u32()
                     .map_err(|_| OpenError::Other)?;
                 let session = Arc::new(TcpSession::new(
-                    RwLock::new(Tcb::open(
-                        session_id,
-                        self.iss.write().unwrap().next_iss(),
-                        mtu,
-                    )),
+                    RwLock::new(Tcb::open(session_id, rand::random(), mtu)),
                     upstream,
                     downstream,
                 ));
@@ -218,7 +207,7 @@ impl Protocol for Tcp {
                             segment,
                             local.address,
                             remote.address,
-                            self.iss.write().unwrap().next_iss(),
+                            rand::random(),
                             mtu,
                         );
                         if let Some(listen_result) = listen_result {
@@ -279,29 +268,6 @@ impl Protocol for Tcp {
     fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
         tracing::error!("No such key on TCP");
         Err(QueryError::NonexistentKey)
-    }
-}
-
-/// The initial send sequence of a connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum IssGenerator {
-    #[default]
-    Random,
-    FromSeed(u64),
-    Exact(u32),
-}
-
-impl IssGenerator {
-    pub fn next_iss(&mut self) -> u32 {
-        match self {
-            Self::Random => SmallRng::from_entropy().next_u32(),
-            Self::FromSeed(c) => {
-                let out = SmallRng::seed_from_u64(*c).next_u32();
-                *c += 1;
-                out
-            }
-            Self::Exact(n) => *n,
-        }
     }
 }
 
