@@ -10,6 +10,7 @@ use crate::{
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, VecDeque},
+    mem,
     time::Duration,
 };
 
@@ -158,13 +159,15 @@ impl Tcb {
                 // things like this for later processing once we reach
                 // ESTABLISHED as the spec describes, so this is how it is for
                 // now.
-                self.enqueue(self.header_builder(self.snd.nxt).fin());
+                self.enqueue(self.header_builder(self.snd.nxt).fin().ack(self.rcv.nxt));
+                self.snd.nxt += 1;
                 self.state = State::FinWait1;
                 CloseResult::Ok
             }
 
             State::CloseWait => {
-                self.enqueue(self.header_builder(self.snd.nxt).fin());
+                self.enqueue(self.header_builder(self.snd.nxt).fin().ack(self.rcv.nxt));
+                self.snd.nxt += 1;
                 self.state = State::LastAck;
                 CloseResult::Ok
             }
@@ -202,7 +205,7 @@ impl Tcb {
     }
 
     pub fn segments(&mut self) -> Vec<Segment> {
-        let mut out: Vec<_> = std::mem::take(&mut self.outgoing.oneshot)
+        let mut out: Vec<_> = mem::take(&mut self.outgoing.oneshot)
             .into_iter()
             .map(|header| Segment::new(header, [].into()))
             .collect();
@@ -295,12 +298,13 @@ impl Tcb {
 
     fn process_segment(&mut self, segment: Segment) -> ProcessSegmentResult {
         let (seg, mut text) = segment.into_inner();
+        let text_len = text.len() as u32;
 
         match self.state {
             // Sequence number checks don't apply for LISTEN, SYN-SENT, or CLOSING
             State::SynSent | State::Closing => {}
             _ => {
-                if !self.is_seq_ok(text.len() as u32, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+                if !self.is_seq_ok(text_len, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
                     self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     return ProcessSegmentResult::DiscardSegment;
                 }
@@ -391,6 +395,7 @@ impl Tcb {
                 }
 
                 State::LastAck => {
+                    self.snd.una = seg.ack;
                     if self.is_fin_acked() {
                         return ProcessSegmentResult::FinalizeClose;
                     }
@@ -491,8 +496,7 @@ impl Tcb {
                     // If we got here, we already know that SEQ > RCV.NXT
                     // Should also be in the window, but let's check:
                     assert!(
-                        self.is_in_rcv_window(seg.seq)
-                            || self.is_in_rcv_window(seg.seq + text.len() as u32)
+                        self.is_in_rcv_window(seg.seq) || self.is_in_rcv_window(seg.seq + text_len)
                     );
                     let already_received = self
                         .rcv
@@ -500,7 +504,7 @@ impl Tcb {
                         .wrapping_sub(seg.seq)
                         // SYN occupies the first byte of data
                         .wrapping_add(seg.ctl.syn() as u32);
-                    let unreceived = text.len() as u32 - already_received;
+                    let unreceived = text_len - already_received;
                     // TODO(hardint): Account for data already buffered
                     let accept = unreceived.min(self.rcv.wnd as u32);
                     self.rcv.nxt += accept;
@@ -517,6 +521,17 @@ impl Tcb {
         }
 
         if seg.ctl.fin() {
+            if self.state != State::SynSent {
+                let last_text_byte = seg.seq + text_len;
+                if self.rcv.nxt == last_text_byte || self.rcv.nxt == last_text_byte + 1 {
+                    // We acknowledged all the non-control bytes in the segment or we
+                    // have already acknowledged the FIN. Advance over the FIN and
+                    // acknowledge it.
+                    self.rcv.nxt = last_text_byte + 1;
+                    self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+                }
+            }
+
             match self.state {
                 State::SynSent | State::CloseWait | State::Closing | State::LastAck => {}
 
@@ -1310,14 +1325,14 @@ mod tests {
     // TODO(hardint): Add tests for the exchanges in figures 9 through 11 about
     // half-open connections
 
-    fn established_pair() -> (Tcb, Tcb) {
-        let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
+    fn established_pair(peer_a_iss: u32, peer_b_iss: u32) -> (Tcb, Tcb) {
+        let mut peer_a = Tcb::open(PEER_A_ID, peer_a_iss, 1500);
         let peer_a_syn = peer_a.segments().remove(0);
         let mut peer_b = handle_listen(
             peer_a_syn,
             PEER_B_ID.local.address,
             PEER_B_ID.remote.address,
-            300,
+            peer_b_iss,
             1500,
         )
         .unwrap()
@@ -1356,7 +1371,7 @@ mod tests {
         // NOTE: MSL = Maximum Segment Lifetime
 
         // 1
-        let (mut peer_a, mut peer_b) = established_pair();
+        let (mut peer_a, mut peer_b) = established_pair(99, 299);
 
         // 2
         peer_a.close();
@@ -1429,7 +1444,7 @@ mod tests {
         //     CLOSED                                               CLOSED
 
         // 1
-        let (mut peer_a, mut peer_b) = established_pair();
+        let (mut peer_a, mut peer_b) = established_pair(99, 299);
 
         // 2
         peer_a.close();
@@ -1482,7 +1497,7 @@ mod tests {
     #[test]
     fn message_send() {
         let expected = b"Hello, world!";
-        let (mut peer_a, mut peer_b) = established_pair();
+        let (mut peer_a, mut peer_b) = established_pair(100, 300);
         peer_a.send(Message::new(expected));
         for outgoing in peer_a.segments() {
             peer_b.segment_arrives(outgoing);
@@ -1498,7 +1513,7 @@ mod tests {
             .map(|(i, _)| i as u8)
             .take(4000)
             .collect();
-        let (mut peer_a, mut peer_b) = established_pair();
+        let (mut peer_a, mut peer_b) = established_pair(100, 300);
         peer_a.send(Message::new(expected.clone()));
         let mut count = 0;
         for outgoing in peer_a.segments() {
@@ -1517,7 +1532,7 @@ mod tests {
             .map(|(i, _)| i as u8)
             .take(8000) // This is beyond our receive window now
             .collect();
-        let (mut peer_a, mut peer_b) = established_pair();
+        let (mut peer_a, mut peer_b) = established_pair(100, 300);
         peer_a.send(Message::new(expected.clone()));
         let mut received = vec![];
         while received.len() != expected.len() {
@@ -1537,7 +1552,7 @@ mod tests {
     #[test]
     fn message_retransmission() {
         let expected: Vec<_> = (0..8000).map(|i| i as u8).collect();
-        let (mut peer_a, mut peer_b) = established_pair();
+        let (mut peer_a, mut peer_b) = established_pair(100, 300);
         peer_a.send(Message::new(expected.clone()));
         let mut received = vec![];
         while received.len() < expected.len() {
@@ -1565,7 +1580,7 @@ mod tests {
             .map(|(i, _)| i as u8)
             .take(4000)
             .collect();
-        let (mut peer_a, mut peer_b) = established_pair();
+        let (mut peer_a, mut peer_b) = established_pair(100, 300);
         peer_a.send(Message::new(expected.clone()));
         let segments = peer_a.segments();
         for outgoing in segments.into_iter().rev() {
