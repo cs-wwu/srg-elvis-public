@@ -50,10 +50,17 @@ const MSL: Duration = Duration::from_secs(1);
 /// The time that may pass before packets are retransmitted
 const RETRANSMISSION_TIMEOUT: Duration = Duration::from_millis(100);
 
+/// The Transmission Control Block holds the state for a TCP connection and
+/// provides the API described in 3.10. TCB is implemented separately from the
+/// TCP protocol and session types so that it can be more easily tested outside
+/// of the full simulation environment.
 #[derive(Debug, Clone)]
 pub struct Tcb {
+    /// The pair of endpoints that identifies this connection
     id: ConnectionId,
+    /// The maximum transmission unit of the network
     mtu: Mtu,
+    /// How the connection was initiated locally
     initiation: Initiation,
     state: State,
     snd: SendSequenceSpace,
@@ -299,17 +306,8 @@ impl Tcb {
             }
             let segment = self.incoming.pop().unwrap();
             let receive_result = self.process_segment(segment);
-            match receive_result {
-                ProcessSegmentResult::Success
-                | ProcessSegmentResult::DiscardSegment
-                | ProcessSegmentResult::InvalidAck => {}
-                ProcessSegmentResult::ReturnToListen
-                | ProcessSegmentResult::ConnectionReset
-                | ProcessSegmentResult::ConnectionRefused
-                | ProcessSegmentResult::FinalizeClose
-                | ProcessSegmentResult::BlindReset => {
-                    return SegmentArrivesResult::Close;
-                }
+            if receive_result.should_delete_tcb() {
+                return SegmentArrivesResult::Close;
             }
         }
         SegmentArrivesResult::Ok
@@ -596,7 +594,7 @@ impl Tcb {
         } else if mod_gt(seg.ack, self.snd.nxt) {
             // ACKs something not yet sent
             self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
-            return ProcessSegmentResult::DiscardSegment;
+            return ProcessSegmentResult::InvalidAck;
         } else {
             // Valid ACK
             self.snd.una = seg.ack;
@@ -785,51 +783,95 @@ fn consume_text(queue: &mut VecDeque<Message>, bytes: usize) -> Vec<u8> {
     out
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[must_use]
-enum ProcessSegmentResult {
-    Success,
-    DiscardSegment,
-    InvalidAck,
-    ReturnToListen,
-    ConnectionReset,
-    ConnectionRefused,
-    FinalizeClose,
-    BlindReset,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SegmentArrivesResult {
-    Ok,
-    Close,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SendResult {
-    Ok,
-    ClosingConnection,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum CloseResult {
-    Ok,
-    CloseConnection,
-    ConnectionClosing,
-}
-
+/// How the TCP connection was opened locally
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Initiation {
+    /// The TCP created the connection after a passive open
     Listen,
+    /// The TCB was created by an active open to a remote TCP
     Open,
 }
 
+/// The result of processing a TCP segment
+#[must_use]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProcessSegmentResult {
+    /// The segment processed successfully
+    Success,
+    /// The TCB threw away the bad segment, usually due to an invalid sequence
+    /// number
+    DiscardSegment,
+    /// The segment carried an unacceptable ACK and was not fully processed
+    InvalidAck,
+    /// The TCP should return the connection to a LISTEN state
+    ReturnToListen,
+    /// The connection was reset
+    ConnectionReset,
+    /// The remote TCP refused the connection
+    ConnectionRefused,
+    /// The segment acknowledged the closing of the connection
+    FinalizeClose,
+    /// A potential blind reset attack was identified
+    BlindReset,
+}
+
+impl ProcessSegmentResult {
+    pub fn should_delete_tcb(self) -> bool {
+        match self {
+            ProcessSegmentResult::Success
+            | ProcessSegmentResult::DiscardSegment
+            | ProcessSegmentResult::InvalidAck => false,
+            _ => true,
+        }
+    }
+}
+
+/// The result of a segment arriving on the TCB
+#[must_use]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentArrivesResult {
+    /// The segment was processed successfully
+    Ok,
+    /// The segment caused the TCB to close and the caller should delete the TCB
+    Close,
+}
+
+/// The result of a call to send on the TCB
+#[must_use]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SendResult {
+    /// The send completed successfully
+    Ok,
+    /// The send did not complete because the connection is already closing
+    ClosingConnection,
+}
+
+/// The result of a call to close on the TCB
+#[must_use]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CloseResult {
+    /// The close was processed successfully
+    Ok,
+    /// The connection is already closing
+    ConnectionClosing,
+    /// The TCB should be deleted by the caller
+    CloseConnection,
+}
+
+/// The result of a segment arriving to the TCP in a LISTEN state
+#[must_use]
 #[derive(Debug, Clone)]
 pub enum ListenResult {
-    Response(TcpHeader),
+    /// The connection attempt was processed successfully and a TCB was created
+    /// for the connection
     Tcb(Tcb),
+    /// The connection attempt failed and the TCP generated a response header
+    /// instead of creating a TCB
+    Response(TcpHeader),
 }
 
 impl ListenResult {
+    /// Gets the response header, if available
     fn response(self) -> Option<TcpHeader> {
         match self {
             ListenResult::Response(response) => Some(response),
@@ -837,6 +879,7 @@ impl ListenResult {
         }
     }
 
+    /// Gets the TCB, if available
     fn tcb(self) -> Option<Tcb> {
         match self {
             ListenResult::Response(_) => None,
@@ -845,8 +888,13 @@ impl ListenResult {
     }
 }
 
+/// The result of advancing the TCB time
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdvanceTimeResult {
+    /// The time was advanced and the caller needn't respond
     Ignore,
+    /// The TCB closed as a result of advancing the time and the caller should
+    /// delete the TCB
     CloseConnection,
 }

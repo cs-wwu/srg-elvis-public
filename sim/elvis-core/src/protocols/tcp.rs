@@ -12,7 +12,7 @@ use crate::{
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
-    protocols::tcp::tcb::handle_listen,
+    protocols::tcp::tcb::{handle_listen, AdvanceTimeResult},
     session::SharedSession,
     Control, Id, Message, Protocol, ProtocolMap,
 };
@@ -270,10 +270,20 @@ impl Protocol for Tcp {
             loop {
                 const SLEEP_DURATION: Duration = Duration::from_millis(33);
                 tokio::time::sleep(SLEEP_DURATION).await;
-                for session in self.sessions.iter_mut() {
-                    session
+                let mut to_remove = vec![];
+                for entry in self.sessions.iter_mut() {
+                    match entry
                         .clone()
-                        .advance_time(SLEEP_DURATION, protocols.clone());
+                        .advance_time(SLEEP_DURATION, protocols.clone())
+                    {
+                        AdvanceTimeResult::Ignore => {}
+                        AdvanceTimeResult::CloseConnection => {
+                            to_remove.push(*entry.key());
+                        }
+                    }
+                }
+                for id in to_remove {
+                    self.sessions.remove(&id);
                 }
             }
         });

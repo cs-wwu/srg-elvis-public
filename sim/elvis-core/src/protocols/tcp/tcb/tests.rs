@@ -1,3 +1,5 @@
+#![allow(unused_must_use)]
+
 use super::*;
 
 const PEER_A_ID: ConnectionId = ConnectionId {

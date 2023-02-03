@@ -1,4 +1,4 @@
-use super::tcb::{Segment, SegmentArrivesResult, Tcb};
+use super::tcb::{AdvanceTimeResult, Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError},
@@ -61,9 +61,13 @@ impl TcpSession {
     }
 
     /// Increase the current time by the given delta, used to trigger timeouts
-    pub fn advance_time(self: Arc<Self>, delta_time: Duration, protocols: ProtocolMap) {
+    pub fn advance_time(
+        self: Arc<Self>,
+        delta_time: Duration,
+        protocols: ProtocolMap,
+    ) -> AdvanceTimeResult {
         let mut tcb = self.tcb.write().unwrap();
-        tcb.advance_time(delta_time);
+        let result = tcb.advance_time(delta_time);
         let context = Context::new(protocols);
         match self.deliver_outgoing(&mut tcb, context) {
             Ok(_) => {}
@@ -71,6 +75,7 @@ impl TcpSession {
                 tracing::error!("Send error while advancing time: {}", e);
             }
         }
+        result
     }
 
     /// Transfer outgoing segments from the TCB to the downstream session
