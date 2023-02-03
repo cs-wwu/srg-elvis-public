@@ -112,44 +112,65 @@ impl Tcb {
     pub fn send(&mut self, message: Message) {
         // 3.10.2 (Not compliant, doing things differently. We don't have a
         // retransmission queue.)
-        self.outgoing.text.push_back(message);
+        match self.state {
+            State::SynSent | State::SynReceived | State::Established => {
+                self.outgoing.text.push_back(message);
+            }
+
+            State::FinWait1
+            | State::FinWait2
+            | State::CloseWait
+            | State::Closing
+            | State::LastAck
+            | State::TimeWait => {
+                // TODO(hardint): Return an error that the connection is closing
+            }
+        }
     }
 
     pub fn receive(&mut self) -> Vec<u8> {
         // 3.10.3
-
-        // TODO(hardint): Use receive buffer size instead of just taking
-        // everything
-        let bytes = self.received_text.iter().map(|message| message.len()).sum();
-        consume_text(&mut self.received_text, bytes)
+        match self.state {
+            State::SynSent
+            | State::SynReceived
+            | State::Established
+            | State::FinWait1
+            | State::FinWait2
+            | State::CloseWait => {
+                // TODO(hardint): Use receive buffer size instead of just taking
+                // everything
+                let bytes = self.received_text.iter().map(|message| message.len()).sum();
+                consume_text(&mut self.received_text, bytes)
+            }
+            State::Closing | State::LastAck | State::TimeWait => {
+                // TODO(hardint): Return a connection closing error
+                vec![]
+            }
+        }
     }
 
     pub fn close(&mut self) -> CloseResult {
         // 3.10.4
         match self.state {
-            State::SynSent => CloseResult::CloseConnection,
-
             State::SynReceived | State::Established => {
                 // TODO(hardint): Should only do this if there is no pending
                 // data to send, but I don't have a good mechanism for queuing
                 // things like this for later processing once we reach
                 // ESTABLISHED as the spec describes, so this is how it is for
                 // now.
-
-                // TODO(hardint): Is this the correct sequence number for a FIN
-                // segment?
-                self.enqueue(self.header_builder(self.snd.nxt + 1));
+                self.enqueue(self.header_builder(self.snd.nxt).fin());
                 self.state = State::FinWait1;
                 CloseResult::Ok
             }
 
             State::CloseWait => {
-                self.enqueue(self.header_builder(self.snd.nxt + 1));
+                self.enqueue(self.header_builder(self.snd.nxt));
                 self.state = State::LastAck;
                 CloseResult::Ok
             }
 
-            State::FinWait1
+            State::SynSent
+            | State::FinWait1
             | State::FinWait2
             | State::Closing
             | State::LastAck
@@ -161,9 +182,17 @@ impl Tcb {
     // delivered, if present.
     pub fn abort(&mut self) {
         // 3.10.5
-        self.outgoing = Default::default();
-        if self.state == State::CloseWait {
-            self.enqueue(self.header_builder(self.snd.nxt).rst());
+        match self.state {
+            State::SynReceived
+            | State::Established
+            | State::FinWait1
+            | State::FinWait2
+            | State::CloseWait => {
+                self.outgoing = Default::default();
+                self.enqueue(self.header_builder(self.snd.nxt).rst());
+            }
+
+            State::SynSent | State::Closing | State::LastAck | State::TimeWait => {}
         }
     }
 
@@ -1301,7 +1330,6 @@ mod tests {
         (peer_a, peer_b)
     }
 
-    #[ignore]
     #[test]
     fn normal_close_sequence() {
         // This test implements the following exchange from 3.6, Figure 12:
