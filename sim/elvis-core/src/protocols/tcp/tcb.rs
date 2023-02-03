@@ -31,6 +31,15 @@ use outgoing::Outgoing;
 mod transmit;
 use transmit::Transmit;
 
+mod state;
+pub use state::State;
+
+mod receive_sequence_space;
+use receive_sequence_space::ReceiveSequenceSpace;
+
+mod send_sequence_space;
+use send_sequence_space::SendSequenceSpace;
+
 // TODO(hardint): Move acknowledgment queuing to the front so they get delivered first
 
 // NOTE(hardint): Section numbers are base on RFC 9293, the updated TCP protocol
@@ -780,90 +789,6 @@ fn consume_text(queue: &mut VecDeque<Message>, bytes: usize) -> Vec<u8> {
         }
     }
     out
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum State {
-    /// Waiting for a matching connection request after having sent a connection
-    /// request.
-    SynSent,
-    /// Waiting for a confirming connection request acknowledgment after having
-    /// both received and sent a connection request.
-    SynReceived,
-    /// An open connection, data received can be delivered to the user. The
-    /// normal state for the data transfer phase of the connection.
-    Established,
-    /// Waiting for a connection termination request from the remote TCP, or an
-    /// acknowledgment of the connection termination request previously sent.
-    FinWait1,
-    /// Waiting for a connection termination request from the remote TCP.
-    FinWait2,
-    /// Waiting for a connection termination request from the local user.
-    CloseWait,
-    /// Waiting for a connection termination request acknowledgment from the
-    /// remote TCP.
-    Closing,
-    /// Waiting for an acknowledgment of the connection termination request
-    /// previously sent to the remote TCP (which includes an acknowledgment of
-    /// its connection termination request).
-    LastAck,
-    /// Waiting for enough time to pass to be sure the remote TCP received the
-    /// acknowledgment of its connection termination request.
-    TimeWait,
-}
-
-//      1         2          3          4
-// ----------|----------|----------|----------
-//        SND.UNA    SND.NXT    SND.UNA
-//                             +SND.WND
-//
-// 1 - old sequence numbers which have been acknowledged
-// 2 - sequence numbers of unacknowledged data
-// 3 - sequence numbers allowed for new data transmission (send window)
-// 4 - future sequence numbers which are not yet allowed
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
-struct SendSequenceSpace {
-    /// Oldest unacknowledged sequence number
-    una: u32,
-    /// Next sequence number to be sent
-    nxt: u32,
-    /// The size of the remote TCP's window
-    wnd: u16,
-    /// Segment sequence number used for last window update
-    wl1: u32,
-    /// Segment acknowledgment number used for last window update
-    wl2: u32,
-    /// Initial send sequence number
-    iss: u32,
-}
-
-//     1          2          3
-// ----------|----------|----------
-//        RCV.NXT    RCV.NXT
-//                  +RCV.WND
-//
-// 1 - old sequence numbers which have been acknowledged
-// 2 - sequence numbers allowed for new reception
-// 3 - future sequence numbers which are not yet allowed
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-struct ReceiveSequenceSpace {
-    /// Initial receive sequence number
-    irs: u32,
-    /// Next sequence number expected on an incoming segment, and is the
-    /// left or lower edge of the receive window
-    nxt: u32,
-    /// The number of bytes we can buffer from the remote TCP
-    wnd: u16,
-}
-
-impl Default for ReceiveSequenceSpace {
-    fn default() -> Self {
-        Self {
-            irs: 0,
-            nxt: 0,
-            wnd: 4096,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
