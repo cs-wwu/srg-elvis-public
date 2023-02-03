@@ -120,11 +120,7 @@ impl Tcb {
 
         // TODO(hardint): Use receive buffer size instead of just taking
         // everything
-        let bytes = self
-            .received_text
-            .iter()
-            .map(|message| message.len())
-            .sum();
+        let bytes = self.received_text.iter().map(|message| message.len()).sum();
         consume_text(&mut self.received_text, bytes)
     }
 
