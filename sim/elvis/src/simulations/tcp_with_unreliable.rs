@@ -1,7 +1,7 @@
 use crate::applications::{SendMessage, Transport, WaitForMessage};
 use elvis_core::{
     message::Message,
-    network::NetworkBuilder,
+    network::{Latency, NetworkBuilder},
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
@@ -9,13 +9,21 @@ use elvis_core::{
     },
     run_internet, Machine,
 };
+use std::time::Duration;
 
 /// Runs a basic simulation.
 ///
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
 pub async fn tcp_with_unreliable() {
-    let network = NetworkBuilder::new().mtu(500).loss_rate(0.5).build();
+    let network = NetworkBuilder::new()
+        .mtu(500)
+        .loss_rate(0.5)
+        .latency(Latency::variable(
+            Duration::ZERO,
+            Duration::from_millis(200),
+        ))
+        .build();
     let dst_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(dst_ip_address, 0)].into_iter().collect();
 
