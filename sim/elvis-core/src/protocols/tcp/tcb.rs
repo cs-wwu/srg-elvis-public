@@ -164,7 +164,7 @@ impl Tcb {
             }
 
             State::CloseWait => {
-                self.enqueue(self.header_builder(self.snd.nxt));
+                self.enqueue(self.header_builder(self.snd.nxt).fin());
                 self.state = State::LastAck;
                 CloseResult::Ok
             }
@@ -208,40 +208,38 @@ impl Tcb {
             .collect();
 
         match self.state {
-            State::SynSent | State::SynReceived | State::Established | State::CloseWait => {}
-            State::FinWait1
-            | State::FinWait2
-            | State::Closing
-            | State::LastAck
-            | State::TimeWait => return out,
-        }
-
-        // TODO(hardint): This could be incorrect for when optional
-        // headers are used. It also is not as efficient as possible.
-        const SPACE_FOR_HEADERS: u32 = 50;
-        let max_segment_length = (self.mtu - SPACE_FOR_HEADERS) as usize;
-        let mut queued_bytes = self.outgoing.queued_bytes();
-        loop {
-            let max_bytes = self.snd.wnd as usize - queued_bytes;
-            let text = consume_text(&mut self.outgoing.text, max_segment_length.min(max_bytes));
-            if text.is_empty() {
-                break;
+            State::SynSent | State::SynReceived | State::Established | State::CloseWait => {
+                // TODO(hardint): This could be incorrect for when optional
+                // headers are used. It also is not as efficient as possible.
+                const SPACE_FOR_HEADERS: u32 = 50;
+                let max_segment_length = (self.mtu - SPACE_FOR_HEADERS) as usize;
+                let mut queued_bytes = self.outgoing.queued_bytes();
+                loop {
+                    let max_bytes = self.snd.wnd as usize - queued_bytes;
+                    let text =
+                        consume_text(&mut self.outgoing.text, max_segment_length.min(max_bytes));
+                    if text.is_empty() {
+                        break;
+                    }
+                    queued_bytes += text.len();
+                    let header = self
+                        .header_builder(self.snd.nxt)
+                        .ack(self.rcv.nxt)
+                        .wnd(self.rcv.wnd)
+                        .build(
+                            self.id.local.address,
+                            self.id.remote.address,
+                            text.iter().cloned(),
+                        )
+                        .expect("Unexpectedly large MTU and message");
+                    self.snd.nxt = self.snd.nxt.wrapping_add(text.len() as u32);
+                    self.outgoing
+                        .retransmit
+                        .push_back(Transmit::new(Segment::new(header, Message::new(text))));
+                }
             }
-            queued_bytes += text.len();
-            let header = self
-                .header_builder(self.snd.nxt)
-                .ack(self.rcv.nxt)
-                .wnd(self.rcv.wnd)
-                .build(
-                    self.id.local.address,
-                    self.id.remote.address,
-                    text.iter().cloned(),
-                )
-                .expect("Unexpectedly large MTU and message");
-            self.snd.nxt = self.snd.nxt.wrapping_add(text.len() as u32);
-            self.outgoing
-                .retransmit
-                .push_back(Transmit::new(Segment::new(header, Message::new(text))));
+
+            _ => {}
         }
 
         for transmit in self.outgoing.retransmit.iter_mut() {
