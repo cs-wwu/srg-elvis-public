@@ -221,8 +221,8 @@ impl Protocol for Tcp {
                             self.iss.write().unwrap().next_iss(),
                             mtu,
                         );
-                        match listen_result {
-                            Some(listen_result) => match listen_result {
+                        if let Some(listen_result) = listen_result {
+                            match listen_result {
                                 ListenResult::Response(response) => {
                                     caller.send(Message::new(response.serialize()), context)?;
                                 }
@@ -234,9 +234,6 @@ impl Protocol for Tcp {
                                     ));
                                     session_entry.insert(session);
                                 }
-                            },
-                            None => {
-                                // The segment was disposed of :)
                             }
                         }
                     }
