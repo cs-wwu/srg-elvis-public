@@ -106,7 +106,7 @@ pub trait Protocol {
     ///   session, the protocol should check to see whether any protocol has
     ///   asked to receive the message by calling [`listen`](Protocol::listen)
     ///   at an earlier time. If so, a new session should be created.
-    /// - Call [`receive`](super::Session::receive) on the selected session.
+    /// - Call `receive` on the selected session.
     fn demux(
         self: Arc<Self>,
         message: Message,
