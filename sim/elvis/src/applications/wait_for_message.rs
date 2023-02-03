@@ -95,7 +95,7 @@ impl Application for WaitForMessage {
             }
         }
 
-        if expected.next() != None {
+        if expected.next().is_some() {
             // We need more bytes
             return Ok(());
         }

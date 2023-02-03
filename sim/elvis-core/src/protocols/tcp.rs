@@ -97,7 +97,7 @@ impl Protocol for Tcp {
         let session_id = ConnectionId { local, remote };
 
         match self.sessions.entry(session_id) {
-            Entry::Occupied(_) => return Err(OpenError::Existing),
+            Entry::Occupied(_) => Err(OpenError::Existing),
             Entry::Vacant(entry) => {
                 // Create the session and save it
                 let downstream = protocols
@@ -232,7 +232,7 @@ impl Protocol for Tcp {
                                         *listen_entry.get(),
                                         caller,
                                     ));
-                                    session_entry.insert(session.clone());
+                                    session_entry.insert(session);
                                 }
                             },
                             None => {

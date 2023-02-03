@@ -124,7 +124,7 @@ impl Tcb {
             .received_text
             .iter()
             .map(|message| message.len())
-            .fold(0, |acc, x| acc + x);
+            .sum();
         consume_text(&mut self.received_text, bytes)
     }
 
@@ -894,7 +894,7 @@ impl Outgoing {
         self.retransmit
             .iter()
             .map(|transmit| transmit.segment.text.len())
-            .fold(0, |acc, len| acc + len)
+            .sum()
     }
 }
 
@@ -1600,7 +1600,7 @@ mod tests {
         assert!(!peer_a_ack.header.ctl.syn());
         // Lost packet arrives
         assert_eq!(
-            peer_a.segment_arrives(peer_b_syn_ack.clone()),
+            peer_a.segment_arrives(peer_b_syn_ack),
             SegmentArrivesResult::Ok
         );
 

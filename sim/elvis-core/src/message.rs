@@ -188,7 +188,7 @@ impl From<&[u8]> for Message {
 
 impl<const L: usize> From<[u8; L]> for Message {
     fn from(val: [u8; L]) -> Self {
-        Message::new(&val)
+        Message::new(val)
     }
 }
 
