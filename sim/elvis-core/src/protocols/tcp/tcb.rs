@@ -311,6 +311,7 @@ impl Tcb {
                         self.snd.una = seg.ack;
                         self.remove_acked_from_retransmission();
                     } else {
+                        // Same ACK twice causes this failure
                         self.enqueue(self.header_builder(seg.ack).rst());
                         return ProcessSegmentResult::InvalidAck;
                     }
@@ -416,14 +417,16 @@ impl Tcb {
                 | State::LastAck
                 | State::TimeWait
                 | State::SynReceived => {
-                    // NOTE(hardint): Supposed to return to listen state if we
-                    // are in syn received and had a passive open, but this
-                    // seems busted for if a lost SYN arrives late. Ignoring.
-
-                    // Getting a SYN in a synchronized state is weird. In
-                    // following with RFC 5961, send a challenge ACK and stop
-                    // further processing:
-                    self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+                    // NOTE(hardint): According to the specification, we should
+                    // either be sending a challenge ACK or just ending the
+                    // connection if we get a SYN in the window (valid SEQ)
+                    // while in a synchronized state. However, doing either of
+                    // those things causes spurious connection failure. I
+                    // suspect this is an off-by-one issue since our sequence
+                    // number checks are slightly different from the base spec
+                    // in order to account for simultaneous opens. This might be
+                    // something to revisit, but for now, just discarding the
+                    // segment seems to work just fine.
                     return ProcessSegmentResult::DiscardSegment;
                 }
             }
@@ -1576,14 +1579,12 @@ mod tests {
         // Lost, new ACK not generated
         let _peer_a_ack = peer_a.segments();
 
-        peer_b.segments();
-        peer_b.advance_time(Duration::from_secs(1));
-        let peer_b_syn_ack = peer_b.segments().into_iter().next().unwrap();
         assert_eq!(
             // Peer B probes again
             peer_a.segment_arrives(peer_b_syn_ack.clone()),
             SegmentArrivesResult::Ok
         );
+        peer_a.advance_time(Duration::from_secs(1));
         let peer_a_ack = peer_a.segments();
 
         assert_eq!(peer_a_ack.len(), 1);
