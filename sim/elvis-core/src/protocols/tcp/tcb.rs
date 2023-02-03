@@ -253,7 +253,6 @@ impl Tcb {
             }
             let segment = self.incoming.pop().unwrap().into_inner();
             let receive_result = self.process_segment(segment);
-            println!("{:?}, {:?}", receive_result, self.state);
             match receive_result {
                 ProcessSegmentResult::Success
                 | ProcessSegmentResult::DiscardSegment
@@ -272,19 +271,7 @@ impl Tcb {
     }
 
     fn process_segment(&mut self, segment: Segment) -> ProcessSegmentResult {
-        println!(
-            "Segment arrives: {:?}, {:?} bytes, {:?}",
-            self.state,
-            segment.text.len(),
-            segment.header
-        );
         let (seg, mut text) = segment.into_inner();
-
-        if self.state == State::SynSent && seg.ctl.ack() && !seg.ctl.syn() {
-            println!("*************************");
-            println!("*** Failing situation ***");
-            println!("*************************");
-        }
 
         match self.state {
             // Sequence number checks don't apply for LISTEN, SYN-SENT, or CLOSING
