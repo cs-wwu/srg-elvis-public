@@ -1,4 +1,4 @@
-use super::modular_cmp::mod_le;
+use super::modular_cmp::mod_lt;
 use crate::{protocols::tcp::tcp_parsing::TcpHeader, Message};
 use std::cmp::Ordering;
 
@@ -56,7 +56,7 @@ impl Ord for Segment {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.header.seq == other.header.seq {
             Ordering::Equal
-        } else if mod_le(self.header.seq, other.header.seq) {
+        } else if mod_lt(self.header.seq, other.header.seq) {
             // Reversing the order so the the priority queue handles messages
             // starting from lower sequence numbers
             Ordering::Greater

@@ -1,7 +1,7 @@
 pub use ModCmp::*;
 
 /// Is a < b under modular arithmetic?
-pub fn mod_le(a: u32, b: u32) -> bool {
+pub fn mod_lt(a: u32, b: u32) -> bool {
     // k is on the opposite side of the ring of integers mod 32 from b
     let k = b.wrapping_add(u32::MAX / 2);
 
@@ -19,17 +19,17 @@ pub fn mod_le(a: u32, b: u32) -> bool {
 
 /// Is a <= b under modular arithmetic?
 pub fn mod_leq(a: u32, b: u32) -> bool {
-    mod_le(a, b.wrapping_add(1))
+    mod_lt(a, b.wrapping_add(1))
 }
 
 /// Is a > b under modular arithmetic?
-pub fn mod_ge(a: u32, b: u32) -> bool {
-    mod_le(b, a)
+pub fn mod_gt(a: u32, b: u32) -> bool {
+    mod_lt(b, a)
 }
 
 /// Is a > b under modular arithmetic?
 pub fn mod_geq(a: u32, b: u32) -> bool {
-    mod_le(b.wrapping_sub(1), a)
+    mod_lt(b.wrapping_sub(1), a)
 }
 
 /// Is `b` between `a` and `c` when accounting for modular arithmetic?
@@ -52,7 +52,7 @@ pub fn mod_bounded(a: u32, ab_cmp: ModCmp, b: u32, bc_cmp: ModCmp, c: u32) -> bo
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModCmp {
     /// Less than
-    Le,
+    Lt,
     /// Less than or equal to
     Leq,
 }
@@ -62,7 +62,7 @@ impl ModCmp {
     /// to the given comparison
     fn offset(self) -> u32 {
         match self {
-            Le => 0,
+            Lt => 0,
             Leq => 1,
         }
     }
@@ -75,33 +75,33 @@ mod tests {
     #[test]
     fn modular_comparison() {
         // 2**31 = 2_147_483_648
-        assert!(mod_le(10, 20));
-        assert!(!mod_le(20, 10));
-        assert!(mod_le(2_000_000_000, 3_000_000_000));
-        assert!(!mod_le(3_000_000_000, 2_000_000_000));
-        assert!(mod_le(3_000_000_000, 4_000_000_000));
-        assert!(!mod_le(4_000_000_000, 3_000_000_000));
+        assert!(mod_lt(10, 20));
+        assert!(!mod_lt(20, 10));
+        assert!(mod_lt(2_000_000_000, 3_000_000_000));
+        assert!(!mod_lt(3_000_000_000, 2_000_000_000));
+        assert!(mod_lt(3_000_000_000, 4_000_000_000));
+        assert!(!mod_lt(4_000_000_000, 3_000_000_000));
 
-        assert!(!mod_le(5, 5));
+        assert!(!mod_lt(5, 5));
         assert!(mod_leq(5, 5));
 
-        assert!(mod_ge(20, 10));
-        assert!(!mod_ge(5, 5));
+        assert!(mod_gt(20, 10));
+        assert!(!mod_gt(5, 5));
         assert!(mod_geq(5, 5));
 
-        assert!(mod_bounded(5, Le, 10, Le, 15));
-        assert!(!mod_bounded(15, Le, 10, Le, 5));
+        assert!(mod_bounded(5, Lt, 10, Lt, 15));
+        assert!(!mod_bounded(15, Lt, 10, Lt, 5));
 
-        assert!(mod_bounded(u32::MAX - 5, Le, 5, Le, 10));
-        assert!(!mod_bounded(10, Le, 5, Le, u32::MAX - 5));
+        assert!(mod_bounded(u32::MAX - 5, Lt, 5, Lt, 10));
+        assert!(!mod_bounded(10, Lt, 5, Lt, u32::MAX - 5));
 
-        assert!(mod_bounded(u32::MAX - 10, Le, u32::MAX - 5, Le, 5));
-        assert!(!mod_bounded(5, Le, u32::MAX - 5, Le, u32::MAX - 10));
+        assert!(mod_bounded(u32::MAX - 10, Lt, u32::MAX - 5, Lt, 5));
+        assert!(!mod_bounded(5, Lt, u32::MAX - 5, Lt, u32::MAX - 10));
 
-        assert!(!mod_bounded(5, Le, 5, Le, 15));
-        assert!(mod_bounded(5, Leq, 5, Le, 15));
-        assert!(!mod_bounded(5, Le, 15, Le, 15));
-        assert!(mod_bounded(5, Le, 15, Leq, 15));
+        assert!(!mod_bounded(5, Lt, 5, Lt, 15));
+        assert!(mod_bounded(5, Leq, 5, Lt, 15));
+        assert!(!mod_bounded(5, Lt, 15, Lt, 15));
+        assert!(mod_bounded(5, Lt, 15, Leq, 15));
         assert!(mod_bounded(10, Leq, 10, Leq, 10));
     }
 }

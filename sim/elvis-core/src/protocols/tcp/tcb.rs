@@ -280,7 +280,7 @@ impl Tcb {
         while let Some(transmit) = self.outgoing.retransmit.get(i) {
             let seq = transmit.segment.header.seq;
             let seg_len = transmit.segment.seg_len() as u32;
-            if mod_le(self.snd.una, seq + seg_len) {
+            if mod_lt(self.snd.una, seq + seg_len) {
                 i += 1;
             } else {
                 self.outgoing.retransmit.remove(i);
@@ -291,7 +291,7 @@ impl Tcb {
     pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
         self.incoming.push(segment);
         while let Some(segment) = self.incoming.peek() {
-            if self.state != State::SynSent && mod_ge(segment.header.seq, self.rcv.nxt) {
+            if self.state != State::SynSent && mod_gt(segment.header.seq, self.rcv.nxt) {
                 // If this segment is past the next byte we want to receive, it
                 // arrived out of order and we haven't received the earlier
                 // bytes we need to proceed.
@@ -334,7 +334,7 @@ impl Tcb {
         if seg.ctl.ack() {
             match self.state {
                 State::SynSent => {
-                    if mod_bounded(self.snd.nxt, Le, seg.ack, Leq, self.snd.iss) {
+                    if mod_bounded(self.snd.nxt, Lt, seg.ack, Leq, self.snd.iss) {
                         if seg.ctl.rst() {
                             // Discard the segment
                             return ProcessSegmentResult::DiscardSegment;
@@ -344,7 +344,7 @@ impl Tcb {
                         }
                     }
 
-                    if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
+                    if mod_bounded(self.snd.una, Lt, seg.ack, Leq, self.snd.nxt) {
                         // Valid acknowledgment
                         if seg.ctl.syn() {
                             // The spec doesn't specifically describe what to do for
@@ -371,7 +371,7 @@ impl Tcb {
                 }
 
                 State::SynReceived => {
-                    if mod_bounded(self.snd.una, Le, seg.ack, Leq, self.snd.nxt) {
+                    if mod_bounded(self.snd.una, Lt, seg.ack, Leq, self.snd.nxt) {
                         self.state = State::Established;
                         self.snd.wnd = seg.wnd;
                         self.snd.wl1 = seg.seq;
@@ -472,7 +472,7 @@ impl Tcb {
                     self.snd.wnd = seg.wnd;
                     self.snd.wl1 = seg.seq;
                     self.snd.wl2 = seg.ack;
-                    if mod_ge(self.snd.una, self.snd.iss) {
+                    if mod_gt(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
                         self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     } else {
@@ -593,7 +593,7 @@ impl Tcb {
         if mod_leq(seg.ack, self.snd.una) {
             // Ignore duplicate ACK
             return ProcessSegmentResult::Success;
-        } else if mod_ge(seg.ack, self.snd.nxt) {
+        } else if mod_gt(seg.ack, self.snd.nxt) {
             // ACKs something not yet sent
             self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
             return ProcessSegmentResult::DiscardSegment;
@@ -602,7 +602,7 @@ impl Tcb {
             self.snd.una = seg.ack;
             self.remove_acked_from_retransmission();
             // Update the send window
-            if mod_le(self.snd.wl1, seg.seq)
+            if mod_lt(self.snd.wl1, seg.seq)
                 || (self.snd.wl1 == seg.seq && mod_leq(self.snd.wl2, seg.ack))
             {
                 self.snd.wnd = seg.wnd;
@@ -637,7 +637,7 @@ impl Tcb {
     }
 
     fn is_ack_ok(&self, ack: u32) -> bool {
-        mod_bounded(self.snd.una, Le, ack, Leq, self.snd.nxt)
+        mod_bounded(self.snd.una, Lt, ack, Leq, self.snd.nxt)
     }
 
     fn is_seq_ok(&self, data_len: u32, seq: u32, syn: bool, fin: bool) -> bool {
@@ -667,13 +667,13 @@ impl Tcb {
             self.rcv.nxt - 1,
             Leq,
             n,
-            Le,
+            Lt,
             self.rcv.nxt + self.rcv.wnd as u32,
         )
     }
 
     fn is_in_snd_window(&self, n: u32) -> bool {
-        mod_bounded(self.snd.nxt, Leq, n, Le, self.snd.nxt + self.snd.wnd as u32)
+        mod_bounded(self.snd.nxt, Leq, n, Lt, self.snd.nxt + self.snd.wnd as u32)
     }
 }
 
