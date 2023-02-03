@@ -1,5 +1,3 @@
-use self::incoming::Incoming;
-
 use super::{
     tcp_parsing::{TcpHeader, TcpHeaderBuilder},
     ConnectionId,
@@ -25,6 +23,13 @@ mod segment;
 pub use segment::Segment;
 
 mod incoming;
+use incoming::Incoming;
+
+mod outgoing;
+use outgoing::Outgoing;
+
+mod transmit;
+use transmit::Transmit;
 
 // TODO(hardint): Move acknowledgment queuing to the front so they get delivered first
 
@@ -762,6 +767,21 @@ pub fn handle_listen(
     }
 }
 
+fn consume_text(queue: &mut VecDeque<Message>, bytes: usize) -> Vec<u8> {
+    let mut out = vec![];
+    while let Some(mut text) = queue.pop_front() {
+        if text.len() <= bytes {
+            out.extend(text.iter());
+        } else {
+            out.extend(text.iter().take(bytes));
+            text.slice(bytes..);
+            queue.push_front(text);
+            break;
+        }
+    }
+    out
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum State {
     /// Waiting for a matching connection request after having sent a connection
@@ -865,56 +885,10 @@ pub enum SegmentArrivesResult {
     Close,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SendResult {
     Ok,
     ClosingConnection,
-}
-
-#[derive(Debug, Clone, Default)]
-struct Outgoing {
-    /// Bytes already gobbled from the front of the first message in `text`.
-    text: VecDeque<Message>,
-    retransmit: VecDeque<Transmit>,
-    oneshot: Vec<TcpHeader>,
-}
-
-impl Outgoing {
-    pub fn queued_bytes(&self) -> usize {
-        self.retransmit
-            .iter()
-            .map(|transmit| transmit.segment.text.len())
-            .sum()
-    }
-}
-
-fn consume_text(queue: &mut VecDeque<Message>, bytes: usize) -> Vec<u8> {
-    let mut out = vec![];
-    while let Some(mut text) = queue.pop_front() {
-        if text.len() <= bytes {
-            out.extend(text.iter());
-        } else {
-            out.extend(text.iter().take(bytes));
-            text.slice(bytes..);
-            queue.push_front(text);
-            break;
-        }
-    }
-    out
-}
-
-#[derive(Debug, Clone)]
-struct Transmit {
-    segment: Segment,
-    needs_transmit: bool,
-}
-
-impl Transmit {
-    pub fn new(segment: Segment) -> Self {
-        Self {
-            segment,
-            needs_transmit: true,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
