@@ -821,6 +821,35 @@ fn consume_text(queue: &mut VecDeque<Message>, bytes: usize) -> Vec<u8> {
     out
 }
 
+/// Timeouts used by TCP
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Timeouts {
+    /// The retransmission timeout
+    retransmission: Duration,
+    /// The time wait timeout
+    time_wait: Option<Duration>,
+}
+
+impl Default for Timeouts {
+    fn default() -> Self {
+        Self {
+            retransmission: RETRANSMISSION_TIMEOUT,
+            time_wait: None,
+        }
+    }
+}
+
+/// Segments and segment text received from the remote TCP
+#[derive(Debug, Clone, Default)]
+struct Incoming {
+    /// Segments due for processing. Due to the comparison implementations on
+    /// [`Segment`], elements will be removed in sequence number order.
+    segments: BinaryHeap<Segment>,
+    /// Segment text that has been aggregated from processed segments and is
+    /// ready to be delivered to the user.
+    text: VecDeque<Message>,
+}
+
 /// How the TCP connection was opened locally
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Initiation {
@@ -935,33 +964,4 @@ pub enum AdvanceTimeResult {
     /// The TCB closed as a result of advancing the time and the caller should
     /// delete the TCB
     CloseConnection,
-}
-
-/// Timeouts used by TCP
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Timeouts {
-    /// The retransmission timeout
-    retransmission: Duration,
-    /// The time wait timeout
-    time_wait: Option<Duration>,
-}
-
-impl Default for Timeouts {
-    fn default() -> Self {
-        Self {
-            retransmission: RETRANSMISSION_TIMEOUT,
-            time_wait: None,
-        }
-    }
-}
-
-/// Segments and segment text received from the remote TCP
-#[derive(Debug, Clone, Default)]
-struct Incoming {
-    /// Segments due for processing. Due to the comparison implementations on
-    /// [`Segment`], elements will be removed in sequence number order.
-    segments: BinaryHeap<Segment>,
-    /// Segment text that has been aggregated from processed segments and is
-    /// ready to be delivered to the user.
-    text: VecDeque<Message>,
 }
