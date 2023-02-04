@@ -525,7 +525,7 @@ impl Tcb {
                 | State::FinWait1
                 | State::FinWait2 => {
                     // If we got here, we already know that SEQ > RCV.NXT.
-                    // Should also be in the window, but let's check:
+                    // Text should also be in the window, but let's check:
                     assert!(
                         self.is_in_rcv_window(seg.seq) || self.is_in_rcv_window(seg.seq + text_len)
                     );
@@ -536,8 +536,8 @@ impl Tcb {
                         // SYN occupies the first byte of data
                         .wrapping_add(seg.ctl.syn() as u32);
                     let unreceived = text_len - already_received;
-                    // TODO(hardint): Account for data already buffered
-                    let accept = unreceived.min(self.rcv.wnd as u32);
+                    let space_available = self.rcv.wnd as u32 - self.incoming.queued_bytes() as u32;
+                    let accept = unreceived.min(space_available);
                     self.rcv.nxt += accept;
                     text.slice(already_received as usize..(already_received + accept) as usize);
                     self.incoming.text.push_back(text);
@@ -848,6 +848,14 @@ struct Incoming {
     /// Segment text that has been aggregated from processed segments and is
     /// ready to be delivered to the user.
     text: VecDeque<Message>,
+}
+
+impl Incoming {
+    /// The number of bytes of data currently queued for delivery in the
+    /// retransmission queue
+    pub fn queued_bytes(&self) -> usize {
+        self.text.iter().map(|message| message.len()).sum()
+    }
 }
 
 /// How the TCP connection was opened locally
