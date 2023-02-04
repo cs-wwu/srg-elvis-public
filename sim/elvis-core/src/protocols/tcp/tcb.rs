@@ -892,12 +892,14 @@ enum ProcessSegmentResult {
 
 impl ProcessSegmentResult {
     pub fn should_delete_tcb(self) -> bool {
-        match self {
-            ProcessSegmentResult::Success
-            | ProcessSegmentResult::DiscardSegment
-            | ProcessSegmentResult::InvalidAck => false,
-            _ => true,
-        }
+        matches!(
+            self,
+            ProcessSegmentResult::ReturnToListen
+                | ProcessSegmentResult::ConnectionReset
+                | ProcessSegmentResult::ConnectionRefused
+                | ProcessSegmentResult::FinalizeClose
+                | ProcessSegmentResult::BlindReset
+        )
     }
 }
 
