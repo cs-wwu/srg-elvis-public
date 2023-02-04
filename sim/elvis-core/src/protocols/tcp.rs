@@ -2,7 +2,7 @@
 //! Protocol](https://www.rfc-editor.org/rfc/rfc9293.html).
 
 use self::{
-    tcb::{handle_closed, ListenResult, Segment, SegmentArrivesResult, Tcb},
+    tcb::{segment_arrives_closed, ListenResult, Segment, SegmentArrivesResult, Tcb},
     tcp_parsing::TcpHeader,
     tcp_session::{ReceiveError, TcpSession},
 };
@@ -12,7 +12,7 @@ use crate::{
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
-    protocols::tcp::tcb::{handle_listen, AdvanceTimeResult},
+    protocols::tcp::tcb::{segment_arrives_listen, AdvanceTimeResult},
     session::SharedSession,
     Control, Id, Message, Protocol, ProtocolMap,
 };
@@ -218,7 +218,7 @@ impl Protocol for Tcp {
                             .map_err(|_| DemuxError::Other)?
                             .ok_u32()
                             .map_err(|_| DemuxError::Other)?;
-                        let listen_result = handle_listen(
+                        let listen_result = segment_arrives_listen(
                             segment,
                             local.address,
                             remote.address,
@@ -243,7 +243,7 @@ impl Protocol for Tcp {
                     }
 
                     Entry::Vacant(_) => {
-                        if let Some(response) = handle_closed(
+                        if let Some(response) = segment_arrives_closed(
                             segment.header,
                             segment.text.len() as u32,
                             local.address,

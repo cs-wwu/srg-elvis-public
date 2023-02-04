@@ -33,7 +33,7 @@ fn basic_synchronization() {
     assert_eq!(peer_a_syn.header.seq, 100);
     assert!(peer_a_syn.header.ctl.syn());
 
-    let mut peer_b = handle_listen(
+    let mut peer_b = segment_arrives_listen(
         peer_a_syn,
         PEER_B_ID.local.address,
         PEER_B_ID.remote.address,
@@ -156,7 +156,7 @@ fn old_duplicate_syn() {
     assert!(ghost_syn.header.ctl.syn());
     assert_eq!(ghost_syn.header.seq, 90);
 
-    let mut peer_b = handle_listen(
+    let mut peer_b = segment_arrives_listen(
         ghost_syn,
         GHOST_ID.remote.address,
         GHOST_ID.local.address,
@@ -186,7 +186,7 @@ fn old_duplicate_syn() {
     assert_eq!(receive_result, SegmentArrivesResult::Close);
 
     // 6
-    let mut peer_b = handle_listen(
+    let mut peer_b = segment_arrives_listen(
         peer_a_syn,
         PEER_B_ID.local.address,
         PEER_B_ID.remote.address,
@@ -220,7 +220,7 @@ fn old_duplicate_syn() {
 fn established_pair(peer_a_iss: u32, peer_b_iss: u32) -> (Tcb, Tcb) {
     let mut peer_a = Tcb::open(PEER_A_ID, peer_a_iss, 1500);
     let peer_a_syn = peer_a.segments().remove(0);
-    let mut peer_b = handle_listen(
+    let mut peer_b = segment_arrives_listen(
         peer_a_syn,
         PEER_B_ID.local.address,
         PEER_B_ID.remote.address,
@@ -490,7 +490,7 @@ fn loss_during_initiation() {
     assert_eq!(peer_a_syn.len(), 1);
     let peer_a_syn = peer_a_syn.into_iter().next().unwrap();
 
-    let mut peer_b = handle_listen(
+    let mut peer_b = segment_arrives_listen(
         peer_a_syn.clone(),
         PEER_B_ID.local.address,
         PEER_B_ID.remote.address,
@@ -545,7 +545,7 @@ fn send_before_established() {
     let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
     peer_a.send(Message::new("Hello!"));
     let peer_a_syn = peer_a.segments().remove(0);
-    let mut peer_b = handle_listen(
+    let mut peer_b = segment_arrives_listen(
         peer_a_syn,
         PEER_B_ID.local.address,
         PEER_B_ID.remote.address,
