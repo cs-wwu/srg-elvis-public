@@ -851,8 +851,8 @@ struct Incoming {
 }
 
 impl Incoming {
-    /// The number of bytes of data currently queued for delivery in the
-    /// retransmission queue
+    /// The number of bytes received from the remote TCP and queued for delivery
+    /// to the user.
     pub fn queued_bytes(&self) -> usize {
         self.text.iter().map(|message| message.len()).sum()
     }
