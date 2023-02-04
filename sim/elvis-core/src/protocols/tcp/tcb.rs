@@ -761,7 +761,6 @@ pub fn segment_arrives_listen(
             .map(ListenResult::Response)
     } else if seg.ctl.syn() {
         // Third:
-        // NOTE: Ignore security check for simplicity
         let mut tcb = Tcb::new(
             ConnectionId {
                 local: Socket {
@@ -809,13 +808,13 @@ pub fn segment_arrives_listen(
 /// messages.
 fn consume_text(queue: &mut VecDeque<Message>, bytes: usize) -> Vec<u8> {
     let mut out = vec![];
-    while let Some(mut text) = queue.pop_front() {
+    while let Some(text) = queue.front_mut() {
         if text.len() <= bytes {
             out.extend(text.iter());
+            queue.pop_front();
         } else {
             out.extend(text.iter().take(bytes));
             text.slice(bytes..);
-            queue.push_front(text);
             break;
         }
     }
