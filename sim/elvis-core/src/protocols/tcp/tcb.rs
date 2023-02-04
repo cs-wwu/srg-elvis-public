@@ -1,3 +1,10 @@
+//! This module implements the Transmission Control Protocol as described in
+//! [RFC 9293](https://www.rfc-editor.org/rfc/rfc9293.html), the update to the
+//! original RFC 793 specification. [`Tcb`] provides the API described in
+//! section 3.10 and is implemented separately from the TCP protocol and session
+//! types so that it can be more easily tested outside of the full simulation
+//! environment.
+
 use super::{
     tcp_parsing::{TcpHeader, TcpHeaderBuilder},
     ConnectionId,
@@ -34,14 +41,6 @@ use receive_sequence_space::ReceiveSequenceSpace;
 mod send_sequence_space;
 use send_sequence_space::SendSequenceSpace;
 
-// TODO(hardint): Move acknowledgment queuing to the front so they get delivered first
-
-// NOTE(hardint): Section numbers are base on RFC 9293, the updated TCP protocol
-// specification
-
-// NOTE(hardint): In the current implementation, we respond to with ACKs
-// immediately instead of trying to piggyback them for efficiency. This can be revised once the implementation is working.
-
 // TODO(hardint): Choose a more realistic value
 /// The maximum segment lifetime on the Internet
 const MSL: Duration = Duration::from_secs(1);
@@ -51,9 +50,7 @@ const MSL: Duration = Duration::from_secs(1);
 const RETRANSMISSION_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// The Transmission Control Block holds the state for a TCP connection and
-/// provides the API described in 3.10. TCB is implemented separately from the
-/// TCP protocol and session types so that it can be more easily tested outside
-/// of the full simulation environment.
+/// provides the API described in 3.10.
 #[derive(Debug, Clone)]
 pub struct Tcb {
     /// The pair of endpoints that identifies this connection
@@ -62,14 +59,18 @@ pub struct Tcb {
     mtu: Mtu,
     /// How the connection was initiated locally
     initiation: Initiation,
+    /// The state of the connection
     state: State,
+    /// The send sequence space
     snd: SendSequenceSpace,
+    /// The receive sequence space
     rcv: ReceiveSequenceSpace,
+    /// Data and segments to be delivered to the remote TCP
     outgoing: Outgoing,
-    incoming: BinaryHeap<Segment>,
-    received_text: VecDeque<Message>,
-    retransmission_timeout: Duration,
-    time_wait_timeout: Option<Duration>,
+    /// Segments and segment text received from the remote TCP
+    incoming: Incoming,
+    /// Segments received from the remote TCP that have not been processed
+    timeouts: Timeouts,
 }
 
 impl Tcb {
@@ -90,9 +91,7 @@ impl Tcb {
             rcv,
             outgoing: Default::default(),
             incoming: Default::default(),
-            received_text: Default::default(),
-            retransmission_timeout: RETRANSMISSION_TIMEOUT,
-            time_wait_timeout: None,
+            timeouts: Default::default(),
         }
     }
 
@@ -118,20 +117,20 @@ impl Tcb {
     }
 
     pub fn advance_time(&mut self, delta_time: Duration) -> AdvanceTimeResult {
-        if delta_time > self.retransmission_timeout {
-            self.retransmission_timeout = RETRANSMISSION_TIMEOUT;
+        if delta_time > self.timeouts.retransmission {
+            self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
             for mut transmit in self.outgoing.retransmit.iter_mut() {
                 transmit.needs_transmit = true;
             }
         } else {
-            self.retransmission_timeout -= delta_time;
+            self.timeouts.retransmission -= delta_time;
         }
 
-        if let Some(time_wait) = self.time_wait_timeout {
+        if let Some(time_wait) = self.timeouts.time_wait {
             if delta_time > time_wait {
                 return AdvanceTimeResult::CloseConnection;
             }
-            self.time_wait_timeout = Some(time_wait - delta_time);
+            self.timeouts.time_wait = Some(time_wait - delta_time);
         }
 
         AdvanceTimeResult::Ignore
@@ -167,8 +166,8 @@ impl Tcb {
             | State::CloseWait => {
                 // TODO(hardint): Use receive buffer size instead of just taking
                 // everything
-                let bytes = self.received_text.iter().map(|message| message.len()).sum();
-                consume_text(&mut self.received_text, bytes)
+                let bytes = self.incoming.text.iter().map(|message| message.len()).sum();
+                consume_text(&mut self.incoming.text, bytes)
             }
             State::Closing | State::LastAck | State::TimeWait => {
                 // TODO(hardint): Return a connection closing error
@@ -296,15 +295,15 @@ impl Tcb {
     }
 
     pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
-        self.incoming.push(segment);
-        while let Some(segment) = self.incoming.peek() {
+        self.incoming.segments.push(segment);
+        while let Some(segment) = self.incoming.segments.peek() {
             if self.state != State::SynSent && mod_gt(segment.header.seq, self.rcv.nxt) {
                 // If this segment is past the next byte we want to receive, it
                 // arrived out of order and we haven't received the earlier
                 // bytes we need to proceed.
                 break;
             }
-            let segment = self.incoming.pop().unwrap();
+            let segment = self.incoming.segments.pop().unwrap();
             let receive_result = self.process_segment(segment);
             if receive_result.should_delete_tcb() {
                 return SegmentArrivesResult::Close;
@@ -405,7 +404,7 @@ impl Tcb {
                     let result = self.ack_established_processing(&seg);
                     if self.is_fin_acked() {
                         self.state = State::TimeWait;
-                        self.time_wait_timeout = Some(MSL * 2);
+                        self.timeouts.time_wait = Some(MSL * 2);
                     }
                     if result != ProcessSegmentResult::Success {
                         return result;
@@ -423,7 +422,7 @@ impl Tcb {
                     // The only thing that can arrive is a retransmission of the
                     // remote FIN. Acknowledge it and restart the MSL 2 timeout.
                     self.enqueue(self.header_builder(self.snd.nxt).ack(seg.seq + 1));
-                    self.time_wait_timeout = Some(MSL * 2);
+                    self.timeouts.time_wait = Some(MSL * 2);
                 }
             }
         }
@@ -527,7 +526,7 @@ impl Tcb {
                     let accept = unreceived.min(self.rcv.wnd as u32);
                     self.rcv.nxt += accept;
                     text.slice(already_received as usize..(already_received + accept) as usize);
-                    self.received_text.push_back(text);
+                    self.incoming.text.push_back(text);
                     // TODO(hardint): Aggregate and piggyback ACK segments
                     self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                 }
@@ -560,7 +559,7 @@ impl Tcb {
                 State::FinWait1 => {
                     if self.is_fin_acked() {
                         self.state = State::TimeWait;
-                        self.time_wait_timeout = Some(2 * MSL);
+                        self.timeouts.time_wait = Some(2 * MSL);
                     } else {
                         self.state = State::Closing;
                     }
@@ -569,13 +568,13 @@ impl Tcb {
                 State::FinWait2 => {
                     self.state = State::TimeWait;
                     // Start the time-wait timer, turn off the other timers.
-                    self.time_wait_timeout = Some(2 * MSL);
-                    self.retransmission_timeout = RETRANSMISSION_TIMEOUT;
+                    self.timeouts.time_wait = Some(2 * MSL);
+                    self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
                 }
 
                 State::TimeWait => {
                     // Restart the 2 MSL time-wait timeout.
-                    self.time_wait_timeout = Some(2 * MSL);
+                    self.timeouts.time_wait = Some(2 * MSL);
                 }
             }
         }
@@ -758,7 +757,7 @@ pub fn handle_listen(
         // Processing of SYN and ACK should not be repeated.
         seg.ctl.set_syn(false);
         seg.ctl.set_ack(false);
-        tcb.incoming.push(Segment::new(seg, message));
+        tcb.incoming.segments.push(Segment::new(seg, message));
 
         Some(ListenResult::Tcb(tcb))
     } else {
@@ -897,4 +896,33 @@ pub enum AdvanceTimeResult {
     /// The TCB closed as a result of advancing the time and the caller should
     /// delete the TCB
     CloseConnection,
+}
+
+/// Timeouts used by TCP
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Timeouts {
+    /// The retransmission timeout
+    retransmission: Duration,
+    /// The time wait timeout
+    time_wait: Option<Duration>,
+}
+
+impl Default for Timeouts {
+    fn default() -> Self {
+        Self {
+            retransmission: RETRANSMISSION_TIMEOUT,
+            time_wait: None,
+        }
+    }
+}
+
+/// Segments and segment text received from the remote TCP
+#[derive(Debug, Clone, Default)]
+struct Incoming {
+    /// Segments due for processing. Due to the comparison implementations on
+    /// [`Segment`], elements will be removed in sequence number order.
+    segments: BinaryHeap<Segment>,
+    /// Segment text that has been aggregated from processed segments and is
+    /// ready to be delivered to the user.
+    text: VecDeque<Message>,
 }
