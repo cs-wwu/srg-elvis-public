@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
 use std::time::Duration;
-use reqwest;
 use select::document::{Document};
 use select::predicate::{Name};
 use url::Url;
@@ -54,7 +53,7 @@ fn filter_url(link: &str) -> Option<String>{
         },
         // if the url is not valid, add https:// to it so it can used with reqwest
         Err(_e) =>{
-            if link.starts_with("/"){//..or ends with .html
+            if link.starts_with('/'){//..or ends with .html
                 Some(format!("https://yahoo.com{}",link))
             }else{  //..not even a link, ex: javascript:void(0)
                 None
@@ -122,10 +121,10 @@ fn extract_urls(html: &str) -> Vec<String>{
     // NOTE: use HashMap to avoid duplicate value, aka visted pages
     let found_urls= document.find(Name("a"))
     .filter_map(|node| node.attr("href"))
-    .filter_map(|link| filter_url(link))
+    .filter_map(filter_url)
     .collect();    
 
-    return found_urls;
+    found_urls
 }
 
 // extracting all images from a page
@@ -134,10 +133,10 @@ fn extract_images(html: &str) -> Vec<String>{
     
     let found_images = document.find(Name("img"))
     .filter_map(|node| node.attr("src"))
-    .filter_map(|link| filter_img_url(link))
+    .filter_map(filter_img_url)
     .collect();
 
-    return found_images;
+    found_images
 }
 
 /*
@@ -186,7 +185,7 @@ fn strip_url(url: &str) -> String {
     if stripped_url.starts_with("www.") {
         stripped_url.drain(0..4);
     } 
-    if stripped_url.ends_with("/") {
+    if stripped_url.ends_with('/') {
         stripped_url.pop();
     }
     stripped_url
@@ -196,11 +195,7 @@ fn strip_url(url: &str) -> String {
 fn not_search_result(url: &str) -> bool {
     let url = Url::parse(url).unwrap(); 
     let host = url.host_str().unwrap().to_string(); 
-    if host.contains("search") {
-        false
-    } else {
-        true
-    }
+    !host.contains("search")
 }
 
 /*non-recursive bfs scraper
@@ -258,7 +253,7 @@ fn bfs_scraper(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &
         
         // add unvisited urls from scraped_urls to found_urls
         for this_url in &new_page.links{
-            let stripped = String::from(strip_url(this_url));
+            let stripped = strip_url(this_url);
 
             if !found_urls.contains_key(&stripped) && not_search_result(&url)  {
                 unvisited_urls.push_back(this_url.to_string());
@@ -310,7 +305,7 @@ fn bfs_scraper_with_limit(link: &str, visited: &mut HashMap<String,Rc<Page>>, do
         
         // add unvisited urls from scraped_urls to found_urls
         for this_url in &new_page.links{
-            let stripped = String::from(strip_url(this_url));
+            let stripped = strip_url(this_url);
 
             if !found_urls.contains_key(&stripped) && not_search_result(&url)  {
                 unvisited_urls.push_back(this_url.to_string());
@@ -389,13 +384,13 @@ fn main() {
     
     // recursive_scraper(&url, &mut visited, &mut downloaded, &mut baddies);
     if limit == 0{
-        bfs_scraper(&url, &mut visited, &mut downloaded, &mut baddies, log_file, found_urls_stripped);
+        bfs_scraper(url, &mut visited, &mut downloaded, &mut baddies, log_file, found_urls_stripped);
     }else{
-        bfs_scraper_with_limit(&url, &mut visited, &mut downloaded, &mut baddies, limit, log_file, found_urls_stripped);
+        bfs_scraper_with_limit(url, &mut visited, &mut downloaded, &mut baddies, limit, log_file, found_urls_stripped);
     }
     
     // serialize result as JSON string to the created paths
-    let _pages_serializer = serde_json::ser::to_writer_pretty(pages_file, &visited).unwrap();
-    let _imgs_serializer = serde_json::ser::to_writer_pretty(imgs_file, &downloaded).unwrap();
-    let _fail_serializer = serde_json::ser::to_writer_pretty(fails_file, &baddies).unwrap();
+    serde_json::ser::to_writer_pretty(pages_file, &visited).unwrap(); // pages serializer
+    serde_json::ser::to_writer_pretty(imgs_file, &downloaded).unwrap(); // imgs serializer
+    serde_json::ser::to_writer_pretty(fails_file, &baddies).unwrap(); // fail serializer
 }
