@@ -29,6 +29,8 @@ Core machine specifications are as follows.
 
 # <a id="machine-networks-type"></a> Networks Type
 
+Not to be confused with [sim-level \[Networks\]](Networks.md), machine [Networks] exist to assign sim-level networks to a machine.
+
 ## Parameters
 
 `[Networks]` will take in **no parameters**, and simply just defines the start of a new networks section. To define a network, see [here](#machine-network-type).
@@ -37,7 +39,7 @@ Core machine specifications are as follows.
 
 ## Parameters
 
-`[Protocols]` will take in **no parameters**, and simply just defines the start of a new protocols section. To define a parameter, see [here](#protocol-type).
+`[Protocols]` will take in **no parameters**, and simply just defines the start of a new protocols section. To define a protocol, see [here](#protocol-type).
 
 # <a id="applications-type"></a> Application Type
 
@@ -49,7 +51,7 @@ Core machine specifications are as follows.
 
 ## Parameters
 
-A machine network **must** take in 1 `id` parameter. You may define as many network blocks as you would like for the machine to connect to, but never duplicate networks. The network must exist in a [\[Networks\]](Networks.md) definition.
+A machine network **must** take in 1 `id` parameter. You may define as many network blocks as you would like for the machine to connect to, but never duplicate networks. The network must exist in a [sim-level \[Networks\] definition](Networks.md).
 
 - `id` **(Required)**
   - This can be defined as `[Network id='1']`

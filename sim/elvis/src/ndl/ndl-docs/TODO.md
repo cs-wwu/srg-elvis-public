@@ -4,6 +4,9 @@ NDL completion for inital pull request
 - [ ] Altering application and protocol generators to use functions instead of inline definitions.
 - [ ] The ability to have empty new lines in the NDL be ignored.
 - [ ] The ability to have empty new lines mid declarations in the NDL be ignored.
+- [ ] Messages may not be able to handle escape characters or quotes (specifically \')
+- [ ] Some errors for parser don't have correct tabbing amounts?
+- [ ] Changing CLI to only be looking for a beginning / for an absolute file path (rather than contains)
 - [ ] Adding the rest of the applications that currently exist in the sim.
   - [ ] Forward
   - [ ] Ping_pong
@@ -16,8 +19,12 @@ NDL completion for inital pull request
   - [ ] Clippy new format specifications
 
 ### Documentation
-- [ ] Finish the inital docs
-  - [ ] Application
-  - [ ] Errors
-  - [ ] Examples
+- [X] Finish the inital docs
+  - [X] Application
+  - [X] Errors
+  - [X] Examples
+- [ ] Update docs after finish coding TODO
 - [ ] Upload to Google Drive and Github Wiki
+
+### Other
+- [ ] Do Tim's TCP pull request
