@@ -25,11 +25,6 @@ use clap::{Command, Arg};
     fn new(size: usize, links: Vec<String>, images:Vec<String> ) -> Self{
         Self { size, links, images}
     }
-
-    // get method for list of urls found on a page
-    fn get_urls(&mut self) -> & Vec<String>{
-        &self.links
-    }
  }
 
  impl Image {
@@ -355,7 +350,7 @@ fn main() {
     
     // see how many page to be crawled
     let max = arg_matcher.value_of("max");
-    let mut limit = match max {
+    let limit = match max {
         None => {
             println!("No limit!");
             0
@@ -390,7 +385,7 @@ fn main() {
     let pages_file = File::create("visited.json").unwrap();
     let imgs_file = File::create("downloaded.json").unwrap();
     let fails_file = File::create("baddies.json").unwrap();
-    let found_urls_stripped = File::create("found_urls_stripped").unwrap(); 
+    let found_urls_stripped = File::create("found_urls_stripped").unwrap();
     
     // recursive_scraper(&url, &mut visited, &mut downloaded, &mut baddies);
     if limit == 0{
@@ -400,7 +395,7 @@ fn main() {
     }
     
     // serialize result as JSON string to the created paths
-    let pages_cerealizer = serde_json::ser::to_writer_pretty(pages_file, &visited).unwrap();
-    let imgs_cerealizer = serde_json::ser::to_writer_pretty(imgs_file, &downloaded).unwrap();
-    let fail_cerealizer = serde_json::ser::to_writer_pretty(fails_file, &baddies).unwrap();
+    let _pages_serializer = serde_json::ser::to_writer_pretty(pages_file, &visited).unwrap();
+    let _imgs_serializer = serde_json::ser::to_writer_pretty(imgs_file, &downloaded).unwrap();
+    let _fail_serializer = serde_json::ser::to_writer_pretty(fails_file, &baddies).unwrap();
 }
