@@ -1,4 +1,4 @@
-# <a id="networks-top"></a> NDL Networks Specifications
+# <a id="top"></a> NDL Networks Specifications
 
 Core network specifications are as follows.
 
@@ -38,5 +38,3 @@ There are two IP types, IP range and single ip. All IP definintions use standard
   - This can be defined as `[IP ip='192.168.1.121']`
 - `range` **(One required)**
   - This can be defined as `[IP range='123.45.67.89/91']`
-
-## [Back to Top](#networks-top)

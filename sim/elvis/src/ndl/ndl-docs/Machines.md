@@ -1,4 +1,4 @@
-# <a id="machines-top"></a> NDL Machine Specifications
+# <a id="top"></a> NDL Machine Specifications
 
 Core machine specifications are as follows.
 
@@ -75,5 +75,3 @@ Machine application **must** take in at minimum a `name` parameter. Each applica
   - This can be defined as `[Application name='send_message']`
   - send_message requires more definitions. Those parameters may look like the following.
     - `[Application name='send_message' message='Hello this is an awesome test message!' to='recv1' port='0xbeef']`
-
-## [Back to Top](#machines-top)
