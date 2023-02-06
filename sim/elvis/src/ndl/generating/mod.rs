@@ -1,4 +1,5 @@
 //! Mod file for generator: allows use across the Elvis
+mod application_generator;
 pub mod generator;
 mod generator_data;
 mod generator_utils;

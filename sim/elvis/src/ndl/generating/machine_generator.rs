@@ -1,11 +1,8 @@
 //! Generates machines from a given parse
 use std::collections::HashMap;
 
+use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
-use crate::{
-    applications::{Capture, SendMessage},
-    ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
-};
 use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::{IpToTapSlot, Ipv4Address};
 use elvis_core::protocols::Pci;
@@ -162,71 +159,14 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                 );
                 let app_name = app.options.get("name").unwrap().as_str();
                 match app_name {
-                    "send_message" => {
-                        assert!(
-                            app.options.contains_key("port"),
-                            "Send_Message application doesn't contain port."
-                        );
-                        assert!(
-                            app.options.contains_key("to"),
-                            "Send_Message application doesn't contain to address."
-                        );
-                        assert!(
-                            app.options.contains_key("message"),
-                            "Send_Message application doesn't contain message."
-                        );
-
-                        // TODO: might want to include both these behaviors (so they could enter IP or enter name)
-                        let to = app.options.get("to").unwrap().to_string();
-                        let port = string_to_port(app.options.get("port").unwrap().to_string());
-                        let message = app.options.get("message").unwrap().to_owned();
-                        //TODO: ask Tim about this message Box stuff
-                        protocols_to_be_added.push(SendMessage::new_shared(
-                            message,
-                            *name_to_ip.get(&to).unwrap_or_else(|| {
-                                panic!("Invalid name for 'to' in send_message, found: {}", to)
-                            }),
-                            port,
-                            Some(*name_to_mac.get(&to).unwrap_or_else(|| {
-                                panic!("Invalid name for 'to' in send_message, found: {}", to)
-                            })),
-                            1,
-                        ));
-                    }
+                    "send_message" => protocols_to_be_added.push(send_message_builder(
+                        app,
+                        &name_to_ip,
+                        &name_to_mac,
+                    )),
 
                     "capture" => {
-                        assert!(
-                            app.options.contains_key("port"),
-                            "Capture application doesn't contain port."
-                        );
-                        assert!(
-                            app.options.contains_key("ip"),
-                            "Capture application doesn't contain ip."
-                        );
-                        assert!(
-                            app.options.contains_key("message_count"),
-                            "Capture application doesn't contain message_count."
-                        );
-                        let ip = ip_string_to_ip(
-                            app.options.get("ip").unwrap().to_string(),
-                            "capture declaration",
-                        );
-                        assert!(ip_table.contains_key(&ip.into()), "Invalid IP found in capture application. IP does not exist in ip table. Found: {:?}", ip);
-                        let port = string_to_port(app.options.get("port").unwrap().to_string());
-                        let message_count = app
-                            .options
-                            .get("message_count")
-                            .unwrap()
-                            .parse::<u32>()
-                            .expect("Invalid u32 found in Capture for message count");
-                        // TODO: Figure out how to get actual number to recieve in
-                        // TODO: Add message expected count
-                        // maybe default to 1?
-                        protocols_to_be_added.push(Capture::new_shared(
-                            ip.into(),
-                            port,
-                            message_count,
-                        ));
+                        protocols_to_be_added.push(capture_builder(app, &ip_table));
                     }
 
                     _ => {
@@ -241,6 +181,5 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
             machine_list.push(elvis_core::Machine::new(protocols_to_be_added));
         }
     }
-    // println!("{:?}", machine_list);
     machine_list
 }
