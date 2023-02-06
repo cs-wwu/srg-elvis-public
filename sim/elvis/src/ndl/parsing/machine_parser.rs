@@ -343,7 +343,12 @@ fn machine_networks_parser(
             }
 
             Err(e) => {
-                return Err(general_error(num_tabs - 2, networks_line_num, dec, format!("{}{}", num_tabs_to_string(num_tabs + 1), e)));
+                return Err(general_error(
+                    num_tabs - 2,
+                    networks_line_num,
+                    dec,
+                    format!("{}{}", num_tabs_to_string(num_tabs + 1), e),
+                ));
             }
         }
         t = 0;
@@ -424,7 +429,12 @@ fn machine_protocols_parser(
             }
 
             Err(e) => {
-                return Err(general_error(num_tabs - 2, protocols_line_num, dec, format!("{}{}", num_tabs_to_string(num_tabs + 1), e)));
+                return Err(general_error(
+                    num_tabs - 2,
+                    protocols_line_num,
+                    dec,
+                    format!("{}{}", num_tabs_to_string(num_tabs + 1), e),
+                ));
             }
         }
 
@@ -504,7 +514,12 @@ fn machine_applications_parser(
                 remaining_string = n.2;
             }
             Err(e) => {
-                return Err(general_error(num_tabs - 2, applications_line_num, dec, format!("{}{}", num_tabs_to_string(num_tabs + 1), e)));
+                return Err(general_error(
+                    num_tabs - 2,
+                    applications_line_num,
+                    dec,
+                    format!("{}{}", num_tabs_to_string(num_tabs + 1), e),
+                ));
             }
         }
         t = 0;

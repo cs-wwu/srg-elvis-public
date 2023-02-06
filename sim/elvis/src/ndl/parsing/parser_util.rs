@@ -1,8 +1,8 @@
 use super::parsing_data::*;
 use nom::{
     branch::alt,
-    bytes::complete::{tag, tag_no_case, take_until},
-    character::complete::char,
+    bytes::complete::{escaped, tag, tag_no_case, take_until},
+    character::complete::{char, none_of},
     error::context,
     multi::many0,
     sequence::{delimited, preceded, separated_pair},
@@ -146,7 +146,11 @@ fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
         many0(separated_pair(
             preceded(tag(" "), take_until("=")),
             char('='),
-            delimited(char('\''), take_until("'"), char('\'')),
+            delimited(
+                tag("'"),
+                alt((escaped(none_of("\\\'"), '\\', tag("'")), tag(""))),
+                tag("'"),
+            ),
         )),
     )(input)
     .map(|(next_input, res)| (next_input, res))
