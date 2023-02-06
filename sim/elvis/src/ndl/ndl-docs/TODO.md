@@ -18,9 +18,6 @@ NDL completion for inital pull request
   - [ ] Tests
   - [ ] Comments
   - [ ] Clippy new format specifications
-- [ ] Add new tests for all new applications
-  - [ ] Forward
-  - [ ] Ping_pong
 - [ ] I kinda wanna build basic DHCP so I don't have to deal with IP's anymore
 
 ### Documentation
