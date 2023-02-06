@@ -179,7 +179,7 @@ fn network_parser(
             }
 
             Err(e) => {
-                return Err(general_error(num_tabs, network_line_num, dec, e));
+                return Err(general_error(num_tabs, network_line_num, dec, format!("{}{}", num_tabs_to_string(num_tabs + 1), e)));
             }
         }
 
