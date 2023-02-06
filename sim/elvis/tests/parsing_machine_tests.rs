@@ -132,3 +132,45 @@ fn parsing_machine_fail_invalid_application_type() {
         }
     }
 }
+
+#[test]
+fn machine_fail_invalid_network_args() {
+    let result = parser_testing("./tests/parsing_tests/machine_fail_invalid_network_args.txt");
+    let s: String = "Errors at ./tests/parsing_tests/machine_fail_invalid_network_args.txt:\n\nLine 8: Unable to parse inside of Machines due to: \n\tLine 9: Unable to parse inside of Machine due to: \n\t\tLine 10: Unable to parse inside of Networks due to: \n\t\t\tLine 11: extra argument at ' id='5'''\n\n".to_string();
+    match result {
+        Ok(_s) => {
+            panic!();
+        }
+        Err(e) => {
+            assert_eq!(e, s);
+        }
+    }
+}
+
+#[test]
+fn machine_fail_invalid_protocol_args() {
+    let result = parser_testing("./tests/parsing_tests/machine_fail_invalid_protocol_args.txt");
+    let s: String = "Errors at ./tests/parsing_tests/machine_fail_invalid_protocol_args.txt:\n\nLine 8: Unable to parse inside of Machines due to: \n\tLine 9: Unable to parse inside of Machine due to: \n\t\tLine 13: Unable to parse inside of Protocols due to: \n\t\t\tLine 14: extra argument at ' name='IPv4'''\n\n".to_string();
+    match result {
+        Ok(_s) => {
+            panic!();
+        }
+        Err(e) => {
+            assert_eq!(e, s);
+        }
+    }
+}
+
+#[test]
+fn machine_fail_invalid_application_args() {
+    let result = parser_testing("./tests/parsing_tests/machine_fail_invalid_application_args.txt");
+    let s: String = "Errors at ./tests/parsing_tests/machine_fail_invalid_application_args.txt:\n\nLine 8: Unable to parse inside of Machines due to: \n\tLine 9: Unable to parse inside of Machine due to: \n\t\tLine 16: Unable to parse inside of Applications due to: \n\t\t\tLine 17: extra argument at ' name='send_message'' message='Hello this is an awesome test message!' to='recv1' port='0xbeef''\n\n".to_string();
+    match result {
+        Ok(_s) => {
+            panic!();
+        }
+        Err(e) => {
+            assert_eq!(e, s);
+        }
+    }
+}

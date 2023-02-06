@@ -52,7 +52,7 @@ fn parsing_network_fail_empty_networks() {
 #[test]
 fn parsing_network_fail_invalid_type() {
     let result = parser_testing("./tests/parsing_tests/network_fail_invalid_type.txt");
-    let s: String = "Errors at ./tests/parsing_tests/network_fail_invalid_type.txt:\n\nLine 1: Unable to parse inside of Networks due to: \n\tLine 2: Unable to parse inside of Network due to: \nLine 5: extra argument at 'S ip='192.168.1.121''\n\n".to_string();
+    let s: String = "Errors at ./tests/parsing_tests/network_fail_invalid_type.txt:\n\nLine 1: Unable to parse inside of Networks due to: \n\tLine 2: Unable to parse inside of Network due to: \n\t\tLine 5: extra argument at 'S ip='192.168.1.121''\n\n".to_string();
     match result {
         Ok(_s) => {
             panic!();
