@@ -92,7 +92,7 @@ fn parsing_correct() {
 }
 
 #[test]
-fn parsing_correct_new_line(){
+fn parsing_correct_new_line() {
     let result = parser_testing("./tests/parsing_tests/basic_correct_new_line.txt");
     let s = Sim {
         networks: HashMap::from([
