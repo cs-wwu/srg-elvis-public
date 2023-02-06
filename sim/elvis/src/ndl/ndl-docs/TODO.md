@@ -7,7 +7,7 @@ NDL completion for inital pull request
 - [X] Altering application and protocol generators to use functions instead of inline definitions.
 - [ ] The ability to have empty new lines mid declarations in the NDL be ignored.
 - [ ] Messages may not be able to handle escape characters or quotes (specifically \')
-- [ ] Some errors for parser don't have correct tabbing amounts?
+- [X] Some errors for parser don't have correct tabbing amounts?
 - [X] Changing CLI to only be looking for a beginning / for an absolute file path (rather than contains)
 - [ ] Some way to automatically increment things (like IPs, machine names, etc.). AFTER PULL REQUEST
 - [X] Adding the rest of the applications that currently exist in the sim.
