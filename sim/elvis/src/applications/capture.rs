@@ -16,9 +16,9 @@ use tokio::sync::{mpsc::Sender, Barrier};
 #[derive(Debug)]
 pub struct Capture {
     /// The message that was received, if any
-    message: RwLock<Option<Message>>,
+    message: Arc<RwLock<Option<Message>>>,
     /// The channel we send on to shut down the simulation
-    shutdown: RwLock<Option<Sender<()>>>,
+    shutdown: Arc<RwLock<Option<Sender<()>>>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
