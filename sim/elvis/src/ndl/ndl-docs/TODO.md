@@ -19,6 +19,7 @@ NDL completion for inital pull request
   - [ ] Comments
   - [X] Clippy new format specifications
 - [ ] I kinda wanna build basic DHCP so I don't have to deal with IP's anymore
+- [ ] Fix the 'to' part of send_message so it can be an IP or a machine name
 
 ### Documentation
 
