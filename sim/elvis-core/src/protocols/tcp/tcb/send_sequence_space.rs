@@ -1,6 +1,7 @@
-/// The receive sequence space for TCP as described in section 3.3.1. Contains
-/// variables that describe a portion of the sequence space related to as
-/// described in the diagram below.
+/// The receive sequence space for TCP as described in [section
+/// 3.3.1](https://www.rfc-editor.org/rfc/rfc9293.html#name-key-connection-state-variab)
+/// of RFC 9293. It contains variables that describe a portion of the sequence
+/// space related to outgoing segments as described in the diagram below.
 ///
 /// ```text
 ///      1         2          3          4
