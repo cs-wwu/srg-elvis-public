@@ -5,7 +5,7 @@ NDL completion for inital pull request
 ### Code still needed
 
 - [X] Altering application and protocol generators to use functions instead of inline definitions.
-- [ ] The ability to have empty new lines mid declarations in the NDL be ignored.
+- [X] The ability to have empty new lines mid declarations in the NDL be ignored.
 - [X] Messages may not be able to handle escape characters or quotes (specifically \')
 - [X] Some errors for parser don't have correct tabbing amounts?
 - [X] Changing CLI to only be looking for a beginning / for an absolute file path (rather than contains)
