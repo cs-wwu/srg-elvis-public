@@ -152,7 +152,7 @@ impl Message {
 impl Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in self.iter() {
-            write!(f, "{:x} ", byte)?;
+            write!(f, "{byte:x} ")?;
         }
         Ok(())
     }

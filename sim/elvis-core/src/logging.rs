@@ -23,9 +23,9 @@ pub fn send_message_event(
         Level::INFO,
         local_ip = format!("{:?}", local_ip.to_bytes()),
         remote_ip= format!("{:?}", remote_ip.to_bytes()),
-        local_port= format!("{:x}", local_port),
-        remote_port=format!("{:x}", remote_port),
-        message=format!("{}", message),
+        local_port= format!("{local_port:x}"),
+        remote_port=format!("{remote_port:x}"),
+        message=format!("{message}"),
     );
 }
 
@@ -44,9 +44,9 @@ pub fn receive_message_event(
         Level::INFO,
         local_ip = format!("{:?}", local_ip.to_bytes()),
         remote_ip= format!("{:?}", remote_ip.to_bytes()),
-        local_port= format!("{:x}", local_port),
-        remote_port=format!("{:x}", remote_port),
-        message=format!("{}", message)
+        local_port= format!("{local_port:x}"),
+        remote_port=format!("{remote_port:x}"),
+        message=format!("{message}")
     );
 }
 
@@ -59,6 +59,6 @@ pub fn machine_creation_event(protocol_ids: Vec<Id>) {
     event!(
         target: "MACHINE_CREATION",
         Level::INFO,
-        protocol_ids = format!("{:?}", protocol_ids),
+        protocol_ids = format!("{protocol_ids:?}"),
     );
 }

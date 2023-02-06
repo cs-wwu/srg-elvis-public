@@ -395,7 +395,7 @@ impl Display for PrimitiveKind {
             I64 => "I64",
             I128 => "I128",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
