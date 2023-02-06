@@ -1,6 +1,8 @@
 # For inital pull request
+
 NDL completion for inital pull request
 ### Code still needed
+
 - [ ] Altering application and protocol generators to use functions instead of inline definitions.
 - [ ] The ability to have empty new lines in the NDL be ignored.
 - [ ] The ability to have empty new lines mid declarations in the NDL be ignored.
@@ -23,8 +25,8 @@ NDL completion for inital pull request
   - [X] Application
   - [X] Errors
   - [X] Examples
-- [ ] Update docs after finish coding TODO
-- [ ] Upload to Google Drive and Github Wiki
+- [ ] Update docs after finish coding TODO list
+- [X] Upload to Google Drive and Github Wiki
 
 ### Other
 - [ ] Do Tim's TCP pull request
