@@ -5,6 +5,7 @@ Here are the core applications currently avalable:
 - [Send Message](#send_message)
 - [Capture](#capture)
 - [Forward](#forward)
+- [PingPong](#pingpong)
 
 To see more info on machines, click [here](Machines).
 
