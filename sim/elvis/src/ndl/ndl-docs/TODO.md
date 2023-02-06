@@ -8,16 +8,16 @@ NDL completion for inital pull request
 - [ ] The ability to have empty new lines mid declarations in the NDL be ignored.
 - [ ] Messages may not be able to handle escape characters or quotes (specifically \')
 - [ ] Some errors for parser don't have correct tabbing amounts?
-- [ ] Changing CLI to only be looking for a beginning / for an absolute file path (rather than contains)
+- [X] Changing CLI to only be looking for a beginning / for an absolute file path (rather than contains)
 - [ ] Some way to automatically increment things (like IPs, machine names, etc.). AFTER PULL REQUEST
-- [ ] Adding the rest of the applications that currently exist in the sim.
+- [X] Adding the rest of the applications that currently exist in the sim.
   - [X] Forward
   - [X] Ping_pong
 - [ ] Clean up general code and make sure comments are clear
   - [ ] TODOS
   - [ ] Tests
   - [ ] Comments
-  - [ ] Clippy new format specifications
+  - [X] Clippy new format specifications
 - [ ] I kinda wanna build basic DHCP so I don't have to deal with IP's anymore
 
 ### Documentation

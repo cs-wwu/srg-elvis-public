@@ -33,10 +33,14 @@ pub async fn initialize_from_arguments() {
         initialize_logging();
     }
     if !cli.ndl.is_empty() {
-        if cli.ndl.contains('/') || cli.ndl.contains('\\') {
+        let mut file_path: String = cli.ndl.clone();
+        if !file_path.ends_with(".txt") {
+            file_path += ".txt";
+        }
+        if file_path.starts_with("./elvis/src/ndl/") {
             generate_sim(cli.ndl).await;
         } else {
-            let file_path: String = "./elvis/src/ndl/".to_string() + &cli.ndl;
+            file_path = "./elvis/src/ndl/".to_string() + &file_path;
             generate_sim(file_path).await;
         }
     }
