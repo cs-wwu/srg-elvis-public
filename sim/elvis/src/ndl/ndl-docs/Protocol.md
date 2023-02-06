@@ -5,7 +5,7 @@ Here are the core protocol types currently avalable:
 - [IPv4](#ipv4)
 - [UDP](#udp)
 
-To see more info on machines, click [here](Machines.md).
+To see more info on machines, click [here](Machines).
 
 # Adding New Protocols
 

@@ -29,7 +29,7 @@ Core machine specifications are as follows.
 
 # <a id="machine-networks-type"></a> Networks Type
 
-Not to be confused with [sim-level \[Networks\]](Networks.md), machine [Networks] exist to assign sim-level networks to a machine.
+Not to be confused with [sim-level \[Networks\]](Networks), machine [Networks] exist to assign sim-level networks to a machine.
 
 ## Parameters
 
@@ -51,7 +51,7 @@ Not to be confused with [sim-level \[Networks\]](Networks.md), machine [Networks
 
 ## Parameters
 
-A machine network **must** take in 1 `id` parameter. You may define as many network blocks as you would like for the machine to connect to, but never duplicate networks. The network must exist in a [sim-level \[Networks\] definition](Networks.md).
+A machine network **must** take in 1 `id` parameter. You may define as many network blocks as you would like for the machine to connect to, but never duplicate networks. The network must exist in a [sim-level \[Networks\] definition](Networks).
 
 - `id` **(Required)**
   - This can be defined as `[Network id='1']`
@@ -60,7 +60,7 @@ A machine network **must** take in 1 `id` parameter. You may define as many netw
 
 ## Parameters
 
-Machine protocol **must** take in a `name` parameter. You may define as many protcol blocks as you would like for the machine, but never duplicate protocols. See [here](Protocol.md) for protocol definitions.
+Machine protocol **must** take in a `name` parameter. You may define as many protcol blocks as you would like for the machine, but never duplicate protocols. See [here](Protocol) for protocol definitions.
 
 - `name` **(Required)**
   - This can be defined as `[Protocol name='IPv4']`
@@ -69,7 +69,7 @@ Machine protocol **must** take in a `name` parameter. You may define as many pro
 
 ## Parameters
 
-Machine application **must** take in at minimum a `name` parameter. Each application will have its own input types and may require more parameters depending on the application. You may define as many application blocks as you would like for the machine, but never duplicate applications. See [here](Application.md) for application definitions.
+Machine application **must** take in at minimum a `name` parameter. Each application will have its own input types and may require more parameters depending on the application. You may define as many application blocks as you would like for the machine, but never duplicate applications. See [here](Application) for application definitions.
 
 - `name` **(Required)**
   - This can be defined as `[Application name='send_message']`

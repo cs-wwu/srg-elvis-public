@@ -4,8 +4,8 @@ The following will be some examples of full simulations.
 
 To learn more about specifics, it is recommended to look at:
 
-- [Machines](Machines.md)
-- [Networks](Networks.md)
+- [Machines](Machines)
+- [Networks](Networks)
 
 <br>
 

@@ -5,7 +5,7 @@ Here are the core applications currently avalable:
 - [Send Message](#send_message)
 - [Capture](#capture)
 
-To see more info on machines, click [here](Machines.md).
+To see more info on machines, click [here](Machines).
 
 # Adding New Applications
 

@@ -28,3 +28,4 @@ NDL completion for inital pull request
 
 ### Other
 - [ ] Do Tim's TCP pull request
+- [ ] Do measurements for RAM and CPU usage

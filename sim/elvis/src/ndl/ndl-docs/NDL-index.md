@@ -11,7 +11,7 @@ This language was built using an indentation model, similar to Python. The idea 
 	[Sub-Heading]
 		[Specifications]
 ```
-This example show that for each layer "down" you go in the language, you add one more tab. This allows for sections such as [\[Networks\]](Networks.md) to be completed sepcified seperately from other sections such as [\[Machines\]](Machines.md). This allows allows for the sections to be easily understood as anything tabbed in further than the line above is a part of that section.
+This example show that for each layer "down" you go in the language, you add one more tab. This allows for sections such as [\[Networks\]](Networks) to be completed sepcified seperately from other sections such as [\[Machines\]](Machines). This allows allows for the sections to be easily understood as anything tabbed in further than the line above is a part of that section.
 
 ## Parameters
 
@@ -43,9 +43,9 @@ The simulation can also be run in release mode, or also with logging enabled. Bo
 
 ## Links
 
-[Networks](Networks.md) <br>
-[Machines](Machines.md) <br>
-[Applications](Application.md) <br>
-[Protocols](Protocol.md) <br>
-[Examples](Examples.md) <br>
-[Errors](Errors.md) <br>
+[Networks](Networks) <br>
+[Machines](Machines) <br>
+[Applications](Application) <br>
+[Protocols](Protocol) <br>
+[Examples](Examples) <br>
+[Errors](Errors) <br>
