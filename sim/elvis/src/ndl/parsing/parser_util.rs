@@ -1,8 +1,11 @@
 use super::parsing_data::*;
 use nom::{
     branch::alt,
-    bytes::complete::{escaped, tag, tag_no_case, take_until},
-    character::complete::{char, none_of},
+    bytes::complete::{escaped, tag, tag_no_case, take_until, take_while1},
+    character::{
+        complete::{char, none_of},
+        is_newline, is_space,
+    },
     error::context,
     multi::many0,
     sequence::{delimited, preceded, separated_pair},
@@ -144,7 +147,7 @@ fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
     context(
         "arguments",
         many0(separated_pair(
-            preceded(tag(" "), take_until("=")),
+            preceded(take_while1(check_space_or_newline), take_until("=")),
             char('='),
             delimited(
                 tag("'"),
@@ -154,4 +157,8 @@ fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
         )),
     )(input)
     .map(|(next_input, res)| (next_input, res))
+}
+
+fn check_space_or_newline(chr: char) -> bool {
+    is_space(chr as u8) || is_newline(chr as u8)
 }
