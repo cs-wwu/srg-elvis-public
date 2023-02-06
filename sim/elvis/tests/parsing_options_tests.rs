@@ -13,7 +13,7 @@ fn parsing_options_fail_duplicate_argument() {
     let s: String = "Errors at ./tests/parsing_tests/options_fail_duplicate_argument.txt:\n\nLine 1: Unable to parse inside of Networks due to: \n\tLine 6: duplicate argument 'id'='5'\n\n".to_string();
     match result {
         Ok(_s) => {
-            assert!(false);
+            panic!();
         }
         Err(e) => {
             assert_eq!(e, s);
