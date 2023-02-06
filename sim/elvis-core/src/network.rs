@@ -50,7 +50,7 @@ pub struct Network {
     delivery_sender: mpsc::Sender<Delivery>,
     /// The receiving half of a channel for receiving messages from taps for
     /// delivery over the network. The other half is `delivery_sender`.
-    delivery_receiver: Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
+    delivery_receiver: RwLock<Option<mpsc::Receiver<Delivery>>>,
     /// A vector for channels for sending messages to specific taps attached to
     /// the network
     taps: Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>,
@@ -75,7 +75,7 @@ impl Network {
             throughput,
             loss_rate,
             delivery_sender: funnel.0,
-            delivery_receiver: Arc::new(RwLock::new(Some(funnel.1))),
+            delivery_receiver: RwLock::new(Some(funnel.1)),
             taps: Default::default(),
             broadcast: broadcast::channel::<Delivery>(16).0,
         }
@@ -98,8 +98,8 @@ impl Network {
             mtu: self.mtu,
             mac,
             delivery_sender: self.delivery_sender.clone(),
-            unicast_receiver: Arc::new(RwLock::new(Some(receive))),
-            broadcast: Arc::new(RwLock::new(Some(self.broadcast.subscribe()))),
+            unicast_receiver: RwLock::new(Some(receive)),
+            broadcast: RwLock::new(Some(self.broadcast.subscribe())),
         }
     }
 
@@ -280,8 +280,8 @@ pub struct Tap {
     pub(crate) mtu: Mtu,
     pub(crate) mac: Mac,
     pub(crate) delivery_sender: mpsc::Sender<Delivery>,
-    pub(crate) broadcast: Arc<RwLock<Option<broadcast::Receiver<Delivery>>>>,
-    pub(crate) unicast_receiver: Arc<RwLock<Option<mpsc::Receiver<Delivery>>>>,
+    pub(crate) broadcast: RwLock<Option<broadcast::Receiver<Delivery>>>,
+    pub(crate) unicast_receiver: RwLock<Option<mpsc::Receiver<Delivery>>>,
 }
 
 /// A network maximum transmission unit.

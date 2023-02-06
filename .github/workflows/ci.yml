@@ -21,7 +21,7 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Run clippy 
-      run: cargo clippy
+      run: cargo clippy --all-targets -- -D warnings
     - name: Check formatting
       run: cargo fmt --check
   # build and test on mac to check for bugs that only show up on that OS

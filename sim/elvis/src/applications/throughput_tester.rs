@@ -17,18 +17,18 @@ use tokio::sync::{mpsc::Sender, Barrier};
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ThroughputTester {
     /// The channel we send on to shut down the simulation
-    shutdown: Arc<RwLock<Option<Sender<()>>>>,
+    shutdown: RwLock<Option<Sender<()>>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
     port: u16,
     message_count: u8,
     expected_delay: Range<Duration>,
-    previous_receipt: Arc<RwLock<Option<SystemTime>>>,
-    received: Arc<RwLock<u8>>,
+    previous_receipt: RwLock<Option<SystemTime>>,
+    received: RwLock<u8>,
 }
 
 impl ThroughputTester {
@@ -45,8 +45,8 @@ impl ThroughputTester {
             port,
             message_count,
             expected_delay,
-            previous_receipt: Arc::new(RwLock::new(None)),
-            received: Arc::new(RwLock::new(0)),
+            previous_receipt: RwLock::new(None),
+            received: RwLock::new(0),
         }
     }
 
