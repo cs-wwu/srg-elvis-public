@@ -4,6 +4,7 @@ Here are the core applications currently avalable:
 
 - [Send Message](#send_message)
 - [Capture](#capture)
+- [Forward](#forward)
 
 To see more info on machines, click [here](Machines).
 
@@ -11,7 +12,7 @@ To see more info on machines, click [here](Machines).
 
 Adding a new application is very similar to adding a new protocol. After an application has been created, it can be added to the machine generator. In the machine generator there is an application match arm in which you add the name of the application such as `send_message` or `capture`. At this point you can access the `option` variable which will contain the not only the originally matched argument but any additional options you may need. This functions as a hashmap and should be treated as though the options do not exist before checking for them. You may need asserts such as
 ```assert!(app.options.contains_key("port"),"Capture application doesn't contain port.");```
-After you check for the associated arguments, you can then call your application function and add it to the `protocols_to_be_added` vector. By the end of the loop, this will contain all applications and protocols that specific machine needs. You may be so inclined to create functions for each applications creation and just return the new application instead, this is valid and highly suggested. 
+After you check for the associated arguments, you can then call your application function and add it to the `protocols_to_be_added` vector. By the end of the loop, this will contain all applications and protocols that specific machine needs. You may be so inclined to create functions for each applications creation and just return the new application instead, this is valid and highly suggested, and can be done quite easily in the [application_generator] file. 
 Here is an example of a capture application match arm.
 ```
 "capture" => {
@@ -72,7 +73,7 @@ This application will wait to receive some number of messages on a port. This ma
 
 This protocol takes in the following arguments:
 - `ip`
-    - **Definition**: The IP we wish to assign to this machine
+    - **Definition**: The IP we wish to assign to this machine and thus recieve on
     - **Type**: IP
 - `port`
     - **Definition**: The port this capture will be listening on
@@ -80,3 +81,48 @@ This protocol takes in the following arguments:
 - `message_count`
     - **Definition**: How many messages this application should wait for
     - **Type**: u32
+
+
+# <a id="forward"></a> Forward
+
+This application will recieve in and then send a message from the machine it's on to another machine. Currently can handle recieving many messages and sending many without the need for message counts. This make look like `[Application name='forward' ip='123.45.67.90' to='recv2' local_port='0xbeef' remote_port='0xbeef']`.
+
+## Extra Arguments
+
+This protocol takes in the following arguments:
+- `ip`
+    - **Definition**: The IP we wish to assign to this machine and thus recieve on
+    - **Type**: IP
+- `to`
+    - **Definition**: The name of the machine we are sending to
+    - **Type**: Machine name (String)
+- `local_port`
+    - **Definition**: The port we will be recieving the message on
+    - **Type**: Port (hex or u16)
+- `remote_port`
+    - **Definition**: The port we will be sending the message on
+    - **Type**: Port (hex or u16)
+
+# <a id="pingpong"></a> PingPong
+
+This application will need to run on two machines simultaneously sending a TTL mesage back and forth till the TTL reaches 0. Once 0 is reached the simulation ends. One of the two machines will need to have the starter argument set to `true` the other to `false`. This may look like `[Application name='ping_pong' starter='true' ip='123.45.67.89' to='pong' local_port='0xbeef' remote_port='0xface']` or `[Application name='ping_pong' starter='false' ip='123.45.67.90' to='ping' local_port='0xface' remote_port='0xbeef']`
+
+## Extra Arguments
+
+This protocol takes in the following arguments:
+
+- `starter`
+    - **Definition**: Whether this machine starts the PingPong or not
+    - **Type**: Bool
+- `to`
+    - **Definition**: The name of the machine we are sending to
+    - **Type**: Machine name (String)
+- `ip`
+    - **Definition**: The IP we wish to assign to this machine and thus recieve on
+    - **Type**: IP
+- `local_port`
+    - **Definition**: The port we will be recieving the message on
+    - **Type**: Port (hex or u16)
+- `remote_port`
+    - **Definition**: The port we will be sending the message on
+    - **Type**: Port (hex or u16)

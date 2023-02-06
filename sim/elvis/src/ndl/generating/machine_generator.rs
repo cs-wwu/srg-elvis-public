@@ -70,6 +70,30 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                     );
 
                     name_to_ip.insert(cur_name.clone(), ip.into());
+                } else if app_name == "forward" {
+                    assert!(
+                        app.options.contains_key("ip"),
+                        "Forward application doesn't contain ip."
+                    );
+
+                    let ip = ip_string_to_ip(
+                        app.options.get("ip").unwrap().to_string(),
+                        "Forward declaration",
+                    );
+
+                    name_to_ip.insert(cur_name.clone(), ip.into());
+                } else if app_name == "ping_pong" {
+                    assert!(
+                        app.options.contains_key("ip"),
+                        "Forward application doesn't contain ip."
+                    );
+
+                    let ip = ip_string_to_ip(
+                        app.options.get("ip").unwrap().to_string(),
+                        "PingPong declaration",
+                    );
+
+                    name_to_ip.insert(cur_name.clone(), ip.into());
                 }
             }
         }
@@ -85,7 +109,7 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
         if machine.options.is_some() {
             for option in machine.options.as_ref().unwrap() {
                 match option.0.as_str() {
-                    // TODO: Checks may be able to be removed as we checked up above
+                    // TODO: Checks may be able to be removed as we checked up above in the stack
                     "count" => {
                         machine_count = option.1.parse::<u64>().unwrap_or_else(|_| {
                             panic!(
@@ -168,6 +192,14 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                     "capture" => {
                         protocols_to_be_added.push(capture_builder(app, &ip_table));
                     }
+
+                    "forward" => protocols_to_be_added.push(forward_message_builder(
+                        app,
+                        &name_to_ip,
+                        &name_to_mac,
+                    )),
+
+                    "ping_pong" => protocols_to_be_added.push(ping_pong_builder(app, &name_to_ip)),
 
                     _ => {
                         panic!("Invalid application in machine. Got application {app_name}");
