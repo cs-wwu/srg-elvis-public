@@ -1,8 +1,6 @@
-use std::time::Duration;
-
 use crate::applications::{SendMessage, ThroughputTester};
 use elvis_core::{
-    network::{Baud, NetworkBuilder},
+    network::{Baud, NetworkBuilder, Throughput},
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
@@ -11,6 +9,7 @@ use elvis_core::{
     },
     run_internet, Machine,
 };
+use std::time::Duration;
 
 /// Runs a basic simulation.
 ///
@@ -22,7 +21,7 @@ pub async fn throughput() {
     const PAYLOAD_LENGTH: u64 = 6;
     const MESSAGE_LENGTH: u64 = UDP_HEADER_SIZE + IP_HEADER_SIZE + PAYLOAD_LENGTH;
     let network = NetworkBuilder::new()
-        .throughput(Baud::bytes_per_second(MESSAGE_LENGTH))
+        .throughput(Throughput::constant(Baud::bytes_per_second(MESSAGE_LENGTH)))
         .build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
