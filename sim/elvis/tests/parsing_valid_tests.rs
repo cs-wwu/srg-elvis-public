@@ -5,16 +5,7 @@ use std::collections::HashMap;
 
 /// main wrapper for parsing testing.
 pub fn parser_testing(file_path: &str) -> Result<Sim, String> {
-    let res = core_parser(file_path.to_string());
-    match res {
-        Ok(s) => {
-            return Ok(s);
-        }
-
-        Err(e) => {
-            return Err(e);
-        }
-    }
+    core_parser(file_path.to_string())
 }
 
 #[test]

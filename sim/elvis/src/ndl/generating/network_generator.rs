@@ -56,9 +56,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                         while start_ip[3] <= end_ip {
                             assert!(
                                 !temp_ips.contains(&start_ip),
-                                "Network {}: Duplicate IP found in range: {:?}",
-                                id,
-                                start_ip
+                                "Network {id}: Duplicate IP found in range: {start_ip:?}"
                             );
 
                             ip_vec.push(start_ip.into());
@@ -70,9 +68,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                         let real_ip = ip_string_to_ip(value, &id);
                         assert!(
                             !temp_ips.contains(&real_ip),
-                            "Network {}: Duplicate IP found in IP: {:?}",
-                            id,
-                            real_ip
+                            "Network {id}: Duplicate IP found in IP: {real_ip:?}"
                         );
 
                         ip_vec.push(real_ip.into());

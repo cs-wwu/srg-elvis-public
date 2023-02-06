@@ -39,12 +39,12 @@ pub fn send_message_builder(
         message,
         *name_to_ip
             .get(&to)
-            .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {}", to)),
+            .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
         port,
         Some(
             *name_to_mac
                 .get(&to)
-                .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {}", to)),
+                .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
         ),
         1,
     )
@@ -70,8 +70,7 @@ pub fn capture_builder(app: &Application, ip_table: &IpToTapSlot) -> Arc<UserPro
     );
     assert!(
         ip_table.contains_key(&ip.into()),
-        "Invalid IP found in capture application. IP does not exist in ip table. Found: {:?}",
-        ip
+        "Invalid IP found in capture application. IP does not exist in ip table. Found: {ip:?}"
     );
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message_count = app

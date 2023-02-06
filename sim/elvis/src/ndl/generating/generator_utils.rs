@@ -6,10 +6,10 @@
 pub fn string_to_port(p: String) -> u16 {
     if let Some(stripped) = p.strip_prefix("0x") {
         u16::from_str_radix(stripped, 16)
-            .unwrap_or_else(|_| panic!("Port declaration error. Found port: {}", p))
+            .unwrap_or_else(|_| panic!("Port declaration error. Found port: {p}"))
     } else {
         p.parse::<u16>()
-            .unwrap_or_else(|_| panic!("Port declaration error. Found port: {}", p))
+            .unwrap_or_else(|_| panic!("Port declaration error. Found port: {p}"))
     }
 }
 
@@ -22,10 +22,7 @@ pub fn ip_string_to_ip(s: String, net_id: &str) -> [u8; 4] {
     let mut new_ip: Vec<u8> = Vec::new();
     for val in temp {
         new_ip.push(val.parse::<u8>().unwrap_or_else(|_| {
-            panic!(
-                "Invalid IP octet expected u8. In Network {}, found: {}",
-                net_id, val
-            )
+            panic!("Invalid IP octet expected u8. In Network {net_id}, found: {val}")
         }));
     }
 

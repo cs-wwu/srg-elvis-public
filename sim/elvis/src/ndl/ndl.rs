@@ -14,7 +14,7 @@ pub async fn generate_sim(file_path: String) {
         }
 
         Err(e) => {
-            println!("{}", e);
+            println!("{e}");
         }
     }
 }

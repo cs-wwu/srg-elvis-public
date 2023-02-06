@@ -170,10 +170,7 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                     }
 
                     _ => {
-                        panic!(
-                            "Invalid application in machine. Got application {}",
-                            app_name
-                        );
+                        panic!("Invalid application in machine. Got application {app_name}");
                     }
                 }
             }

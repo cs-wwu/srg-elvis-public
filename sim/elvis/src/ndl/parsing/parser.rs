@@ -55,7 +55,7 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                             }
 
                             Err(e) => {
-                                return Err(format!("Errors at {}:\n\n{}\n", file_path, e));
+                                return Err(format!("Errors at {file_path}:\n\n{e}\n"));
                             }
                         }
                     }
@@ -92,7 +92,7 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                             }
 
                             Err(e) => {
-                                return Err(format!("Errors at {}:\n\n{}\n", file_path, e));
+                                return Err(format!("Errors at {file_path}:\n\n{e}\n"));
                             }
                         }
                     }
@@ -140,7 +140,7 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
             }
 
             Err(e) => {
-                return Err(format!("Errors at {}:\n\n{}", file_path, e));
+                return Err(format!("Errors at {file_path}:\n\n{e}"));
             }
         }
     }
