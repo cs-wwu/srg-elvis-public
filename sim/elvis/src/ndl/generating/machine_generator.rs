@@ -58,39 +58,16 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                     "Machine application does not contain a name"
                 );
                 let app_name = app.options.get("name").unwrap().as_str();
-                if app_name == "capture" {
+                if app_name == "capture" || app_name == "forward" || app_name == "ping_pong" {
                     assert!(
                         app.options.contains_key("ip"),
-                        "Capture application doesn't contain ip."
+                        "{} application doesn't contain ip.",
+                        app_name
                     );
 
                     let ip = ip_string_to_ip(
                         app.options.get("ip").unwrap().to_string(),
-                        "capture declaration",
-                    );
-
-                    name_to_ip.insert(cur_name.clone(), ip.into());
-                } else if app_name == "forward" {
-                    assert!(
-                        app.options.contains_key("ip"),
-                        "Forward application doesn't contain ip."
-                    );
-
-                    let ip = ip_string_to_ip(
-                        app.options.get("ip").unwrap().to_string(),
-                        "Forward declaration",
-                    );
-
-                    name_to_ip.insert(cur_name.clone(), ip.into());
-                } else if app_name == "ping_pong" {
-                    assert!(
-                        app.options.contains_key("ip"),
-                        "Forward application doesn't contain ip."
-                    );
-
-                    let ip = ip_string_to_ip(
-                        app.options.get("ip").unwrap().to_string(),
-                        "PingPong declaration",
+                        format!("{} declaration", app_name).as_str(),
                     );
 
                     name_to_ip.insert(cur_name.clone(), ip.into());
