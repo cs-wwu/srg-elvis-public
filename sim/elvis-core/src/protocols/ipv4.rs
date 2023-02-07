@@ -102,11 +102,17 @@ impl Protocol for Ipv4 {
                     key.local,
                     key.remote
                 );
-                Err(OpenError::Existing)?
+                return Err(OpenError::Existing);
             }
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
-                let tap_slot = { *self.ip_tap_slot.get(&key.remote).unwrap() };
+                let tap_slot = match self.ip_tap_slot.get(&key.remote) {
+                    Some(tap_slot) => *tap_slot,
+                    None => {
+                        tracing::error!("No tap slot found for the IP {}", key.remote);
+                        return Err(OpenError::Other);
+                    }
+                };
                 Pci::set_pci_slot(tap_slot, &mut participants);
                 let tap_session = protocols
                     .protocol(Pci::ID)
