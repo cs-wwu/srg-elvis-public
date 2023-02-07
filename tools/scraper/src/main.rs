@@ -16,18 +16,18 @@ use clap::{Command, Arg};
     images: Vec<String>, // list of all images urls found
  }
  #[derive(Serialize, Deserialize, Debug)]
- struct Image{
+ struct Image { 
     size: usize,
  }
 
  impl Page {
-    fn new(size: usize, links: Vec<String>, images:Vec<String> ) -> Self{
+    fn new(size: usize, links: Vec<String>, images:Vec<String> ) -> Self {
         Self { size, links, images}
     }
  }
 
  impl Image {
-    fn new(size: usize) -> Image{
+    fn new(size: usize) -> Image {
         Self {size}
     }
  }
@@ -40,22 +40,22 @@ use clap::{Command, Arg};
     We will use this function inside filter_map() to filter out these 2 kinds of URL (no https and not yahoo related)
     filter_map() takes Option<> as an arg so filter_url() has to return this type
     */
-fn filter_url(link: &str) -> Option<String>{
+fn filter_url(link: &str) -> Option<String> {
     let url = Url::parse(link);
     match  url {
         // if the url is valid, aka has https:// then check if it points to yahoo.com
-        Ok(url) =>{
-            if url.has_host() && url.host_str().unwrap().ends_with("yahoo.com") && !url.to_string().contains("beap.gemini"){       //points to yahoo
+        Ok(url) => {
+            if url.has_host() && url.host_str().unwrap().ends_with("yahoo.com") && !url.to_string().contains("beap.gemini") {       //points to yahoo
                 Some(url.to_string())
-            }else{  // discard if not yahoo-related
+            } else {  // discard if not yahoo-related
                 None
             }
         },
         // if the url is not valid, add https:// to it so it can used with reqwest
-        Err(_e) =>{
+        Err(_e) => { 
             if link.starts_with('/'){//..or ends with .html
                 Some(format!("https://yahoo.com{}",link))
-            }else{  //..not even a link, ex: javascript:void(0)
+            } else {  //..not even a link, ex: javascript:void(0)
                 None
             }
         }
@@ -63,19 +63,18 @@ fn filter_url(link: &str) -> Option<String>{
 }
 
 // discard any invalid image url
-fn filter_img_url(link: &str) -> Option<String>{
+fn filter_img_url(link: &str) -> Option<String> {
     if link.contains("https://s.yimg.com") {
         Some(link.to_string())
-    }else {
+    } else {
         None
     }
 }
 
 // send http request to the url and receive response. Return html in string and the size of the page in bytes
 // if the response give error, tries the link again 3 time, if still fails, add to fail list
-fn http_requester(link: &str, mut tries:u32, baddies: &mut Vec<String>) -> Option<String>{
-
-    if tries == 4{
+fn http_requester(link: &str, mut tries:u32, baddies: &mut Vec<String>) -> Option<String> {
+    if tries == 4 {
         baddies.push(link.to_string());
         return None;
     }
@@ -86,23 +85,22 @@ fn http_requester(link: &str, mut tries:u32, baddies: &mut Vec<String>) -> Optio
     .timeout(Duration::new(3, 0));  // if the request sent is hung for more than 3 seconds, stop and return time out error
 
     let response = request.send();
-    // println!("request sent!");
 
     // had to manually handle error in case we get 404 url, which will make the program crash if we just use unwrap()
     match response {
-        Ok(rep) =>{
-            match rep.text(){
-                Ok(txt) =>{
+        Ok(rep) => {
+            match rep.text() {
+                Ok(txt) => {
                     Some(txt)
                 },
-                Err(_e) =>{ // try the link 3 times then stop if still gives error
+                Err(_e) => { // try the link 3 times then stop if still gives error
                     println!("Fail! {}", _e);
                     tries +=1;
                     http_requester(link, tries, baddies)
                 }
             }
         },
-        Err(_e) =>{
+        Err(_e) => {
             println!("Fail! {}", _e);
             tries +=1;
             http_requester(link, tries, baddies)
@@ -113,7 +111,7 @@ fn http_requester(link: &str, mut tries:u32, baddies: &mut Vec<String>) -> Optio
 
 // extract urls from the given html
 // change to Option<Vec<String>>? in case there's no link at all in a page???
-fn extract_urls(html: &str) -> Vec<String>{
+fn extract_urls(html: &str) -> Vec<String> {
     // form a html document
     let document = Document::from(html);
 
@@ -128,7 +126,7 @@ fn extract_urls(html: &str) -> Vec<String>{
 }
 
 // extracting all images from a page
-fn extract_images(html: &str) -> Vec<String>{
+fn extract_images(html: &str) -> Vec<String> {
     let document = Document::from(html);
     
     let found_images = document.find(Name("img"))
@@ -147,29 +145,29 @@ fn extract_images(html: &str) -> Vec<String>{
             make a new Image() and add to 'downloaded'
     add to the list of found images in a page (regardless of whether it was downloaded before or not)
  */
-fn download_img(img_urls: &Vec<String>, downloaded: &mut HashMap<String, Image>, baddies:&mut Vec<String>){
-    for img in img_urls{
-        if !downloaded.contains_key(img){
+fn download_img(img_urls: &Vec<String>, downloaded: &mut HashMap<String, Image>, baddies:&mut Vec<String>) {
+    for img in img_urls {
+        if !downloaded.contains_key(img) {
             println!("Processing IMG...{}", img);
 
             // "download" the image
             match reqwest::blocking::get(img) {
                 Ok(rep) => {
                     match rep.bytes() {
-                        Ok(img_bytes) =>{
+                        Ok(img_bytes) => {
                             // get size of image just downloaded and update the downloaded list
                             let size = img_bytes.len();
                             downloaded.insert(img.to_string(), Image::new(size));
                             // testing
                             println!("Success! -> size: {}",size);
                         },
-                        Err(_e) =>{
+                        Err(_e) => {
                             println!("Fail! {}", _e);
                             baddies.push(img.to_string());
                         }
                     }
                 },
-                Err(_e) =>{
+                Err(_e) => {
                     println!("Fail! {}", _e);
                     baddies.push(img.to_string());
                 }
@@ -212,7 +210,7 @@ fn not_search_result(url: &str) -> bool {
 
     Maxes out at 200k pages 
 */
-fn bfs_scraper(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &mut HashMap<String, Image>, baddies: &mut Vec<String>, mut log_file:File, mut found_urls_stripped: File){
+fn bfs_scraper(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &mut HashMap<String, Image>, baddies: &mut Vec<String>, mut log_file:File, mut found_urls_stripped: File) {
     let mut limit = 200000;
     let mut unvisited_urls: VecDeque<String> = VecDeque::new();
     unvisited_urls.push_back(link.to_string());
@@ -226,7 +224,7 @@ fn bfs_scraper(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &
         println!("Processing URL...{}", url);  // checking which link is being scraped in case it crashes
 
         let res = http_requester(&url, 1, baddies);
-        if res.is_none(){  // ignore invalid url 404
+        if res.is_none() {  // ignore invalid url 404
             continue;
         }
 
@@ -252,7 +250,7 @@ fn bfs_scraper(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &
         let new_page = Rc::new(Page::new(size, scraped_urls, scraped_imgs));
         
         // add unvisited urls from scraped_urls to found_urls
-        for this_url in &new_page.links{
+        for this_url in &new_page.links {
             let stripped = strip_url(this_url);
 
             if !found_urls.contains_key(&stripped) && not_search_result(&url)  {
@@ -265,7 +263,7 @@ fn bfs_scraper(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &
     }
 }
 
-fn bfs_scraper_with_limit(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &mut HashMap<String, Image>, baddies: &mut Vec<String>, mut limit:i32, mut log_file:File, mut found_urls_stripped: File){
+fn bfs_scraper_with_limit(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &mut HashMap<String, Image>, baddies: &mut Vec<String>, mut limit:i32, mut log_file:File, mut found_urls_stripped: File) {
     let mut unvisited_urls: VecDeque<String> = VecDeque::new();
     unvisited_urls.push_back(link.to_string());
 
@@ -278,7 +276,7 @@ fn bfs_scraper_with_limit(link: &str, visited: &mut HashMap<String,Rc<Page>>, do
         println!("Processing URL...{}", url);  // checking which link is being scraped in case it crashes
 
         let res = http_requester(&url, 1, baddies);
-        if res.is_none(){  // ignore invalid url 404
+        if res.is_none() {  // ignore invalid url 404
             continue;
         }
 
@@ -304,10 +302,10 @@ fn bfs_scraper_with_limit(link: &str, visited: &mut HashMap<String,Rc<Page>>, do
         let new_page = Rc::new(Page::new(size, scraped_urls, scraped_imgs));
         
         // add unvisited urls from scraped_urls to found_urls
-        for this_url in &new_page.links{
+        for this_url in &new_page.links {
             let stripped = strip_url(this_url);
 
-            if !found_urls.contains_key(&stripped) && not_search_result(&url)  {
+            if !found_urls.contains_key(&stripped) && not_search_result(&url) {
                 unvisited_urls.push_back(this_url.to_string());
                 found_urls.insert(stripped, 0);
             }
@@ -338,7 +336,7 @@ fn main() {
     let url = arg_matcher.value_of("url").unwrap();
     let http_head = &(url)[..4];
     
-    if http_head.ne("http"){
+    if http_head.ne("http") {
         print!("Not URL!");
         return;
     }
@@ -351,7 +349,7 @@ fn main() {
             0
         },
         Some(s) => {
-            match s.parse::<i32>(){
+            match s.parse::<i32>() {
                 Ok(n) => {
                     if n <= 0 {
                         println!("No negative nor zero");
