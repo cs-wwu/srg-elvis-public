@@ -21,6 +21,7 @@ NDL completion for inital pull request
 - [ ] I kinda wanna build basic DHCP so I don't have to deal with IP's anymore
 - [ ] Fix the 'to' part of send_message so it can be an IP or a machine name
 - [ ] Create tests for our util functions
+- [ ] Add IP and name functionality to other applications
 
 ### Documentation
 
