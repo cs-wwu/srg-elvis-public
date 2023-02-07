@@ -4,11 +4,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::applications::{Forward, PingPong};
+use crate::ndl::generating::generator_utils::ip_or_name;
 use crate::ndl::parsing::parsing_data::*;
 use crate::{
     applications::{Capture, SendMessage},
     ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
 };
+use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::{IpToTapSlot, Ipv4Address};
 use elvis_core::protocols::UserProcess;
 
@@ -16,7 +18,8 @@ use elvis_core::protocols::UserProcess;
 pub fn send_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-    name_to_mac: &HashMap<String, u64>,
+    name_to_mac: &HashMap<String, Mac>,
+    ip_to_mac: &HashMap<Ipv4Address, Mac>,
 ) -> Arc<UserProcess<SendMessage>> {
     assert!(
         app.options.contains_key("port"),
@@ -35,20 +38,40 @@ pub fn send_message_builder(
     let to = app.options.get("to").unwrap().to_string();
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message = app.options.get("message").unwrap().to_owned();
-    //TODO: ask Tim about this message Box stuff
-    SendMessage::new_shared(
-        message,
-        *name_to_ip
-            .get(&to)
-            .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
-        port,
-        Some(
-            *name_to_mac
+
+    // Determines whether or not we are using an IP or a name to send this message
+    if ip_or_name(to.clone()) {
+        let to = ip_string_to_ip(to, "Send_Message declaration");
+
+        // case where ip to mac doesn't have a mac
+        if !ip_to_mac.contains_key(&to.into()) {
+            return SendMessage::new_shared(message, to.into(), port, None, 1);
+        }
+        // case where ip to mac does have a mac
+        else {
+            return SendMessage::new_shared(
+                message,
+                to.into(),
+                port,
+                Some(*ip_to_mac.get(&to.into()).unwrap()),
+                1,
+            );
+        }
+    } else {
+        return SendMessage::new_shared(
+            message,
+            *name_to_ip
                 .get(&to)
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
-        ),
-        1,
-    )
+            port,
+            Some(
+                *name_to_mac.get(&to).unwrap_or_else(|| {
+                    panic!("Invalid name for 'to' in send_message, found: {to}")
+                }),
+            ),
+            1,
+        );
+    }
 }
 
 /// Builds the [Capture] application for a machine

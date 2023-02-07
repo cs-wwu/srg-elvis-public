@@ -36,3 +36,23 @@ pub fn ip_string_to_ip(s: String, net_id: &str) -> [u8; 4] {
 
     [new_ip[0], new_ip[1], new_ip[2], new_ip[3]]
 }
+
+/// Determines if a given string is an IP or a machine name
+/// Returns true if it is an IP and false if it could be a name
+pub fn ip_or_name(s: String) -> bool{
+    let sections: Vec<&str> = s.split(".").collect();
+    if sections.len() != 4{
+        return false;
+    }
+    else{
+        for section in sections{
+            let octet = section.parse::<u8>();
+            // errors on non-numbers and numbers > 255
+            if octet.is_err() {
+                return false;
+            }
+        }
+    }
+
+    true
+}

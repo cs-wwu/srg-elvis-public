@@ -19,6 +19,7 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
     // Focusing on Interfaces, protocols, and applications
     let mut name_to_mac: HashMap<String, Mac> = HashMap::new();
     let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();
+    let mut ip_to_mac: HashMap<Ipv4Address, Mac> = HashMap::new();
     let mut cur_mac: u64 = 0;
     for machine in m.iter() {
         let mut cur_name: String = String::new();
@@ -71,6 +72,7 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                     );
 
                     name_to_ip.insert(cur_name.clone(), ip.into());
+                    ip_to_mac.insert(ip.into(), cur_mac);
                 }
             }
         }
@@ -164,6 +166,7 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                         app,
                         &name_to_ip,
                         &name_to_mac,
+                        &ip_to_mac
                     )),
 
                     "capture" => {
