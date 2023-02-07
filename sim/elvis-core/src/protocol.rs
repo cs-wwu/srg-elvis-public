@@ -6,10 +6,10 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     protocols::user_process::ApplicationError,
+    Shutdown,
 };
 use std::sync::Arc;
-use thiserror::Error as ThisError;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 mod context;
 pub use context::Context;
@@ -37,7 +37,7 @@ pub trait Protocol {
     /// the simulation.
     fn start(
         self: Arc<Self>,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError>;
@@ -114,13 +114,13 @@ pub trait Protocol {
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum QueryError {
     #[error("The provided key cannot be queried on this protocol")]
     NonexistentKey,
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum DemuxError {
     #[error("Failed to find a session to demux to")]
     MissingSession,
@@ -134,7 +134,7 @@ pub enum DemuxError {
     Other,
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum ListenError {
     #[error("The listen binding already exists")]
     Existing,
@@ -144,7 +144,7 @@ pub enum ListenError {
     Other,
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum StartError {
     #[error("Protocol failed to start because an application failed to start")]
     Application(#[from] ApplicationError),
@@ -152,7 +152,7 @@ pub enum StartError {
     Other,
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum OpenError {
     #[error("The session already exists")]
     Existing,

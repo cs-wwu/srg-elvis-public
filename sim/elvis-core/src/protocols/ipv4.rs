@@ -10,11 +10,11 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, Protocol,
+    Control, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::Arc;
-use tokio::sync::{mpsc::Sender, Barrier};
+use std::sync::{Arc, RwLock};
+use tokio::sync::Barrier;
 
 mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
@@ -28,7 +28,6 @@ use ipv4_session::{Ipv4Session, SessionId};
 pub type IpToTapSlot = DashMap<Ipv4Address, PciSlot>;
 
 /// An implementation of the Internet Protocol.
-#[derive(Clone)]
 pub struct Ipv4 {
     listen_bindings: DashMap<Ipv4Address, Id>,
     sessions: DashMap<SessionId, Arc<Ipv4Session>>,
@@ -204,7 +203,7 @@ impl Protocol for Ipv4 {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
