@@ -9,11 +9,11 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, Protocol,
+    Control, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 mod udp_session;
 use udp_session::{SessionId, UdpSession};
@@ -226,7 +226,7 @@ impl Protocol for Udp {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {

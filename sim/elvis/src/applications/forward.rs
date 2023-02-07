@@ -9,10 +9,10 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap,
+    Control, Id, Network, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 pub struct Forward {
@@ -71,7 +71,7 @@ impl Application for Forward {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

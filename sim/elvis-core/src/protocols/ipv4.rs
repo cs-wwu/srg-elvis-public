@@ -13,7 +13,7 @@ use crate::{
     Control, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 mod ipv4_parsing;

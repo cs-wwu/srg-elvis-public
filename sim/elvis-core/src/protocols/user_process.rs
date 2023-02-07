@@ -8,11 +8,10 @@ use crate::{
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::{SendError, SharedSession},
-    Control, Protocol,
+    Control, Protocol, Shutdown,
 };
 use std::sync::Arc;
-use thiserror::Error as ThisError;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -28,7 +27,7 @@ pub trait Application {
     /// begins.
     fn start(
         self: Arc<Self>,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError>;
@@ -39,7 +38,7 @@ pub trait Application {
         -> Result<(), ApplicationError>;
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationError {
     #[error("A listen call failed")]
     Listen(#[from] ListenError),
@@ -120,7 +119,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
 
     fn start(
         self: Arc<Self>,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
