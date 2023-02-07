@@ -166,7 +166,7 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                         app,
                         &name_to_ip,
                         &name_to_mac,
-                        &ip_to_mac
+                        &ip_to_mac,
                     )),
 
                     "capture" => {

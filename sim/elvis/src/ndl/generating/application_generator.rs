@@ -45,7 +45,7 @@ pub fn send_message_builder(
 
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            return SendMessage::new_shared(message, to.into(), port, None, 1);
+            SendMessage::new_shared(message, to.into(), port, None, 1)
         }
         // case where ip to mac does have a mac
         else {
