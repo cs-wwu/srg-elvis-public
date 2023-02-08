@@ -124,6 +124,8 @@ pub enum QueryError {
 pub enum DemuxError {
     #[error("Failed to find a session to demux to")]
     MissingSession,
+    #[error("The session was closed")]
+    ClosedSession,
     #[error("Data expected through the context was missing")]
     MissingContext,
     #[error("Failed to parse a header during demux")]

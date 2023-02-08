@@ -12,7 +12,7 @@ use crate::{
     Control, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tokio::sync::Barrier;
 
 mod udp_session;
@@ -27,7 +27,7 @@ use super::utility::Socket;
 #[derive(Default, Clone)]
 pub struct Udp {
     listen_bindings: DashMap<Socket, Id>,
-    sessions: DashMap<SessionId, Arc<UdpSession>>,
+    sessions: DashMap<SessionId, Weak<UdpSession>>,
 }
 
 impl Udp {
@@ -115,7 +115,7 @@ impl Protocol for Udp {
                     downstream,
                     id: identifier,
                 });
-                entry.insert(session.clone());
+                entry.insert(Arc::downgrade(&session));
                 Ok(session)
             }
         }
@@ -188,10 +188,14 @@ impl Protocol for Udp {
         Self::set_remote_port(session_id.remote.port, &mut context.control);
 
         let session = match self.sessions.entry(session_id) {
-            Entry::Occupied(entry) => {
-                let session = entry.get().clone();
-                session
-            }
+            Entry::Occupied(entry) => match entry.get().upgrade() {
+                Some(session) => session,
+                None => {
+                    entry.remove_entry();
+                    return Err(DemuxError::ClosedSession);
+                }
+            },
+
             Entry::Vacant(session_entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
@@ -208,9 +212,10 @@ impl Protocol for Udp {
                             downstream: caller,
                             id: session_id,
                         });
-                        session_entry.insert(session.clone());
+                        session_entry.insert(Arc::downgrade(&session));
                         session
                     }
+
                     Entry::Vacant(_) => {
                         tracing::error!(
                             "Tried to demux with a missing session and no listen bindings"
