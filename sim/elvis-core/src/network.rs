@@ -135,7 +135,10 @@ impl Network {
                 let throughput = throughput.next();
                 if throughput.0 > 0 {
                     let ms = delivery.message.len() as u64 * 1000 / throughput.0;
-                    sleep(Duration::from_millis(ms)).await;
+                    tokio::select! {
+                        _ = sleep(Duration::from_millis(ms)) => {},
+                        _ = shutdown_receiver.recv() => break,
+                    };
                 }
 
                 let taps = taps.clone();
