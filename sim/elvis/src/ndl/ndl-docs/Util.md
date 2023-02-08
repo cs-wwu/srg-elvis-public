@@ -2,9 +2,9 @@
 
 These methods are here to help with the implementation of applications to the generator. Here are the currently available utility helper functions:
 
-- [string_to_port] (#string_to_port)
-- [ip_string_to_ip] (#ip_string_to_ip)
-- [ip_or_name] (#ip_or_name)
+- [String To Port](#string_to_port)
+- [IP String to IP](#ip_string_to_ip)
+- [IP or Name](#ip_or_name)
 
 # Adding New Utility Helpers
 
@@ -33,7 +33,7 @@ This protocol takes in the following arguments:
     - **Type**: String
     - **Example** `"192.168.1.121" into [192, 168, 1, 121]`
 
-# <a id="ip_or_name"></a> IP OR Name
+# <a id="ip_or_name"></a> IP or Name
 
 This method will detect if a given String is either an IP or a name for a machine. Returns `True` for IP and `False` for name. Assumes any non-valid IP is a valid name and will not error upon invalid names.
 
