@@ -34,7 +34,6 @@ pub fn send_message_builder(
         "Send_Message application doesn't contain message."
     );
 
-    // TODO: might want to include both these behaviors (so they could enter IP or enter name)
     let to = app.options.get("to").unwrap().to_string();
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message = app.options.get("message").unwrap().to_owned();
@@ -112,6 +111,7 @@ pub fn forward_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
     name_to_mac: &HashMap<String, u64>,
+    ip_to_mac: &HashMap<Ipv4Address, Mac>,
 ) -> Arc<UserProcess<Forward>> {
     assert!(
         app.options.contains_key("local_port"),
@@ -137,20 +137,33 @@ pub fn forward_message_builder(
     );
     let local_port = string_to_port(app.options.get("local_port").unwrap().to_string());
     let remote_port = string_to_port(app.options.get("remote_port").unwrap().to_string());
+    if ip_or_name(to.clone()) {
+        let to = ip_string_to_ip(to, "Forward declaration");
 
-    Forward::new_shared(
-        ip.into(),
-        *name_to_ip
-            .get(&to)
-            .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
-        local_port,
-        remote_port,
-        Some(
-            *name_to_mac
+        // case where ip to mac doesn't have a mac
+        if !ip_to_mac.contains_key(&to.into()) {
+            return Forward::new_shared(ip.into(), to.into(), local_port, remote_port, None)
+        }
+        // case where ip to mac does have a mac
+        else {
+            return Forward::new_shared(ip.into(), to.into(), local_port, remote_port, Some(*ip_to_mac.get(&to.into()).unwrap()))
+        }
+    }else{
+        Forward::new_shared(
+            ip.into(),
+            *name_to_ip
                 .get(&to)
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
-        ),
-    )
+            local_port,
+            remote_port,
+            Some(
+                *name_to_mac
+                    .get(&to)
+                    .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
+            ),
+        )
+    }
+   
 }
 
 // PingPong::new_shared(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef),
@@ -160,6 +173,7 @@ pub fn forward_message_builder(
 pub fn ping_pong_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
+    ip_to_mac: &HashMap<Ipv4Address, Mac>,
 ) -> Arc<UserProcess<PingPong>> {
     assert!(
         app.options.contains_key("local_port"),
@@ -195,13 +209,27 @@ pub fn ping_pong_builder(
         "f" => false,
         _ => false,
     };
-    PingPong::new_shared(
-        starter,
-        ip.into(),
-        *name_to_ip
-            .get(&to)
-            .unwrap_or_else(|| panic!("Invalid name for 'to' in PingPong, found: {to}")),
-        local_port,
-        remote_port,
-    )
+    if ip_or_name(to.clone()) {
+        let to = ip_string_to_ip(to, "Forward declaration");
+        //PingPong currently does not support mac, thus this check is unnecesary currently
+        // case where ip to mac doesn't have a mac
+        if !ip_to_mac.contains_key(&to.into()) {
+            return PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
+        }
+        // case where ip to mac does have a mac
+        else {
+            return PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
+        }
+    }else{
+        PingPong::new_shared(
+            starter,
+            ip.into(),
+            *name_to_ip
+                .get(&to)
+                .unwrap_or_else(|| panic!("Invalid name for 'to' in PingPong, found: {to}")),
+            local_port,
+            remote_port,
+        )
+    }
+
 }

@@ -18,10 +18,10 @@ NDL completion for inital pull request
   - [ ] Tests
   - [ ] Comments
   - [X] Clippy new format specifications
-- [ ] I kinda wanna build basic DHCP so I don't have to deal with IP's anymore
-- [ ] Fix the 'to' part of send_message so it can be an IP or a machine name
-- [ ] Create tests for our util functions
-- [ ] Add IP and name functionality to other applications
+- [X] I kinda wanna build basic DHCP so I don't have to deal with IP's anymore
+- [X] Fix the 'to' part of send_message so it can be an IP or a machine name
+- [X] Create tests for our util functions
+- [X] Add IP and name functionality to other applications
 
 ### Documentation
 

@@ -61,7 +61,7 @@ This protocol takes in the following arguments:
     - **Type**: String
 - `to`
     - **Definition**: The name of the machine we are sending to
-    - **Type**: Machine name (String)
+    - **Type**: Machine name (String) or IP
 - `port`
     - **Definition**: The port we will be sending the message on
     - **Type**: Port (hex or u16)
@@ -96,7 +96,7 @@ This protocol takes in the following arguments:
     - **Type**: IP
 - `to`
     - **Definition**: The name of the machine we are sending to
-    - **Type**: Machine name (String)
+    - **Type**: Machine name (String) or IP
 - `local_port`
     - **Definition**: The port we will be recieving the message on
     - **Type**: Port (hex or u16)
@@ -117,7 +117,7 @@ This protocol takes in the following arguments:
     - **Type**: Bool
 - `to`
     - **Definition**: The name of the machine we are sending to
-    - **Type**: Machine name (String)
+    - **Type**: Machine name (String) or IP
 - `ip`
     - **Definition**: The IP we wish to assign to this machine and thus recieve on
     - **Type**: IP
