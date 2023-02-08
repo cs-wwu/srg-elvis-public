@@ -178,7 +178,7 @@ pub fn forward_message_builder(
 pub fn ping_pong_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-    ip_to_mac: &HashMap<Ipv4Address, Mac>,
+    _ip_to_mac: &HashMap<Ipv4Address, Mac>,
 ) -> Arc<UserProcess<PingPong>> {
     assert!(
         app.options.contains_key("local_port"),
@@ -218,13 +218,13 @@ pub fn ping_pong_builder(
         let to = ip_string_to_ip(to, "Forward declaration");
         //PingPong currently does not support mac, thus this check is unnecesary currently
         // case where ip to mac doesn't have a mac
-        if !ip_to_mac.contains_key(&to.into()) {
-            PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
-        }
+        // if !ip_to_mac.contains_key(&to.into()) {
+        //     PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
+        // }
         // case where ip to mac does have a mac
-        else {
-            PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
-        }
+        // else {
+        PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
+        // }
     } else {
         PingPong::new_shared(
             starter,
