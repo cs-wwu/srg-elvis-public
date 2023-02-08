@@ -54,7 +54,7 @@ fn filter_url(link: &str) -> Option<String> {
         // if the url is not valid, add https:// to it so it can used with reqwest
         Err(_e) => { 
             if link.starts_with('/'){//..or ends with .html
-                Some(format!("https://yahoo.com{}",link))
+                Some(format!("https://yahoo.com{link}"))
             } else {  //..not even a link, ex: javascript:void(0)
                 None
             }
@@ -94,14 +94,14 @@ fn http_requester(link: &str, mut tries:u32, baddies: &mut Vec<String>) -> Optio
                     Some(txt)
                 },
                 Err(_e) => { // try the link 3 times then stop if still gives error
-                    println!("Fail! {}", _e);
+                    println!("Fail! {_e}");
                     tries +=1;
                     http_requester(link, tries, baddies)
                 }
             }
         },
         Err(_e) => {
-            println!("Fail! {}", _e);
+            println!("Fail! {_e}");
             tries +=1;
             http_requester(link, tries, baddies)
         }
@@ -148,7 +148,7 @@ fn extract_images(html: &str) -> Vec<String> {
 fn download_img(img_urls: &Vec<String>, downloaded: &mut HashMap<String, Image>, baddies:&mut Vec<String>) {
     for img in img_urls {
         if !downloaded.contains_key(img) {
-            println!("Processing IMG...{}", img);
+            println!("Processing IMG...{img}");
 
             // "download" the image
             match reqwest::blocking::get(img) {
@@ -159,16 +159,16 @@ fn download_img(img_urls: &Vec<String>, downloaded: &mut HashMap<String, Image>,
                             let size = img_bytes.len();
                             downloaded.insert(img.to_string(), Image::new(size));
                             // testing
-                            println!("Success! -> size: {}",size);
+                            println!("Success! -> size: {size}");
                         },
                         Err(_e) => {
-                            println!("Fail! {}", _e);
+                            println!("Fail! {_e}");
                             baddies.push(img.to_string());
                         }
                     }
                 },
                 Err(_e) => {
-                    println!("Fail! {}", _e);
+                    println!("Fail! {_e}");
                     baddies.push(img.to_string());
                 }
             }
@@ -221,7 +221,7 @@ fn bfs_scraper(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &
     while !unvisited_urls.is_empty() && limit > 0 {
         let url = unvisited_urls.pop_front().unwrap();
 
-        println!("Processing URL...{}", url);  // checking which link is being scraped in case it crashes
+        println!("Processing URL...{url}");  // checking which link is being scraped in case it crashes
 
         let res = http_requester(&url, 1, baddies);
         if res.is_none() {  // ignore invalid url 404
@@ -235,7 +235,7 @@ fn bfs_scraper(link: &str, visited: &mut HashMap<String,Rc<Page>>, downloaded: &
         let size = res_text.len();
 
         // printing links in hashmap, should NOT have dups
-        println!("Sucess! -> Size:{}", size);
+        println!("Sucess! -> Size:{size}");
 
         // download all images found
         println!("*******Images found within this link*******");
@@ -273,7 +273,7 @@ fn bfs_scraper_with_limit(link: &str, visited: &mut HashMap<String,Rc<Page>>, do
     while !unvisited_urls.is_empty() && limit > 0 {
         let url = unvisited_urls.pop_front().unwrap();
 
-        println!("Processing URL...{}", url);  // checking which link is being scraped in case it crashes
+        println!("Processing URL...{url}");  // checking which link is being scraped in case it crashes
 
         let res = http_requester(&url, 1, baddies);
         if res.is_none() {  // ignore invalid url 404
@@ -287,7 +287,7 @@ fn bfs_scraper_with_limit(link: &str, visited: &mut HashMap<String,Rc<Page>>, do
         let size = res_text.len();
 
         // printing links in hashmap, should NOT have dups
-        println!("Sucess! -> Size:{}", size);
+        println!("Sucess! -> Size:{size}");
 
         // download all images found
         println!("*******Images found within this link*******");
@@ -355,7 +355,7 @@ fn main() {
                         println!("No negative nor zero");
                         return;
                     }
-                    println!("Crawling {} pages...", n);
+                    println!("Crawling {n} pages...");
                     n
                 },
                 Err(_) =>{
