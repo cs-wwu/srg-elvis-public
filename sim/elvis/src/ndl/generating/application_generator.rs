@@ -142,13 +142,19 @@ pub fn forward_message_builder(
 
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            return Forward::new_shared(ip.into(), to.into(), local_port, remote_port, None)
+            return Forward::new_shared(ip.into(), to.into(), local_port, remote_port, None);
         }
         // case where ip to mac does have a mac
         else {
-            return Forward::new_shared(ip.into(), to.into(), local_port, remote_port, Some(*ip_to_mac.get(&to.into()).unwrap()))
+            return Forward::new_shared(
+                ip.into(),
+                to.into(),
+                local_port,
+                remote_port,
+                Some(*ip_to_mac.get(&to.into()).unwrap()),
+            );
         }
-    }else{
+    } else {
         Forward::new_shared(
             ip.into(),
             *name_to_ip
@@ -163,7 +169,6 @@ pub fn forward_message_builder(
             ),
         )
     }
-   
 }
 
 // PingPong::new_shared(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef),
@@ -214,13 +219,13 @@ pub fn ping_pong_builder(
         //PingPong currently does not support mac, thus this check is unnecesary currently
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            return PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
+            return PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port);
         }
         // case where ip to mac does have a mac
         else {
-            return PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
+            return PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port);
         }
-    }else{
+    } else {
         PingPong::new_shared(
             starter,
             ip.into(),
@@ -231,5 +236,4 @@ pub fn ping_pong_builder(
             remote_port,
         )
     }
-
 }

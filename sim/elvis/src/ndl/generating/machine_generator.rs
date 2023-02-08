@@ -180,7 +180,9 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                         &ip_to_mac,
                     )),
 
-                    "ping_pong" => protocols_to_be_added.push(ping_pong_builder(app, &name_to_ip, &ip_to_mac)),
+                    "ping_pong" => {
+                        protocols_to_be_added.push(ping_pong_builder(app, &name_to_ip, &ip_to_mac))
+                    }
 
                     _ => {
                         panic!("Invalid application in machine. Got application {app_name}");
