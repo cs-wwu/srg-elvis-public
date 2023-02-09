@@ -102,7 +102,7 @@ impl Protocol for Ipv4 {
                     key.local,
                     key.remote
                 );
-                return Err(OpenError::Existing);
+                Err(OpenError::Existing)
             }
 
             Entry::Vacant(entry) => {
