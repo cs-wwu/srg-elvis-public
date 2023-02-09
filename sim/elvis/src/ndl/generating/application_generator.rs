@@ -223,7 +223,14 @@ pub fn ping_pong_builder(
         }
         // case where ip to mac does have a mac
         else {
-            PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port, Some(*ip_to_mac.get(&to.into()).unwrap()))
+            PingPong::new_shared(
+                starter,
+                ip.into(),
+                to.into(),
+                local_port,
+                remote_port,
+                Some(*ip_to_mac.get(&to.into()).unwrap()),
+            )
         }
     } else {
         PingPong::new_shared(
