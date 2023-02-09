@@ -12,7 +12,7 @@ use crate::{
     Control, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 mod udp_session;
@@ -27,7 +27,7 @@ use super::utility::Socket;
 #[derive(Default, Clone)]
 pub struct Udp {
     listen_bindings: DashMap<Socket, Id>,
-    sessions: DashMap<SessionId, Weak<UdpSession>>,
+    sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
@@ -115,7 +115,7 @@ impl Protocol for Udp {
                     downstream,
                     id: identifier,
                 });
-                entry.insert(Arc::downgrade(&session));
+                entry.insert(session.clone());
                 Ok(session)
             }
         }
@@ -188,13 +188,7 @@ impl Protocol for Udp {
         Self::set_remote_port(session_id.remote.port, &mut context.control);
 
         let session = match self.sessions.entry(session_id) {
-            Entry::Occupied(entry) => match entry.get().upgrade() {
-                Some(session) => session,
-                None => {
-                    entry.remove_entry();
-                    return Err(DemuxError::ClosedSession);
-                }
-            },
+            Entry::Occupied(entry) => entry.get().clone(),
 
             Entry::Vacant(session_entry) => {
                 // If the session does not exist, see if we have a listen
@@ -212,7 +206,7 @@ impl Protocol for Udp {
                             downstream: caller,
                             id: session_id,
                         });
-                        session_entry.insert(Arc::downgrade(&session));
+                        session_entry.insert(session.clone());
                         session
                     }
 

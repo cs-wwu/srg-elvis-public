@@ -13,7 +13,7 @@ use crate::{
     Control, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 mod ipv4_parsing;
@@ -30,7 +30,7 @@ pub type IpToTapSlot = DashMap<Ipv4Address, PciSlot>;
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     listen_bindings: DashMap<Ipv4Address, Id>,
-    sessions: DashMap<SessionId, Weak<Ipv4Session>>,
+    sessions: DashMap<SessionId, Arc<Ipv4Session>>,
     ip_tap_slot: IpToTapSlot,
 }
 
@@ -120,7 +120,7 @@ impl Protocol for Ipv4 {
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, tap_slot));
-                entry.insert(Arc::downgrade(&session));
+                entry.insert(session.clone());
                 Ok(session)
             }
         }
@@ -179,13 +179,7 @@ impl Protocol for Ipv4 {
         Self::set_remote_address(identifier.remote, &mut context.control);
 
         let session = match self.sessions.entry(identifier) {
-            Entry::Occupied(entry) => match entry.get().upgrade() {
-                Some(session) => session,
-                None => {
-                    entry.remove_entry();
-                    return Err(DemuxError::ClosedSession);
-                }
-            },
+            Entry::Occupied(entry) => entry.get().clone(),
 
             Entry::Vacant(entry) => match self.listen_bindings.get(&identifier.local) {
                 Some(binding) => {
@@ -196,7 +190,7 @@ impl Protocol for Ipv4 {
                         DemuxError::MissingContext
                     })?;
                     let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
-                    entry.insert(Arc::downgrade(&session));
+                    entry.insert(session.clone());
                     session
                 }
 
