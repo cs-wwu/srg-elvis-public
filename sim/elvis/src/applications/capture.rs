@@ -76,7 +76,9 @@ impl Application for Capture {
         _context: Context,
     ) -> Result<(), ApplicationError> {
         *self.message.write().unwrap() = Some(message);
-        self.shutdown.write().unwrap().take().unwrap().shut_down();
+        if let Some(shutdown) = self.shutdown.write().unwrap().take() {
+            shutdown.shut_down();
+        }
         Ok(())
     }
 }

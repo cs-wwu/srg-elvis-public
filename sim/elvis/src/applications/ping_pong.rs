@@ -123,7 +123,9 @@ impl Application for PingPong {
 
         if ttl == 0 {
             tracing::info!("TTL has reach 0, PingPong has successfully completed");
-            self.shutdown.write().unwrap().take().unwrap().shut_down();
+            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
+                shutdown.shut_down();
+            }
         } else {
             self.session
                 .read()

@@ -102,7 +102,9 @@ impl Application for ThroughputTester {
         };
 
         if received >= self.message_count {
-            self.shutdown.write().unwrap().take().unwrap().shut_down();
+            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
+                shutdown.shut_down();
+            }
         }
         Ok(())
     }
