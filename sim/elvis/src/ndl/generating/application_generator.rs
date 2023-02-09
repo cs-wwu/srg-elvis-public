@@ -217,7 +217,6 @@ pub fn ping_pong_builder(
     };
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Forward declaration");
-        //PingPong currently does not support mac, thus this check is unnecesary currently
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
             PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port, None)
