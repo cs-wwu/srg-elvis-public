@@ -29,3 +29,9 @@ impl Shutdown {
         self.notify.subscribe()
     }
 }
+
+impl Default for Shutdown {
+    fn default() -> Self {
+        Self::new()
+    }
+}
