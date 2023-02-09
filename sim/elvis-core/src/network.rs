@@ -110,9 +110,9 @@ impl Network {
         let latency = self.latency;
         let taps = self.taps.clone();
         let broadcast = self.broadcast.clone();
-        let mut shutdown_receiver = shutdown.receiver();
         tokio::spawn(async move {
             initialized.wait().await;
+            let mut shutdown_receiver = shutdown.receiver();
             loop {
                 let delivery = tokio::select! {
                     delivery = receiver.recv() => delivery,
@@ -144,8 +144,8 @@ impl Network {
                 let taps = taps.clone();
                 let broadcast = broadcast.clone();
                 let shutdown = shutdown.clone();
-                let mut shutdown_receiver = shutdown.receiver();
                 tokio::spawn(async move {
+                    let mut shutdown_receiver = shutdown.receiver();
                     let latency = latency.next();
                     if latency > Duration::ZERO {
                         tokio::select! {
@@ -182,8 +182,6 @@ impl Network {
                             }
                         },
                     }
-                    // Make sure we held it
-                    drop(shutdown);
                 });
             }
         });

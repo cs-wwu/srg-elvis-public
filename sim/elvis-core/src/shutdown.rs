@@ -26,10 +26,7 @@ impl Shutdown {
     }
 
     pub fn shut_down(&self) {
-        while let Err(e) = self.notify.send(()) {
-            eprintln!("Failed to shut down: {}", e);
-        }
-        tracing::warn!("Initiated shutdown")
+        let _ = self.notify.send(());
     }
 
     pub fn receiver(&self) -> broadcast::Receiver<()> {

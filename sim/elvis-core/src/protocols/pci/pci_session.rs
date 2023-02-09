@@ -34,9 +34,9 @@ impl PciSession {
         let mut direct_receiver = self.tap.unicast_receiver.write().unwrap().take().unwrap();
         let mut broadcast_receiver = self.tap.broadcast.write().unwrap().take().unwrap();
         let context = Context::new(protocols);
-        let mut shutdown_receiver = shutdown.receiver();
         tokio::spawn(async move {
             barrier.wait().await;
+            let mut shutdown_receiver = shutdown.receiver();
             loop {
                 let context = context.clone();
                 tokio::select! {
@@ -46,10 +46,7 @@ impl PciSession {
                     message = broadcast_receiver.recv() => {
                         self.clone().receive_broadcast(message, context);
                     }
-                    _ = shutdown_receiver.recv() => {
-                        tracing::warn!("Shutting down");
-                        break;
-                    }
+                    _ = shutdown_receiver.recv() => break,
                 }
             }
         });
