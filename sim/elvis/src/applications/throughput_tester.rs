@@ -102,7 +102,7 @@ impl Application for ThroughputTester {
         };
 
         if received >= self.message_count {
-            self.shutdown.write().unwrap().as_mut().unwrap().shut_down();
+            self.shutdown.write().unwrap().take().unwrap().shut_down();
         }
         Ok(())
     }
