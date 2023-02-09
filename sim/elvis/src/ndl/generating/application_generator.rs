@@ -178,7 +178,8 @@ pub fn forward_message_builder(
 pub fn ping_pong_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-    _ip_to_mac: &HashMap<Ipv4Address, Mac>,
+    ip_to_mac: &HashMap<Ipv4Address, Mac>,
+    name_to_mac: &HashMap<String, u64>,
 ) -> Arc<UserProcess<PingPong>> {
     assert!(
         app.options.contains_key("local_port"),
@@ -218,13 +219,13 @@ pub fn ping_pong_builder(
         let to = ip_string_to_ip(to, "Forward declaration");
         //PingPong currently does not support mac, thus this check is unnecesary currently
         // case where ip to mac doesn't have a mac
-        // if !ip_to_mac.contains_key(&to.into()) {
-        //     PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
-        // }
+        if !ip_to_mac.contains_key(&to.into()) {
+            PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port, None)
+        }
         // case where ip to mac does have a mac
-        // else {
-        PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port)
-        // }
+        else {
+            PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port, Some(*ip_to_mac.get(&to.into()).unwrap()))
+        }
     } else {
         PingPong::new_shared(
             starter,
@@ -234,6 +235,11 @@ pub fn ping_pong_builder(
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in PingPong, found: {to}")),
             local_port,
             remote_port,
+            Some(
+                *name_to_mac
+                    .get(&to)
+                    .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
+            ),
         )
     }
 }

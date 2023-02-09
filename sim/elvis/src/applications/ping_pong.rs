@@ -7,7 +7,7 @@ use elvis_core::{
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap,
+    Control, Id, ProtocolMap, network::Mac, Network,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -29,6 +29,8 @@ pub struct PingPong {
     /// The port we listen for a message on
     local_port: u16,
     remote_port: u16,
+    /// The mac address we are sending to (optional)
+    destination_mac: Option<Mac>,
 }
 
 impl PingPong {
@@ -39,6 +41,7 @@ impl PingPong {
         remote_ip_address: Ipv4Address,
         local_port: u16,
         remote_port: u16,
+        destination_mac: Option<Mac>,
     ) -> Self {
         Self {
             is_initiator,
@@ -48,6 +51,7 @@ impl PingPong {
             remote_ip_address,
             local_port,
             remote_port,
+            destination_mac,
         }
     }
 
@@ -58,6 +62,7 @@ impl PingPong {
         remote_ip_address: Ipv4Address,
         local_port: u16,
         remote_port: u16,
+        destination_mac: Option<Mac>,
     ) -> Arc<UserProcess<Self>> {
         UserProcess::new_shared(Self::new(
             is_initiator,
@@ -65,6 +70,7 @@ impl PingPong {
             remote_ip_address,
             local_port,
             remote_port,
+            destination_mac,
         ))
     }
 }
@@ -89,9 +95,12 @@ impl Application for PingPong {
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
         *self.session.write().unwrap() = Some(session);
 
-        let context = Context::new(protocols);
+        let mut context = Context::new(protocols);
         tokio::spawn(async move {
             initialized.wait().await;
+            if let Some(destination_mac) = self.destination_mac {
+                Network::set_destination(destination_mac, &mut context.control);
+            }
             if self.is_initiator {
                 self.session
                     .clone()
