@@ -13,16 +13,10 @@ pub struct Shutdown {
 }
 
 impl Shutdown {
-    pub fn new() -> (Self, mpsc::Receiver<()>) {
+    pub fn new() -> Self {
         let (notify, _) = broadcast::channel(1);
-        let (confirm_tx, confirm_rx) = mpsc::channel(1);
-        (
-            Self {
-                notify,
-                confirm: confirm_tx,
-            },
-            confirm_rx,
-        )
+        let (confirm, _) = mpsc::channel(1);
+        Self { notify, confirm }
     }
 
     pub fn shut_down(&self) {

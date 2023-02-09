@@ -5,7 +5,7 @@ use tokio::sync::Barrier;
 
 /// Runs the simulation with the given machines and networks
 pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
-    let (shutdown, mut shutdown_receiver) = Shutdown::new();
+    let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
         .map(|machine| machine.protocol_count())
@@ -21,6 +21,7 @@ pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
     }
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever
+    let mut shutdown_receiver = shutdown.receiver();
     drop(shutdown);
 
     // When every sender has gone out of scope, the recv call
