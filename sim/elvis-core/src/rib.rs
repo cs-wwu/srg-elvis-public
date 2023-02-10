@@ -127,6 +127,8 @@ impl Rib {
 // Tests go here
 #[cfg(test)]
 mod tests {
+    use crate::Message;
+
     use super::*;
 
     // mask tests
@@ -152,6 +154,6 @@ mod tests {
     // test rib
     #[test]
     pub fn test_rib_put() {
-        
+        todo!();
     }
 }

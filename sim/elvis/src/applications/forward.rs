@@ -92,6 +92,7 @@ impl Application for Forward {
         tokio::spawn(async move {
             initialized.wait().await;
         });
+
         Ok(())
     }
 
