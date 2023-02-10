@@ -1,6 +1,7 @@
 //! User-level applications used to test protocols and networks.
 
 mod capture;
+pub mod router;
 pub use capture::Capture;
 
 mod send_message;
@@ -17,3 +18,6 @@ pub use query_tester::QueryTester;
 
 mod throughput_tester;
 pub use throughput_tester::ThroughputTester;
+
+
+pub use router::{Arp, Router};
