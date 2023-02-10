@@ -20,3 +20,6 @@ pub use latency::latency;
 
 mod throughput;
 pub use throughput::throughput;
+
+mod router_simulation;
+pub use router_simulation::router_simulation;

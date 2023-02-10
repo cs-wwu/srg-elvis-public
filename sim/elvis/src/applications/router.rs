@@ -4,7 +4,6 @@ use elvis_core::{
     protocol::Context,
     protocols::{
         ipv4::{Ipv4Address, IpToTapSlot},
-        udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Pci,
     },
@@ -31,8 +30,8 @@ impl Router {
         }
     }
 
-    pub fn new_shared(ip_table: IpToTapSlot, arp_table: Arp) {
-        
+    pub fn new_shared(ip_table: IpToTapSlot, arp_table: Arp) -> Arc<UserProcess<Self>> {
+        UserProcess::new_shared(Self::new(ip_table, arp_table))
     }
 }
 
@@ -44,32 +43,40 @@ impl Application for Router {
     /// begins.
     fn start(
         self: Arc<Self>,
-        shutdown: Sender<()>,
+        _shutdown: Sender<()>,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         // create a control. This control needs to be filled with some information
-        let mut participants = Control::new();
+        
         
         // get the pci protocol
-        let pci = protocols.protocol(Pci::ID).expect("No such protocol").clone();
+        let pci = protocols.protocol(Pci::ID)
+            .expect("No such protocol");
 
         // query the number of taps in our pci session
-        let number_taps = pci.query(Pci::SLOT_COUNT_QUERY_KEY).unwrap().to_u32().unwrap();
+        let number_taps = pci.clone().query(Pci::SLOT_COUNT_QUERY_KEY)
+            .expect("could not get slot count").to_u64()
+            .expect("could not unwrap u32");
 
         let mut sessions = Vec::with_capacity(number_taps as usize);
 
-        for _i in 0..number_taps {
+        println!("{}", number_taps);
+
+        for i in 0..number_taps {
+            println!("foo");
+            let mut participants = Control::new();
+            Pci::set_pci_slot(i as u32, &mut participants);
             let val = pci.clone().open(
                 Self::ID,
                 participants.clone(),
                 protocols.clone(),
             )
-            .unwrap();
-
+            .expect("could not open session");
+            sessions.push(val);
         }
 
-        *self.outgoing.write().unwrap() = Some(sessions);
+        *self.outgoing.write().expect("could put array in outgoing") = Some(sessions);
 
         tokio::spawn(async move {
             initialize.wait().await;
@@ -82,10 +89,16 @@ impl Application for Router {
     fn receive(
         self: Arc<Self>, 
         message: Message, 
-        context: Context
+        mut context: Context
     ) -> Result<(), ApplicationError> {
+        println!("receiving a message");
+
         // obtain destination address of the message
         let address = Ipv4::get_remote_address(&context.control).unwrap();
+
+        if let Some(destination_mac) = self.arp_table.get(&address) {
+            Network::set_destination(*destination_mac, &mut context.control);
+        } 
 
         // put destination address through ip table
         let destination = self.ip_table.get(&address).unwrap().clone();
@@ -98,7 +111,7 @@ impl Application for Router {
             .get(destination as usize)
             .unwrap()
             .clone()
-            .send(message, context);
+            .send(message, context)?;
 
         Ok(())
     }
