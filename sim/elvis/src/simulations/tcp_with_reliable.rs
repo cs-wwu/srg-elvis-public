@@ -1,52 +1,53 @@
-use crate::applications::{Capture, SendMessage};
+use crate::applications::{Capture, SendMessage, Transport};
 use elvis_core::{
-    network::{Latency, NetworkBuilder},
+    message::Message,
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
-        udp::Udp,
-        Pci,
+        Pci, Tcp,
     },
-    run_internet, Machine, Message,
+    run_internet, Machine, Network,
 };
-use std::time::{Duration, SystemTime};
 
 /// Runs a basic simulation.
 ///
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
-pub async fn latency() {
-    let network = NetworkBuilder::new()
-        .latency(Latency::constant(Duration::from_secs(1)))
-        .build();
+pub async fn tcp_with_reliable() {
+    let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
-    let capture = Capture::new(capture_ip_address, 0xbeef).shared();
+    let message: Vec<_> = (0..20).map(|i| i as u8).collect();
+    let message = Message::new(message);
+    let capture = Capture::new(capture_ip_address, 0xbeef)
+        .transport(Transport::Tcp)
+        .shared();
     let machines = vec![
         Machine::new([
-            Udp::new().shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SendMessage::new(Message::new("Hello!"), capture_ip_address, 0xbeef).shared(),
+            SendMessage::new(message.clone(), capture_ip_address, 0xbeef)
+                .transport(Transport::Tcp)
+                .shared(),
         ]),
         Machine::new([
-            Udp::new().shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table).shared(),
             Pci::new([network.tap()]).shared(),
             capture.clone(),
         ]),
     ];
 
-    let now = SystemTime::now();
     run_internet(machines, vec![network]).await;
-    assert!(now.elapsed().unwrap().as_millis() >= 1000);
+    assert_eq!(capture.application().message(), Some(message));
 }
 
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    async fn latency() {
-        super::latency().await
+    async fn tcp_with_reliable() {
+        super::tcp_with_reliable().await
     }
 }

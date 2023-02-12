@@ -57,6 +57,12 @@ impl<const N: usize> From<&[u8; N]> for Chunk {
     }
 }
 
+impl<const N: usize> From<[u8; N]> for Chunk {
+    fn from(array: [u8; N]) -> Self {
+        array.as_slice().into()
+    }
+}
+
 impl From<&str> for Chunk {
     fn from(string: &str) -> Self {
         string.as_bytes().into()

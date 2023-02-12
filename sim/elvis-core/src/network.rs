@@ -113,7 +113,8 @@ impl Network {
         tokio::spawn(async move {
             barrier.wait().await;
             while let Some(delivery) = receiver.recv().await {
-                if rand::random::<f32>() < self.loss_rate {
+                let rng = rand::random::<f32>();
+                if rng < self.loss_rate {
                     // Drop the message
                     continue;
                 }
@@ -239,7 +240,7 @@ impl NetworkBuilder {
     }
 
     /// The percentage of packets that are lost in transmission. Should be given
-    /// in the range [0,1].
+    /// in the range \[0,1\].
     pub fn loss_rate(mut self, loss_rate: f32) -> Self {
         self.loss_rate = loss_rate;
         self
