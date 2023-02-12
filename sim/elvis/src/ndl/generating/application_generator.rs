@@ -13,6 +13,7 @@ use crate::{
 use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::{IpToTapSlot, Ipv4Address};
 use elvis_core::protocols::UserProcess;
+use elvis_core::Message;
 
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
@@ -44,32 +45,28 @@ pub fn send_message_builder(
 
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            SendMessage::new_shared(message, to.into(), port, None, 1)
+            SendMessage::new(Message::new(message), to.into(), port).shared()
         }
         // case where ip to mac does have a mac
         else {
-            return SendMessage::new_shared(
-                message,
-                to.into(),
-                port,
-                Some(*ip_to_mac.get(&to.into()).unwrap()),
-                1,
-            );
+            return SendMessage::new(Message::new(message), to.into(), port)
+                .remote_mac(*ip_to_mac.get(&to.into()).unwrap())
+                .shared();
         }
     } else {
-        return SendMessage::new_shared(
-            message,
+        return SendMessage::new(
+            Message::new(message),
             *name_to_ip
                 .get(&to)
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
             port,
-            Some(
-                *name_to_mac.get(&to).unwrap_or_else(|| {
-                    panic!("Invalid name for 'to' in send_message, found: {to}")
-                }),
-            ),
-            1,
-        );
+        )
+        .remote_mac(
+            *name_to_mac
+                .get(&to)
+                .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
+        )
+        .shared();
     }
 }
 
@@ -102,7 +99,7 @@ pub fn capture_builder(app: &Application, ip_table: &IpToTapSlot) -> Arc<UserPro
         .unwrap()
         .parse::<u32>()
         .expect("Invalid u32 found in Capture for message count");
-    Capture::new_shared(ip.into(), port, message_count)
+    Capture::new(ip.into(), port, message_count).shared()
 }
 
 /// Builds the [Forward] application for a machine
@@ -142,20 +139,21 @@ pub fn forward_message_builder(
 
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            Forward::new_shared(ip.into(), to.into(), local_port, remote_port, None)
+            Forward::new(ip.into(), to.into(), local_port, remote_port, None).shared()
         }
         // case where ip to mac does have a mac
         else {
-            return Forward::new_shared(
+            return Forward::new(
                 ip.into(),
                 to.into(),
                 local_port,
                 remote_port,
                 Some(*ip_to_mac.get(&to.into()).unwrap()),
-            );
+            )
+            .shared();
         }
     } else {
-        Forward::new_shared(
+        Forward::new(
             ip.into(),
             *name_to_ip
                 .get(&to)
@@ -168,6 +166,7 @@ pub fn forward_message_builder(
                     .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
             ),
         )
+        .shared()
     }
 }
 
@@ -219,21 +218,16 @@ pub fn ping_pong_builder(
         let to = ip_string_to_ip(to, "Forward declaration");
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            PingPong::new_shared(starter, ip.into(), to.into(), local_port, remote_port, None)
+            PingPong::new(starter, ip.into(), to.into(), local_port, remote_port).shared()
         }
         // case where ip to mac does have a mac
         else {
-            PingPong::new_shared(
-                starter,
-                ip.into(),
-                to.into(),
-                local_port,
-                remote_port,
-                Some(*ip_to_mac.get(&to.into()).unwrap()),
-            )
+            PingPong::new(starter, ip.into(), to.into(), local_port, remote_port)
+                .remote_mac(*ip_to_mac.get(&to.into()).unwrap())
+                .shared()
         }
     } else {
-        PingPong::new_shared(
+        PingPong::new(
             starter,
             ip.into(),
             *name_to_ip
@@ -241,11 +235,12 @@ pub fn ping_pong_builder(
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in PingPong, found: {to}")),
             local_port,
             remote_port,
-            Some(
-                *name_to_mac
-                    .get(&to)
-                    .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
-            ),
         )
+        .remote_mac(
+            *name_to_mac
+                .get(&to)
+                .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
+        )
+        .shared()
     }
 }

@@ -139,12 +139,12 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
                 }
             }
             let ip_table: IpToTapSlot = ip_table.into_iter().collect();
-            protocols_to_be_added.push(Pci::new_shared(networks_to_be_added));
+            protocols_to_be_added.push(Pci::new(networks_to_be_added).shared());
             for protocol in &machine.interfaces.protocols {
                 for option in &protocol.options {
                     match option.1.as_str() {
-                        "UDP" => protocols_to_be_added.push(Udp::new_shared() as SharedProtocol),
-                        "IPv4" => protocols_to_be_added.push(Ipv4::new_shared(ip_table.clone())),
+                        "UDP" => protocols_to_be_added.push(Udp::new().shared() as SharedProtocol),
+                        "IPv4" => protocols_to_be_added.push(Ipv4::new(ip_table.clone()).shared()),
                         _ => {
                             panic!(
                                 "Invalid Protocol found in machine. Found: {}",

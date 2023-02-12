@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime};
 
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
-    network::NetworkBuilder,
+    network::{Latency, NetworkBuilder},
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
@@ -18,12 +18,12 @@ use elvis_core::{
 /// single network. The simulation ends when the message is received.
 pub async fn latency() {
     let network = NetworkBuilder::new()
-        .latency(Duration::from_secs(1))
+        .latency(Latency::constant(Duration::from_secs(1)))
         .build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
-    let capture = Capture::new(capture_ip_address, 0xbeef).shared();
+    let capture = Capture::new(capture_ip_address, 0xbeef, 1).shared();
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
