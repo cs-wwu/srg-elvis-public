@@ -1,11 +1,10 @@
-use crate::applications::{Capture, SendMessage};
+use crate::applications::{Capture, SendMessage, Transport};
 use elvis_core::{
     message::Message,
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
-        udp::Udp,
-        Pci,
+        Pci, Tcp,
     },
     run_internet, Machine, Network,
 };
@@ -14,22 +13,27 @@ use elvis_core::{
 ///
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
-pub async fn basic() {
+pub async fn tcp_with_reliable() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
-    let message = Message::new("Hello!");
-    let capture = Capture::new(capture_ip_address, 0xbeef).shared();
+    let message: Vec<_> = (0..20).map(|i| i as u8).collect();
+    let message = Message::new(message);
+    let capture = Capture::new(capture_ip_address, 0xbeef)
+        .transport(Transport::Tcp)
+        .shared();
     let machines = vec![
         Machine::new([
-            Udp::new().shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SendMessage::new(message.clone(), capture_ip_address, 0xbeef).shared(),
+            SendMessage::new(message.clone(), capture_ip_address, 0xbeef)
+                .transport(Transport::Tcp)
+                .shared(),
         ]),
         Machine::new([
-            Udp::new().shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table).shared(),
             Pci::new([network.tap()]).shared(),
             capture.clone(),
@@ -37,13 +41,13 @@ pub async fn basic() {
     ];
 
     run_internet(machines, vec![network]).await;
-    assert_eq!(capture.application().message(), Some(message),);
+    assert_eq!(capture.application().message(), Some(message));
 }
 
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    async fn basic() {
-        super::basic().await
+    async fn tcp_with_reliable() {
+        super::tcp_with_reliable().await
     }
 }

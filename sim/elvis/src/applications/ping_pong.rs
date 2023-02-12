@@ -1,6 +1,5 @@
 use elvis_core::{
     message::Message,
-    network::Mac,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
@@ -8,7 +7,7 @@ use elvis_core::{
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap,
+    Control, Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -17,12 +16,11 @@ use tokio::sync::{mpsc::Sender, Barrier};
 /// another machine from the first machine.
 /// The second machine will then send the TTL back minus 1.
 /// Once the TTL reaches 0 the program ends.
-#[derive(Clone)]
 pub struct PingPong {
     /// The channel we send on to shut down the simulation
-    shutdown: Arc<RwLock<Option<Sender<()>>>>,
+    shutdown: RwLock<Option<Sender<()>>>,
     /// The session we send messages on
-    session: Arc<RwLock<Option<SharedSession>>>,
+    session: RwLock<Option<SharedSession>>,
     is_initiator: bool,
     /// The address we listen for a message on
     local_ip_address: Ipv4Address,
@@ -30,8 +28,6 @@ pub struct PingPong {
     /// The port we listen for a message on
     local_port: u16,
     remote_port: u16,
-    /// The mac address we are sending to (optional)
-    destination_mac: Option<Mac>,
 }
 
 impl PingPong {
@@ -42,7 +38,6 @@ impl PingPong {
         remote_ip_address: Ipv4Address,
         local_port: u16,
         remote_port: u16,
-        destination_mac: Option<Mac>,
     ) -> Self {
         Self {
             is_initiator,
@@ -52,27 +47,12 @@ impl PingPong {
             remote_ip_address,
             local_port,
             remote_port,
-            destination_mac,
         }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared(
-        is_initiator: bool,
-        local_ip_address: Ipv4Address,
-        remote_ip_address: Ipv4Address,
-        local_port: u16,
-        remote_port: u16,
-        destination_mac: Option<Mac>,
-    ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(
-            is_initiator,
-            local_ip_address,
-            remote_ip_address,
-            local_port,
-            remote_port,
-            destination_mac,
-        ))
+    pub fn shared(self) -> Arc<UserProcess<Self>> {
+        UserProcess::new(self).shared()
     }
 }
 
@@ -80,7 +60,7 @@ impl Application for PingPong {
     const ID: Id = Id::from_string("PingPong");
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -94,22 +74,14 @@ impl Application for PingPong {
         Udp::set_remote_port(self.remote_port, &mut participants);
         let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
-        *self.session.write().unwrap() = Some(session);
+        *self.session.write().unwrap() = Some(session.clone());
 
-        let mut context = Context::new(protocols);
+        let context = Context::new(protocols);
+        let is_initiator = self.is_initiator;
         tokio::spawn(async move {
             initialized.wait().await;
-            if let Some(destination_mac) = self.destination_mac {
-                Network::set_destination(destination_mac, &mut context.control);
-            }
-            if self.is_initiator {
-                self.session
-                    .clone()
-                    .read()
-                    .unwrap()
-                    .as_ref()
-                    .unwrap()
-                    .clone()
+            if is_initiator {
+                session
                     //Send the first "Ping" message with TTL of 255
                     .send(Message::new(vec![255]), context)
                     .unwrap();
@@ -118,11 +90,7 @@ impl Application for PingPong {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        message: Message,
-        context: Context,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
@@ -142,7 +110,6 @@ impl Application for PingPong {
             }
         } else {
             self.session
-                .clone()
                 .read()
                 .unwrap()
                 .as_ref()

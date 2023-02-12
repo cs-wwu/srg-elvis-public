@@ -70,6 +70,7 @@ impl Message {
                 self.stack = Arc::new(WrappedMessage::Header(header, self.stack.clone()));
             }
             n => {
+                self.end -= self.start;
                 self.start = 0;
                 self.stack = Arc::new(WrappedMessage::Sliced(header, self.stack.clone(), n));
             }
@@ -104,17 +105,16 @@ impl Message {
         // the front are unreachable. While this is the case, continually remove
         // leading headers.
         loop {
-            let (chunk, rest) = match self.stack.as_ref() {
-                WrappedMessage::Header(chunk, rest) => (chunk, rest),
-                WrappedMessage::Sliced(chunk, rest, start) => {
-                    self.start += start;
-                    (chunk, rest)
-                }
+            let (chunk, rest, chunk_start) = match self.stack.as_ref() {
+                WrappedMessage::Header(chunk, rest) => (chunk, rest, 0),
+                WrappedMessage::Sliced(chunk, rest, start) => (chunk, rest, *start),
                 WrappedMessage::Body(_) => break,
             };
             let len = chunk.len();
             if self.start >= len {
+                self.start += chunk_start;
                 self.start -= len;
+                self.end += chunk_start;
                 self.end -= len;
                 self.stack = rest.clone();
             } else {
@@ -172,4 +172,101 @@ enum WrappedMessage {
     Sliced(Chunk, Arc<WrappedMessage>, usize),
     Header(Chunk, Arc<WrappedMessage>),
     Body(Chunk),
+}
+
+impl From<Vec<u8>> for Message {
+    fn from(val: Vec<u8>) -> Self {
+        Message::new(val)
+    }
+}
+
+impl From<&[u8]> for Message {
+    fn from(val: &[u8]) -> Self {
+        Message::new(val)
+    }
+}
+
+impl<const L: usize> From<[u8; L]> for Message {
+    fn from(val: [u8; L]) -> Self {
+        Message::new(val)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn multi_slice() {
+        let mut message = Message::new(b"Body");
+        message.prepend(b"Header");
+        message.slice(3..8);
+        message.slice(2..4);
+        let expected = b"rB";
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn mixed_operations() {
+        let mut message = Message::new(b"Hello, world");
+        message.slice(0..5);
+        message.prepend(b"Header");
+        message.slice(3..8);
+        let expected = b"derHe";
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn sliced_chunk() {
+        let mut message = Message::new(b"Hello, world");
+        message.slice(7..);
+        message.prepend(b"Header ");
+        let expected = b"Header world";
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn remove_headers() {
+        let expected = b"body";
+        let mut message = Message::new(expected);
+        message.prepend(b"ipv4");
+        message.prepend(b"tcp");
+        message.slice(3..);
+        message.slice(4..);
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn slice_everything_1() {
+        let mut message = Message::new(b"body");
+        message.slice(4..);
+        assert_eq!(message.len(), 0);
+        assert!(message.iter().eq([].iter().cloned()));
+    }
+
+    #[test]
+    fn slice_everything_2() {
+        let mut message = Message::new(b"body");
+        message.slice(..0);
+        assert_eq!(message.len(), 0);
+        assert!(message.iter().eq([].iter().cloned()));
+    }
+
+    #[test]
+    fn slice_then_prepend_and_pop() {
+        let mut message = Message::new(b"large message");
+        message.slice(6..);
+        assert_eq!(message.len(), 7);
+        assert!(message.iter().eq(b"message".iter().cloned()));
+        message.prepend(b"header");
+        assert_eq!(message.len(), 13);
+        assert!(message.iter().eq(b"headermessage".iter().cloned()));
+        message.slice(6..);
+        assert_eq!(message.len(), 7);
+        assert!(message.iter().eq(b"message".iter().cloned()));
+    }
 }

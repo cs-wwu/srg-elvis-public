@@ -13,6 +13,7 @@ use crate::{
 use std::sync::Arc;
 use thiserror::Error as ThisError;
 use tokio::sync::{mpsc::Sender, Barrier};
+use tracing::error;
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -27,7 +28,7 @@ pub trait Application {
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Sender<()>,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -35,8 +36,7 @@ pub trait Application {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(self: Arc<Self>, message: Message, context: Context)
-        -> Result<(), ApplicationError>;
+    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError>;
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
@@ -61,26 +61,24 @@ pub enum ApplicationError {
 /// connections on or listen through them.
 #[derive(Debug, Clone)]
 pub struct UserProcess<A: Application + Send + Sync + 'static> {
-    application: Arc<A>,
+    application: A,
 }
 
 impl<A: Application + Send + Sync + 'static> UserProcess<A> {
     /// Creates a new user process to run the given application.
     pub fn new(application: A) -> Self {
-        Self {
-            application: Arc::new(application),
-        }
+        Self { application }
     }
 
     /// Creates a new user process running the given application behind a shared
     /// handle.
-    pub fn new_shared(application: A) -> Arc<Self> {
-        Arc::new(Self::new(application))
+    pub fn shared(self) -> Arc<Self> {
+        Arc::new(self)
     }
 
     /// Gets the application the user process is running.
-    pub fn application(&self) -> Arc<A> {
-        self.application.clone()
+    pub fn application(&self) -> &A {
+        &self.application
     }
 }
 
@@ -113,8 +111,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         _caller: SharedSession,
         context: Context,
     ) -> Result<(), DemuxError> {
-        let application = self.application.clone();
-        application.receive(message, context)?;
+        self.application.receive(message, context)?;
         Ok(())
     }
 
@@ -124,8 +121,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        let application = self.application.clone();
-        application.start(shutdown, initialized, protocols)?;
+        self.application.start(shutdown, initialized, protocols)?;
         Ok(())
     }
 

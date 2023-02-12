@@ -14,10 +14,10 @@ pub async fn query() {
     let network = NetworkBuilder::new().mtu(1500).build();
 
     let machine = Machine::new([
-        Udp::new_shared() as SharedProtocol,
-        Ipv4::new_shared([(0.into(), 0)].into_iter().collect()),
-        QueryTester::new_shared(),
-        Pci::new_shared([network.tap(), network.tap()]),
+        Udp::new().shared() as SharedProtocol,
+        Ipv4::new([(0.into(), 0)].into_iter().collect()).shared(),
+        QueryTester::new().shared(),
+        Pci::new([network.tap(), network.tap()]).shared(),
     ]);
 
     run_internet(vec![machine], vec![network]).await;
