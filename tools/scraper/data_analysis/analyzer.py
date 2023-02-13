@@ -1,25 +1,29 @@
-"""
-Plan: 
-Make a series using panda with the following data for each link: 
-    - The actual link
-    - size of page
-    - num links 
-    - num images 
-    - size of each image on the page
-
-Then using that data use matplotlib to create pretty representations for
-    - size of pages
-    - num links
-    - num images
-    - average size of images 
-"""
 import pandas
 import matplotlib.pyplot as plt
-import matplotlib
-import numpy as np
+from urllib import request
+#import matplotlib
+#import numpy as np
 
+def get_img_size(img_link):
+    # get file size *and* image size (None if not known)
+    # print(img_link)
+    try: 
+        file = request.urlopen(img_link)
+    except: 
+        print("Bad Link: " + img_link)
+        return -1
 
-def parse_link_data(link_data, dataset): 
+    size = file.headers.get("content-length")
+    
+    if size: 
+        size = int(size) / 1000 # convert from bytes to KB
+    else: 
+        size = 0
+    print(img_link + ", " + str(size))
+    file.close()
+    return(size)
+
+def parse_link_data(link_data, dataset, img_sizes): 
     link_count = 0
     image_count = 0
     counting_links = False
@@ -36,6 +40,9 @@ def parse_link_data(link_data, dataset):
                 dataset['num_images'].append(image_count)
                 counting_images = False
             else:
+                start = line.index('"') + 1
+                end = line.rindex('"')
+                img_sizes.append(get_img_size(line[start:end]))
                 image_count += 1
         else: 
             if line.startswith('  "'): 
@@ -46,7 +53,7 @@ def parse_link_data(link_data, dataset):
                 dataset["size"].append((int(line[12:end])/1000)) #save size in KB
             elif line.strip() == '"links": [':
                 counting_links = True
-            elif line.strip() == '"links": []':
+            elif line.strip() == '"links": [],':
                 dataset['num_links'].append(0)
             elif line.strip() == '"images": [':
                 counting_images = True
@@ -62,61 +69,63 @@ def parse_lines(lines):
         'num_links': [],
         'num_images': []
     }
+    img_sizes = []
     link_data = []
     count = 0
     for line in lines: 
-        count += 1
+        if (count > 40):
+            break
+        
         if line.strip() == '{' or line.strip() == '}': 
             continue
         elif line.strip() == '},': 
-            parse_link_data(link_data, dataset)
+            parse_link_data(link_data, dataset, img_sizes)
             link_data = []
+            count += 1
         else:
             link_data.append(line)
-    print(count)
-    return dataset
+    return [dataset, img_sizes]
 
 def main():
-    f = open("BIGboi.txt", "r")
+    f = open("visited.json", "r")
     lines = f.readlines()
-    dataset = parse_lines(lines)
-    """
-    print(dataset['link'])
-    print(dataset['size'])
-    print(dataset['num_links'])
-    print(dataset['num_images'])
-    """
-    dataframe = pandas.DataFrame(dataset)
-    #print(dataframe)
-    #dataframe.plot()
-    #plt.hist(dataframe.to_numpy())
-    #dataframe.hist(column='size')
-    #plt.title("Number of links")
-    
-    #figsize(7, 5)
- 
-    plt.hist(dataframe['size'], color='blue', edgecolor='black')
+    data = parse_lines(lines)
+
+    dataset = data[0]
+    img_sizes = data[1]
+    df = pandas.DataFrame(dataset)
+    img_df = pandas.DataFrame(img_sizes)
+
+    df.to_csv(r'/home/prebler/elvis/scraper-min/data_analysis/dataframe.csv', index=False, header=True)
+    img_df.to_csv(r'/home/prebler/elvis/scraper-min/data_analysis/img_dataframe.csv', index=False, header=True)
+
+    plt.hist(df['size'], bins = 50, range = [0, 2500], color='blue', edgecolor='black')
     plt.xlabel('Page Size (KB)')
     plt.ylabel('No. of Pages')
     plt.title('Page Size')
     plt.savefig('page_size.pdf')
     plt.close()
 
-    plt.hist(dataframe['num_links'], color='blue', edgecolor='black')
+    plt.hist(df['num_links'], bins = 50, range = [0, 1500], color='blue', edgecolor='black')
     plt.xlabel('No. of Links on Page')
     plt.ylabel('No. of Pages')
     plt.title('No. of Links')
     plt.savefig('num_links.pdf')
     plt.close()
 
-    plt.hist(dataframe['num_images'], color='blue', edgecolor='black')
+    plt.hist(df['num_images'], bins = 50, range = [0, 400], color='blue', edgecolor='black')
     plt.xlabel('No. of Images on Page')
     plt.ylabel('No. of Pages')
     plt.title('No. of Images')
     plt.savefig('num_images.pdf')
     plt.close()
 
- 
+    plt.hist(img_sizes, bins = 50, range = [-1, 350], color='blue', edgecolor='black')
+    plt.xlabel('Image Size (KB)')
+    plt.ylabel('No. of Images')
+    plt.title('Image Sizes')
+    plt.savefig('image_sizes.pdf')
+    plt.close()
 
     f.close()
 
