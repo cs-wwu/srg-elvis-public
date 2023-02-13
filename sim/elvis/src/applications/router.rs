@@ -91,7 +91,8 @@ impl Application for Router {
         println!("receiving a message");
         
         // obtain destination address of the message
-        // we probably cant use this as we dont have an ipv4 protocol in the router
+        // cant use this as we dont have an ipv4 protocol in the router
+        // should probably extract it from the message object somehow
         let address = Ipv4::get_remote_address(&context.control).unwrap();
 
         if let Some(destination_mac) = self.arp_table.get(&address) {
