@@ -100,7 +100,7 @@ impl Application for PingPong {
                     .as_ref()
                     .unwrap()
                     .clone()
-                    //Send the first "Ping" message with TTL of 255
+                    // Send the first "Ping" message with TTL of 255
                     .send(Message::new(vec![255]), context)
                     .unwrap();
             }

@@ -47,9 +47,6 @@ impl Application for Router {
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        // create a control. This control needs to be filled with some information
-        
-        
         // get the pci protocol
         let pci = protocols.protocol(Pci::ID)
             .expect("No such protocol");
@@ -61,10 +58,10 @@ impl Application for Router {
 
         let mut sessions = Vec::with_capacity(number_taps as usize);
 
-        println!("{}", number_taps);
-
+        // println!("{}", number_taps);
+        
         for i in 0..number_taps {
-            println!("foo");
+            println!("{}", i);
             let mut participants = Control::new();
             Pci::set_pci_slot(i as u32, &mut participants);
             let val = pci.clone().open(
@@ -76,7 +73,7 @@ impl Application for Router {
             sessions.push(val);
         }
 
-        *self.outgoing.write().expect("could put array in outgoing") = Some(sessions);
+        *self.outgoing.write().expect("could not put array in outgoing") = Some(sessions);
 
         tokio::spawn(async move {
             initialize.wait().await;
@@ -92,8 +89,9 @@ impl Application for Router {
         mut context: Context
     ) -> Result<(), ApplicationError> {
         println!("receiving a message");
-
+        
         // obtain destination address of the message
+        // we probably cant use this as we dont have an ipv4 protocol in the router
         let address = Ipv4::get_remote_address(&context.control).unwrap();
 
         if let Some(destination_mac) = self.arp_table.get(&address) {
