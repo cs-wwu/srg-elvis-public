@@ -75,6 +75,9 @@ impl Application for Capture {
         message: Message,
         _context: Context,
     ) -> Result<(), ApplicationError> {
+
+        println!("capture recieved: {}", message.to_string());
+
         *self.message.write().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.write().unwrap().take() {
             tokio::spawn(async move {

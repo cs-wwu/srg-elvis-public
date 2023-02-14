@@ -22,18 +22,18 @@ pub async fn router_simulation() {
          (IP_ADDRESS_3, 2), (IP_ADDRESS_4, 3)].into_iter().collect();
 
     let arp_table: HashMap<Ipv4Address, Mac> = 
-        [(IP_ADDRESS_1, 1), (IP_ADDRESS_2, 1), 
-         (IP_ADDRESS_3, 1), (IP_ADDRESS_4, 1)].into_iter().collect();
+        [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 0), 
+         (IP_ADDRESS_3, 0), (IP_ADDRESS_4, 0)].into_iter().collect();
 
     let dt1:IpToTapSlot = [(IP_ADDRESS_2, 0)].into_iter().collect();
     let dt2:IpToTapSlot = [(IP_ADDRESS_3, 0)].into_iter().collect();
     let dt3:IpToTapSlot = [(IP_ADDRESS_4, 0)].into_iter().collect();
 
-    let destination = IP_ADDRESS_4.clone();
+    let destination = IP_ADDRESS_3.clone();
 
     let d1 = Capture::new_shared(IP_ADDRESS_2, 0xbeef);
-    let d2 = Capture::new_shared(IP_ADDRESS_3, 0xbeeb);
-    let d3 = Capture::new_shared(IP_ADDRESS_4, 0xbebe);
+    let d2 = Capture::new_shared(IP_ADDRESS_3, 0xbeef);
+    let d3 = Capture::new_shared(IP_ADDRESS_4, 0xbeef);
 
     let networks = vec![
         Network::basic(),
