@@ -5,7 +5,7 @@ use crate::ndl::generating::{application_generator::*, generator_utils::ip_strin
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::{IpToTapSlot, Ipv4Address};
-use elvis_core::protocols::Pci;
+use elvis_core::protocols::{Pci, Tcp};
 use elvis_core::{
     protocol::SharedProtocol,
     protocols::{ipv4::Ipv4, udp::Udp},
@@ -145,6 +145,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     match option.1.as_str() {
                         "UDP" => protocols_to_be_added.push(Udp::new().shared() as SharedProtocol),
                         "IPv4" => protocols_to_be_added.push(Ipv4::new(ip_table.clone()).shared()),
+                        "TCP" => protocols_to_be_added.push(Tcp::new().shared() as SharedProtocol),
                         _ => {
                             panic!(
                                 "Invalid Protocol found in machine. Found: {}",
