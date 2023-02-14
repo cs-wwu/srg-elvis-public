@@ -38,7 +38,7 @@ impl Router {
 
 impl Application for Router {
     /// A unique identifier for the application used by controls and the protocol map
-    const ID: Id = Id::new(4);
+    const ID: Id = Ipv4::ID;
 
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
