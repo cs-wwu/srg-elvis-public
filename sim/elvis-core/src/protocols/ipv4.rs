@@ -16,7 +16,7 @@ use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
 
-mod ipv4_parsing;
+pub mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
 
 mod ipv4_address;

@@ -16,7 +16,7 @@ const FRAGMENT_OFFSET_MASK: u16 = 0x1fff;
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct Ipv4Header {
+pub struct Ipv4Header {
     /// Internet Header Length, the number of `u32` words in the IPv4 header
     pub ihl: u8,
     /// The quality of service desired
@@ -260,7 +260,7 @@ pub enum HeaderBuildError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum ProtocolNumber {
+pub enum ProtocolNumber {
     // TODO(hardint): Expand this list as we support more protocols out of the box.
     // https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
     #[allow(dead_code)]
@@ -277,7 +277,7 @@ pub(super) enum ProtocolNumber {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub(super) struct ControlFlags(u8);
+pub struct ControlFlags(u8);
 
 impl ControlFlags {
     #[allow(dead_code)]
@@ -324,7 +324,7 @@ impl From<ControlFlags> for u8 {
 ///
 /// See RFC791 p11 s3.1 for more details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub(super) struct TypeOfService(u8);
+pub struct TypeOfService(u8);
 
 impl TypeOfService {
     // Note: It should not be possible for any of these functions to fail
@@ -385,7 +385,7 @@ impl From<TypeOfService> for u8 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum Delay {
+pub enum Delay {
     Normal = 0,
     Low = 1,
 }
@@ -410,7 +410,7 @@ pub enum DelayError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum Throughput {
+pub enum Throughput {
     Normal = 0,
     High = 1,
 }
@@ -435,7 +435,7 @@ pub enum ThroughputError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum Reliability {
+pub enum Reliability {
     Normal = 0,
     High = 1,
 }
@@ -468,7 +468,7 @@ pub enum ReliabilityError {
 /// Described in RFC791 p13 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum Precedence {
+pub enum Precedence {
     NetworkControl = 0b111,
     InternetworkControl = 0b110,
     CriticEcp = 0b101,

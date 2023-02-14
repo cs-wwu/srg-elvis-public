@@ -1,4 +1,5 @@
 use elvis_core::{
+    protocols::ipv4::ipv4_parsing::Ipv4Header,
     message::Message,
     network::Mac,
     protocol::Context,
@@ -37,7 +38,7 @@ impl Router {
 
 impl Application for Router {
     /// A unique identifier for the application used by controls and the protocol map
-    const ID: Id = Id::from_string("Router");
+    const ID: Id = Id::new(4);
 
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
@@ -88,12 +89,13 @@ impl Application for Router {
         message: Message, 
         mut context: Context
     ) -> Result<(), ApplicationError> {
-        println!("receiving a message");
+        println!("yoooooooo");
         
         // obtain destination address of the message
         // cant use this as we dont have an ipv4 protocol in the router
         // should probably extract it from the message object somehow
-        let address = Ipv4::get_remote_address(&context.control).unwrap();
+        let header: Ipv4Header = Ipv4Header::from_bytes(message.iter()).expect("Could not parse message header");
+        let address = header.source;
 
         if let Some(destination_mac) = self.arp_table.get(&address) {
             Network::set_destination(*destination_mac, &mut context.control);
