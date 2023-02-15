@@ -87,7 +87,7 @@ pub fn send_message_builder(
         }
     }
 
-    return final_message.shared();
+    final_message.shared()
 }
 
 /// Builds the [Capture] application for a machine
@@ -140,7 +140,7 @@ pub fn capture_builder(app: &Application, ip_table: &IpToTapSlot) -> Arc<UserPro
         }
     }
 
-    return capture.shared();
+    capture.shared()
 }
 
 /// Builds the [Forward] application for a machine
