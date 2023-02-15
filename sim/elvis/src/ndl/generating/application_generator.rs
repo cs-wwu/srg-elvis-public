@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::applications::{Forward, PingPong};
+use crate::applications::{Forward, PingPong, Transport};
 use crate::ndl::generating::generator_utils::ip_or_name;
 use crate::ndl::parsing::parsing_data::*;
 use crate::{
@@ -35,6 +35,8 @@ pub fn send_message_builder(
         "Send_Message application doesn't contain message."
     );
 
+    let mut final_message;
+
     let to = app.options.get("to").unwrap().to_string();
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message = app.options.get("message").unwrap().to_owned();
@@ -45,16 +47,15 @@ pub fn send_message_builder(
 
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            SendMessage::new(Message::new(message), to.into(), port).shared()
+            final_message = SendMessage::new(Message::new(message), to.into(), port);
         }
         // case where ip to mac does have a mac
         else {
-            return SendMessage::new(Message::new(message), to.into(), port)
-                .remote_mac(*ip_to_mac.get(&to.into()).unwrap())
-                .shared();
+            final_message = SendMessage::new(Message::new(message), to.into(), port)
+                .remote_mac(*ip_to_mac.get(&to.into()).unwrap());
         }
     } else {
-        return SendMessage::new(
+        final_message = SendMessage::new(
             Message::new(message),
             *name_to_ip
                 .get(&to)
@@ -65,9 +66,28 @@ pub fn send_message_builder(
             *name_to_mac
                 .get(&to)
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
-        )
-        .shared();
+        );
     }
+
+    // defaults to UDP if key isn't defined
+    if app.options.contains_key("transport") {
+        let transport = app.options.get("transport").unwrap().as_str();
+        match transport {
+            "TCP" => {
+                final_message = final_message.transport(Transport::Tcp);
+            }
+
+            "UDP" => {
+                // Do nothing, use default of UDP
+            }
+
+            _ => {
+                panic!("Send_Message contains invalid transport");
+            }
+        }
+    }
+
+    return final_message.shared();
 }
 
 /// Builds the [Capture] application for a machine
@@ -99,7 +119,28 @@ pub fn capture_builder(app: &Application, ip_table: &IpToTapSlot) -> Arc<UserPro
         .unwrap()
         .parse::<u32>()
         .expect("Invalid u32 found in Capture for message count");
-    Capture::new(ip.into(), port, message_count).shared()
+
+    let mut capture = Capture::new(ip.into(), port, message_count);
+
+    // defaults to UDP if key isn't defined
+    if app.options.contains_key("transport") {
+        let transport = app.options.get("transport").unwrap().as_str();
+        match transport {
+            "TCP" => {
+                capture = capture.transport(Transport::Tcp);
+            }
+
+            "UDP" => {
+                // Do nothing, use default of UDP
+            }
+
+            _ => {
+                panic!("Capture contains invalid transport");
+            }
+        }
+    }
+
+    return capture.shared();
 }
 
 /// Builds the [Forward] application for a machine

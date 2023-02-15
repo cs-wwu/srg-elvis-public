@@ -78,3 +78,21 @@ async fn generator_machine_missing_application_name() {
         "./tests/generator_tests/machines/missing_application_name.txt".to_string();
     generate_sim(file_path).await;
 }
+
+#[tokio::test]
+#[should_panic(expected = "Send_Message contains invalid transport")]
+async fn generator_machine_invalid_protocol_transport_message() {
+    catch_panic();
+    let file_path: String =
+        "./tests/generator_tests/machines/invalid_protocol_transport_message.txt".to_string();
+    generate_sim(file_path).await;
+}
+
+#[tokio::test]
+#[should_panic(expected = "Capture contains invalid transport")]
+async fn generator_machine_invalid_protocol_transport_capture() {
+    catch_panic();
+    let file_path: String =
+        "./tests/generator_tests/machines/invalid_protocol_transport_capture.txt".to_string();
+    generate_sim(file_path).await;
+}
