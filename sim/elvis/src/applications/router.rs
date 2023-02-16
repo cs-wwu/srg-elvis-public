@@ -62,7 +62,6 @@ impl Application for Router {
         // println!("{}", number_taps);
         
         for i in 0..number_taps {
-            println!("{}", i);
             let mut participants = Control::new();
             Pci::set_pci_slot(i as u32, &mut participants);
             let val = pci.clone().open(
@@ -89,7 +88,7 @@ impl Application for Router {
         message: Message, 
         mut context: Context
     ) -> Result<(), ApplicationError> {
-        println!("yoooooooo");
+        // println!("yoooooooo");
         
         // obtain destination address of the message
         // cant use this as we dont have an ipv4 protocol in the router
@@ -97,24 +96,29 @@ impl Application for Router {
         let header: Ipv4Header = Ipv4Header::from_bytes(message.iter()).expect("Could not parse message header");
         let address = header.destination;
 
-        println!("{}", address);
+        // println!("{}", address);
 
         if let Some(destination_mac) = self.arp_table.get(&address) {
+
+            // println!("{}", destination_mac);
+
             Network::set_destination(*destination_mac, &mut context.control);
-        } 
+        }
+
+        Network::set_protocol(Ipv4::ID, &mut context.control);
 
         // put destination address through ip table
         let destination = self.ip_table.get(&address).expect("Could not find key").clone();
 
-        println!("{}", destination);
+        // println!("{}", destination);
 
         self.clone().outgoing
             .read()
             .unwrap()
             .as_ref()
-            .unwrap()
+            .expect("could not get outgoing as reference")
             .get(destination as usize)
-            .unwrap()
+            .expect("Could not send message")
             .clone()
             .send(message, context)?;
 

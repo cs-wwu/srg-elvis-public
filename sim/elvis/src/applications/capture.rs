@@ -23,6 +23,7 @@ pub struct Capture {
     ip_address: Ipv4Address,
     /// The port we listen for a message on
     port: u16,
+    exit_message: String
 }
 
 impl Capture {
@@ -33,7 +34,18 @@ impl Capture {
             shutdown: Default::default(),
             ip_address,
             port,
+            exit_message: String::from("exiting"),
         }
+    }
+
+    pub fn new_exit_message(ip_address: Ipv4Address, port: u16, exit_message: String) -> Arc<UserProcess<Self>> {
+        UserProcess::new_shared(Self {
+            message: Default::default(),
+            shutdown: Default::default(),
+            ip_address,
+            port,
+            exit_message: exit_message
+        })
     }
 
     /// Creates a new capture behind a shared handle.
@@ -76,7 +88,7 @@ impl Application for Capture {
         _context: Context,
     ) -> Result<(), ApplicationError> {
 
-        println!("capture recieved: {}", message.to_string());
+        println!("capture recieved: {}", self.exit_message);
 
         *self.message.write().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.write().unwrap().take() {
