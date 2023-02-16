@@ -27,7 +27,6 @@ pub type Applications = Vec<Application>;
 pub type Machines = Vec<Machine>;
 pub type IPs = Vec<IP>;
 
-/// Interfaces Struct.
 /// Holds the various types stored inside a [Machine].
 ///
 ///
@@ -39,7 +38,6 @@ pub struct Interfaces {
     pub applications: Applications,
 }
 
-/// Machine Struct.
 /// Holds core machine info before turning into code
 ///
 ///
@@ -51,7 +49,6 @@ pub struct Machine {
     pub interfaces: Interfaces,
 }
 
-/// Network Struct.
 /// Holds core Network info before turning into code
 ///
 ///
@@ -62,7 +59,7 @@ pub struct Network {
     pub options: Params,
     pub ip: IPs,
 }
-/// MachineNetwork Struct.
+
 /// Used to store networks for a machine
 ///
 ///
@@ -74,7 +71,6 @@ pub struct MachineNetwork {
     pub options: Params,
 }
 
-/// Protocol Struct.
 /// Used to store information for a protocol.
 ///
 ///
@@ -85,7 +81,6 @@ pub struct Protocol {
     pub options: Params,
 }
 
-/// IP Struct.
 /// Used to store IP information for a [Network]
 ///
 ///
@@ -96,7 +91,6 @@ pub struct IP {
     pub options: Params,
 }
 
-/// Application Struct.
 /// Used to store application info for a [Machine]
 ///
 ///
@@ -107,7 +101,6 @@ pub struct Application {
     pub options: Params,
 }
 
-/// Sim Struct.
 /// Used to store the core parsed Sim.
 ///
 ///

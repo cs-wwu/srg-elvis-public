@@ -18,9 +18,8 @@ pub fn string_to_port(p: String) -> u16 {
 ///
 /// Ex: Turns "192.168.1.121" into [192, 168, 1, 121]
 pub fn ip_string_to_ip(s: String, net_id: &str) -> [u8; 4] {
-    let temp: Vec<&str> = s.split('.').collect();
     let mut new_ip: Vec<u8> = Vec::new();
-    for val in temp {
+    for val in s.split('.').collect::<Vec<&str>>().iter() {
         new_ip.push(val.parse::<u8>().unwrap_or_else(|_| {
             panic!("Invalid IP octet expected u8. In Network {net_id}, found: {val}")
         }));

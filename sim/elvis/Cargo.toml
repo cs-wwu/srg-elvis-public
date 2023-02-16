@@ -7,8 +7,6 @@ edition = "2021"
 elvis-core = { path = "../elvis-core" }
 tokio = { version = "1.20", features = ["rt", "rt-multi-thread", "time", "macros", "signal", "sync"] }
 rand = { version = "0.8", features = ["small_rng"] }
-ntest = "0.9"
-thiserror = "1.0"
 nom = "7"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["json"] }
@@ -17,8 +15,9 @@ clap = { version = "4.0.18", features = ["derive"] }
 itertools = "0.8"
 
 [dev-dependencies]
-criterion = { version = "0.3", features = [ "async_tokio", "html_reports" ] }
-anyhow = "1.0"
+criterion = { version = "0.4.0", features = [ "async_tokio", "html_reports" ] }
+anyhow = "1.0.66"
+ntest = "0.9"
 
 [[bench]]
 name = "scaled_sim_benchmark"

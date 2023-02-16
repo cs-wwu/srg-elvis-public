@@ -23,23 +23,23 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
     let sec = section(s);
 
     match sec {
-        // s0 = remaining string, s1 = string gotten by parsing
-        Ok((s0, s1)) => {
+        // remaining_string = remaining string, parsed_string = string gotten by parsing
+        Ok((remaining_string, parsed_string)) => {
             // parse what was inside of the section to get the type and remaining string
-            let dec = get_type(s1);
+            let dec = get_type(parsed_string);
             let dectype;
             let mut args: HashMap<String, String> = HashMap::new();
             match dec {
-                // s2 = (remaining string, dectype)
-                Ok(s2) => {
-                    dectype = s2.1;
+                // tup_rem_type = (remaining string, dectype)
+                Ok(tup_rem_type) => {
+                    dectype = tup_rem_type.1;
 
-                    match arguments(s2.0) {
+                    match arguments(tup_rem_type.0) {
                         Ok(a) => {
                             if !a.0.is_empty() {
                                 return Err(format!(
                                     "Line {:?}: extra argument at '{}'\n",
-                                    *line_num, s2.0
+                                    *line_num, tup_rem_type.0
                                 ));
                             }
 
@@ -59,7 +59,7 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
                         Err(e) => {
                             return Err(format!(
                                 "Line {:?}: unable to parse arguments at '{}' due to {}\n",
-                                *line_num, s2.0, e
+                                *line_num, tup_rem_type.0, e
                             ));
                         }
                     }
@@ -73,13 +73,10 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
             }
 
             // get rid of any new lines
-            let mut num_new_line = 0;
-            while s0.chars().nth(num_new_line) == Some('\n') {
-                num_new_line += 1;
-                *line_num += 1;
-            }
+            let num_new_line = remaining_string.chars().take_while(|c| c == &'\n').count();
+            *line_num += num_new_line as i32;
 
-            Ok((dectype, args, s0[num_new_line..].to_string()))
+            Ok((dectype, args, remaining_string[num_new_line..].to_string()))
         }
 
         Err(e) => {

@@ -21,10 +21,7 @@ pub fn machines_parser(
     let machines_line_num = *line_num - 1;
     //Will loop until all machine have been read
     while !remaining_string.is_empty() {
-        let mut t = 0;
-        while remaining_string.chars().nth(t as usize) == Some('\t') {
-            t += 1;
-        }
+        let t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
         // next line doesn't have enough tabs thus a network isn't being declared
         match t {
             t if t < num_tabs => return Ok((machines, remaining_string.to_string())),
@@ -112,19 +109,16 @@ fn machine_parser(
     num_tabs: i32,
     line_num: &mut i32,
 ) -> Result<(Machine, String), String> {
-    let mut networks: MachineNetworks = MachineNetworks::new();
-    let mut protocols: Protocols = Protocols::new();
-    let mut applications: Applications = Applications::new();
+    let mut networks = MachineNetworks::new();
+    let mut protocols = Protocols::new();
+    let mut applications = Applications::new();
     let machine_line_num = *line_num - 1;
     let mut remaining_string = s0;
 
     let mut req = vec![DecType::Networks, DecType::Protocols, DecType::Applications];
     // Parse the 3 types
     while !remaining_string.is_empty() {
-        let mut t = 0;
-        while remaining_string.chars().nth(t as usize) == Some('\t') {
-            t += 1;
-        }
+        let t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
         // next line doesn't have enough tabs thus a network isn't being declared
         match t {
             t if t < num_tabs => {
@@ -166,9 +160,7 @@ fn machine_parser(
                                 line_num,
                             ) {
                                 Ok(n) => {
-                                    for net in n.0 {
-                                        networks.push(net);
-                                    }
+                                    networks.extend(n.0);
                                     remaining_string = n.1;
                                 }
 
@@ -191,9 +183,7 @@ fn machine_parser(
                                 line_num,
                             ) {
                                 Ok(n) => {
-                                    for protocol in n.0 {
-                                        protocols.push(protocol);
-                                    }
+                                    protocols.extend(n.0);
                                     remaining_string = n.1;
                                 }
 
@@ -310,10 +300,7 @@ fn machine_networks_parser(
     let mut networks = MachineNetworks::new();
     let mut remaining_string = s0;
     let networks_line_num = *line_num - 1;
-    let mut t = 0;
-    while remaining_string.chars().nth(t as usize) == Some('\t') {
-        t += 1;
-    }
+    let mut t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
     // next line doesn't have enough tabs thus a network isn't being declared
     if t != num_tabs {
         return Err("Invalid formatting".to_string());
@@ -351,10 +338,7 @@ fn machine_networks_parser(
                 ));
             }
         }
-        t = 0;
-        while remaining_string.chars().nth(t as usize) == Some('\t') {
-            t += 1;
-        }
+        t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
         match t {
             // next line doesn't have enough tabs thus a network isn't being declared
             t if t < num_tabs => break,
@@ -392,10 +376,7 @@ fn machine_protocols_parser(
     let mut protocols = Protocols::new();
     let mut remaining_string = s0;
     let protocols_line_num = *line_num - 1;
-    let mut t = 0;
-    while remaining_string.chars().nth(t as usize) == Some('\t') {
-        t += 1;
-    }
+    let mut t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
     // next line doesn't have enough tabs thus a network isn't being declared
     if t != num_tabs {
         return Err("Invalid formatting".to_string());
@@ -438,10 +419,7 @@ fn machine_protocols_parser(
             }
         }
 
-        t = 0;
-        while remaining_string.chars().nth(t as usize) == Some('\t') {
-            t += 1;
-        }
+        t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
         match t {
             // next line doesn't have enough tabs thus a network isn't being declared
             t if t < num_tabs => break,
@@ -479,10 +457,7 @@ fn machine_applications_parser(
     let mut apps = Applications::new();
     let mut remaining_string = s0;
     let applications_line_num = *line_num - 1;
-    let mut t = 0;
-    while remaining_string.chars().nth(t as usize) == Some('\t') {
-        t += 1;
-    }
+    let mut t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
     // next line doesn't have enough tabs thus a network isn't being declared
     if t != num_tabs {
         return Err("Invalid formatting".to_string());
@@ -522,10 +497,7 @@ fn machine_applications_parser(
                 ));
             }
         }
-        t = 0;
-        while remaining_string.chars().nth(t as usize) == Some('\t') {
-            t += 1;
-        }
+        t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
         match t {
             // next line doesn't have enough tabs thus a network isn't being declared
             t if t < num_tabs => break,

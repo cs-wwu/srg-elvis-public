@@ -15,7 +15,6 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
         .expect("Should have been able to read the file")
         .replace('\r', "")
         .replace("    ", "\t");
-    // let fixed_string = contents.replace('\r', "").replace("    ", "\t");
     let mut networks = Networks::new();
     let mut machines = Machines::new();
 
@@ -27,10 +26,8 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
     while !remaining_string.is_empty() {
         let res = general_parser(&remaining_string, &mut line_num);
         match res {
-            Ok(info) => {
-                let dectype = info.0;
-                let options = info.1;
-                remaining_string = info.2;
+            Ok((dectype, options, rem)) => {
+                remaining_string = rem;
 
                 // the only types that won't result in an error are Templates, Networks, and Machines
                 match dectype {
@@ -59,22 +56,6 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                             }
                         }
                     }
-                    DecType::Network => {
-                        return Err(format!(
-                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
-                            file_path,
-                            line_num - 1,
-                            DecType::Network
-                        ));
-                    }
-                    DecType::IP => {
-                        return Err(format!(
-                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
-                            file_path,
-                            line_num - 1,
-                            DecType::IP
-                        ));
-                    }
                     DecType::Machines => {
                         match machines_parser(
                             dectype,
@@ -96,44 +77,12 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                             }
                         }
                     }
-                    DecType::Machine => {
+                    _ => {
                         return Err(format!(
                             "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
                             file_path,
                             line_num - 1,
-                            DecType::Machine
-                        ));
-                    }
-                    DecType::Protocols => {
-                        return Err(format!(
-                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
-                            file_path,
-                            line_num - 1,
-                            DecType::Protocols
-                        ));
-                    }
-                    DecType::Protocol => {
-                        return Err(format!(
-                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
-                            file_path,
-                            line_num - 1,
-                            DecType::Protocol
-                        ));
-                    }
-                    DecType::Applications => {
-                        return Err(format!(
-                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
-                            file_path,
-                            line_num - 1,
-                            DecType::Applications
-                        ));
-                    }
-                    DecType::Application => {
-                        return Err(format!(
-                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
-                            file_path,
-                            line_num - 1,
-                            DecType::Application
+                            dectype
                         ));
                     }
                 }

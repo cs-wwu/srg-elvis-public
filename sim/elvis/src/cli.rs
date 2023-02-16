@@ -15,7 +15,7 @@ use std::{
 };
 use tracing_subscriber::FmtSubscriber;
 
-use crate::ndl::generate_sim;
+use crate::ndl::generate_and_run_sim;
 
 /// Stores the different command line arguments.
 #[derive(Parser)]
@@ -34,15 +34,10 @@ pub async fn initialize_from_arguments() {
     }
     if !cli.ndl.is_empty() {
         let mut file_path: String = cli.ndl.clone();
-        if !file_path.ends_with(".txt") {
-            file_path += ".txt";
+        if !file_path.ends_with(".ndl") {
+            file_path += ".ndl";
         }
-        if file_path.starts_with("./elvis/src/ndl/") {
-            generate_sim(cli.ndl).await;
-        } else {
-            file_path = "./elvis/src/ndl/".to_string() + &file_path;
-            generate_sim(file_path).await;
-        }
+        generate_and_run_sim(file_path).await;
     }
 }
 

@@ -14,10 +14,9 @@ use elvis_core::{
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
 /// An application that forwards messages to `local_ip` to `remote_ip`.
-#[derive(Clone)]
 pub struct Forward {
     /// The session on which we send any messages we receive
-    outgoing: Arc<RwLock<Option<SharedSession>>>,
+    outgoing: RwLock<Option<SharedSession>>,
     /// The IP address for incoming messages
     local_ip: Ipv4Address,
     /// The IP address for outgoing messages
@@ -88,7 +87,6 @@ impl Application for Forward {
             Network::set_destination(destination_mac, &mut context.control);
         }
         self.outgoing
-            .clone()
             .read()
             .unwrap()
             .as_ref()

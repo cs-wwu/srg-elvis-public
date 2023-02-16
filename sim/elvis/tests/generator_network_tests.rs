@@ -1,5 +1,5 @@
 //! Tests on generator network functions
-use elvis::ndl::generate_sim;
+use elvis::ndl::generate_and_run_sim;
 
 /// Catches an intended panic
 /// used for when a test should fail as intended
@@ -17,7 +17,7 @@ async fn generator_network_invalid_ip_range_format() {
     catch_panic();
     let file_path: String =
         "./tests/generator_tests/networks/invalid_ip_range_format.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
 
 #[tokio::test]
@@ -26,7 +26,7 @@ async fn generator_network_invalid_ending_ip_range() {
     catch_panic();
     let file_path: String =
         "./tests/generator_tests/networks/invalid_ending_ip_range.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
 
 #[tokio::test]
@@ -37,7 +37,7 @@ async fn generator_network_invalid_ending_ip_value() {
     catch_panic();
     let file_path: String =
         "./tests/generator_tests/networks/invalid_ending_ip_value.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
 
 #[tokio::test]
@@ -45,7 +45,7 @@ async fn generator_network_invalid_ending_ip_value() {
 async fn generator_network_duplicate_ip_range() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/networks/duplicate_ip_range.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
 
 #[tokio::test]
@@ -53,7 +53,7 @@ async fn generator_network_duplicate_ip_range() {
 async fn generator_network_duplicate_ip() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/networks/duplicate_ip.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
 
 #[tokio::test]
@@ -62,5 +62,5 @@ async fn generator_network_invalid_network_argument() {
     catch_panic();
     let file_path: String =
         "./tests/generator_tests/networks/invalid_network_argument.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }

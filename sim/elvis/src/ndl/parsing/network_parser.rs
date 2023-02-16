@@ -21,10 +21,7 @@ pub fn networks_parser(
 
     while !remaining_string.is_empty() {
         // count how many tabs there are at the beginning of the string
-        let mut t = 0;
-        while remaining_string.chars().nth(t as usize) == Some('\t') {
-            t += 1;
-        }
+        let t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
         match t {
             // next line doesn't have enough tabs thus a network isn't being declared
             t if t < num_tabs => break,
@@ -70,23 +67,22 @@ pub fn networks_parser(
         // make sure the type we got was a [Network]
         match dectype {
             DecType::Network => {
-                let net =
+                let network =
                     network_parser(dectype, options, remaining_string, num_tabs + 1, line_num);
-                match net {
-                    Ok(n) => {
-                        // networks.push(n.0);
-                        match n.0.options.get("id") {
+                match network {
+                    Ok(network) => {
+                        match network.0.options.get("id") {
                             Some(id) => {
                                 if networks.contains_key(id) {
                                     return Err(format!("{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", num_tabs_to_string(num_tabs), networks_line_num, id));
                                 }
-                                networks.insert(id.to_string(), n.0);
+                                networks.insert(id.to_string(), network.0);
                             }
                             None => {
                                 return Err(format!("{}Line {:?}: Unable to parse Network in Networks due to missing id.", num_tabs_to_string(num_tabs), networks_line_num));
                             }
                         }
-                        remaining_string = n.1;
+                        remaining_string = network.1;
                     }
                     Err(e) => {
                         return Err(format!(
@@ -131,10 +127,7 @@ fn network_parser(
     // save the beginning of this declarations line num
     let network_line_num = *line_num - 1;
 
-    let mut t = 0;
-    while remaining_string.chars().nth(t as usize) == Some('\t') {
-        t += 1;
-    }
+    let mut t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
     // next line doesn't have enough tabs thus a network isn't being declared
     if t != num_tabs {
         return Err(general_error(
@@ -156,9 +149,9 @@ fn network_parser(
         let cur_line_num = *line_num;
         let network = general_parser(&remaining_string[num_tabs as usize..], line_num);
         match network {
-            Ok(n) => {
+            Ok(network) => {
                 // error if the type inside isn't IP
-                if n.0 != DecType::IP {
+                if network.0 != DecType::IP {
                     return Err(general_error(
                         num_tabs,
                         network_line_num,
@@ -167,15 +160,15 @@ fn network_parser(
                             "{}Line {:?}: expected type IP and got type {:?} instead.\n",
                             num_tabs_to_string(num_tabs + 1),
                             cur_line_num,
-                            n.0
+                            network.0
                         ),
                     ));
                 }
                 ips.push(IP {
-                    dectype: n.0,
-                    options: n.1,
+                    dectype: network.0,
+                    options: network.1,
                 });
-                remaining_string = n.2;
+                remaining_string = network.2;
             }
 
             Err(e) => {
@@ -189,10 +182,7 @@ fn network_parser(
         }
 
         // see how many tabs are on the next line and respond accordingly
-        t = 0;
-        while remaining_string.chars().nth(t as usize) == Some('\t') {
-            t += 1;
-        }
+        t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
         match t {
             // next line doesn't have enough tabs thus a network isn't being declared
             t if t < num_tabs => break,

@@ -18,9 +18,9 @@ use super::Transport;
 #[derive(Debug)]
 pub struct Capture {
     /// The message that was received, if any
-    message: Arc<RwLock<Option<Message>>>,
+    message: RwLock<Option<Message>>,
     /// The channel we send on to shut down the simulation
-    shutdown: Arc<RwLock<Option<Sender<()>>>>,
+    shutdown: RwLock<Option<Sender<()>>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on

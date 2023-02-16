@@ -15,13 +15,13 @@ use itertools::Itertools;
 use super::generator_data::NetworkInfo;
 
 /// Machine Generator generates machines from a given [Machines] struct and places them in the [Internet]
-pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core::Machine> {
+pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvis_core::Machine> {
     // Focusing on Interfaces, protocols, and applications
     let mut name_to_mac: HashMap<String, Mac> = HashMap::new();
     let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();
     let mut ip_to_mac: HashMap<Ipv4Address, Mac> = HashMap::new();
     let mut cur_mac: u64 = 0;
-    for machine in m.iter() {
+    for machine in machines.iter() {
         let mut cur_name: String = String::new();
         if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("count") {
             let machine_count = machine
@@ -81,7 +81,7 @@ pub fn machine_generator(m: Machines, networks: &NetworkInfo) -> Vec<elvis_core:
 
     let mut machine_list = Vec::new();
 
-    for machine in &m {
+    for machine in &machines {
         let mut machine_count = 1;
         let mut _cur_machine_name: String;
         if machine.options.is_some() {

@@ -1,5 +1,5 @@
 //! Tests on generator util functions
-use elvis::ndl::generate_sim;
+use elvis::ndl::generate_and_run_sim;
 
 /// Catches an intended panic
 /// used for when a test should fail as intended
@@ -16,7 +16,7 @@ fn catch_panic() {
 async fn generator_util_invalid_ip_octets() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/utils/invalid_ip_octets.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
 
 #[tokio::test]
@@ -24,7 +24,7 @@ async fn generator_util_invalid_ip_octets() {
 async fn generator_util_invalid_ip_u8_octets() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/utils/invalid_ip_u8_octets.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
 
 #[tokio::test]
@@ -32,5 +32,5 @@ async fn generator_util_invalid_ip_u8_octets() {
 async fn generator_util_invalid_port_number() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/utils/invalid_port_number.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
