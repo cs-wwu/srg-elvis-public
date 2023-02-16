@@ -15,19 +15,20 @@ const IP_ADDRESS_5: Ipv4Address = Ipv4Address::new([123, 45, 67, 93]);
 
 
 
-/// Simulates a message being forwarded along across many networks.
-///
-
+// simulates a message being sent over a network of multiple staticly configured routers
 pub async fn router_multi() {
     let destination = IP_ADDRESS_5.clone();
 
-    // the ip table for the first router in path
+    // The ip table for the first router in path. 
+    // tells the router which of its tap slots to relay the message to
     let ip_table1: IpToTapSlot = 
         [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 1), 
          (IP_ADDRESS_3, 1), (IP_ADDRESS_4, 2),
          (IP_ADDRESS_5, 2)].into_iter().collect();
 
     // the arp table for the first router in path
+    // tells the router which machine on the destination tap slot
+    // to send the message to.
     let arp_table1: HashMap<Ipv4Address, Mac> = 
         [(IP_ADDRESS_1, 1), (IP_ADDRESS_2, 1), 
          (IP_ADDRESS_3, 1), (IP_ADDRESS_4, 1),
@@ -43,7 +44,7 @@ pub async fn router_multi() {
     let arp_table2: HashMap<Ipv4Address, Mac> =
         [(IP_ADDRESS_2, 1), (IP_ADDRESS_3, 1)].into_iter().collect();
 
-
+    // needed to configure captures
     let dt1:IpToTapSlot = [(IP_ADDRESS_2, 0)].into_iter().collect();
     let dt2:IpToTapSlot = [(IP_ADDRESS_3, 0)].into_iter().collect();
     let dt3:IpToTapSlot = [(IP_ADDRESS_4, 0)].into_iter().collect();
@@ -76,7 +77,7 @@ pub async fn router_multi() {
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared([(destination, 0)].into_iter().collect()),
             Pci::new_shared([networks[0].tap()]),
-            SendMessage::new_shared("Hello!", destination, 0xbeef, Some(1), 1),
+            SendMessage::new_shared("Hello World!", destination, 0xbeef, Some(1), 1),
         ]),
         // machine representing our router
         Machine::new([
