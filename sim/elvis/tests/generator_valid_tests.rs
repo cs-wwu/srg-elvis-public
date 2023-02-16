@@ -14,15 +14,7 @@ async fn basic_message_valid_test() {
 async fn basic_message_tcp_valid_test() {
     let file_path: String =
         "./tests/generator_tests/valid/basic_message_tcp_valid_test.txt".to_string();
-    generate_sim(file_path).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(100)]
-async fn basic_message_tcp_valid_test() {
-    let file_path: String =
-        "./tests/generator_tests/valid/basic_message_tcp_valid_test.txt".to_string();
-    generate_sim(file_path).await;
+    generate_and_run_sim(file_path).await;
 }
 
 #[tokio::test]
