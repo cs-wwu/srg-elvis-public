@@ -8,6 +8,8 @@ use crate::{
 use std::sync::Arc;
 use thiserror::Error as ThisError;
 
+// TODO(hardint): Query methods could take &self
+
 /// A shared handle to a [`Session`]
 pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 

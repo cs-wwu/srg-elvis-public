@@ -6,6 +6,7 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     protocols::user_process::ApplicationError,
+    session::SendError,
 };
 use std::sync::Arc;
 use thiserror::Error as ThisError;
@@ -13,6 +14,9 @@ use tokio::sync::{mpsc::Sender, Barrier};
 
 mod context;
 pub use context::Context;
+
+// TODO(hardint): Should add a str argument to the Other variant of errors so
+// that the reason for an error shows up in traces and such.
 
 /// A shared handle to a [`Protocol`].
 pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
@@ -102,7 +106,7 @@ pub trait Protocol {
     ///   session, the protocol should check to see whether any protocol has
     ///   asked to receive the message by calling [`listen`](Protocol::listen)
     ///   at an earlier time. If so, a new session should be created.
-    /// - Call [`receive`](super::Session::receive) on the selected session.
+    /// - Call `receive` on the selected session.
     fn demux(
         self: Arc<Self>,
         message: Message,
@@ -126,10 +130,16 @@ pub enum DemuxError {
     MissingSession,
     #[error("Data expected through the context was missing")]
     MissingContext,
+    #[error("Could not find the given protocol: {0}")]
+    MissingProtocol(Id),
     #[error("Failed to parse a header during demux")]
     Header,
     #[error("Receive failed during the execution of an Application")]
     Application(#[from] ApplicationError),
+    #[error("Failed to open a session during demux")]
+    Open(#[from] OpenError),
+    #[error("Failed to send a message during demux")]
+    Send(#[from] SendError),
     #[error("Unspecified demux error")]
     Other,
 }
@@ -158,6 +168,8 @@ pub enum OpenError {
     Existing,
     #[error("Data expected through the context was missing")]
     MissingContext,
+    #[error("Send failed while opening a session: {0}")]
+    Send(#[from] SendError),
     #[error("Unspecified error")]
     Other,
 }

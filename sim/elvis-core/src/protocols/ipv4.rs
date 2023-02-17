@@ -49,8 +49,8 @@ impl Ipv4 {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared(network_for_ip: IpToTapSlot) -> Arc<Self> {
-        Arc::new(Self::new(network_for_ip))
+    pub fn shared(self) -> Arc<Self> {
+        Arc::new(self)
     }
 
     pub fn set_local_address(address: Ipv4Address, control: &mut Control) {

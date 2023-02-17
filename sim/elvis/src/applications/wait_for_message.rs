@@ -16,9 +16,7 @@ use super::Transport;
 /// An application that stores the first message it receives and then exits the
 /// simulation.
 #[derive(Debug)]
-pub struct Capture {
-    /// The message that was received, if any
-    message: RwLock<Option<Message>>,
+pub struct WaitForMessage {
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Sender<()>>>,
     /// The address we listen for a message on
@@ -27,17 +25,21 @@ pub struct Capture {
     port: u16,
     /// The transport protocol to use
     transport: Transport,
+    /// The message that was received, if any
+    actual: RwLock<Vec<Message>>,
+    expected: Message,
 }
 
-impl Capture {
+impl WaitForMessage {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16) -> Self {
+    pub fn new(ip_address: Ipv4Address, port: u16, expected: Message) -> Self {
         Self {
-            message: Default::default(),
-            shutdown: Default::default(),
             ip_address,
             port,
+            expected,
             transport: Transport::Udp,
+            actual: Default::default(),
+            shutdown: Default::default(),
         }
     }
 
@@ -51,14 +53,9 @@ impl Capture {
         self.transport = transport;
         self
     }
-
-    /// Gets the message that was received.
-    pub fn message(&self) -> Option<Message> {
-        self.message.read().unwrap().clone()
-    }
 }
 
-impl Application for Capture {
+impl Application for WaitForMessage {
     const ID: Id = Id::from_string("Capture");
 
     fn start(
@@ -85,7 +82,24 @@ impl Application for Capture {
     }
 
     fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
-        *self.message.write().unwrap() = Some(message);
+        let mut actual = self.actual.write().unwrap();
+        actual.push(message);
+        let mut expected = self.expected.iter();
+        for part in actual.iter() {
+            for byte in part.iter() {
+                if let Some(expected) = expected.next() {
+                    assert_eq!(byte, expected);
+                } else {
+                    panic!("Received more bytes than expected");
+                }
+            }
+        }
+
+        if expected.next().is_some() {
+            // We need more bytes
+            return Ok(());
+        }
+
         if let Some(shutdown) = self.shutdown.write().unwrap().take() {
             tokio::spawn(async move {
                 shutdown.send(()).await.unwrap();

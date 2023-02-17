@@ -62,7 +62,7 @@ impl Checksum {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Socket {
     pub address: Ipv4Address,
     pub port: u16,

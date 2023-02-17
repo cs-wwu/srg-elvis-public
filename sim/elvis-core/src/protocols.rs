@@ -16,4 +16,5 @@ mod utility;
 
 // TODO(hardint): Remove dead code allowance when possible
 #[allow(dead_code)]
-mod tcp;
+pub mod tcp;
+pub use tcp::Tcp;
