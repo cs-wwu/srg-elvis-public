@@ -13,6 +13,8 @@ const IP_ADDRESS_3: Ipv4Address = Ipv4Address::new([123, 45, 67, 91]);
 const IP_ADDRESS_4: Ipv4Address = Ipv4Address::new([123, 45, 67, 92]);
 const IP_ADDRESS_5: Ipv4Address = Ipv4Address::new([123, 45, 67, 93]);
 
+
+
 // simulates a message being sent over a network of multiple staticly configured routers
 pub async fn router_multi() {
     let destination = IP_ADDRESS_5.clone();
@@ -48,7 +50,6 @@ pub async fn router_multi() {
     let dt3:IpToTapSlot = [(IP_ADDRESS_4, 0)].into_iter().collect();
     let dt4:IpToTapSlot = [(IP_ADDRESS_5, 0)].into_iter().collect();
 
-    // configure captures.
     let d1 = Capture::new_exit_message(
         IP_ADDRESS_2, 0xbeef, String::from("destination 1")
     );
@@ -108,7 +109,6 @@ pub async fn router_multi() {
             Pci::new_shared([networks[2].tap()]),
             d3.clone(),
         ]),
-        // capture for destination 4
         Machine::new([
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(dt4),
