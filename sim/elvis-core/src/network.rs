@@ -197,6 +197,9 @@ impl Network {
         tokio::spawn(async move {
             barrier.wait().await;
             while let Some(delivery) = receiver.recv().await {
+
+                // println!("received delivery");
+
                 if let Some(throughput) = throughput {
                     let ms = delivery.message.len() as u64 * 1000 / throughput.0;
                     println!("{}, {}, {}", delivery.message.len(), throughput.0, ms);

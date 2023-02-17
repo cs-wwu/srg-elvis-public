@@ -21,5 +21,8 @@ pub use latency::latency;
 mod throughput;
 pub use throughput::throughput;
 
-mod router_simulation;
-pub use router_simulation::router_simulation;
+mod router_single;
+pub use router_single::router_single;
+
+mod router_multi;
+pub use router_multi::router_multi;
