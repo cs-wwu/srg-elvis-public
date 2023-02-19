@@ -9,10 +9,9 @@ use std::fs;
 ///
 /// Takes in a string of the contents of the file and the file path of that file.
 /// Returns the resulting sim, or an error message.
-// TODO: make it so we only have to pass a file path through to this function
 pub fn core_parser(file_path: String) -> Result<Sim, String> {
     let s = fs::read_to_string(&file_path)
-        .expect("Should have been able to read the file")
+        .expect("Target file not found")
         .replace('\r', "")
         .replace("    ", "\t");
     let mut networks = Networks::new();

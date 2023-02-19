@@ -5,13 +5,13 @@
 //!
 //! ```cargo run --example basic -- --log```
 //!
-//! Requires adding parse_cli() function at start of main.
+//! Requires adding parse_args() function at start of main.
 
 use chrono;
 use clap::Parser;
 use std::{
     fs::{create_dir_all, OpenOptions},
-    sync::Arc,
+    sync::Arc, path::Path,
 };
 use tracing_subscriber::FmtSubscriber;
 
@@ -20,24 +20,26 @@ use crate::ndl::generate_and_run_sim;
 /// Stores the different command line arguments.
 #[derive(Parser)]
 struct Args {
+    ///Logging flag. Used to turn logging on or off.
     #[arg(short, long)]
     log: bool,
-    #[arg(short, long, default_value = "")]
+    ///File path to the ndl file to run as the Sim
+    #[arg(short, long)]
     ndl: String,
 }
 
 /// Parses command line arguments and allows for quick checking of them.
-pub async fn initialize_from_arguments() {
+pub async fn parse_args() {
     let cli = Args::parse();
+    // Capture log flag for turning logging on or off
     if cli.log {
         initialize_logging();
     }
-    if !cli.ndl.is_empty() {
-        let mut file_path: String = cli.ndl.clone();
-        if !file_path.ends_with(".ndl") {
-            file_path += ".ndl";
-        }
-        generate_and_run_sim(file_path).await;
+    //Capture required NDL filepath argument
+    match Path::new(&cli.ndl).try_exists(){
+        Ok(true) => generate_and_run_sim(cli.ndl).await,
+        Ok(false) => eprintln!("Provided file: \'{}\' not found", cli.ndl),
+        Err(e) => eprintln!("{e}")
     }
 }
 
