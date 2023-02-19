@@ -1,9 +1,8 @@
 //! Parses the command line arguments.
 //!
-//! Currently parses only logging.
-//! Basic usage for running the basic example with logging on:
-//!
-//! ```cargo run --example basic -- --log```
+//! Allows for two commands:
+//! `--log` turns on logging
+//! `--ndl <PATH>` runs the sim in the file provided
 //!
 //! Requires adding parse_args() function at start of main.
 
@@ -36,7 +35,8 @@ pub async fn parse_args() {
     if cli.log {
         initialize_logging();
     }
-    //Capture required NDL filepath argument
+    // Capture required NDL filepath argument
+    // This will run the sim, additional arguments should be parsed before this check
     match Path::new(&cli.ndl).try_exists() {
         Ok(true) => generate_and_run_sim(cli.ndl).await,
         Ok(false) => eprintln!("Provided file: \'{}\' not found", cli.ndl),
