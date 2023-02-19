@@ -24,7 +24,7 @@ struct Args {
     #[arg(short, long)]
     log: bool,
     ///File path to the ndl file to run as the Sim
-    #[arg(short, long)]
+    #[arg(long)]
     ndl: String,
 }
 
@@ -66,6 +66,6 @@ fn initialize_logging() {
         .json()
         .finish();
     // set the global default so all events/logs go to the same subscriber and
-    // subsequently the same file TODO: Talk to tim on handling errors properly
+    // subsequently the same file
     tracing::subscriber::set_global_default(subscriber).unwrap()
 }
