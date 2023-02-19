@@ -11,7 +11,8 @@ use chrono;
 use clap::Parser;
 use std::{
     fs::{create_dir_all, OpenOptions},
-    sync::Arc, path::Path,
+    path::Path,
+    sync::Arc,
 };
 use tracing_subscriber::FmtSubscriber;
 
@@ -36,10 +37,10 @@ pub async fn parse_args() {
         initialize_logging();
     }
     //Capture required NDL filepath argument
-    match Path::new(&cli.ndl).try_exists(){
+    match Path::new(&cli.ndl).try_exists() {
         Ok(true) => generate_and_run_sim(cli.ndl).await,
         Ok(false) => eprintln!("Provided file: \'{}\' not found", cli.ndl),
-        Err(e) => eprintln!("{e}")
+        Err(e) => eprintln!("{e}"),
     }
 }
 
