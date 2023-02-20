@@ -2,8 +2,14 @@
 
 use crate::ndl::generating::generator_utils::ip_string_to_ip;
 use crate::ndl::parsing::parsing_data::*;
-use elvis_core::{protocols::ipv4::Ipv4Address, Network};
-use std::collections::{HashMap, HashSet};
+use elvis_core::{
+    network::{Latency, NetworkBuilder},
+    protocols::ipv4::Ipv4Address,
+};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use super::generator_data::NetworkInfo;
 
@@ -24,8 +30,29 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
 
     for (id, net) in n {
         // insert networks into the hashmap
-        let network = Network::basic();
-        networks.insert(id.clone(), network);
+        let network = NetworkBuilder::new();
+
+        for option in net.options {
+            match option.0.as_str() {
+                "latency" => {
+                    network.latency(Latency::constant(Duration::from_secs(
+                        option.1.parse::<u64>().unwrap_or_else(|_e| {
+                            panic!("Network {}: Invalid latency value passed to network.", id)
+                        }),
+                    )));
+                }
+
+                "id" => {
+                    // do nothing
+                }
+
+                _ => {
+                    panic!("Network {}: Invalid argument passed. Got {}", id, option.0);
+                }
+            }
+        }
+
+        networks.insert(id.clone(), network.build());
 
         let mut ip_vec: Vec<Ipv4Address> = Vec::new();
         let mut temp_ips = HashSet::new();
