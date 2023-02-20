@@ -31,8 +31,8 @@ impl Router {
         }
     }
 
-    pub fn new_shared(ip_table: IpToTapSlot, arp_table: Arp) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(ip_table, arp_table))
+    pub fn shared(self) -> Arc<UserProcess<Self>> {
+        UserProcess::new(self).shared()
     }
 }
 
@@ -43,7 +43,7 @@ impl Application for Router {
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Sender<()>,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -84,7 +84,7 @@ impl Application for Router {
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
     fn receive(
-        self: Arc<Self>, 
+        &self, 
         message: Message, 
         mut context: Context
     ) -> Result<(), ApplicationError> {

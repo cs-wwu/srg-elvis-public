@@ -5,6 +5,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{ipv4::{Ipv4, Ipv4Address, IpToTapSlot}, udp::Udp, Pci},
     run_internet, Machine, Network, network::Mac,
+    Message,
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
@@ -44,35 +45,35 @@ pub async fn router_single() {
     let machines = vec![
         // send message
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared([(destination, 0)].into_iter().collect()),
-            Pci::new_shared([networks[0].tap()]),
-            SendMessage::new_shared("Hello World!", destination, 0xbeef, Some(1), 1),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new([(destination, 0)].into_iter().collect()).shared(),
+            Pci::new([networks[0].tap()]).shared(),
+            SendMessage::new(Message::new(b"Hello World!"), destination, 0xbeef).remote_mac(1).shared(),
         ]),
         // machine representing our router
         Machine::new([
-            Pci::new_shared([networks[0].tap(), networks[1].tap(), networks[2].tap(), networks[3].tap()]),
-            Router::new_shared(ip_table, arp_table)
+            Pci::new([networks[0].tap(), networks[1].tap(), networks[2].tap(), networks[3].tap()]).shared(),
+            Router::new(ip_table, arp_table).shared(),
         ]),
         // capture for destination 1
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(dt1),
-            Pci::new_shared([networks[1].tap()]),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(dt1).shared(),
+            Pci::new([networks[1].tap()]).shared(),
             d1.clone(),
         ]),
         // capture for destination 2
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(dt2),
-            Pci::new_shared([networks[2].tap()]),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(dt2).shared(),
+            Pci::new([networks[2].tap()]).shared(),
             d2.clone(),
         ]),
         // capture for destination 3
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(dt3),
-            Pci::new_shared([networks[3].tap()]),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(dt3).shared(),
+            Pci::new([networks[3].tap()]).shared(),
             d3.clone(),
         ])
     ];
