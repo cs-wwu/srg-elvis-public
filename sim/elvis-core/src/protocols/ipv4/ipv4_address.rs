@@ -2,7 +2,7 @@ use crate::control::{primitive::PrimitiveError, Primitive};
 use std::fmt::{self, Display};
 
 /// Represents an address used by the [`Ipv4`](super::Ipv4) protocol.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Ipv4Address([u8; 4]);
 
 impl Ipv4Address {

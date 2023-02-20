@@ -40,8 +40,8 @@ impl Udp {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared() -> Arc<Self> {
-        Arc::new(Self::new())
+    pub fn shared(self) -> Arc<Self> {
+        Arc::new(self)
     }
 
     pub fn set_local_port(port: u16, control: &mut Control) {

@@ -1,9 +1,13 @@
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
 use thiserror::Error as ThisError;
 
-const HEADER_WORDS: u16 = 5;
-const HEADER_OCTETS: u16 = HEADER_WORDS * 4;
+/// The number of 32-bit words in a TCP header without optional header parts
+const BASE_HEADER_WORDS: u8 = 5;
+/// The number of bytes in a TCP header without optional header parts
+const BASE_HEADER_OCTETS: u8 = BASE_HEADER_WORDS * 4;
 
+/// The data for a TCP header
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct TcpHeader {
     /// The source port number
     pub src_port: u16,
@@ -12,27 +16,27 @@ pub struct TcpHeader {
     /// The sequence number of the first data octet in this segment (except when
     /// SYN is present). If SYN is present the sequence number is the initial
     /// sequence number (ISN) and the first data octet is ISN+1.
-    pub sequence: u32,
-    // If the ACK control bit is set this field contains the value of the next
-    // sequence number the sender of the segment is expecting to receive. Once
-    // a connection is established this is always sent.
-    pub acknowledgement: u32,
-    pub control: Control,
+    pub seq: u32,
+    /// If the ACK control bit is set this field contains the value of the next
+    /// sequence number the sender of the segment is expecting to receive. Once
+    /// a connection is established this is always sent.
+    pub ack: u32,
+    /// The number of 32-bit words in the TCP header
+    pub data_offset: u8,
+    /// Flags that adjust the how segments are handled
+    pub ctl: Control,
     /// The number of data octets beginning with the one indicated in the
     /// acknowledgment field which the sender of this segment is willing to
     /// accept.
-    pub window: u16,
-    // TODO(hardint): This probably shouldn't be pub
-    /// The number of data octets beginning with the one indicated in the
-    /// acknowledgment field which the sender of this segment is willing to
-    /// accept. For internal use during testing.
-    pub checksum: u16,
+    pub wnd: u16,
     /// This field communicates the current value of the urgent pointer as a
     /// positive offset from the sequence number in this segment. The urgent
     /// pointer points to the sequence number of the octet following the urgent
     /// data. This field is only be interpreted in segments with the URG
     /// control bit set.
-    pub urgent: u16,
+    pub urg: u16,
+    /// The header checksum
+    pub checksum: u16,
 }
 
 impl TcpHeader {
@@ -53,30 +57,30 @@ impl TcpHeader {
         checksum.add_u16(dst_port);
 
         let sequence_bytes = [next()?, next()?, next()?, next()?];
-        let sequence = u32::from_be_bytes(sequence_bytes);
+        let seq = u32::from_be_bytes(sequence_bytes);
         checksum.add_u32(sequence_bytes);
 
         let acknowledgement_bytes = [next()?, next()?, next()?, next()?];
-        let acknowledgement = u32::from_be_bytes(acknowledgement_bytes);
+        let ack = u32::from_be_bytes(acknowledgement_bytes);
         checksum.add_u32(acknowledgement_bytes);
 
         let offset_reserved_control = [next()?, next()?];
         checksum.add_u16(u16::from_be_bytes(offset_reserved_control));
         let data_offset = offset_reserved_control[0] >> 4;
-        let control = Control::from(offset_reserved_control[1] & 0b11_1111);
+        let ctl = Control::from(offset_reserved_control[1] & 0b11_1111);
 
-        if data_offset != HEADER_WORDS as u8 {
+        if data_offset != BASE_HEADER_WORDS {
             // TODO(hardint): Support optional headers
             Err(ParseError::UnexpectedOptions)?
         }
 
-        let window = u16::from_be_bytes([next()?, next()?]);
-        checksum.add_u16(window);
+        let wnd = u16::from_be_bytes([next()?, next()?]);
+        checksum.add_u16(wnd);
 
         let expected_checksum = u16::from_be_bytes([next()?, next()?]);
 
-        let urgent = u16::from_be_bytes([next()?, next()?]);
-        checksum.add_u16(urgent);
+        let urg = u16::from_be_bytes([next()?, next()?]);
+        checksum.add_u16(urg);
 
         let text_length = checksum.accumulate_remainder(&mut bytes);
         let tcp_length = text_length + data_offset as u16 * 4;
@@ -93,12 +97,13 @@ impl TcpHeader {
             Ok(TcpHeader {
                 src_port,
                 dst_port,
-                sequence,
-                acknowledgement,
-                control,
-                window,
+                seq,
+                ack,
+                data_offset,
+                ctl,
+                wnd,
+                urg,
                 checksum,
-                urgent,
             })
         } else {
             Err(ParseError::Checksum {
@@ -107,8 +112,31 @@ impl TcpHeader {
             })
         }
     }
+
+    /// Size of the header in bytes
+    pub fn bytes(&self) -> u8 {
+        // Safe to do because data offset is only 4 bits
+        self.data_offset * 4
+    }
+
+    /// Convert the header to its native serialized format, ready to attach to a
+    /// packet and send over the wire.
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(BASE_HEADER_OCTETS as usize);
+        out.extend_from_slice(&self.src_port.to_be_bytes());
+        out.extend_from_slice(&self.dst_port.to_be_bytes());
+        out.extend_from_slice(&self.seq.to_be_bytes());
+        out.extend_from_slice(&self.ack.to_be_bytes());
+        out.push(self.data_offset << 4);
+        out.push(self.ctl.into());
+        out.extend_from_slice(&self.wnd.to_be_bytes());
+        out.extend_from_slice(&self.checksum.to_be_bytes());
+        out.extend_from_slice(&self.urg.to_be_bytes());
+        out
+    }
 }
 
+/// An error that occurred while parsing a TCP header
 #[derive(Debug, ThisError, PartialEq, Eq, Clone, Copy)]
 pub enum ParseError {
     #[error("Too few bytes to constitute a TCP header")]
@@ -123,134 +151,109 @@ pub enum ParseError {
 
 /// Used for building a serialized TCP header
 #[derive(Debug)]
-pub struct TcpHeaderBuilder {
-    src_port: u16,
-    dst_port: u16,
-    sequence: u32,
-    acknowledgement: u32,
-    control: Control,
-    window: u16,
-    urgent: u16,
-    src_address: Ipv4Address,
-    dst_address: Ipv4Address,
-}
+pub struct TcpHeaderBuilder(TcpHeader);
 
 impl TcpHeaderBuilder {
     /// Initialize the TCP header with defaults and the given values
-    pub fn new(
-        src_port: u16,
-        dst_port: u16,
-        src_address: Ipv4Address,
-        dst_address: Ipv4Address,
-        sequence: u32,
-        window: u16,
-    ) -> Self {
-        Self {
+    pub fn new(src_port: u16, dst_port: u16, seq: u32) -> Self {
+        Self(TcpHeader {
             src_port,
             dst_port,
-            src_address,
-            dst_address,
-            sequence,
-            window,
-            acknowledgement: 0,
-            urgent: 0,
-            control: Control::default(),
-        }
+            seq,
+            wnd: 0,
+            ack: 0,
+            urg: 0,
+            ctl: Control::default(),
+
+            // Filled in by .build()
+            data_offset: 0,
+            checksum: 0,
+        })
+    }
+
+    /// Set the window size
+    pub fn wnd(mut self, wnd: u16) -> Self {
+        self.0.wnd = wnd;
+        self
     }
 
     /// Set the acknowledgement number
-    pub fn acknowledgement(mut self, acknowledgement: u32) -> Self {
-        self.acknowledgement = acknowledgement;
-        self
-    }
-
-    /// Set the control bits
-    pub fn control(mut self, control: Control) -> Self {
-        self.control = control;
-        self
-    }
-
-    /// Set the urg bit up
-    pub fn urg(mut self) -> Self {
-        self.control.set_urg(true);
-        self
-    }
-
-    /// Set the ack bit up
-    pub fn ack(mut self) -> Self {
-        self.control.set_ack(true);
+    pub fn ack(mut self, ack: u32) -> Self {
+        self.0.ack = ack;
+        self.0.ctl.set_ack(true);
         self
     }
 
     /// Set the psh bit up
     pub fn psh(mut self) -> Self {
-        self.control.set_psh(true);
+        self.0.ctl.set_psh(true);
         self
     }
 
     /// Set the rst bit up
     pub fn rst(mut self) -> Self {
-        self.control.set_rst(true);
+        self.0.ctl.set_rst(true);
         self
     }
 
     /// Set the syn bit up
     pub fn syn(mut self) -> Self {
-        self.control.set_syn(true);
+        self.0.ctl.set_syn(true);
         self
     }
 
     /// Set the fin bit up
     pub fn fin(mut self) -> Self {
-        self.control.set_fin(true);
+        self.0.ctl.set_fin(true);
         self
     }
 
     /// Set urgent pointer
-    pub fn urgent(mut self, urgent: u16) -> Self {
-        self.urgent = urgent;
+    pub fn urg(mut self, urg: u16) -> Self {
+        self.0.ctl.set_urg(true);
+        self.0.urg = urg;
         self
     }
 
     /// Get the serialized header
-    pub fn build(self, mut payload: impl Iterator<Item = u8>) -> Result<Vec<u8>, BuildHeaderError> {
+    pub fn build(
+        self,
+        src_address: Ipv4Address,
+        dst_address: Ipv4Address,
+        mut payload: impl Iterator<Item = u8>,
+    ) -> Result<TcpHeader, BuildHeaderError> {
         let mut checksum = Checksum::new();
         let length = checksum
             .accumulate_remainder(&mut payload)
-            .checked_add(HEADER_OCTETS)
+            .checked_add(BASE_HEADER_OCTETS as u16)
             .ok_or(BuildHeaderError::OverlyLongPayload)?;
 
+        // TODO(hardint): Should change when header options are supported
+        let data_offset = BASE_HEADER_WORDS;
+
         // Pseudo header
-        checksum.add_u32(self.src_address.into());
-        checksum.add_u32(self.dst_address.into());
+        checksum.add_u32(src_address.into());
+        checksum.add_u32(dst_address.into());
         checksum.add_u8(0, 6);
         checksum.add_u16(length);
 
-        let data_offset = (HEADER_WORDS as u8) << 4;
-
         // Header parts
-        checksum.add_u16(self.src_port);
-        checksum.add_u16(self.dst_port);
-        checksum.add_u32(self.sequence.to_be_bytes());
-        checksum.add_u32(self.acknowledgement.to_be_bytes());
-        checksum.add_u8(data_offset, self.control.into());
-        checksum.add_u16(self.window);
-        checksum.add_u16(self.urgent);
+        checksum.add_u16(self.0.src_port);
+        checksum.add_u16(self.0.dst_port);
+        checksum.add_u32(self.0.seq.to_be_bytes());
+        checksum.add_u32(self.0.ack.to_be_bytes());
+        checksum.add_u8(data_offset << 4, self.0.ctl.into());
+        checksum.add_u16(self.0.wnd);
+        checksum.add_u16(self.0.urg);
 
-        let mut out = Vec::with_capacity(HEADER_OCTETS as usize);
-        out.extend_from_slice(&self.src_port.to_be_bytes());
-        out.extend_from_slice(&self.dst_port.to_be_bytes());
-        out.extend_from_slice(&self.sequence.to_be_bytes());
-        out.extend_from_slice(&self.acknowledgement.to_be_bytes());
-        out.push(data_offset);
-        out.push(self.control.into());
-        out.extend_from_slice(&self.window.to_be_bytes());
-        out.extend_from_slice(&checksum.as_u16().to_be_bytes());
-        out.extend_from_slice(&self.urgent.to_be_bytes());
-        Ok(out)
+        let mut header = self.0;
+        header.data_offset = data_offset;
+        header.checksum = checksum.as_u16();
+        Ok(header)
     }
 }
 
+/// An error that occurred while building a TCP header
 #[derive(Debug, ThisError, PartialEq, Eq, Clone, Copy)]
 pub enum BuildHeaderError {
     #[error("The TCP payload is longer than can fit into a single packet")]
@@ -258,11 +261,12 @@ pub enum BuildHeaderError {
 }
 
 /// The control bits of a TCP header
-#[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct Control(u8);
 
 impl Control {
-    pub fn new(urg: bool, ack: bool, psh: bool, rst: bool, syn: bool, fin: bool) -> Self {
+    /// Create a new Control with the given bits
+    pub const fn new(urg: bool, ack: bool, psh: bool, rst: bool, syn: bool, fin: bool) -> Self {
         Self(
             fin as u8
                 | (syn as u8) << 1
@@ -273,64 +277,72 @@ impl Control {
         )
     }
 
-    /// Urgent Pointer field significant
-    pub fn urg(&self) -> bool {
+    /// Get whether the urgent pointer field is significant
+    pub const fn urg(self) -> bool {
         self.bit(5)
     }
 
+    /// Set whether the urgent pointer field is significant
     pub fn set_urg(&mut self, state: bool) {
         self.set_bit(5, state);
     }
 
-    /// Acknowledgment field significant
-    pub fn ack(&self) -> bool {
+    /// Get whether the acknowledgment field significant
+    pub const fn ack(self) -> bool {
         self.bit(4)
     }
 
+    /// Set whether the acknowledgment field significant
     pub fn set_ack(&mut self, state: bool) {
         self.set_bit(4, state);
     }
 
-    /// Push Function
-    pub fn psh(&self) -> bool {
+    /// Get whether the push function is enabled
+    pub const fn psh(self) -> bool {
         self.bit(3)
     }
 
+    /// Set whether the push function is enabled
     pub fn set_psh(&mut self, state: bool) {
         self.set_bit(3, state);
     }
 
-    /// Reset the connection
-    pub fn rst(&self) -> bool {
+    /// Get whether to reset the connection
+    pub const fn rst(self) -> bool {
         self.bit(2)
     }
 
+    /// Set whether to reset the connection
     pub fn set_rst(&mut self, state: bool) {
         self.set_bit(2, state);
     }
 
-    /// Synchronize sequence numbers
-    pub fn syn(&self) -> bool {
+    /// Get whether to synchronize sequence numbers
+    pub const fn syn(self) -> bool {
         self.bit(1)
     }
 
+    /// Set whether to synchronize sequence numbers
     pub fn set_syn(&mut self, state: bool) {
         self.set_bit(1, state);
     }
 
-    /// No more data from sender
-    pub fn fin(&self) -> bool {
+    /// Get whether there is no more data to send
+    pub const fn fin(self) -> bool {
         self.bit(0)
     }
 
+    /// Set whether there is no more data to send
     pub fn set_fin(&mut self, state: bool) {
         self.set_bit(0, state);
     }
 
-    fn bit(&self, bit: u8) -> bool {
+    /// Get the given bit
+    const fn bit(self, bit: u8) -> bool {
         (self.0 >> bit) & 0b1 == 1
     }
 
+    /// Set the given bit
     fn set_bit(&mut self, bit: u8, state: bool) {
         self.0 = (self.0 & !(1 << bit)) | ((state as u8) << bit);
     }
@@ -348,9 +360,56 @@ impl From<Control> for u8 {
     }
 }
 
+impl std::fmt::Debug for Control {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Control(")?;
+        let mut wrote = false;
+        if self.urg() {
+            wrote = true;
+            write!(f, "URG")?;
+        }
+        if self.ack() {
+            if wrote {
+                write!(f, ", ")?;
+            }
+            wrote = true;
+            write!(f, "ACK")?;
+        }
+        if self.psh() {
+            if wrote {
+                write!(f, ", ")?;
+            }
+            wrote = true;
+            write!(f, "PSH")?;
+        }
+        if self.rst() {
+            if wrote {
+                write!(f, ", ")?;
+            }
+            wrote = true;
+            write!(f, "RST")?;
+        }
+        if self.syn() {
+            if wrote {
+                write!(f, ", ")?;
+            }
+            wrote = true;
+            write!(f, "SYN")?;
+        }
+        if self.fin() {
+            if wrote {
+                write!(f, ", ")?;
+            }
+            write!(f, "FIN")?;
+        }
+        write!(f, ")")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocols::{tcp::ConnectionId, utility::Socket};
 
     #[test]
     fn parses_packet() -> anyhow::Result<()> {
@@ -396,18 +455,18 @@ mod tests {
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.dst_port, dst_port);
-        assert_eq!(actual.sequence, sequence);
-        assert_eq!(actual.acknowledgement, acknowledgement);
-        assert_eq!(actual.control, control);
-        assert_eq!(actual.window, window);
+        assert_eq!(actual.seq, sequence);
+        assert_eq!(actual.ack, acknowledgement);
+        assert_eq!(actual.ctl, control);
+        assert_eq!(actual.wnd, window);
         assert_eq!(actual.checksum, expected.checksum);
-        assert_eq!(actual.urgent, 0);
-        assert!(!actual.control.urg());
-        assert!(actual.control.ack());
-        assert!(actual.control.psh());
-        assert!(!actual.control.rst());
-        assert!(!actual.control.syn());
-        assert!(!actual.control.fin());
+        assert_eq!(actual.urg, 0);
+        assert!(!actual.ctl.urg());
+        assert!(actual.ctl.ack());
+        assert!(actual.ctl.psh());
+        assert!(!actual.ctl.rst());
+        assert!(!actual.ctl.syn());
+        assert!(!actual.ctl.fin());
         Ok(())
     }
 
@@ -415,16 +474,24 @@ mod tests {
     fn builds_packet() -> anyhow::Result<()> {
         let payload = b"Hello, world!";
         let ttl = 30;
-        let src_address = Ipv4Address::LOCALHOST;
-        let dst_address = Ipv4Address::SUBNET;
-        let src_port = 0xcafe;
-        let dst_port = 0xbabe;
         let sequence = 123456789;
         let window = 1024;
         let acknowledgement = 10;
 
+        let id = ConnectionId {
+            local: Socket {
+                address: Ipv4Address::LOCALHOST,
+                port: 0xcafe,
+            },
+            remote: Socket {
+                address: Ipv4Address::SUBNET,
+                port: 0xbabe,
+            },
+        };
+
         let expected = {
-            let mut expected = etherparse::TcpHeader::new(src_port, dst_port, sequence, window);
+            let mut expected =
+                etherparse::TcpHeader::new(id.local.port, id.remote.port, sequence, window);
             expected.acknowledgment_number = acknowledgement;
             expected.ack = true;
             expected.psh = true;
@@ -432,8 +499,8 @@ mod tests {
                 payload.len().try_into()?,
                 ttl,
                 etherparse::IpNumber::Tcp,
-                src_address.into(),
-                dst_address.into(),
+                id.local.address.into(),
+                id.remote.address.into(),
             );
             expected.checksum = expected.calc_checksum_ipv4(&ip_header, payload)?;
             expected
@@ -445,18 +512,12 @@ mod tests {
             serial
         };
 
-        let actual = TcpHeaderBuilder::new(
-            src_port,
-            dst_port,
-            src_address,
-            dst_address,
-            sequence,
-            window,
-        )
-        .ack()
-        .psh()
-        .acknowledgement(acknowledgement)
-        .build(payload.iter().cloned())?;
+        let actual = TcpHeaderBuilder::new(id.local.port, id.remote.port, sequence)
+            .wnd(window)
+            .psh()
+            .ack(acknowledgement)
+            .build(id.local.address, id.remote.address, payload.iter().cloned())?
+            .serialize();
 
         assert_eq!(expected, actual);
         Ok(())

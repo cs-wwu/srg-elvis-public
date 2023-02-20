@@ -164,7 +164,7 @@ impl Ipv4HeaderBuilder {
     pub fn new(
         source: Ipv4Address,
         destination: Ipv4Address,
-        protocol: ProtocolNumber,
+        protocol: u8,
         payload_length: u16,
     ) -> Self {
         Self {
@@ -174,7 +174,7 @@ impl Ipv4HeaderBuilder {
             fragment_offset: 0,
             flags: Default::default(),
             time_to_live: 30,
-            protocol: protocol as u8,
+            protocol,
             source,
             destination,
         }
@@ -256,24 +256,6 @@ pub enum HeaderBuildError {
     OverlyLongPayload,
     #[error("The fragment offset is too long to fit control flags in the header")]
     OverlyLongFragmentOffset,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub enum ProtocolNumber {
-    // TODO(hardint): Expand this list as we support more protocols out of the box.
-    // https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
-    #[allow(dead_code)]
-    Icpm = 1,
-    #[allow(dead_code)]
-    Igmp = 2,
-    #[allow(dead_code)]
-    Ipv4 = 4,
-    #[allow(dead_code)]
-    Tcp = 6,
-    Udp = 17,
-    #[allow(dead_code)]
-    Ipv6 = 41,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -562,7 +544,7 @@ mod tests {
         let actual = Ipv4HeaderBuilder::new(
             Ipv4Address::new([127, 0, 0, 1]),
             Ipv4Address::new([123, 45, 67, 89]),
-            ProtocolNumber::Udp,
+            17,
             payload_length,
         )
         .flags(ControlFlags::new(false, true))
