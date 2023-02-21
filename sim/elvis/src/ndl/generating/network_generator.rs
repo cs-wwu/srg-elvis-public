@@ -32,14 +32,44 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
         // insert networks into the hashmap
         let network = NetworkBuilder::new();
 
-        for option in net.options {
+        for option in &net.options {
             match option.0.as_str() {
                 "latency" => {
-                    network.latency(Latency::constant(Duration::from_secs(
-                        option.1.parse::<u64>().unwrap_or_else(|_e| {
-                            panic!("Network {}: Invalid latency value passed to network.", id);
-                        }),
-                    )));
+                    if !net.options.contains_key("latency_var"){
+                        network.latency(Latency::constant(Duration::from_secs(
+                            option.1.parse::<u64>().unwrap_or_else(|_e| {
+                                panic!("Network {}: Invalid latency value passed to network.", id);
+                            }),
+                        )));
+                    }
+                }
+
+                "latency_var" => {
+                    let mut l = 0;
+
+                    // only if the arguments also
+                    if net.options.contains_key("latency") {
+                        l = net
+                            .options
+                            .get("latency")
+                            .unwrap()
+                            .parse::<u64>()
+                            .unwrap_or_else(|_e| {
+                                panic!("Network {}: Invalid latency value passed to network.", id);
+                            });
+                    }
+
+                    let rand = option.1.parse::<u64>().unwrap_or_else(|_e| {
+                        panic!(
+                            "Network {}: Invalid latency variation value passed to network.",
+                            id
+                        );
+                    });
+
+                    network.latency(Latency::variable(
+                        Duration::from_secs(l),
+                        Duration::from_millis(rand),
+                    ));
                 }
 
                 "mtu" => {
