@@ -37,9 +37,21 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                 "latency" => {
                     network.latency(Latency::constant(Duration::from_secs(
                         option.1.parse::<u64>().unwrap_or_else(|_e| {
-                            panic!("Network {}: Invalid latency value passed to network.", id)
+                            panic!("Network {}: Invalid latency value passed to network.", id);
                         }),
                     )));
+                }
+
+                "mtu" => {
+                    network.mtu(option.1.parse::<u32>().unwrap_or_else(|_e| {
+                        panic!("Network {}: Invalid mtu value passed to network.", id);
+                    }));
+                }
+
+                "loss" => {
+                    network.loss_rate(option.1.parse::<f32>().unwrap_or_else(|_e| {
+                        panic!("Network {}: Invalid loss rate passed to network.", id);
+                    }));
                 }
 
                 "id" => {
