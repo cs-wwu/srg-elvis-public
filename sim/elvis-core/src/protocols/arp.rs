@@ -3,6 +3,8 @@
 //! In ELVIS, the Ipv4Sessions connect with ARP.
 //! Arp will fetch MAC addresses when query'd.
 
+pub mod arp_parsing;
+
 use std::{sync::Arc, collections::HashMap};
 
 use crate::{ProtocolMap, Message};
@@ -16,11 +18,16 @@ use crate::control::{Primitive, Control, Key};
 use super::ipv4::Ipv4Address;
 
 use tokio::sync::mpsc::Sender;
+use tokio::sync::watch;
 use tokio::sync::{Barrier};
 
 pub struct Arp {
     /// The ARP table, or cache. Maps Ipv4 addresses to MAC addresses.
     pub arp_table: HashMap<Ipv4Address, Mac>,
+    /// When an ARP packet is received, a () will be sent through this
+    arp_received_sender: watch::Sender<()>,
+    /// When an ARP packet is recieved, this channel will receive ()
+    arp_received_receiver: watch::Receiver<()>,
 }
 
 impl Arp {
@@ -29,8 +36,11 @@ impl Arp {
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
+        let (arp_received_sender, arp_received_receiver) = watch::channel(());
         Self {
             arp_table: Default::default(),
+            arp_received_sender,
+            arp_received_receiver,
         }
     }
 
@@ -49,7 +59,7 @@ impl Protocol for Arp {
         self: Arc<Self>,
         shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-        protocols: crate::ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         todo!()
     }
