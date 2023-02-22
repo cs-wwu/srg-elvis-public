@@ -18,9 +18,21 @@ fn telephone_single(c: &mut Criterion) {
     });
 }
 
+fn tcp_gigabyte(c: &mut Criterion) {
+    c.bench_function("TCP Gigabyte", |b| {
+        b.to_async(runtime()).iter(simulations::tcp_gigabyte_bench)
+    });
+}
+
 fn runtime() -> Runtime {
     Runtime::new().unwrap()
 }
 
-criterion_group!(benches, basic, telephone_multi, telephone_single,);
+criterion_group!(
+    benches,
+    // basic,
+    // telephone_multi,
+    // telephone_single,
+    tcp_gigabyte,
+);
 criterion_main!(benches);
