@@ -55,7 +55,7 @@ impl TcpSession {
                 .clone()
                 .protocol(self.upstream)
                 .ok_or(ReceiveError::Protocol(self.upstream))?
-                .demux(Message::new(received), self.clone(), context)?;
+                .demux(received, self.clone(), context)?;
         }
         Ok(result)
     }
@@ -85,7 +85,7 @@ impl TcpSession {
         context: Context,
     ) -> Result<(), SendError> {
         for mut segment in tcb.segments() {
-            segment.text.prepend(segment.header.serialize());
+            segment.text.header(segment.header.serialize());
             self.downstream
                 .clone()
                 .send(segment.text, context.clone())?;
@@ -97,7 +97,7 @@ impl TcpSession {
 impl Session for TcpSession {
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
         let mut tcb = self.tcb.write().unwrap();
-        tcb.send(message);
+        tcb.send(&message);
         self.deliver_outgoing(&mut tcb, context)?;
         Ok(())
     }

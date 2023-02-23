@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 #[derive(Debug, Clone, Default)]
 pub struct Outgoing {
     /// Data bytes queued for transmission but not yet segmentized
-    pub text: VecDeque<Message>,
+    pub text: Message,
     /// The retransmission queue. Contains segments that may need to be
     /// retransmitted.
     pub retransmit: VecDeque<Transmit>,
