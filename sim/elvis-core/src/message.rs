@@ -53,7 +53,7 @@ impl Message {
     /// ```
     /// # use elvis_core::message::{Message, Chunk};
     /// let mut message = Message::new(b"Body");
-    /// message.prepend(b"Header");
+    /// message.header(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
@@ -74,7 +74,7 @@ impl Message {
     /// ```
     /// # use elvis_core::message::{Message, Chunk};
     /// let mut message = Message::new(b"Body");
-    /// message.prepend(b"Header");
+    /// message.header(b"Header");
     /// message.slice(3..8);
     /// assert!(message.iter().eq(b"derBo".iter().cloned()));
     /// ```
@@ -138,7 +138,7 @@ impl Message {
     /// ```
     /// # use elvis_core::message::{Message, Chunk};
     /// let mut message = Message::new(b"Body");
-    /// message.prepend(b"Header");
+    /// message.header(b"Header");
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
