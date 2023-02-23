@@ -20,7 +20,7 @@ pub use message_bytes::MessageBytes;
 /// fast as possible. In particular, we want to avoid copying bytes wherever
 /// possible. A message provides these capabilities and serves as a container
 /// for composing, sending, and splitting byte sequences.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Message {
     chunks: VecDeque<Chunk>,
     len: usize,
@@ -151,6 +151,10 @@ impl Message {
     pub fn iter(&self) -> MessageBytes {
         MessageBytes::new(&self.chunks)
     }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.iter().collect()
+    }
 }
 
 impl Display for Message {
@@ -197,7 +201,7 @@ mod tests {
         let body = b"body";
         let message = Message::new(body);
         assert_eq!(message.len(), body.len());
-        assert!(message.iter().eq(body.iter().cloned()));
+        assert_eq!(&message.to_vec(), body);
     }
 
     #[test]
@@ -206,7 +210,7 @@ mod tests {
         message.slice(2..);
         let expected = b"dy";
         assert_eq!(message.len(), expected.len());
-        assert!(message.iter().eq(expected.iter().cloned()));
+        assert_eq!(&message.to_vec(), expected);
     }
 
     #[test]
@@ -216,7 +220,7 @@ mod tests {
         message.slice(1..13);
         let expected = b"ings and stu";
         assert_eq!(message.len(), expected.len());
-        assert!(message.iter().eq(expected.iter().cloned()));
+        assert_eq!(&message.to_vec(), expected);
     }
 
     #[test]
@@ -225,7 +229,7 @@ mod tests {
         message.header("header");
         let expected = b"headerbody";
         assert_eq!(message.len(), expected.len());
-        assert!(message.iter().eq(expected.iter().cloned()));
+        assert_eq!(&message.to_vec(), expected);
     }
 
     #[test]
@@ -236,7 +240,7 @@ mod tests {
         message.slice(2..4);
         let expected = b"rB";
         assert_eq!(message.len(), expected.len());
-        assert!(message.iter().eq(expected.iter().cloned()));
+        assert_eq!(&message.to_vec(), expected);
     }
 
     #[test]
@@ -247,7 +251,7 @@ mod tests {
         message.slice(3..8);
         let expected = b"derHe";
         assert_eq!(message.len(), expected.len());
-        assert!(message.iter().eq(expected.iter().cloned()));
+        assert_eq!(&message.to_vec(), expected);
     }
 
     #[test]
@@ -257,7 +261,7 @@ mod tests {
         message.header(b"Header ");
         let expected = b"Header world";
         assert_eq!(message.len(), expected.len());
-        assert!(message.iter().eq(expected.iter().cloned()));
+        assert_eq!(&message.to_vec(), expected);
     }
 
     #[test]
@@ -269,7 +273,7 @@ mod tests {
         message.slice(3..);
         message.slice(4..);
         assert_eq!(message.len(), expected.len());
-        assert!(message.iter().eq(expected.iter().cloned()));
+        assert_eq!(&message.to_vec(), expected);
     }
 
     #[test]
@@ -277,7 +281,7 @@ mod tests {
         let mut message = Message::new(b"body");
         message.slice(4..);
         assert_eq!(message.len(), 0);
-        assert!(message.iter().eq([].iter().cloned()));
+        assert_eq!(&message.to_vec(), &[]);
     }
 
     #[test]
@@ -285,7 +289,7 @@ mod tests {
         let mut message = Message::new(b"body");
         message.slice(..0);
         assert_eq!(message.len(), 0);
-        assert!(message.iter().eq([].iter().cloned()));
+        assert_eq!(&message.to_vec(), &[]);
     }
 
     #[test]
@@ -299,13 +303,13 @@ mod tests {
         assert!(message.iter().eq(b"headermessage".iter().cloned()));
         message.slice(6..);
         assert_eq!(message.len(), 7);
-        assert!(message.iter().eq(b"message".iter().cloned()));
+        assert_eq!(&message.to_vec(), b"message");
     }
 
     #[test]
     fn concatenate() {
         let mut message = Message::new("Hello");
         message.concatenate(&Message::new(" world!"));
-        assert!(message.iter().eq(b"Hello world!".iter().cloned()));
+        assert_eq!(&message.to_vec(), b"Hello world!");
     }
 }
