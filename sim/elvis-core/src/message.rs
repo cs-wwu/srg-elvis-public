@@ -66,6 +66,12 @@ impl Message {
         self.chunks.push_front(header);
     }
 
+    /// Adds the given message to the end of this one.
+    pub fn concatenate(&mut self, other: &Message) {
+        self.len += other.len;
+        self.chunks.extend(other.chunks.iter().cloned());
+    }
+
     /// Creates a slice of the message for the given range. All Rust range types
     /// defined in std::ops are supported.
     ///
@@ -294,5 +300,12 @@ mod tests {
         message.slice(6..);
         assert_eq!(message.len(), 7);
         assert!(message.iter().eq(b"message".iter().cloned()));
+    }
+
+    #[test]
+    fn concatenate() {
+        let mut message = Message::new("Hello");
+        message.concatenate(&Message::new(" world!"));
+        assert!(message.iter().eq(b"Hello world!".iter().cloned()));
     }
 }
