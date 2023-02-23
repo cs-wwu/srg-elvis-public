@@ -3,7 +3,7 @@ use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError},
     session::{QueryError, SendError, SharedSession},
-    Id, Message, ProtocolMap, Session,
+    Id, Message, ProtocolMap, Session, logging::{send_message_event, receive_message_event},
 };
 use std::{
     sync::{Arc, RwLock, RwLockWriteGuard},
@@ -50,6 +50,7 @@ impl TcpSession {
         let result = tcb.segment_arrives(segment);
         self.deliver_outgoing(&mut tcb, context.clone())?;
         let received = tcb.receive();
+        receive_message_event(tcb.id.local.address, tcb.id.remote.address,  tcb.id.local.port,  tcb.id.remote.port, Message::new(received.clone()));
         if !received.is_empty() {
             context
                 .clone()
@@ -97,6 +98,7 @@ impl TcpSession {
 impl Session for TcpSession {
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
         let mut tcb = self.tcb.write().unwrap();
+        send_message_event(tcb.id.local.address, tcb.id.remote.address,  tcb.id.local.port,  tcb.id.remote.port, message.clone());
         tcb.send(message);
         self.deliver_outgoing(&mut tcb, context)?;
         Ok(())

@@ -54,7 +54,7 @@ const RETRANSMISSION_TIMEOUT: Duration = Duration::from_millis(100);
 #[derive(Debug, Clone)]
 pub struct Tcb {
     /// The pair of endpoints that identifies this connection
-    id: ConnectionId,
+    pub id: ConnectionId,
     /// The maximum transmission unit of the network
     mtu: Mtu,
     /// How the connection was initiated locally
