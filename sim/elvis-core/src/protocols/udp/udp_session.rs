@@ -60,7 +60,7 @@ impl Session for UdpSession {
             id.remote.port,
             message.clone(),
         );
-        message.prepend(header);
+        message.header(header);
         self.downstream.clone().send(message, context)?;
         Ok(())
     }

@@ -85,7 +85,7 @@ impl TcpSession {
         context: Context,
     ) -> Result<(), SendError> {
         for mut segment in tcb.segments() {
-            segment.text.prepend(segment.header.serialize());
+            segment.text.header(segment.header.serialize());
             self.downstream
                 .clone()
                 .send(segment.text, context.clone())?;
