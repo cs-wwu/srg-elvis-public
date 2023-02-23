@@ -153,7 +153,7 @@ impl Tcb {
         // retransmission queue.)
         match self.state {
             State::SynSent | State::SynReceived | State::Established => {
-                self.outgoing.text.concatenate(&message);
+                self.outgoing.text.concatenate(message);
             }
 
             State::FinWait1
@@ -927,6 +927,7 @@ pub enum CloseResult {
 }
 
 /// The result of a segment arriving to the TCP in a LISTEN state
+#[allow(clippy::large_enum_variant)]
 #[must_use]
 #[derive(Debug, Clone)]
 pub enum ListenResult {
