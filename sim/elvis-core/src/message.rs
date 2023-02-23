@@ -111,7 +111,7 @@ impl Message {
             if bytes_to_keep >= chunk_len {
                 bytes_to_keep -= chunk_len;
             } else {
-                chunk.end -= bytes_to_keep;
+                chunk.end = chunk.start + bytes_to_keep;
                 break;
             }
         }
@@ -198,16 +198,26 @@ mod tests {
         let mut message = Message::new("body");
         message.slice(2..);
         let expected = b"dy";
-        for b in message.iter() {
-            print!("{} ", b);
-        }
-        println!();
         assert_eq!(message.len(), expected.len());
         assert!(message.iter().eq(expected.iter().cloned()));
     }
 
     #[test]
     fn multi_slice() {
+        let mut message = Message::new(b"Things and stuff");
+        message.slice(1..15);
+        message.slice(1..13);
+        let expected = b"ings and stu";
+        // for (a, b) in message.iter().zip(expected.iter()) {
+        //     println!("{} {}", a, b);
+        // }
+        println!("{}", message.iter().count());
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn multi_slice_with_header() {
         let mut message = Message::new(b"Body");
         message.header(b"Header");
         message.slice(3..8);
