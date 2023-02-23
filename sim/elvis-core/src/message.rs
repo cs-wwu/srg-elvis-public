@@ -62,6 +62,7 @@ impl Message {
     }
 
     fn header_inner(&mut self, header: Chunk) {
+        self.len += header.len();
         self.chunks.push_front(header);
     }
 
@@ -208,10 +209,15 @@ mod tests {
         message.slice(1..15);
         message.slice(1..13);
         let expected = b"ings and stu";
-        // for (a, b) in message.iter().zip(expected.iter()) {
-        //     println!("{} {}", a, b);
-        // }
-        println!("{}", message.iter().count());
+        assert_eq!(message.len(), expected.len());
+        assert!(message.iter().eq(expected.iter().cloned()));
+    }
+
+    #[test]
+    fn header() {
+        let mut message = Message::new(b"body");
+        message.header("header");
+        let expected = b"headerbody";
         assert_eq!(message.len(), expected.len());
         assert!(message.iter().eq(expected.iter().cloned()));
     }
