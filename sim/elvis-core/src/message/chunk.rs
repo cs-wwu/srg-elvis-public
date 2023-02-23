@@ -76,3 +76,9 @@ impl From<&str> for Chunk {
         string.as_bytes().into()
     }
 }
+
+impl From<String> for Chunk {
+    fn from(string: String) -> Self {
+        string.into_bytes().into()
+    }
+}

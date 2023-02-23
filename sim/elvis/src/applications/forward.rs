@@ -13,7 +13,6 @@ use elvis_core::{
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
-
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 pub struct Forward {
     /// The session on which we send any messages we receive

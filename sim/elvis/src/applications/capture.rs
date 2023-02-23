@@ -25,18 +25,24 @@ pub struct Capture {
     ip_address: Ipv4Address,
     /// The port we listen for a message on
     port: u16,
+    /// The number of messages it will receive before stopping
+    message_count: u32,
+    /// The number of messages currently recieved
+    cur_count: RwLock<u32>,
     /// The transport protocol to use
     transport: Transport,
 }
 
 impl Capture {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16) -> Self {
+    pub fn new(ip_address: Ipv4Address, port: u16, message_count: u32) -> Self {
         Self {
             message: Default::default(),
             shutdown: Default::default(),
             ip_address,
             port,
+            message_count,
+            cur_count: RwLock::new(0),
             transport: Transport::Udp,
         }
     }
@@ -46,15 +52,15 @@ impl Capture {
         UserProcess::new(self).shared()
     }
 
+    /// Gets the message that was received.
+    pub fn message(&self) -> Option<Message> {
+        self.message.read().unwrap().clone()
+    }
+
     /// Set the transport protocol to use
     pub fn transport(mut self, transport: Transport) -> Self {
         self.transport = transport;
         self
-    }
-
-    /// Gets the message that was received.
-    pub fn message(&self) -> Option<Message> {
-        self.message.read().unwrap().clone()
     }
 }
 
@@ -86,10 +92,13 @@ impl Application for Capture {
 
     fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
         *self.message.write().unwrap() = Some(message);
-        if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-            tokio::spawn(async move {
-                shutdown.send(()).await.unwrap();
-            });
+        *self.cur_count.write().unwrap() += 1;
+        if *self.cur_count.read().unwrap() >= self.message_count {
+            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
+                tokio::spawn(async move {
+                    shutdown.send(()).await.unwrap();
+                });
+            }
         }
         Ok(())
     }

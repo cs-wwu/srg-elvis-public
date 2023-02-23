@@ -27,8 +27,8 @@ pub struct ThroughputTester {
     port: u16,
     message_count: u8,
     expected_delay: Range<Duration>,
-    previous_receipt: RwLock<Option<SystemTime>>,
-    received: RwLock<u8>,
+    previous_receipt: Arc<RwLock<Option<SystemTime>>>,
+    received: Arc<RwLock<u8>>,
 }
 
 impl ThroughputTester {
@@ -45,8 +45,8 @@ impl ThroughputTester {
             port,
             message_count,
             expected_delay,
-            previous_receipt: RwLock::new(None),
-            received: RwLock::new(0),
+            previous_receipt: Arc::new(RwLock::new(None)),
+            received: Arc::new(RwLock::new(0)),
         }
     }
 
