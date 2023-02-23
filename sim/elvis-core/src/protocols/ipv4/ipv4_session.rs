@@ -68,7 +68,7 @@ impl Session for Ipv4Session {
         };
         Pci::set_pci_slot(self.tap_slot, &mut context.control);
         Network::set_protocol(Ipv4::ID, &mut context.control);
-        message.prepend(header);
+        message.header(header);
         self.downstream.clone().send(message, context)?;
         Ok(())
     }

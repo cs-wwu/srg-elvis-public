@@ -389,12 +389,12 @@ fn simultaneous_close_sequence() {
 fn message_send() {
     let expected = b"Hello, world!";
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(Message::new(expected));
+    peer_a.send(&Message::new(expected));
     for outgoing in peer_a.segments() {
         peer_b.segment_arrives(outgoing);
     }
     let received = peer_b.receive();
-    assert_eq!(expected, received.as_slice());
+    assert_eq!(&expected[..], &received.to_vec());
 }
 
 #[test]
@@ -405,7 +405,7 @@ fn message_segmentation() {
         .take(4000)
         .collect();
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(Message::new(expected.clone()));
+    peer_a.send(&Message::new(expected.clone()));
     let mut count = 0;
     for outgoing in peer_a.segments() {
         count += 1;
@@ -413,7 +413,7 @@ fn message_segmentation() {
     }
     let received = peer_b.receive();
     assert_eq!(count, 3);
-    assert_eq!(expected, received);
+    assert_eq!(expected, received.to_vec());
 }
 
 #[test]
@@ -424,13 +424,13 @@ fn large_message_transmission() {
         .take(8000) // This is beyond our receive window now
         .collect();
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(Message::new(expected.clone()));
+    peer_a.send(&Message::new(expected.clone()));
     let mut received = vec![];
     while received.len() != expected.len() {
         for outgoing in peer_a.segments() {
             peer_b.segment_arrives(outgoing);
         }
-        received.extend(peer_b.receive());
+        received.extend(peer_b.receive().iter());
         for outgoing in peer_b.segments() {
             peer_a.segment_arrives(outgoing);
         }
@@ -444,7 +444,7 @@ fn large_message_transmission() {
 fn message_retransmission() {
     let expected: Vec<_> = (0..8000).map(|i| i as u8).collect();
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(Message::new(expected.clone()));
+    peer_a.send(&Message::new(expected.clone()));
     let mut received = vec![];
     while received.len() < expected.len() {
         for outgoing in peer_a.segments() {
@@ -452,7 +452,7 @@ fn message_retransmission() {
                 peer_b.segment_arrives(outgoing);
             }
         }
-        received.extend(peer_b.receive());
+        received.extend(peer_b.receive().iter());
         for outgoing in peer_b.segments() {
             if rand::random::<f32>() < 0.5 {
                 peer_a.segment_arrives(outgoing);
@@ -472,13 +472,13 @@ fn out_of_order_delivery() {
         .take(4000)
         .collect();
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(Message::new(expected.clone()));
+    peer_a.send(&Message::new(expected.clone()));
     let segments = peer_a.segments();
     for outgoing in segments.into_iter().rev() {
         peer_b.segment_arrives(outgoing);
     }
     let received = peer_b.receive();
-    assert_eq!(expected, received);
+    assert_eq!(expected, received.to_vec());
 }
 
 #[test]
@@ -543,7 +543,7 @@ fn loss_during_initiation() {
 #[test]
 fn send_before_established() {
     let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
-    peer_a.send(Message::new("Hello!"));
+    peer_a.send(&Message::new("Hello!"));
     let peer_a_syn = peer_a.segments().remove(0);
     let mut peer_b = segment_arrives_listen(
         peer_a_syn,
@@ -555,7 +555,7 @@ fn send_before_established() {
     .unwrap()
     .tcb()
     .unwrap();
-    peer_b.send(Message::new("Hi!"));
+    peer_b.send(&Message::new("Hi!"));
     for segment in peer_b.segments() {
         peer_a.segment_arrives(segment);
     }
@@ -564,6 +564,6 @@ fn send_before_established() {
     }
     assert_eq!(peer_a.state, State::Established);
     assert_eq!(peer_b.state, State::Established);
-    assert_eq!(peer_a.receive(), b"Hi!");
-    assert_eq!(peer_b.receive(), b"Hello!");
+    assert_eq!(peer_a.receive().to_vec(), b"Hi!");
+    assert_eq!(peer_b.receive().to_vec(), b"Hello!");
 }

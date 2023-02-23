@@ -148,12 +148,12 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.2](https://www.rfc-editor.org/rfc/rfc9293.html#name-send-call).
-    pub fn send(&mut self, message: Message) {
+    pub fn send(&mut self, message: &Message) {
         // 3.10.2 (Not compliant, doing things differently. We don't have a
         // retransmission queue.)
         match self.state {
             State::SynSent | State::SynReceived | State::Established => {
-                self.outgoing.text.push_back(message);
+                self.outgoing.text.concatenate(message);
             }
 
             State::FinWait1
@@ -172,7 +172,7 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.3](https://www.rfc-editor.org/rfc/rfc9293.html#name-receive-call).
-    pub fn receive(&mut self) -> Vec<u8> {
+    pub fn receive(&mut self) -> Message {
         // TODO(hardint): This currently requires copying bytes from the
         // received messages because we cannot yet concatenate two messages.
         // Revisit this when the message type has been updated to support
@@ -186,12 +186,11 @@ impl Tcb {
             | State::CloseWait => {
                 // TODO(hardint): Use receive buffer size instead of just taking
                 // everything
-                let bytes = self.incoming.text.iter().map(|message| message.len()).sum();
-                consume_text(&mut self.incoming.text, bytes)
+                mem::take(&mut self.incoming.text)
             }
             State::Closing | State::LastAck | State::TimeWait => {
                 // TODO(hardint): Return a connection closing error
-                vec![]
+                Default::default()
             }
         }
     }
@@ -271,26 +270,26 @@ impl Tcb {
                 let mut queued_bytes = self.outgoing.queued_bytes();
                 loop {
                     let max_bytes = self.snd.wnd as usize - queued_bytes;
-                    let text =
-                        consume_text(&mut self.outgoing.text, max_segment_length.min(max_bytes));
-                    if text.is_empty() {
+                    let bytes = max_segment_length
+                        .min(max_bytes)
+                        .min(self.outgoing.text.len());
+                    if bytes == 0 {
                         break;
                     }
+                    let mut text = self.outgoing.text.clone();
+                    text.slice(..bytes);
+                    self.outgoing.text.slice(bytes..);
                     queued_bytes += text.len();
                     let header = self
                         .header_builder(self.snd.nxt)
                         .ack(self.rcv.nxt)
                         .wnd(self.rcv.wnd)
-                        .build(
-                            self.id.local.address,
-                            self.id.remote.address,
-                            text.iter().cloned(),
-                        )
+                        .build(self.id.local.address, self.id.remote.address, text.iter())
                         .expect("Unexpectedly large MTU and message");
                     self.snd.nxt = self.snd.nxt.wrapping_add(text.len() as u32);
                     self.outgoing
                         .retransmit
-                        .push_back(Transmit::new(Segment::new(header, Message::new(text))));
+                        .push_back(Transmit::new(Segment::new(header, text)));
                 }
             }
 
@@ -536,11 +535,11 @@ impl Tcb {
                         // SYN occupies the first byte of data
                         .wrapping_add(seg.ctl.syn() as u32);
                     let unreceived = text_len - already_received;
-                    let space_available = self.rcv.wnd as u32 - self.incoming.queued_bytes() as u32;
+                    let space_available = self.rcv.wnd as u32 - self.incoming.text.len() as u32;
                     let accept = unreceived.min(space_available);
                     self.rcv.nxt += accept;
                     text.slice(already_received as usize..(already_received + accept) as usize);
-                    self.incoming.text.push_back(text);
+                    self.incoming.text.concatenate(&text);
                     // TODO(hardint): Aggregate and piggyback ACK segments
                     self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                 }
@@ -847,15 +846,7 @@ struct Incoming {
     segments: BinaryHeap<Segment>,
     /// Segment text that has been aggregated from processed segments and is
     /// ready to be delivered to the user.
-    text: VecDeque<Message>,
-}
-
-impl Incoming {
-    /// The number of bytes received from the remote TCP and queued for delivery
-    /// to the user.
-    pub fn queued_bytes(&self) -> usize {
-        self.text.iter().map(|message| message.len()).sum()
-    }
+    text: Message,
 }
 
 /// How the TCP connection was opened locally
@@ -936,6 +927,7 @@ pub enum CloseResult {
 }
 
 /// The result of a segment arriving to the TCP in a LISTEN state
+#[allow(clippy::large_enum_variant)]
 #[must_use]
 #[derive(Debug, Clone)]
 pub enum ListenResult {
