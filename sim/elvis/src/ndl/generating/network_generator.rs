@@ -35,7 +35,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
         for option in &net.options {
             match option.0.as_str() {
                 "latency" => {
-                    if !net.options.contains_key("latency_var"){
+                    if !net.options.contains_key("latency_var") {
                         network.latency(Latency::constant(Duration::from_secs(
                             option.1.parse::<u64>().unwrap_or_else(|_e| {
                                 panic!("Network {}: Invalid latency value passed to network.", id);
