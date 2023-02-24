@@ -19,7 +19,7 @@ pub async fn query() {
 
     let machine = Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(0.into(), Recipient::slot(0))].into_iter().collect()).shared(),
+        Ipv4::new([(0.into(), Recipient::new(0, 0))].into_iter().collect()).shared(),
         QueryTester::new().shared(),
         Pci::new([network.tap(), network.tap()]).shared(),
     ]);

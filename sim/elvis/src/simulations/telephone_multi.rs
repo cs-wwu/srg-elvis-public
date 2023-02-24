@@ -31,9 +31,7 @@ pub async fn telephone_multi() {
     for i in 0u32..(END - 1) {
         let local = i.to_be_bytes().into();
         let remote = (i + 1).to_be_bytes().into();
-        let table = [(local, Recipient::slot(0)), (remote, Recipient::new(1, 1))]
-            .into_iter()
-            .collect();
+        let table = [(remote, Recipient::new(1, 1))].into_iter().collect();
         machines.push(Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),
@@ -47,12 +45,7 @@ pub async fn telephone_multi() {
     let capture = Capture::new(local, 0xbeef).shared();
     machines.push(Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new(
-            [(local, Recipient::slot(last_network))]
-                .into_iter()
-                .collect(),
-        )
-        .shared(),
+        Ipv4::new(Default::default()).shared(),
         Pci::new([networks[last_network as usize].tap()]).shared(),
         capture.clone(),
     ]));

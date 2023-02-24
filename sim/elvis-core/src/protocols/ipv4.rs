@@ -223,18 +223,11 @@ pub type Recipients = DashMap<Ipv4Address, Recipient>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Recipient {
     pub slot: PciSlot,
-    pub mac: Option<Mac>,
+    pub mac: Mac,
 }
 
 impl Recipient {
     pub fn new(slot: PciSlot, mac: Mac) -> Self {
-        Self {
-            slot,
-            mac: Some(mac),
-        }
-    }
-
-    pub fn slot(slot: PciSlot) -> Self {
-        Self { slot, mac: None }
+        Self { slot, mac }
     }
 }
