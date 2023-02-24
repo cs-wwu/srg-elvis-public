@@ -24,7 +24,7 @@ pub async fn throughput() {
         .throughput(Throughput::constant(Baud::bytes_per_second(MESSAGE_LENGTH)))
         .build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: Recipients = [(capture_ip_address, Recipient::slot(0))]
+    let ip_table: Recipients = [(capture_ip_address, Recipient::new(0, 1))]
         .into_iter()
         .collect();
 

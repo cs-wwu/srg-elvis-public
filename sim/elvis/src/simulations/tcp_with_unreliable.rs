@@ -25,7 +25,9 @@ pub async fn tcp_with_unreliable() {
         ))
         .build();
     let dst_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: Recipients = [(dst_ip_address, Recipient::slot(0))].into_iter().collect();
+    let ip_table: Recipients = [(dst_ip_address, Recipient::new(0, 1))]
+        .into_iter()
+        .collect();
 
     let message: Vec<_> = (0..8000).map(|i| i as u8).collect();
     let message = Message::new(message);

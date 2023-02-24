@@ -22,7 +22,7 @@ pub async fn telephone_single() {
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(remote, Recipient::slot(0))].into_iter().collect()).shared(),
+        Ipv4::new([(remote, Recipient::new(0, 1))].into_iter().collect()).shared(),
         Pci::new([network.tap()]).shared(),
         SendMessage::new(message.clone(), remote, 0xbeef)
             .remote_mac(1)
@@ -32,9 +32,12 @@ pub async fn telephone_single() {
     for i in 0u32..(END - 1) {
         let local: Ipv4Address = i.to_be_bytes().into();
         let remote: Ipv4Address = (i + 1).to_be_bytes().into();
-        let table = [(local, Recipient::slot(0)), (remote, Recipient::slot(0))]
-            .into_iter()
-            .collect();
+        let table = [
+            (local, Recipient::slot(0)),
+            (remote, Recipient::new(0, i as Mac + 2)),
+        ]
+        .into_iter()
+        .collect();
         machines.push(Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),

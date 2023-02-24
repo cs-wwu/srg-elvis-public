@@ -17,7 +17,7 @@ use elvis_core::{
 pub async fn tcp_gigabyte_bench() {
     let network = NetworkBuilder::new().mtu(1500).build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: Recipients = [(capture_ip_address, Recipient::slot(0))]
+    let ip_table: Recipients = [(capture_ip_address, Recipient::new(0, 1))]
         .into_iter()
         .collect();
 
@@ -29,7 +29,6 @@ pub async fn tcp_gigabyte_bench() {
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
             SendMessage::new(message.clone(), capture_ip_address, 0xbeef)
-                .remote_mac(1)
                 .transport(Transport::Tcp)
                 .shared(),
         ]),
