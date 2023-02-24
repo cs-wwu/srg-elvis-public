@@ -27,6 +27,8 @@ mod tcb;
 mod tcp_parsing;
 mod tcp_session;
 
+// Problem: TCP packets don't use MAC addresses
+
 /// Implements the Transmission Control Protocol. See the module-level
 /// documentation for more details.
 #[derive(Default)]

@@ -95,15 +95,14 @@ impl Application for SendMessage {
             .expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
         let mut context = Context::new(protocols);
+        if let Some(destination_mac) = self.remote_mac {
+            Network::set_destination(destination_mac, &mut context.control);
+        }
 
-        let remote_mac = self.remote_mac;
         let count = self.count;
         let body = self.body.clone();
         tokio::spawn(async move {
             initialized.wait().await;
-            if let Some(destination_mac) = remote_mac {
-                Network::set_destination(destination_mac, &mut context.control);
-            }
             for _ in 0..count {
                 session
                     .clone()

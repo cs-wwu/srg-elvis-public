@@ -6,7 +6,7 @@ use crate::{
     Id, Message, ProtocolMap, Session,
 };
 use std::{
-    sync::{Arc, RwLock, RwLockWriteGuard},
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
@@ -48,8 +48,12 @@ impl TcpSession {
     ) -> Result<SegmentArrivesResult, ReceiveError> {
         let mut tcb = self.tcb.write().unwrap();
         let result = tcb.segment_arrives(segment);
-        self.deliver_outgoing(&mut tcb, context.clone())?;
+        let segments = tcb.segments();
+        drop(tcb);
+        self.deliver_outgoing(segments, context.clone())?;
+        let mut tcb = self.tcb.write().unwrap();
         let received = tcb.receive();
+        drop(tcb);
         if !received.is_empty() {
             context
                 .clone()
@@ -69,7 +73,9 @@ impl TcpSession {
         let mut tcb = self.tcb.write().unwrap();
         let result = tcb.advance_time(delta_time);
         let context = Context::new(protocols);
-        match self.deliver_outgoing(&mut tcb, context) {
+        let segments = tcb.segments();
+        drop(tcb);
+        match self.deliver_outgoing(segments, context) {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Send error while advancing time: {}", e);
@@ -79,12 +85,8 @@ impl TcpSession {
     }
 
     /// Transfer outgoing segments from the TCB to the downstream session
-    fn deliver_outgoing(
-        &self,
-        tcb: &mut RwLockWriteGuard<Tcb>,
-        context: Context,
-    ) -> Result<(), SendError> {
-        for mut segment in tcb.segments() {
+    fn deliver_outgoing(&self, segments: Vec<Segment>, context: Context) -> Result<(), SendError> {
+        for mut segment in segments {
             segment.text.header(segment.header.serialize());
             self.downstream
                 .clone()
@@ -98,7 +100,9 @@ impl Session for TcpSession {
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
         let mut tcb = self.tcb.write().unwrap();
         tcb.send(&message);
-        self.deliver_outgoing(&mut tcb, context)?;
+        let segments = tcb.segments();
+        drop(tcb);
+        self.deliver_outgoing(segments, context)?;
         Ok(())
     }
 

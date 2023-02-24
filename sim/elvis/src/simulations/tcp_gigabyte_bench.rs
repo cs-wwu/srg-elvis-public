@@ -19,7 +19,7 @@ pub async fn tcp_gigabyte_bench() {
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
-    let message: Vec<_> = (0..1_000_000_00).map(|i| i as u8).collect();
+    let message: Vec<_> = (0..i32::MAX).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
         Machine::new([
@@ -27,6 +27,7 @@ pub async fn tcp_gigabyte_bench() {
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
             SendMessage::new(message.clone(), capture_ip_address, 0xbeef)
+                .remote_mac(1)
                 .transport(Transport::Tcp)
                 .shared(),
         ]),
