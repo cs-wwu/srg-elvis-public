@@ -111,8 +111,8 @@ impl Protocol for Ipv4 {
                 let tap_session = protocols
                     .protocol(Pci::ID)
                     .expect("No such protocol")
-                    .open(Self::ID, participants, protocols.clone())?;
-                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, tap_slot, protocols.clone()));
+                    .open(Self::ID, participants, protocols)?;
+                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, tap_slot));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -179,7 +179,7 @@ impl Protocol for Ipv4 {
                         tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;
-                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network, context.protocols.clone()));
+                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
                     entry.insert(session.clone());
                     session
                 }
