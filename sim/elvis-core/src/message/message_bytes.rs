@@ -27,16 +27,16 @@ impl<'a> Iterator for MessageBytes<'a> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.current.next() {
-            Some(byte) => Some(*byte),
-            None => {
+        self.current
+            .next()
+            .or_else(|| {
                 self.current = self
                     .chunks
                     .next()
                     .map(|chunk| chunk.as_slice().iter())
                     .unwrap_or([].iter());
-                self.current.next().map(|byte| *byte)
-            }
-        }
+                self.current.next()
+            })
+            .cloned()
     }
 }
