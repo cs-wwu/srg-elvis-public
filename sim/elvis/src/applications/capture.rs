@@ -25,34 +25,26 @@ pub struct Capture {
     ip_address: Ipv4Address,
     /// The port we listen for a message on
     port: u16,
-
-    exit_message: String,
+    /// The number of messages it will receive before stopping
+    message_count: u32,
+    /// The number of messages currently recieved
+    cur_count: RwLock<u32>,
     /// The transport protocol to use
     transport: Transport,
 }
 
 impl Capture {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16) -> Self {
+    pub fn new(ip_address: Ipv4Address, port: u16, message_count: u32) -> Self {
         Self {
             message: Default::default(),
             shutdown: Default::default(),
             ip_address,
             port,
-            exit_message: String::from("exiting"),
+            message_count,
+            cur_count: RwLock::new(0),
             transport: Transport::Udp,
         }
-    }
-
-    pub fn new_exit_message(ip_address: Ipv4Address, port: u16, exit_message: String) -> Arc<UserProcess<Self>> {
-        UserProcess::new(Self {
-            message: Default::default(),
-            shutdown: Default::default(),
-            ip_address,
-            port,
-            exit_message: exit_message,
-            transport: Transport::Udp,
-        }).shared()
     }
 
     /// Creates a new capture behind a shared handle.
@@ -60,15 +52,15 @@ impl Capture {
         UserProcess::new(self).shared()
     }
 
+    /// Gets the message that was received.
+    pub fn message(&self) -> Option<Message> {
+        self.message.read().unwrap().clone()
+    }
+
     /// Set the transport protocol to use
     pub fn transport(mut self, transport: Transport) -> Self {
         self.transport = transport;
         self
-    }
-
-    /// Gets the message that was received.
-    pub fn message(&self) -> Option<Message> {
-        self.message.read().unwrap().clone()
     }
 }
 
@@ -99,12 +91,14 @@ impl Application for Capture {
     }
 
     fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
-        println!("capture recieved: {}", self.exit_message);
         *self.message.write().unwrap() = Some(message);
-        if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-            tokio::spawn(async move {
-                shutdown.send(()).await.unwrap();
-            });
+        *self.cur_count.write().unwrap() += 1;
+        if *self.cur_count.read().unwrap() >= self.message_count {
+            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
+                tokio::spawn(async move {
+                    shutdown.send(()).await.unwrap();
+                });
+            }
         }
         Ok(())
     }

@@ -1,5 +1,6 @@
 use elvis_core::{
     message::Message,
+    network::Mac,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
@@ -11,6 +12,8 @@ use elvis_core::{
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
+
+use super::Transport;
 
 /// An application that sends a Time To Live (TTL) to
 /// another machine from the first machine.
@@ -28,6 +31,10 @@ pub struct PingPong {
     /// The port we listen for a message on
     local_port: u16,
     remote_port: u16,
+    /// The machine that will receive the message
+    remote_mac: Option<Mac>,
+    /// The protocol to use in delivering the message
+    transport: Transport,
 }
 
 impl PingPong {
@@ -47,12 +54,24 @@ impl PingPong {
             remote_ip_address,
             local_port,
             remote_port,
+            remote_mac: None,
+            transport: Transport::Udp,
         }
     }
 
     /// Creates a new capture behind a shared handle.
     pub fn shared(self) -> Arc<UserProcess<Self>> {
         UserProcess::new(self).shared()
+    }
+    /// Set the MAC address of the machine to send to
+    pub fn remote_mac(mut self, mac: Mac) -> Self {
+        self.remote_mac = Some(mac);
+        self
+    }
+    /// The protocol to use in delivering the message
+    pub fn transport(mut self, transport: Transport) -> Self {
+        self.transport = transport;
+        self
     }
 }
 

@@ -8,40 +8,48 @@ use std::sync::Arc;
 
 /// A piece of a [Message](super::Message), either a message body or a
 /// header.
-#[derive(Debug)]
-pub struct Chunk(Arc<Vec<u8>>);
+#[derive(Debug, Clone)]
+pub struct Chunk {
+    pub(super) start: usize,
+    pub(super) end: usize,
+    pub(super) bytes: Arc<Vec<u8>>,
+}
 
 impl Chunk {
     /// Returns a new chunk containing the given bytes.
-    pub fn new(data: Vec<u8>) -> Self {
-        Self(Arc::new(data))
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self {
+            start: 0,
+            end: bytes.len(),
+            bytes: Arc::new(bytes),
+        }
     }
 
     /// Returns the underlying bytes as slice.
     pub fn as_slice(&self) -> &[u8] {
-        self.0.as_slice()
+        &self.bytes[self.start..self.end]
     }
 
     /// The number of bytes in the chunk.
     pub fn len(&self) -> usize {
-        self.as_slice().len()
+        self.end - self.start
     }
 
     /// Whether the chunk contains no bytes.
     pub fn is_empty(&self) -> bool {
-        self.as_slice().is_empty()
+        self.len() == 0
     }
 }
 
-impl Clone for Chunk {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
+impl PartialEq for Chunk {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice().eq(other.as_slice())
     }
 }
 
 impl From<Vec<u8>> for Chunk {
     fn from(vector: Vec<u8>) -> Self {
-        Self(Arc::new(vector))
+        Self::new(vector)
     }
 }
 
@@ -66,5 +74,11 @@ impl<const N: usize> From<[u8; N]> for Chunk {
 impl From<&str> for Chunk {
     fn from(string: &str) -> Self {
         string.as_bytes().into()
+    }
+}
+
+impl From<String> for Chunk {
+    fn from(string: String) -> Self {
+        string.into_bytes().into()
     }
 }

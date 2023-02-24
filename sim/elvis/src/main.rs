@@ -1,12 +1,10 @@
-use elvis::simulations;
+use elvis::cli::initialize_from_arguments;
 use std::env;
 
-/// Without arguments, main runs the default simulation
+/// Without arguments, will do nothing
 #[tokio::main]
 async fn main() {
     println!("Elvis v{}", env!("CARGO_PKG_VERSION"));
-    println!("Running default simulation...");
-    simulations::router_multi().await;
-    simulations::telephone_single().await;
+    initialize_from_arguments().await;
     println!("Done");
 }
