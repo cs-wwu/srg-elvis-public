@@ -3,7 +3,6 @@
 use elvis_core::Id;
 
 mod capture;
-pub mod router;
 pub use capture::Capture;
 
 mod send_message;
@@ -18,10 +17,12 @@ pub use ping_pong::PingPong;
 mod query_tester;
 pub use query_tester::QueryTester;
 
+pub mod router;
+pub use router::{Arp, Router};
+
 mod throughput_tester;
 pub use throughput_tester::ThroughputTester;
 
-pub use router::{Arp, Router};
 mod wait_for_message;
 pub use wait_for_message::WaitForMessage;
 

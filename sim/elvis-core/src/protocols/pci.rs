@@ -124,6 +124,7 @@ impl Protocol for Pci {
             session.clone().start(protocols.clone(), barrier.clone());
         }
         tokio::spawn(async move {
+            // Wait until all the taps have started before starting the sim
             barrier.wait().await;
             initialized.wait().await;
         });
