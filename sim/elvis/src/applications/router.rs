@@ -110,10 +110,7 @@ impl Application for Router {
         Network::set_protocol(Ipv4::ID, &mut context.control);
 
         // put destination address through ip table
-        let destination = *self
-            .ip_table
-            .get(&address)
-            .expect("Could not find key");
+        let destination = *self.ip_table.get(&address).expect("Could not find key");
 
         // println!("{}", destination);
 
