@@ -50,18 +50,10 @@ pub async fn router_multi() {
     let dt4:IpToTapSlot = [(IP_ADDRESS_5, 0)].into_iter().collect();
 
     // configure captures.
-    let d1 = Capture::new_exit_message(
-        IP_ADDRESS_2, 0xbeef, String::from("destination 1")
-    );
-    let d2 = Capture::new_exit_message(
-        IP_ADDRESS_3, 0xbeef, String::from("destination 2")
-    );
-    let d3 = Capture::new_exit_message(
-        IP_ADDRESS_4, 0xbeef, String::from("destination 3")
-    );
-    let d4 = Capture::new_exit_message(
-        IP_ADDRESS_5, 0xbeef, String::from("destination 4")
-    );
+    let d1 = Capture::new(IP_ADDRESS_2, 0xbeef, 1).shared();
+    let d2 = Capture::new(IP_ADDRESS_3, 0xbeef, 1).shared();
+    let d3 = Capture::new(IP_ADDRESS_4, 0xbeef, 1).shared();
+    let d4 = Capture::new(IP_ADDRESS_5, 0xbeef, 1).shared();
 
     let networks = vec![
         Network::basic(),

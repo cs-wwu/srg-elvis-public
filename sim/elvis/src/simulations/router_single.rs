@@ -31,9 +31,9 @@ pub async fn router_single() {
     let dt3:IpToTapSlot = [(IP_ADDRESS_4, 0)].into_iter().collect();
 
 
-    let d1 = Capture::new_exit_message(IP_ADDRESS_2, 0xbeef, String::from("destination 1"));
-    let d2 = Capture::new_exit_message(IP_ADDRESS_3, 0xbeef, String::from("destination 2"));
-    let d3 = Capture::new_exit_message(IP_ADDRESS_4, 0xbeef, String::from("destination 3"));
+    let d1 = Capture::new(IP_ADDRESS_2, 0xbeef, 1).shared();
+    let d2 = Capture::new(IP_ADDRESS_3, 0xbeef, 1).shared();
+    let d3 = Capture::new(IP_ADDRESS_4, 0xbeef, 1).shared();
 
     let networks = vec![
         Network::basic(),
