@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 
-use crate::applications::{Capture, SendMessage, Router};
+use crate::applications::{Capture, Router, SendMessage};
 use elvis_core::{
+    network::Mac,
     protocol::SharedProtocol,
-    protocols::{ipv4::{Ipv4, Ipv4Address, IpToTapSlot}, udp::Udp, Pci},
-    run_internet, Machine, Network, network::Mac,
-    Message,
+    protocols::{
+        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        udp::Udp,
+        Pci,
+    },
+    run_internet, Machine, Message, Network,
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
@@ -18,36 +22,51 @@ const IP_ADDRESS_5: Ipv4Address = Ipv4Address::new([123, 45, 67, 93]);
 pub async fn router_multi() {
     let destination = IP_ADDRESS_5.clone();
 
-    // The ip table for the first router in path. 
+    // The ip table for the first router in path.
     // tells the router which of its tap slots to relay the message to
-    let ip_table1: IpToTapSlot = 
-        [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 1), 
-         (IP_ADDRESS_3, 1), (IP_ADDRESS_4, 2),
-         (IP_ADDRESS_5, 2)].into_iter().collect();
+    let ip_table1: IpToTapSlot = [
+        (IP_ADDRESS_1, 0),
+        (IP_ADDRESS_2, 1),
+        (IP_ADDRESS_3, 1),
+        (IP_ADDRESS_4, 2),
+        (IP_ADDRESS_5, 2),
+    ]
+    .into_iter()
+    .collect();
 
     // the arp table for the first router in path
     // tells the router which machine on the destination tap slot
     // to send the message to.
-    let arp_table1: HashMap<Ipv4Address, Mac> = 
-        [(IP_ADDRESS_1, 1), (IP_ADDRESS_2, 1), 
-         (IP_ADDRESS_3, 1), (IP_ADDRESS_4, 1),
-         (IP_ADDRESS_5, 2)].into_iter().collect();
+    let arp_table1: HashMap<Ipv4Address, Mac> = [
+        (IP_ADDRESS_1, 1),
+        (IP_ADDRESS_2, 1),
+        (IP_ADDRESS_3, 1),
+        (IP_ADDRESS_4, 1),
+        (IP_ADDRESS_5, 2),
+    ]
+    .into_iter()
+    .collect();
 
     // the ip table for the second router in the path
-    let ip_table2: IpToTapSlot =
-        [(IP_ADDRESS_1, 0), (IP_ADDRESS_4, 0), 
-         (IP_ADDRESS_2, 1), (IP_ADDRESS_3, 2),
-         (IP_ADDRESS_5, 0)].into_iter().collect();
-    
+    let ip_table2: IpToTapSlot = [
+        (IP_ADDRESS_1, 0),
+        (IP_ADDRESS_4, 0),
+        (IP_ADDRESS_2, 1),
+        (IP_ADDRESS_3, 2),
+        (IP_ADDRESS_5, 0),
+    ]
+    .into_iter()
+    .collect();
+
     // the arp table for the second router in the path
     let arp_table2: HashMap<Ipv4Address, Mac> =
         [(IP_ADDRESS_2, 1), (IP_ADDRESS_3, 1)].into_iter().collect();
 
     // needed to configure captures
-    let dt1:IpToTapSlot = [(IP_ADDRESS_2, 0)].into_iter().collect();
-    let dt2:IpToTapSlot = [(IP_ADDRESS_3, 0)].into_iter().collect();
-    let dt3:IpToTapSlot = [(IP_ADDRESS_4, 0)].into_iter().collect();
-    let dt4:IpToTapSlot = [(IP_ADDRESS_5, 0)].into_iter().collect();
+    let dt1: IpToTapSlot = [(IP_ADDRESS_2, 0)].into_iter().collect();
+    let dt2: IpToTapSlot = [(IP_ADDRESS_3, 0)].into_iter().collect();
+    let dt3: IpToTapSlot = [(IP_ADDRESS_4, 0)].into_iter().collect();
+    let dt4: IpToTapSlot = [(IP_ADDRESS_5, 0)].into_iter().collect();
 
     // configure captures.
     let d1 = Capture::new(IP_ADDRESS_2, 0xbeef, 1).shared();
@@ -60,16 +79,18 @@ pub async fn router_multi() {
         Network::basic(),
         Network::basic(),
         Network::basic(),
-        Network::basic()
+        Network::basic(),
     ];
-    
+
     let machines = vec![
         // send message
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new([(destination, 0)].into_iter().collect()).shared(),
             Pci::new([networks[0].tap()]).shared(),
-            SendMessage::new(Message::new(b"Hello World!"), destination, 0xbeef).remote_mac(1).shared(),
+            SendMessage::new(Message::new(b"Hello World!"), destination, 0xbeef)
+                .remote_mac(1)
+                .shared(),
         ]),
         // machine representing our router
         Machine::new([
@@ -107,7 +128,7 @@ pub async fn router_multi() {
             Ipv4::new(dt4).shared(),
             Pci::new([networks[2].tap()]).shared(),
             d4.clone(),
-        ])
+        ]),
     ];
 
     run_internet(machines, networks).await;
