@@ -24,9 +24,7 @@ pub async fn telephone_single() {
         Udp::new().shared() as SharedProtocol,
         Ipv4::new([(remote, Recipient::new(0, 1))].into_iter().collect()).shared(),
         Pci::new([network.tap()]).shared(),
-        SendMessage::new(message.clone(), remote, 0xbeef)
-            .remote_mac(1)
-            .shared(),
+        SendMessage::new(message.clone(), remote, 0xbeef).shared(),
     ])];
 
     for i in 0u32..(END - 1) {
@@ -39,7 +37,7 @@ pub async fn telephone_single() {
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),
             Pci::new([network.tap()]).shared(),
-            Forward::new(local, remote, 0xbeef, 0xbeef, Some(i as Mac + 2)).shared(),
+            Forward::new(local, remote, 0xbeef, 0xbeef).shared(),
         ]));
     }
 

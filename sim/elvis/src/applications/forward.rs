@@ -1,6 +1,5 @@
 use elvis_core::{
     message::Message,
-    network::Mac,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
@@ -9,7 +8,7 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap,
+    Control, Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -26,7 +25,6 @@ pub struct Forward {
     local_port: u16,
     /// The port number for outgoing messages
     remote_port: u16,
-    destination_mac: Option<Mac>,
 }
 
 impl Forward {
@@ -36,7 +34,6 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
-        destination_mac: Option<Mac>,
     ) -> Self {
         Self {
             outgoing: Default::default(),
@@ -44,7 +41,6 @@ impl Forward {
             remote_ip,
             local_port,
             remote_port,
-            destination_mac,
         }
     }
 
@@ -83,10 +79,7 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn receive(&self, message: Message, mut context: Context) -> Result<(), ApplicationError> {
-        if let Some(destination_mac) = self.destination_mac {
-            Network::set_destination(destination_mac, &mut context.control);
-        }
+    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
         self.outgoing
             .read()
             .unwrap()

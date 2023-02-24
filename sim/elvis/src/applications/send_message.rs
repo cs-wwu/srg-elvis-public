@@ -1,6 +1,5 @@
 use elvis_core::{
     message::Message,
-    network::Mac,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
@@ -8,7 +7,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Tcp,
     },
-    Control, Id, Network, ProtocolMap,
+    Control, Id, ProtocolMap,
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -23,8 +22,6 @@ pub struct SendMessage {
     remote_ip: Ipv4Address,
     /// The port to send on
     remote_port: u16,
-    /// The machine that will receive the message
-    remote_mac: Option<Mac>,
     /// The number of copies of the message to send
     count: u16,
     /// The protocol to use in delivering the message
@@ -38,7 +35,6 @@ impl SendMessage {
             body,
             remote_ip,
             remote_port,
-            remote_mac: None,
             count: 1,
             transport: Transport::Udp,
         }
@@ -47,12 +43,6 @@ impl SendMessage {
     /// Wrap the SendMessage in a user process
     pub fn shared(self) -> Arc<UserProcess<Self>> {
         UserProcess::new(self).shared()
-    }
-
-    /// Set the MAC address of the machine to send to
-    pub fn remote_mac(mut self, mac: Mac) -> Self {
-        self.remote_mac = Some(mac);
-        self
     }
 
     /// The number of copies of the message to send
@@ -94,11 +84,7 @@ impl Application for SendMessage {
             .protocol(self.transport.id())
             .expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
-        let mut context = Context::new(protocols);
-        if let Some(destination_mac) = self.remote_mac {
-            Network::set_destination(destination_mac, &mut context.control);
-        }
-
+        let context = Context::new(protocols);
         let count = self.count;
         let body = self.body.clone();
         tokio::spawn(async move {

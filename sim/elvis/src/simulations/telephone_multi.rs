@@ -35,7 +35,7 @@ pub async fn telephone_multi() {
         machines.push(Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),
-            Forward::new(local, remote, 0xbeef, 0xbeef, None).shared(),
+            Forward::new(local, remote, 0xbeef, 0xbeef).shared(),
             Pci::new([networks[i as usize].tap(), networks[i as usize + 1].tap()]).shared(),
         ]));
     }
