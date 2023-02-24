@@ -13,3 +13,7 @@ Cargo.lock
 .vscode
 
 *.log
+
+# Ignore perf files
+*.data
+*.old
