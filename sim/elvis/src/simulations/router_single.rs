@@ -20,7 +20,7 @@ const IP_ADDRESS_4: Ipv4Address = Ipv4Address::new([123, 45, 67, 92]);
 // simulates a staticly configured router routing a single packet to one of three destinations
 pub async fn router_single() {
     // the destination of the capture we want to send the packet to
-    let destination = IP_ADDRESS_2.clone();
+    let destination = IP_ADDRESS_2;
 
     let ip_table: IpToTapSlot = [
         (IP_ADDRESS_1, 0),

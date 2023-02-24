@@ -29,8 +29,8 @@ impl Router {
     pub fn new(ip_table: IpToTapSlot, arp_table: Arp) -> Self {
         Self {
             outgoing: Default::default(),
-            ip_table: ip_table,
-            arp_table: arp_table,
+            ip_table,
+            arp_table,
         }
     }
 
@@ -110,16 +110,14 @@ impl Application for Router {
         Network::set_protocol(Ipv4::ID, &mut context.control);
 
         // put destination address through ip table
-        let destination = self
+        let destination = *self
             .ip_table
             .get(&address)
-            .expect("Could not find key")
-            .clone();
+            .expect("Could not find key");
 
         // println!("{}", destination);
 
-        self.clone()
-            .outgoing
+        self.outgoing
             .read()
             .unwrap()
             .as_ref()

@@ -20,7 +20,7 @@ const IP_ADDRESS_5: Ipv4Address = Ipv4Address::new([123, 45, 67, 93]);
 
 // simulates a message being sent over a network of multiple staticly configured routers
 pub async fn router_multi() {
-    let destination = IP_ADDRESS_5.clone();
+    let destination = IP_ADDRESS_5;
 
     // The ip table for the first router in path.
     // tells the router which of its tap slots to relay the message to
