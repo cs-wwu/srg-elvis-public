@@ -3,7 +3,7 @@ use elvis_core::{
     message::Message,
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         Pci, Tcp,
     },
     run_internet, Machine, Network,
@@ -16,7 +16,9 @@ use elvis_core::{
 pub async fn tcp_with_reliable() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: Recipients = [(capture_ip_address, Recipient::slot(0))]
+        .into_iter()
+        .collect();
 
     let message: Vec<_> = (0..20).map(|i| i as u8).collect();
     let message = Message::new(message);

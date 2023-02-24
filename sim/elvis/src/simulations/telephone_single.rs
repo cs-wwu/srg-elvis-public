@@ -3,7 +3,7 @@ use elvis_core::{
     network::Mac,
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Pci,
     },
@@ -22,7 +22,7 @@ pub async fn telephone_single() {
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(remote, 0)].into_iter().collect()).shared(),
+        Ipv4::new([(remote, Recipient::slot(0))].into_iter().collect()).shared(),
         Pci::new([network.tap()]).shared(),
         SendMessage::new(message.clone(), remote, 0xbeef)
             .remote_mac(1)
@@ -32,7 +32,9 @@ pub async fn telephone_single() {
     for i in 0u32..(END - 1) {
         let local: Ipv4Address = i.to_be_bytes().into();
         let remote: Ipv4Address = (i + 1).to_be_bytes().into();
-        let table = [(local, 0), (remote, 0)].into_iter().collect();
+        let table = [(local, Recipient::slot(0)), (remote, Recipient::slot(0))]
+            .into_iter()
+            .collect();
         machines.push(Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),
@@ -45,7 +47,7 @@ pub async fn telephone_single() {
     let capture = Capture::new(local, 0xbeef).shared();
     machines.push(Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(local, 0)].into_iter().collect()).shared(),
+        Ipv4::new([(local, Recipient::slot(0))].into_iter().collect()).shared(),
         Pci::new([network.tap()]).shared(),
         capture.clone(),
     ]));

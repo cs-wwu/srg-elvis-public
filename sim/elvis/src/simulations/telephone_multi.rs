@@ -1,7 +1,11 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
     protocol::SharedProtocol,
-    protocols::{ipv4::Ipv4, udp::Udp, Pci},
+    protocols::{
+        ipv4::{Ipv4, Recipient},
+        udp::Udp,
+        Pci,
+    },
     run_internet, Machine, Message, Network,
 };
 
@@ -19,7 +23,7 @@ pub async fn telephone_multi() {
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(remote, 0)].into_iter().collect()).shared(),
+        Ipv4::new([(remote, Recipient::slot(0))].into_iter().collect()).shared(),
         Pci::new([networks[0].tap()]).shared(),
         SendMessage::new(message.clone(), remote, 0xbeef).shared(),
     ])];
@@ -27,7 +31,9 @@ pub async fn telephone_multi() {
     for i in 0u32..(END - 1) {
         let local = i.to_be_bytes().into();
         let remote = (i + 1).to_be_bytes().into();
-        let table = [(local, 0), (remote, 1)].into_iter().collect();
+        let table = [(local, Recipient::slot(0)), (remote, Recipient::slot(1))]
+            .into_iter()
+            .collect();
         machines.push(Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),
@@ -41,7 +47,12 @@ pub async fn telephone_multi() {
     let capture = Capture::new(local, 0xbeef).shared();
     machines.push(Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(local, last_network)].into_iter().collect()).shared(),
+        Ipv4::new(
+            [(local, Recipient::slot(last_network))]
+                .into_iter()
+                .collect(),
+        )
+        .shared(),
         Pci::new([networks[last_network as usize].tap()]).shared(),
         capture.clone(),
     ]));

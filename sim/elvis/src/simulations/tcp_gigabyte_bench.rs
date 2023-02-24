@@ -4,7 +4,7 @@ use elvis_core::{
     network::NetworkBuilder,
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         Pci, Tcp,
     },
     run_internet, Machine,
@@ -17,7 +17,9 @@ use elvis_core::{
 pub async fn tcp_gigabyte_bench() {
     let network = NetworkBuilder::new().mtu(1500).build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: Recipients = [(capture_ip_address, Recipient::slot(0))]
+        .into_iter()
+        .collect();
 
     let message: Vec<_> = (0..i32::MAX).map(|i| i as u8).collect();
     let message = Message::new(message);

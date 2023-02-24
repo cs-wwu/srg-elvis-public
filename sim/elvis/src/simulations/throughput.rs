@@ -3,7 +3,7 @@ use elvis_core::{
     network::{Baud, NetworkBuilder, Throughput},
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Pci,
     },
@@ -24,7 +24,9 @@ pub async fn throughput() {
         .throughput(Throughput::constant(Baud::bytes_per_second(MESSAGE_LENGTH)))
         .build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: Recipients = [(capture_ip_address, Recipient::slot(0))]
+        .into_iter()
+        .collect();
 
     let machines = vec![
         Machine::new([

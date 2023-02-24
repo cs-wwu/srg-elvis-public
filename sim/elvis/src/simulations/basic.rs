@@ -3,7 +3,7 @@ use elvis_core::{
     message::Message,
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Pci,
     },
@@ -17,7 +17,9 @@ use elvis_core::{
 pub async fn basic() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: Recipients = [(capture_ip_address, Recipient::slot(0))]
+        .into_iter()
+        .collect();
 
     let message = Message::new("Hello!");
     let capture = Capture::new(capture_ip_address, 0xbeef).shared();
