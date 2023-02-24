@@ -6,10 +6,10 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Tcp, Udp,
     },
-    Control, Id, ProtocolMap,
+    Control, Id, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 use super::Transport;
 
@@ -20,7 +20,7 @@ pub struct Capture {
     /// The message that was received, if any
     message: RwLock<Option<Message>>,
     /// The channel we send on to shut down the simulation
-    shutdown: RwLock<Option<Sender<()>>>,
+    shutdown: RwLock<Option<Shutdown>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
@@ -63,7 +63,7 @@ impl Application for Capture {
 
     fn start(
         &self,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
@@ -87,9 +87,7 @@ impl Application for Capture {
     fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
         *self.message.write().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-            tokio::spawn(async move {
-                shutdown.send(()).await.unwrap();
-            });
+            shutdown.shut_down();
         }
         Ok(())
     }

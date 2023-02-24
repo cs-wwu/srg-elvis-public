@@ -11,11 +11,11 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, Network, Protocol,
+    Control, Network, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
@@ -27,7 +27,6 @@ mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
 /// An implementation of the Internet Protocol.
-#[derive(Clone)]
 pub struct Ipv4 {
     listen_bindings: DashMap<Ipv4Address, Id>,
     sessions: DashMap<SessionId, Arc<Ipv4Session>>,
@@ -79,7 +78,7 @@ impl Protocol for Ipv4 {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -106,6 +105,7 @@ impl Protocol for Ipv4 {
                 OpenError::MissingContext
             })?,
         );
+
         match self.sessions.entry(key) {
             Entry::Occupied(_) => {
                 tracing::error!(
@@ -113,11 +113,18 @@ impl Protocol for Ipv4 {
                     key.local,
                     key.remote
                 );
-                Err(OpenError::Existing)?
+                Err(OpenError::Existing)
             }
+
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
-                let recipient = { *self.recipients.get(&key.remote).unwrap() };
+                let recipient = match self.recipients.get(&key.remote) {
+                    Some(tap_slot) => *tap_slot,
+                    None => {
+                        tracing::error!("No tap slot found for the IP {}", key.remote);
+                        return Err(OpenError::Other);
+                    }
+                };
                 Pci::set_pci_slot(recipient.slot, &mut participants);
                 let tap_session = protocols
                     .protocol(Pci::ID)
@@ -141,11 +148,13 @@ impl Protocol for Ipv4 {
             tracing::error!("Missing local address on context");
             ListenError::MissingContext
         })?;
+
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => {
                 tracing::error!("A binding already exists for local address {}", local);
                 Err(ListenError::Existing)?
             }
+
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
             }
@@ -182,6 +191,7 @@ impl Protocol for Ipv4 {
 
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
+
             Entry::Vacant(entry) => match self.listen_bindings.get(&identifier.local) {
                 Some(binding) => {
                     // If the session does not exist but we have a listen
@@ -200,6 +210,7 @@ impl Protocol for Ipv4 {
                     entry.insert(session.clone());
                     session
                 }
+
                 None => {
                     tracing::error!(
                         "Could not find a listen binding for the local address {}",
