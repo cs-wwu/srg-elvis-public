@@ -1,10 +1,11 @@
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use std::{
-    fs,
+    fs::File,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
 };
+use build_html::*;
 
 struct Page {
     size: usize,
@@ -69,11 +70,27 @@ fn handle_connection(mut stream: TcpStream) {
     let status_line = "HTTP/1.1 200 OK";
     let request_line = "hello.html";
 
-    let contents = fs::read_to_string("hello.html").unwrap();
+    let contents = fs::read_to_string("page.html").unwrap();
     let length = contents.len();
 
     let response =
         format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
 
     stream.write_all(response.as_bytes()).unwrap();
+}
+
+fn generate_html(size: usize, num_links: usize, num_images: usize) {
+    let html: String = HtmlPage::new()
+    .with_title("My Page")
+    .with_header(1, "Main Content:")
+    .with_container(
+        Container::new(ContainerType::Article)
+            .with_attributes([("id", "article1")])
+            .with_header_attr(2, "Hello, World", [("id", "article-head")])
+            .with_paragraph("This is a simple HTML demo")
+    )
+    .to_html_string();
+
+    let mut file = File::create("page.txt").unwrap();
+    file.write_all(b"Hello, world!").unwrap();
 }
