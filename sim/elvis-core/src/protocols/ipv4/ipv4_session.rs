@@ -4,10 +4,10 @@ use crate::{
     id::Id,
     machine::PciSlot,
     message::Message,
-    protocol::{Context, DemuxError},
-    protocols::pci::Pci,
+    protocol::{Context, DemuxError, SharedProtocol},
+    protocols::{pci::Pci, Arp},
     session::{QueryError, SendError, SharedSession},
-    Network, Session,
+    Network, Session, network::Mac, ProtocolMap,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -21,6 +21,8 @@ pub struct Ipv4Session {
     id: SessionId,
     /// The PCI slot to send on
     tap_slot: PciSlot,
+    /// The MAC address to send packets to
+    remote_mac: Option<Mac>,
 }
 
 impl Ipv4Session {
@@ -30,12 +32,28 @@ impl Ipv4Session {
         upstream: Id,
         identifier: SessionId,
         tap_slot: PciSlot,
+        protocols: ProtocolMap,
     ) -> Self {
+        // If we have an Arp instance,
+        // Get the remote MAC address from the ARP.
+        let arp = protocols.protocol(Arp::ID);
+        let mut remote_mac = None;
+        if let Some(arp) = arp {
+            let remote_ip: u32 = identifier.remote.to_u32();
+            // query arp for the remote mac
+            let remote_mac_u64: u64 = arp.query((Arp::ID, remote_ip.into()))
+            .expect("could not obtain MAC from arp")
+            .try_into()
+            .unwrap();
+            remote_mac = Some(remote_mac_u64);
+            // that was a doozy
+        }
         Self {
             upstream,
             downstream,
             id: identifier,
             tap_slot,
+            remote_mac,
         }
     }
 
@@ -66,6 +84,11 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
+
+        if let Some(remote_mac_addr) = self.remote_mac {
+            Network::set_destination(remote_mac_addr, &mut context.control);
+        }
+
         Pci::set_pci_slot(self.tap_slot, &mut context.control);
         Network::set_protocol(Ipv4::ID, &mut context.control);
         message.header(header);
