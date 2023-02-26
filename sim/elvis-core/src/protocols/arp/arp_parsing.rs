@@ -8,7 +8,7 @@
 use crate::{
     network::Mac,
     protocols::{ipv4::Ipv4Address, Ipv4},
-    Id, Message,
+    Id,
 };
 use thiserror::Error as ThisError;
 
@@ -32,7 +32,7 @@ pub struct ArpPacket {
 
 impl ArpPacket {
     /// Creates a serialized ARP packet from the configuration provided.
-    pub fn build(&self) -> Result<Vec<u8>, PacketBuildError> {
+    pub fn build(&self) -> Vec<u8> {
         let mut out: Vec<u8> = Vec::new();
         // These 4 lines are useless for ELVIS
         // but I included them anyway so this is like a real ARP packet
@@ -51,7 +51,7 @@ impl ArpPacket {
         out.extend_from_slice(&self.sender_ip.to_bytes());
         out.extend_from_slice(&self.target_mac.to_be_bytes()[2..8]);
         out.extend_from_slice(&self.target_ip.to_bytes());
-        Ok(out)
+        out
     }
 
     /// Parses an ARP packet from a byte iterator.
@@ -109,7 +109,7 @@ mod tests {
             target_ip: Ipv4Address::new([10, 11, 12, 13]),
         };
 
-        let a_bytes = old_a.build()?;
+        let a_bytes = old_a.build();
         let new_a = ArpPacket::from_bytes(a_bytes.iter().cloned())?;
 
         assert_eq!(old_a, new_a);
