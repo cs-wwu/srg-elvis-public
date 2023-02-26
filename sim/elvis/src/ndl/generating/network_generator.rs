@@ -60,9 +60,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                     }
 
                     let rand = option.1.parse::<u64>().unwrap_or_else(|_e| {
-                        panic!(
-                            "Network {id}: Invalid latency variation value passed to network."
-                        );
+                        panic!("Network {id}: Invalid latency variation value passed to network.");
                     });
 
                     network.latency(Latency::variable(
