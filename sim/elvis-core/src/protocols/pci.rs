@@ -40,6 +40,9 @@ impl Pci {
     /// The key used to query the MTU of the network
     pub const MTU_QUERY_KEY: Key = (Self::ID, 1);
 
+    /// The key used to query the MAC address of a session's [`Tap`]
+    pub const MAC_QUERY_KEY: Key = (Self::ID, 2);
+
     /// Creates a new network tap.
     pub fn new(taps: impl IntoIterator<Item = Tap>) -> Self {
         Self {

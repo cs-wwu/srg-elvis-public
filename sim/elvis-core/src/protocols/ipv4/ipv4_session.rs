@@ -4,10 +4,11 @@ use crate::{
     id::Id,
     machine::PciSlot,
     message::Message,
-    protocol::{Context, DemuxError, SharedProtocol},
-    protocols::{pci::Pci, Arp},
+    network::Mac,
+    protocol::{Context, DemuxError},
+    protocols::pci::Pci,
     session::{QueryError, SendError, SharedSession},
-    Network, Session, network::Mac, ProtocolMap,
+    Network, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -32,22 +33,8 @@ impl Ipv4Session {
         upstream: Id,
         identifier: SessionId,
         tap_slot: PciSlot,
-        protocols: ProtocolMap,
+        remote_mac: Option<Mac>,
     ) -> Self {
-        // If we have an Arp instance,
-        // Get the remote MAC address from the ARP.
-        let arp = protocols.protocol(Arp::ID);
-        let mut remote_mac = None;
-        if let Some(arp) = arp {
-            let remote_ip: u32 = identifier.remote.to_u32();
-            // query arp for the remote mac
-            let remote_mac_u64: u64 = arp.query((Arp::ID, remote_ip.into()))
-            .expect("could not obtain MAC from arp")
-            .try_into()
-            .unwrap();
-            remote_mac = Some(remote_mac_u64);
-            // that was a doozy
-        }
         Self {
             upstream,
             downstream,

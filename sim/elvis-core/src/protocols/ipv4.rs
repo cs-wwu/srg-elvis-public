@@ -7,13 +7,15 @@ use crate::{
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
+    network::Mac,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocols::arp::Arp,
     protocols::pci::Pci,
     session::SharedSession,
     Control, Protocol,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::Arc;
+use std::{net::Ipv4Addr, sync::Arc};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 pub mod ipv4_parsing;
@@ -112,7 +114,18 @@ impl Protocol for Ipv4 {
                     .protocol(Pci::ID)
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols.clone())?;
-                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, tap_slot, protocols.clone()));
+
+                // get the remote MAC address for this session
+                let remote_mac =
+                    Arp::query_mac_address(key.local, key.remote, tap_slot, protocols.clone());
+
+                let session = Arc::new(Ipv4Session::new(
+                    tap_session,
+                    upstream,
+                    key,
+                    tap_slot,
+                    remote_mac,
+                ));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -179,7 +192,18 @@ impl Protocol for Ipv4 {
                         tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;
-                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network, context.protocols.clone()));
+
+                    // Get remote MAC address for session
+                    let remote_mac = Arp::query_mac_address(
+                        identifier.local,
+                        identifier.remote,
+                        network,
+                        context.protocols.clone(),
+                    );
+
+                    let session = Arc::new(Ipv4Session::new(
+                        caller, *binding, identifier, network, remote_mac,
+                    ));
                     entry.insert(session.clone());
                     session
                 }

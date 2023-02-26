@@ -4,26 +4,30 @@
 //! Arp will fetch MAC addresses when query'd.
 
 pub mod arp_parsing;
+pub mod arp_session;
 
-use std::{sync::Arc, collections::HashMap};
+use std::{collections::HashMap, sync::Arc};
 
-use crate::{ProtocolMap, Message};
-use crate::session::SharedSession;
-use crate::{network::Mac, Id, Protocol};
+use crate::{
+    control::{Control, Key, Primitive},
+    machine::PciSlot,
+    network::Mac,
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocols::Pci,
+    session::SharedSession,
+    Id, Message, Protocol, ProtocolMap,
+};
 
-use crate::protocol::{QueryError, Context, ListenError, StartError, OpenError, DemuxError};
+use self::arp_session::ArpSession;
 
-use crate::control::{Primitive, Control, Key};
+use super::{ipv4::Ipv4Address, Ipv4};
 
-use super::ipv4::Ipv4Address;
-
-use tokio::sync::mpsc::Sender;
-use tokio::sync::watch;
-use tokio::sync::{Barrier};
+use dashmap::DashMap;
+use tokio::sync::{mpsc::Sender, watch, Barrier};
 
 pub struct Arp {
     /// The ARP table, or cache. Maps Ipv4 addresses to MAC addresses.
-    pub arp_table: HashMap<Ipv4Address, Mac>,
+    pub arp_table: DashMap<Ipv4Address, Mac>,
     /// When an ARP packet is received, a () will be sent through this
     arp_received_sender: watch::Sender<()>,
     /// When an ARP packet is recieved, this channel will receive ()
@@ -48,6 +52,46 @@ impl Arp {
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
+
+    /// Gets a destination MAC address from this machine's ARP Protocol, if it exists.
+    ///
+    /// # Arguments:
+    ///
+    /// * `local_ip`: The IP address of this machine.
+    /// * `remote_ip`: The IP address to get a MAC address for.
+    /// * `slot`: The tap slot that will be used to communicate with the remote IP address.
+    /// * `protocols`: a ProtocolMap for this machine.
+    ///
+    /// # Returns:
+    ///
+    /// * `Some(mac)` if it was able to resolve a MAC address.
+    /// * `None` otherwise.
+    pub fn query_mac_address(
+        local_ip: Ipv4Address,
+        remote_ip: Ipv4Address,
+        slot: PciSlot,
+        protocols: ProtocolMap,
+    ) -> Option<Mac> {
+        let arp = protocols.protocol(Arp::ID)?;
+
+        let mut participants = Control::new();
+        Pci::set_pci_slot(slot, &mut participants);
+        Ipv4::set_local_address(local_ip, &mut participants);
+        Ipv4::set_remote_address(remote_ip, &mut participants);
+
+        let arp_session = arp
+            .open(Self::ID, participants, protocols)
+            .expect("unable to create ARP session");
+
+        let dest_mac = arp_session
+            .query((Arp::ID, remote_ip.to_u32() as u64))
+            .expect("unable to obtain MAC from ARP session")
+            .to_u64()
+            .expect("unable to unwrap u64");
+
+        // do arp_session.close() when close is invented
+        Some(dest_mac)
+    }
 }
 
 impl Protocol for Arp {
@@ -64,13 +108,25 @@ impl Protocol for Arp {
         todo!()
     }
 
+    /// The participants set must contain a pci slot, a local IPv4 address, and a remote IPv4 address.
     fn open(
         self: Arc<Self>,
         _upstream: Id,
-        _participants: Control,
-        _protocols: ProtocolMap,
+        participants: Control,
+        protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
-        unimplemented!("Cannot open on an Arp");
+        let slot = Pci::get_pci_slot(&participants).expect("participants must have PCI slot");
+        let local_ip =
+            Ipv4::get_local_address(&participants).expect("participants must have local IP");
+        let remote_ip =
+            Ipv4::get_remote_address(&participants).expect("participants must have remote IP");
+        let downstream = protocols
+            .protocol(Pci::ID)
+            .expect("no such protocol")
+            .open(Self::ID, participants, protocols)?;
+        Ok(Arc::new(ArpSession::new(
+            slot, local_ip, remote_ip, self, downstream,
+        )))
     }
 
     fn listen(
@@ -92,28 +148,9 @@ impl Protocol for Arp {
         todo!()
     }
 
-    /// Returns the MAC address associated with the given Ipv4 address.
-    /// Sends out an ARP request to get the Ipv4 address, if necessary.
-    /// 
-    /// # Arguments
-    /// 
-    /// * `key` - a Key of the form (_, Ipv4Address)
-    /// 
-    /// # Returns
-    /// 
-    /// Returns `Ok(Primitive::U64(result_mac))`
+    /// Arp cannot be queried or it will panic.
+    /// If you want a MAC address, you should query an ArpSession.
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        // TODO: Perhaps the ARP table could be changed to map from u32 to Mac?
-        // It would be faster but less readable
-        let ip_addr: Ipv4Address = Ipv4Address::from(key.1 as u32);
-        let result_mac = match self.arp_table.get(&ip_addr) {
-            Some(result_mac) => *result_mac,
-            None => {
-                // if the MAC is not in the table, send out an ARP request
-                // and wait for response
-                todo!()
-            },
-        };
-        Ok(Primitive::U64(result_mac))
+        Err(QueryError::NonexistentKey)
     }
 }

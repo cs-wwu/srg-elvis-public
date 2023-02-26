@@ -2,10 +2,14 @@
 //! and decompose them into IPs and MACs.
 //! Currently, ARP packets in ELVIS are modelled after
 //! IPv4 over Ethernet ARP packets.
-//! 
+//!
 //! https://en.wikipedia.org/wiki/Address_Resolution_Protocol#Packet_structure
 
-use crate::{protocols::{ipv4::Ipv4Address, Ipv4}, network::Mac, Message, Id};
+use crate::{
+    network::Mac,
+    protocols::{ipv4::Ipv4Address, Ipv4},
+    Id, Message,
+};
 use thiserror::Error as ThisError;
 
 // This stuff is useless in ELVIS, but I decided to include it
@@ -30,7 +34,7 @@ impl ArpPacket {
     /// Creates a serialized ARP packet from the configuration provided.
     pub fn build(&self) -> Result<Vec<u8>, PacketBuildError> {
         let mut out: Vec<u8> = Vec::new();
-        // These 4 lines are useless for ELVIS 
+        // These 4 lines are useless for ELVIS
         // but I included them anyway so this is like a real ARP packet
         out.extend_from_slice(&HTYPE.to_be_bytes());
         out.extend_from_slice(&(PTYPE.into_inner() as u16).to_be_bytes());
@@ -56,17 +60,21 @@ impl ArpPacket {
         bytes.nth(5);
         let mut next =
             || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
-        
+
         let operation = u16::from_be_bytes([next()?, next()?]);
         let is_request = match operation {
             1 => true,
             2 => false,
             _ => return Err(ParseError::InvalidOperation),
         };
-        let sender_mac = u64::from_be_bytes([0, 0, next()?, next()?, next()?, next()?, next()?, next()?]);
-        let sender_ip: Ipv4Address = u32::from_be_bytes([next()?, next()?, next()?, next()?]).into();
-        let target_mac = u64::from_be_bytes([0, 0, next()?, next()?, next()?, next()?, next()?, next()?]);
-        let target_ip: Ipv4Address = u32::from_be_bytes([next()?, next()?, next()?, next()?]).into();
+        let sender_mac =
+            u64::from_be_bytes([0, 0, next()?, next()?, next()?, next()?, next()?, next()?]);
+        let sender_ip: Ipv4Address =
+            u32::from_be_bytes([next()?, next()?, next()?, next()?]).into();
+        let target_mac =
+            u64::from_be_bytes([0, 0, next()?, next()?, next()?, next()?, next()?, next()?]);
+        let target_ip: Ipv4Address =
+            u32::from_be_bytes([next()?, next()?, next()?, next()?]).into();
         Ok(Self {
             is_request,
             sender_mac,
@@ -77,8 +85,7 @@ impl ArpPacket {
     }
 }
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
-pub enum PacketBuildError {
-}
+pub enum PacketBuildError {}
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
@@ -87,7 +94,6 @@ pub enum ParseError {
     #[error("Invalid operation: should be 1 for request, 2 for reply")]
     InvalidOperation,
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -114,8 +120,8 @@ mod tests {
 
     #[test]
     fn arp_parsing_too_short() {
-        let short_packet: Vec<u8> = vec![1,2,3,4,5,6,7,8];
+        let short_packet: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8];
         ArpPacket::from_bytes(short_packet.iter().cloned())
-        .expect_err("packet was too short; should not have been built");
+            .expect_err("packet was too short; should not have been built");
     }
 }
