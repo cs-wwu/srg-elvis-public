@@ -38,7 +38,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                     if !net.options.contains_key("latency_var") {
                         network.latency(Latency::constant(Duration::from_secs(
                             option.1.parse::<u64>().unwrap_or_else(|_e| {
-                                panic!("Network {}: Invalid latency value passed to network.", id);
+                                panic!("Network {id}: Invalid latency value passed to network.");
                             }),
                         )));
                     }
@@ -55,14 +55,13 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                             .unwrap()
                             .parse::<u64>()
                             .unwrap_or_else(|_e| {
-                                panic!("Network {}: Invalid latency value passed to network.", id);
+                                panic!("Network {id}: Invalid latency value passed to network.");
                             });
                     }
 
                     let rand = option.1.parse::<u64>().unwrap_or_else(|_e| {
                         panic!(
-                            "Network {}: Invalid latency variation value passed to network.",
-                            id
+                            "Network {id}: Invalid latency variation value passed to network."
                         );
                     });
 
@@ -74,13 +73,13 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
 
                 "mtu" => {
                     network.mtu(option.1.parse::<u32>().unwrap_or_else(|_e| {
-                        panic!("Network {}: Invalid mtu value passed to network.", id);
+                        panic!("Network {id}: Invalid mtu value passed to network.");
                     }));
                 }
 
                 "loss" => {
                     network.loss_rate(option.1.parse::<f32>().unwrap_or_else(|_e| {
-                        panic!("Network {}: Invalid loss rate passed to network.", id);
+                        panic!("Network {id}: Invalid loss rate passed to network.");
                     }));
                 }
 
