@@ -22,8 +22,6 @@ pub struct Ipv4Session {
     id: SessionId,
     /// The PCI slot to send on
     tap_slot: PciSlot,
-    /// The MAC address to send packets to
-    remote_mac: Option<Mac>,
 }
 
 impl Ipv4Session {
@@ -33,14 +31,12 @@ impl Ipv4Session {
         upstream: Id,
         identifier: SessionId,
         tap_slot: PciSlot,
-        remote_mac: Option<Mac>,
     ) -> Self {
         Self {
             upstream,
             downstream,
             id: identifier,
             tap_slot,
-            remote_mac,
         }
     }
 
@@ -71,10 +67,6 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-
-        if let Some(remote_mac_addr) = self.remote_mac {
-            Network::set_destination(remote_mac_addr, &mut context.control);
-        }
 
         Pci::set_pci_slot(self.tap_slot, &mut context.control);
         Network::set_protocol(Ipv4::ID, &mut context.control);

@@ -3,76 +3,126 @@ use std::sync::Arc;
 use dashmap::mapref::entry::Entry;
 
 use crate::{
-    control::{Key, Primitive},
+    control::{self, Key, Primitive},
     machine::PciSlot,
-    protocols::{Pci, ipv4::Ipv4Address},
-    session::{QueryError, SharedSession},
-    Session,
+    network::Mac,
+    protocol::Context,
+    protocols::{ipv4::Ipv4Address, Ipv4, Pci},
+    session::{QueryError, SendError, SharedSession},
+    Message, Network, ProtocolMap, Session,
 };
 
-use super::{Arp, arp_parsing::ArpPacket};
+use super::{arp_parsing::ArpPacket, Arp};
 
 pub struct ArpSession {
-    /// The PCI slot to send ARP requests through.
-    slot: PciSlot,
-    /// The local IP address of this machine.
-    local_ip: Ipv4Address,
-    /// The IP address to request a MAC for.
-    remote_ip: Ipv4Address,
     /// The ARP protocol object that created this session.
-    parent: Arc<Arp>,
-    /// The Pci session to send messages through
+    arp_protocol: Arc<Arp>,
+    /// The PCI protocol to send messages through
     downstream: SharedSession,
 }
 
 impl ArpSession {
-    pub fn new(
-        slot: PciSlot,
-        local_ip: Ipv4Address,
-        remote_ip: Ipv4Address,
-        parent: Arc<Arp>,
-        downstream: SharedSession,
-    ) -> Self {
+    pub fn new(arp_protocol: Arc<Arp>, downstream: SharedSession) -> Self {
         ArpSession {
-            slot,
-            local_ip,
-            remote_ip,
-            parent,
+            arp_protocol,
             downstream,
         }
+    }
+
+    /// Sends an ARP packet using the local ip and remote ip in the given context
+    pub(super) fn send_arp_packet(
+        &self,
+        is_request: bool,
+        mut context: Context,
+    ) -> Result<(), SendError> {
+        let local_mac = self
+            .downstream
+            .clone()
+            .query(Pci::MAC_QUERY_KEY)
+            .expect("unable to get MAC from Pci")
+            .to_u64()
+            .unwrap();
+
+        let sender_ip =
+            Ipv4::get_local_address(&context.control).expect("context does not have local ip");
+
+        let target_ip =
+            Ipv4::get_remote_address(&context.control).expect("context does not have remote ip");
+
+        let target_mac = match is_request {
+            true => {
+                Network::set_destination(Network::BROADCAST_MAC, &mut context.control);
+                Network::BROADCAST_MAC
+            }
+            false => Network::get_destination(&context.control)
+                .expect("context does not have target MAC"),
+        };
+
+        let arp_request = ArpPacket {
+            is_request,
+            sender_ip,
+            sender_mac: local_mac,
+            target_ip,
+            target_mac, // target mac is ignored for ARP requests
+        };
+
+        // Needed to make sure that another ARP layer receives this message
+        Network::set_protocol(Arp::ID, &mut context.control);
+
+        self.downstream
+            .clone()
+            .send(Message::new(arp_request.build()), context)
+    }
+
+    /// Sends an ARP request using the local ip and remote ip in the given context
+    pub(super) fn send_arp_request(&self, context: Context) -> Result<(), SendError> {
+        self.send_arp_packet(true, context)
+    }
+
+    /// Sends an ARP reply using the destination MAC, local ip, and remote ip in the given context
+    pub(super) fn send_arp_reply(&self, context: Context) -> Result<(), SendError> {
+        self.send_arp_packet(false, context)
     }
 }
 
 impl Session for ArpSession {
-    fn send(
-        self: Arc<Self>,
-        _message: crate::Message,
-        _context: crate::protocol::Context,
-    ) -> Result<(), crate::session::SendError> {
-        unimplemented!("Cannot send on ArpSession");
+    fn send(self: Arc<Self>, message: Message, mut context: Context) -> Result<(), SendError> {
+        assert_eq!(
+            Network::get_protocol(&context.control),
+            Ok(Ipv4::ID),
+            "ArpSession::send should only be used to send IPv4 packets."
+        );
+
+        tokio::spawn(async move {
+            let destination_mac = self.arp_protocol.clone().get_mac(&context).await;
+            Network::set_destination(destination_mac, &mut context.control);
+
+            // Because I cannot propogate the SendError from a thread, I have to panic!
+            self.downstream
+                .clone()
+                .send(message, context)
+                .expect("Got error after attempting to send ARP packet");
+        });
+
+        Ok(())
     }
 
-    /// Returns the MAC address associated with the given Ipv4 address.
-    /// Sends out an ARP request to get the Ipv4 address, if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - a Key of the form (_, Ipv4Address)
-    ///
-    /// # Returns
-    ///
-    /// `Ok(Primitive::U64(result_mac))`
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        let ip_address = Ipv4Address::from(key.1 as u32);
-        let arp_entry = self.parent.arp_table.entry(ip_address);
+        Err(QueryError::MissingKey)
+    }
+}
 
-        let mac = match arp_entry {
-            Entry::Occupied(mac_entry) => *mac_entry.get(),
-            Entry::Vacant(mac_entry) => {
-                // send out ARP request
-                todo!();
-            }
-        };
-        Ok(Primitive::U64(mac))
+/// A set that uniquely identifies a given session
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct SessionId {
+    /// The local address
+    pub local: Ipv4Address,
+    /// The remote address
+    pub remote: Ipv4Address,
+}
+
+impl SessionId {
+    pub fn new(local: Ipv4Address, remote: Ipv4Address) -> Self {
+        Self { local, remote }
     }
 }

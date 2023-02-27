@@ -66,6 +66,9 @@ impl Network {
     /// An identifier for the network type
     pub const ID: Id = Id::from_string("Network");
 
+    /// The broadcast MAC address FF:FF:FF:FF:FF:FF
+    pub const BROADCAST_MAC: Mac = 0xFF_FF_FF_FF_FF_FF;
+
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
         let funnel = mpsc::channel(16);
@@ -133,6 +136,14 @@ impl Network {
                         sleep(latency).await;
                     }
                     match delivery.destination {
+                        Some(Self::BROADCAST_MAC) | None => {
+                            match broadcast.clone().send(delivery) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    tracing::error!("Failed to deliver a message: {}", e)
+                                }
+                            }
+                        }
                         Some(destination) => {
                             let tap = {
                                 let taps = taps.read().unwrap();
@@ -154,12 +165,6 @@ impl Network {
                                 }
                             }
                         }
-                        None => match broadcast.clone().send(delivery) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                tracing::error!("Failed to deliver a message: {}", e)
-                            }
-                        },
                     }
                 });
             }

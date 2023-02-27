@@ -110,22 +110,13 @@ impl Protocol for Ipv4 {
                 // If the session does not exist, create it
                 let tap_slot = { *self.ip_tap_slot.get(&key.remote).unwrap() };
                 Pci::set_pci_slot(tap_slot, &mut participants);
+                todo!("Add ARP support here");
                 let tap_session = protocols
                     .protocol(Pci::ID)
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols.clone())?;
 
-                // get the remote MAC address for this session
-                let remote_mac =
-                    Arp::query_mac_address(key.local, key.remote, tap_slot, protocols.clone());
-
-                let session = Arc::new(Ipv4Session::new(
-                    tap_session,
-                    upstream,
-                    key,
-                    tap_slot,
-                    remote_mac,
-                ));
+                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, tap_slot));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -154,6 +145,7 @@ impl Protocol for Ipv4 {
         }
 
         // Essentially a no-op but good for completeness and as an example
+        todo!("add ARP support here");
         protocols
             .protocol(Pci::ID)
             .expect("No such protocol")
@@ -192,18 +184,8 @@ impl Protocol for Ipv4 {
                         tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;
-
-                    // Get remote MAC address for session
-                    let remote_mac = Arp::query_mac_address(
-                        identifier.local,
-                        identifier.remote,
-                        network,
-                        context.protocols.clone(),
-                    );
-
-                    let session = Arc::new(Ipv4Session::new(
-                        caller, *binding, identifier, network, remote_mac,
-                    ));
+                    todo!("add ARP support here");
+                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
                     entry.insert(session.clone());
                     session
                 }
