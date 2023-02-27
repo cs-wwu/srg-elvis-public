@@ -1,11 +1,14 @@
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use std::{
+    fs,
     fs::File,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
 };
-use build_html::*;
+use html_builder::*;
+use std::fmt::Write as foo;
+
 
 struct Page {
     size: usize,
@@ -50,8 +53,8 @@ struct Page {
         println!("Images: {:?}", self.images);
     }
  }
-
 fn main() {
+    generate_html(10, 10, 10);
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -59,8 +62,9 @@ fn main() {
         handle_connection(stream);
     }
 
-    let page = Page::generate();
-    page.print();
+    // let page = Page::generate();
+    // page.print();
+    
 }
 
 fn handle_connection(mut stream: TcpStream) {
@@ -68,7 +72,7 @@ fn handle_connection(mut stream: TcpStream) {
     let request_line = buf_reader.lines().next().unwrap().unwrap();
 
     let status_line = "HTTP/1.1 200 OK";
-    let request_line = "hello.html";
+    let request_line = "page.html";
 
     let contents = fs::read_to_string("page.html").unwrap();
     let length = contents.len();
@@ -80,17 +84,13 @@ fn handle_connection(mut stream: TcpStream) {
 }
 
 fn generate_html(size: usize, num_links: usize, num_images: usize) {
-    let html: String = HtmlPage::new()
-    .with_title("My Page")
-    .with_header(1, "Main Content:")
-    .with_container(
-        Container::new(ContainerType::Article)
-            .with_attributes([("id", "article1")])
-            .with_header_attr(2, "Hello, World", [("id", "article-head")])
-            .with_paragraph("This is a simple HTML demo")
-    )
-    .to_html_string();
+    let mut buf = Buffer::new();                  //
+    let mut html = buf.html().attr("lang='en'");  // <html lang='en'>
+    writeln!(html.head().title(), "Title!").unwrap();     // <head><title>Title!
+    writeln!(html.body().h1(), "Header!").unwrap();       // </title></head><body><h1>Header!
+    let result = buf.finish();   
+    
 
-    let mut file = File::create("page.txt").unwrap();
-    file.write_all(b"Hello, world!").unwrap();
+    let mut file = File::create("page.html").unwrap();
+    file.write_all(result.as_bytes());
 }
