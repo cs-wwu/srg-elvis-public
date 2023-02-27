@@ -54,7 +54,7 @@ struct Page {
     }
  }
 fn main() {
-    generate_html(10, 10, 10);
+    generate_html(10, 1, 10);
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -88,6 +88,9 @@ fn generate_html(size: usize, num_links: usize, num_images: usize) {
     let mut html = buf.html().attr("lang='en'");  // <html lang='en'>
     writeln!(html.head().title(), "Title!").unwrap();     // <head><title>Title!
     writeln!(html.body().h1(), "Header!").unwrap();       // </title></head><body><h1>Header!
+    for _i in 0..num_links {
+        writeln!(html.body().a(), "https://docs.rs/html-builder/0.5.0/src/html_builder/html.rs.html#181").unwrap();
+    }
     let result = buf.finish();   
     
 
