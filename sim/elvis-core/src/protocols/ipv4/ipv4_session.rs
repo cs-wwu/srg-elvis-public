@@ -4,7 +4,6 @@ use crate::{
     id::Id,
     machine::PciSlot,
     message::Message,
-    network::Mac,
     protocol::{Context, DemuxError},
     protocols::pci::Pci,
     session::{QueryError, SendError, SharedSession},

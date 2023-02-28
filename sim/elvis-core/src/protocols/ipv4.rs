@@ -7,7 +7,6 @@ use crate::{
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
-    network::Mac,
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
@@ -17,7 +16,7 @@ use crate::{
     Control, Protocol,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{net::Ipv4Addr, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
 
 pub mod ipv4_parsing;
@@ -77,9 +76,9 @@ impl Ipv4 {
     /// Will be Arp::ID if this machine has Arp. Otherwise, it will be Pci.
     fn get_downstream_protocol(protocols: &ProtocolMap) -> SharedProtocol {
         if let Some(arp) = protocols.protocol(Arp::ID) {
-            return arp;
+            arp
         } else if let Some(pci) = protocols.protocol(Pci::ID) {
-            return pci;
+            pci
         } else {
             panic!("No downstream protocol found");
         }
@@ -166,7 +165,7 @@ impl Protocol for Ipv4 {
     fn demux(
         self: Arc<Self>,
         mut message: Message,
-        caller: SharedSession,
+        _caller: SharedSession,
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract identifying information from the header and the context and

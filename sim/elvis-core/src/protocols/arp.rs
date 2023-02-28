@@ -104,19 +104,19 @@ impl Arp {
 
             // repeatedly send requests until a response is recieved
             loop {
-                session.send_arp_request(context.clone());
+                session
+                    .send_arp_request(context.clone())
+                    .expect("unable to send ARP request");
                 let timeout = tokio::time::timeout(Self::RESEND_DELAY, receiver.changed());
                 let result = timeout.await;
                 // If we got a response before the timeout, break
                 if let Ok(result) = result {
-                    match result {
-                        Ok(_) => break,
-                        Err(err) => panic!("got recv error: {:?}", err),
-                    }
+                    result.expect("got recv error");
+                    break;
                 }
             }
         } else {
-            receiver.changed().await;
+            receiver.changed().await.expect("got recv error");
         }
 
         // after receiving a response, it is finally time to get the MAC address from the arp table
@@ -144,7 +144,7 @@ impl Arp {
         self.local_ips.insert(local_ip);
 
         let result = match self.sessions.entry(pci_slot) {
-            Entry::Occupied(entry) => (*entry.get()).clone(),
+            Entry::Occupied(entry) => entry.get().clone(),
 
             Entry::Vacant(entry) => {
                 // if there is no session for this tap slot, make a new session
@@ -170,11 +170,14 @@ impl Protocol for Arp {
 
     fn start(
         self: Arc<Self>,
-        shutdown: Sender<()>,
+        _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        todo!()
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
+        Ok(())
     }
 
     fn open(
@@ -212,7 +215,7 @@ impl Protocol for Arp {
     fn demux(
         self: Arc<Self>,
         message: Message,
-        caller: SharedSession,
+        _caller: SharedSession,
         context: Context,
     ) -> Result<(), DemuxError> {
         assert_eq!(Network::get_protocol(&context.control), Ok(Arp::ID));
@@ -252,7 +255,13 @@ impl Protocol for Arp {
     }
 
     /// Arp cannot be queried or it will panic.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
+    }
+}
+
+impl Default for Arp {
+    fn default() -> Self {
+        Self::new()
     }
 }

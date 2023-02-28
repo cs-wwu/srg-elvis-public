@@ -1,15 +1,11 @@
 use std::sync::Arc;
 
-use dashmap::mapref::entry::Entry;
-
 use crate::{
-    control::{self, Key, Primitive},
-    machine::PciSlot,
-    network::Mac,
+    control::{Key, Primitive},
     protocol::Context,
-    protocols::{ipv4::Ipv4Address, Ipv4, Pci},
+    protocols::{Ipv4, Pci},
     session::{QueryError, SendError, SharedSession},
-    Message, Network, ProtocolMap, Session,
+    Message, Network, Session,
 };
 
 use super::{arp_parsing::ArpPacket, Arp};
