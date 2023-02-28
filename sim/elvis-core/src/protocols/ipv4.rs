@@ -8,7 +8,9 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{
+        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
+    },
     protocols::arp::Arp,
     protocols::pci::Pci,
     session::SharedSession,
@@ -70,6 +72,18 @@ impl Ipv4 {
     pub fn get_remote_address(control: &Control) -> Result<Ipv4Address, ControlError> {
         Ok(control.get((Self::ID, 1))?.ok_u32()?.into())
     }
+
+    /// Returns the ID of the protocol below this one.
+    /// Will be Arp::ID if this machine has Arp. Otherwise, it will be Pci.
+    fn get_downstream_protocol(protocols: &ProtocolMap) -> SharedProtocol {
+        if let Some(arp) = protocols.protocol(Arp::ID) {
+            return arp;
+        } else if let Some(pci) = protocols.protocol(Pci::ID) {
+            return pci;
+        } else {
+            panic!("No downstream protocol found");
+        }
+    }
 }
 
 // TODO(hardint): Add a static IP lookup table in the constructor so that
@@ -110,11 +124,11 @@ impl Protocol for Ipv4 {
                 // If the session does not exist, create it
                 let tap_slot = { *self.ip_tap_slot.get(&key.remote).unwrap() };
                 Pci::set_pci_slot(tap_slot, &mut participants);
-                todo!("Add ARP support here");
-                let tap_session = protocols
-                    .protocol(Pci::ID)
-                    .expect("No such protocol")
-                    .open(Self::ID, participants, protocols.clone())?;
+                let tap_session = Ipv4::get_downstream_protocol(&protocols).open(
+                    Self::ID,
+                    participants,
+                    protocols.clone(),
+                )?;
 
                 let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, tap_slot));
                 entry.insert(session.clone());
@@ -144,12 +158,8 @@ impl Protocol for Ipv4 {
             }
         }
 
-        // Essentially a no-op but good for completeness and as an example
-        todo!("add ARP support here");
-        protocols
-            .protocol(Pci::ID)
-            .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+        // Protocols should call listen on the downstream protocol
+        Ipv4::get_downstream_protocol(&protocols).listen(Self::ID, participants, protocols)
     }
 
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
@@ -184,8 +194,15 @@ impl Protocol for Ipv4 {
                         tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;
-                    todo!("add ARP support here");
-                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
+                    // We have to do this instead of just using caller, because demux
+                    // may have been called by the Pci layer instead of the ARP layer
+                    let tap_session = Ipv4::get_downstream_protocol(&context.protocols).open(
+                        Self::ID,
+                        context.control.clone(),
+                        context.protocols.clone(),
+                    )?;
+                    let session =
+                        Arc::new(Ipv4Session::new(tap_session, *binding, identifier, network));
                     entry.insert(session.clone());
                     session
                 }

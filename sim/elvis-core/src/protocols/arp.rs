@@ -21,7 +21,7 @@ use crate::{
     Id, Message, Network, Protocol, ProtocolMap,
 };
 
-use self::arp_session::{ArpSession, SessionId};
+use self::arp_session::ArpSession;
 
 use super::{ipv4::Ipv4Address, Ipv4};
 
@@ -40,7 +40,7 @@ pub struct Arp {
 }
 
 impl Arp {
-    /// A unique identifier for the protocol. (0x0806 is the EtherType value of ARP)
+    /// A unique identifier for the protocol.
     pub const ID: Id = Id::new(0x0806);
 
     /// The time to wait after sending an ARP request before sending another

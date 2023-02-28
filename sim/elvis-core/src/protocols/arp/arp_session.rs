@@ -108,21 +108,6 @@ impl Session for ArpSession {
     }
 
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::MissingKey)
-    }
-}
-
-/// A set that uniquely identifies a given session
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct SessionId {
-    /// The local address
-    pub local: Ipv4Address,
-    /// The remote address
-    pub remote: Ipv4Address,
-}
-
-impl SessionId {
-    pub fn new(local: Ipv4Address, remote: Ipv4Address) -> Self {
-        Self { local, remote }
+        self.downstream.clone().query(key)
     }
 }
