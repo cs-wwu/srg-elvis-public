@@ -1,18 +1,17 @@
 use std::sync::Arc;
 
 use crate::{
-    session::{ SharedSession, SendError, QueryError },
-    Message,
-    protocol::{ Context, DemuxError },
-    Session,
-    control::{ Key, Primitive }
+    control::{Key, Primitive},
+    protocol::{Context, DemuxError},
+    session::{QueryError, SendError, SharedSession},
+    Message, Session,
 };
 
 use super::socket::Socket;
 
 pub(super) struct SocketSession {
     pub upstream: Arc<Socket>,
-    pub downstream: SharedSession
+    pub downstream: SharedSession,
 }
 
 impl SocketSession {
@@ -30,7 +29,7 @@ impl SocketSession {
             .demux(message, self, context)?; */
         match self.upstream.receive(message) {
             Ok(v) => Ok(v),
-            Err(_e) => Err(DemuxError::Other) 
+            Err(_e) => Err(DemuxError::Other),
         }
     }
 }
