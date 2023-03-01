@@ -8,6 +8,12 @@ pub use capture::Capture;
 mod send_message;
 pub use send_message::SendMessage;
 
+mod socket_send;
+pub use socket_send::SocketSendMessage;
+
+mod socket_recv;
+pub use socket_recv::SocketRecvMessage;
+
 mod forward;
 pub use forward::Forward;
 

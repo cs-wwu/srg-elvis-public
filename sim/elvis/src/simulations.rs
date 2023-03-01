@@ -3,6 +3,9 @@
 mod basic;
 pub use basic::basic;
 
+mod socket_basic;
+pub use socket_basic::socket_basic;
+
 mod telephone_multi;
 pub use telephone_multi::telephone_multi;
 
