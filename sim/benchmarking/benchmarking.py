@@ -22,10 +22,11 @@ def mem_comparison_graphs():
     yAxis = []
     xAxis = []
     onlyfiles = [f for f in listdir(data_directory) if isfile(join(data_directory, f))]
+    onlyfiles.sort(key=lambda a: int(a[a.index('-')+1 : -5]))
     for file_name in onlyfiles:
         f = open(data_directory + file_name, 'r')
         dictionary = json.loads(f.read())
-        mem = dictionary['memory']['max_perprocess']['mean']
+        mem = float(dictionary['memory']['max_perprocess']['mean']) / float(60)
         yAxis.append(mem)
         xAxis.append(file_name[file_name.index('-')+1 : -4])
     # disabling the offset on y axis
@@ -33,16 +34,40 @@ def mem_comparison_graphs():
     ax.ticklabel_format(style='plain')
     plt.grid(True)
     plt.plot(xAxis,yAxis, color='maroon', marker='o')
+    plt.title('Memory Usage Comparisons')
+    plt.yscale('log')
     plt.xlabel('Machine Counts')
-    plt.ylabel('Average Memory Usage in bytes (per process)')
-    plt.show()
+    plt.ylabel('Average Memory Usage in GigaBytes (per process)')
+    plt.savefig(image_folder + 'Memory-Usage-Comparisons.png')
+    plt.close()
+
+def execution_time_comparison_graphs():
+    yAxis = []
+    xAxis = []
+    onlyfiles = [f for f in listdir(data_directory) if isfile(join(data_directory, f))]
+    onlyfiles.sort(key=lambda a: int(a[a.index('-')+1 : -5]))
+    for file_name in onlyfiles:
+        f = open(data_directory + file_name, 'r')
+        dictionary = json.loads(f.read())
+        time = dictionary['process']['execution_time']['mean']
+        yAxis.append(time)
+        xAxis.append(file_name[file_name.index('-')+1 : -5])
+    plt.grid(True)
+    plt.plot(xAxis,yAxis, color='maroon', marker='o')
+    plt.title('Excecution Time Comparisons')
+    plt.yscale('log')
+    plt.xlabel('Machine Counts')
+    plt.ylabel('Average Execution Time in seconds (per process)')
+    plt.savefig(image_folder + 'Excecution-Time-Comparisons.png')
+    plt.close()
 
 if __name__ == '__main__':
-    run_sim("basic-100.ndl", 10)
-    run_sim("basic-1000.ndl", 10)
-    run_sim("basic-10000.ndl", 10)
-    run_sim("basic-50000.ndl", 10)
-    run_sim("basic-100000.ndl", 10)
-    run_sim("basic-250000.ndl", 10)
-    run_sim("basic-500000.ndl", 10)
+    # run_sim("basic-100.ndl", 10)
+    # run_sim("basic-1000.ndl", 10)
+    # run_sim("basic-10000.ndl", 10)
+    # run_sim("basic-50000.ndl", 10)
+    # run_sim("basic-100000.ndl", 10)
+    # run_sim("basic-250000.ndl", 10)
+    # run_sim("basic-500000.ndl", 10)
     mem_comparison_graphs()
+    execution_time_comparison_graphs()

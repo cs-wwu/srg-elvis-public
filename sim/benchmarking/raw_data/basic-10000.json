@@ -1,28 +1,28 @@
 {
   "cpu": {
-    "system_time": {"mean": 0.0515625, "stdev": 0.023228232417685166, "min": 0.015625, "max": 0.09375},
-    "total_time": {"mean": 1.125, "stdev": 0.30618621784789724, "min": 0.78125, "max": 1.734375},
-    "user_time": {"mean": 1.0734375, "stdev": 0.299906398158242, "min": 0.71875, "max": 1.671875}
+    "system_time": {"mean": 0.0546875, "stdev": 0.0390625, "min": 0.015625, "max": 0.15625},
+    "total_time": {"mean": 1.0546875, "stdev": 0.08622112288325871, "min": 0.921875, "max": 1.171875},
+    "user_time": {"mean": 1.0, "stdev": 0.09857381434742189, "min": 0.875, "max": 1.140625}
   },
   "disk": {
     "other_bytes": {"mean": 1196.0, "stdev": 0.0, "min": 1196, "max": 1196},
     "read_bytes": {"mean": 670.0, "stdev": 0.0, "min": 670, "max": 670},
-    "total_bytes": {"mean": 688.0, "stdev": 0.0, "min": 688, "max": 688},
-    "write_bytes": {"mean": 18.0, "stdev": 0.0, "min": 18, "max": 18}
+    "total_bytes": {"mean": 687.5, "stdev": 1.5, "min": 683, "max": 688},
+    "write_bytes": {"mean": 17.5, "stdev": 1.5, "min": 13, "max": 18}
   },
   "memory": {
-    "max": {"mean": 170298163.2, "stdev": 1264142.7274314242, "min": 168562688, "max": 171917312},
-    "max_perprocess": {"mean": 170298163.2, "stdev": 1264142.7274314242, "min": 168562688, "max": 171917312}
+    "max": {"mean": 170589798.4, "stdev": 624414.8808763609, "min": 169615360, "max": 171728896},
+    "max_perprocess": {"mean": 170589798.4, "stdev": 624414.8808763609, "min": 169615360, "max": 171728896}
   },
   "process": {
-    "execution_time": {"mean": 1.3903999999999999, "stdev": 0.07146775496683805, "min": 1.279, "max": 1.52},
+    "execution_time": {"mean": 1.244, "stdev": 0.040012498047485114, "min": 1.213, "max": 1.351},
     "exit_code": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0},
     "stderr_data": "None",
     "stdout_data": "None"
   },
   "time_series": {
-    "cpu_percentages": {"mean": 28.72017589239524, "stdev": 77.41205678387361, "min": 0.0, "max": 729.2},
-    "memory_bytes": {"mean": 116755049.68442835, "stdev": 50771564.86522089, "min": 2195456, "max": 171917312},
-    "sample_milliseconds": {"mean": 645.5075012933264, "stdev": 404.1297530370967, "min": 2, "max": 1507}
+    "cpu_percentages": {"mean": 23.482090336134455, "stdev": 60.29687025582092, "min": 0.0, "max": 878.9},
+    "memory_bytes": {"mean": 115720972.90756303, "stdev": 51405113.425511785, "min": 3002368, "max": 171728896},
+    "sample_milliseconds": {"mean": 574.4621848739496, "stdev": 359.3411259353759, "min": 2, "max": 1338}
   }
 }
