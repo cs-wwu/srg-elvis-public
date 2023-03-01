@@ -28,7 +28,7 @@ def mem_comparison_graphs():
         dictionary = json.loads(f.read())
         mem = float(dictionary['memory']['max_perprocess']['mean']) / float(60)
         yAxis.append(mem)
-        xAxis.append(file_name[file_name.index('-')+1 : -4])
+        xAxis.append(file_name[file_name.index('-')+1 : -5])
     # disabling the offset on y axis
     ax = plt.gca()
     ax.ticklabel_format(style='plain')
