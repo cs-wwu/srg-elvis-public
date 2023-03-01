@@ -1,34 +1,23 @@
+use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::{Arc, RwLock};
-use dashmap::{DashMap, mapref::entry::Entry};
 use tokio::sync::{mpsc::Sender, Barrier};
 
 use crate::{
-    Protocol,
-    protocols::{ipv4::Ipv4Address, Udp, Ipv4},
-    protocol::{StartError, OpenError, ListenError, QueryError, Context, DemuxError},
-    Id,
-    Control,
-    ProtocolMap,
+    control::{Key, Primitive},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
-    Message,
-    control::{Key, Primitive}
+    Control, Id, Message, Protocol, ProtocolMap,
 };
 
 pub mod socket;
-use socket::{
-    Socket,
-    SocketId,
-    SocketType,
-    ProtocolFamily,
-    IpAddress,
-    SocketError
-};
+use socket::{IpAddress, ProtocolFamily, Socket, SocketError, SocketId, SocketType};
 mod socket_session;
 use socket_session::SocketSession;
 
 #[derive(Default)]
 pub struct Sockets {
-    _local_ipv4_address: Option<Ipv4Address>,   // TODO: This will be used as soon as I figure out how to dynamically hand out unused ports
+    _local_ipv4_address: Option<Ipv4Address>, // TODO: This will be used as soon as I figure out how to dynamically hand out unused ports
     // local_ipv6_address: Option<Ipv6Address>, // TODO: add this once ipv6 is implemented
     fds: RwLock<u64>,
     sockets: DashMap<Id, Arc<Socket>>,
@@ -43,7 +32,7 @@ impl Sockets {
             _local_ipv4_address,
             fds: RwLock::new(0),
             sockets: Default::default(),
-            socket_sessions: Default::default()
+            socket_sessions: Default::default(),
         }
     }
 
@@ -51,12 +40,21 @@ impl Sockets {
         Arc::new(Self::new(ipv4_address))
     }
 
-    pub fn new_socket(self: Arc<Self>, domain: ProtocolFamily, sock_type: SocketType, protocols: ProtocolMap) -> Result<Arc<Socket>, SocketError> {
+    pub fn new_socket(
+        self: Arc<Self>,
+        domain: ProtocolFamily,
+        sock_type: SocketType,
+        protocols: ProtocolMap,
+    ) -> Result<Arc<Socket>, SocketError> {
         let fd = Id::new(*self.fds.read().unwrap());
         let socket = Arc::new(Socket::new(domain, sock_type, fd, protocols));
         match self.sockets.entry(fd) {
-            Entry::Occupied(_) => return Err(SocketError::Other(String::from("Failed to create new Socket"))),
-            Entry::Vacant(entry) => entry.insert(socket.clone())
+            Entry::Occupied(_) => {
+                return Err(SocketError::Other(String::from(
+                    "Failed to create new Socket",
+                )))
+            }
+            Entry::Vacant(entry) => entry.insert(socket.clone()),
         };
         *self.fds.write().unwrap() += 1;
         Ok(socket)
@@ -64,7 +62,6 @@ impl Sockets {
 }
 
 impl Protocol for Sockets {
-    
     fn id(self: Arc<Self>) -> Id {
         Self::ID
     }
@@ -118,7 +115,7 @@ impl Protocol for Sockets {
                 let session = Arc::new(SocketSession {
                     upstream: match self.sockets.entry(upstream) {
                         Entry::Occupied(entry) => entry.get().clone(),
-                        Entry::Vacant(_) => return Err(OpenError::MissingContext)
+                        Entry::Vacant(_) => return Err(OpenError::MissingContext),
                     },
                     downstream,
                     //id: identifier
@@ -165,9 +162,7 @@ impl Protocol for Sockets {
         match self.socket_sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone().receive(message, context),
             Entry::Vacant(_) => {
-                tracing::error!(
-                    "Tried to demux with a missing session and no listen bindings"
-                );
+                tracing::error!("Tried to demux with a missing session and no listen bindings");
                 Err(DemuxError::MissingSession)?
             }
         }

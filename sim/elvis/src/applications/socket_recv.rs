@@ -3,10 +3,13 @@ use elvis_core::{
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
+        sockets::{
+            socket::{ProtocolFamily, SocketAddress, SocketType},
+            Sockets,
+        },
         user_process::{Application, ApplicationError, UserProcess},
-        sockets::{Sockets, socket::{ProtocolFamily, SocketType, SocketAddress}},
     },
-    Id, ProtocolMap
+    Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -36,7 +39,7 @@ impl SocketRecvMessage {
         local_ip: Ipv4Address,
         local_port: u16,
         remote_ip: Ipv4Address,
-        remote_port: u16
+        remote_port: u16,
     ) -> Self {
         Self {
             sockets,
@@ -49,8 +52,22 @@ impl SocketRecvMessage {
         }
     }
 
-    pub fn new_shared(sockets: Arc<Sockets>, text: &'static str, local_ip: Ipv4Address, local_port: u16, remote_ip: Ipv4Address, remote_port: u16) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(sockets, text, local_ip, local_port, remote_ip, remote_port))
+    pub fn new_shared(
+        sockets: Arc<Sockets>,
+        text: &'static str,
+        local_ip: Ipv4Address,
+        local_port: u16,
+        remote_ip: Ipv4Address,
+        remote_port: u16,
+    ) -> Arc<UserProcess<Self>> {
+        UserProcess::new_shared(Self::new(
+            sockets,
+            text,
+            local_ip,
+            local_port,
+            remote_ip,
+            remote_port,
+        ))
     }
 
     pub fn message(&self) -> Vec<u8> {
@@ -71,7 +88,11 @@ impl Application for SocketRecvMessage {
             initialized.wait().await;
 
             // Create a new IPv4 Datagram Socket
-            let socket = self.sockets.clone().new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols).unwrap();
+            let socket = self
+                .sockets
+                .clone()
+                .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
+                .unwrap();
 
             // Bind the socket to your local address
             let local_sock_addr = SocketAddress::new_v4(self.local_ip, self.local_port);
@@ -83,7 +104,10 @@ impl Application for SocketRecvMessage {
 
             // Receive a message
             *self.message.write().unwrap() = socket.clone().recv(32).await.unwrap();
-            println!("Captured Request: {:?}", String::from_utf8(self.message.read().unwrap().clone()));
+            println!(
+                "Captured Request: {:?}",
+                String::from_utf8(self.message.read().unwrap().clone())
+            );
 
             // Send a message
             println!("Sending Response: {:?}", self.text);
@@ -97,7 +121,7 @@ impl Application for SocketRecvMessage {
             join.await.unwrap();
             shutdown.send(()).await.unwrap();
         });
-        
+
         Ok(())
     }
 
