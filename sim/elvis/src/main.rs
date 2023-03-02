@@ -4,7 +4,7 @@ use std::time::Instant;
 /// Without arguments, main runs the default simulation
 #[tokio::main]
 async fn main() {
-    // console_subscriber::init();
+    console_subscriber::init();
     let now = Instant::now();
     simulations::udp_gigabyte_bench().await;
     println!("{:?}", now.elapsed());

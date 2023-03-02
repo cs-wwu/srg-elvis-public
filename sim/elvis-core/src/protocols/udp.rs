@@ -11,10 +11,8 @@ use crate::{
     session::SharedSession,
     Control, Protocol, Shutdown,
 };
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    sync::{Arc, RwLock},
-};
+use dashmap::{mapref::entry::Entry, DashMap};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 mod udp_session;
@@ -26,10 +24,10 @@ use self::udp_parsing::UdpHeader;
 use super::utility::Socket;
 
 /// An implementation of the User Datagram Protocol.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: RwLock<HashMap<Socket, Id>>,
-    sessions: RwLock<HashMap<SessionId, Arc<UdpSession>>>,
+    listen_bindings: DashMap<Socket, Id>,
+    sessions: DashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
@@ -101,7 +99,7 @@ impl Protocol for Udp {
                 })?,
             ),
         );
-        match self.sessions.write().unwrap().entry(identifier) {
+        match self.sessions.entry(identifier) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
                 Err(OpenError::Existing)?
@@ -143,10 +141,7 @@ impl Protocol for Udp {
                 ListenError::MissingContext
             })?,
         };
-        self.listen_bindings
-            .write()
-            .unwrap()
-            .insert(identifier, upstream);
+        self.listen_bindings.insert(identifier, upstream);
         // Ask lower-level protocols to add the binding as well
         protocols
             .protocol(Ipv4::ID)
@@ -192,7 +187,7 @@ impl Protocol for Udp {
         Self::set_local_port(session_id.local.port, &mut context.control);
         Self::set_remote_port(session_id.remote.port, &mut context.control);
 
-        let session = match self.sessions.write().unwrap().entry(session_id) {
+        let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
 
             Entry::Vacant(session_entry) => {
@@ -202,7 +197,7 @@ impl Protocol for Udp {
                     address: local_address,
                     port: session_id.local.port,
                 };
-                match self.listen_bindings.write().unwrap().entry(listen_id) {
+                match self.listen_bindings.entry(listen_id) {
                     Entry::Occupied(listen_entry) => {
                         // If we have a listen binding, create the session and
                         // save it
