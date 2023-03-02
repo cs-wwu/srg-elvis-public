@@ -17,7 +17,7 @@ def run_sim(file_name, interations):
         outfile.write(testing_str)
     # We need to do something with the json returned -- TODO
     benchmark_results.get_resources_plot().savefig(image_folder + raw_file_name)
-
+# TODO: remove scientific notation
 def mem_comparison_graphs():
     yAxis = []
     xAxis = []
@@ -26,7 +26,8 @@ def mem_comparison_graphs():
     for file_name in onlyfiles:
         f = open(data_directory + file_name, 'r')
         dictionary = json.loads(f.read())
-        mem = float(dictionary['memory']['max_perprocess']['mean']) / float(60)
+        mem = float(dictionary['memory']['max_perprocess']['mean']) / float(1000000000)
+        print(mem)
         yAxis.append(mem)
         xAxis.append(file_name[file_name.index('-')+1 : -5])
     # disabling the offset on y axis
@@ -62,8 +63,8 @@ def execution_time_comparison_graphs():
     plt.close()
 # TODO: Running manually without the bash script seems to be broken
 if __name__ == '__main__':
-    for file_name in sys.argv[1:]:
-        run_sim(file_name, count)
+    # for file_name in sys.argv[1:]:
+    #     run_sim(file_name, count)
     mem_comparison_graphs()
     execution_time_comparison_graphs()
 
