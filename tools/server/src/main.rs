@@ -5,66 +5,17 @@ use std::{
     fs::File,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
+    io::Write
 };
-use html_builder::*;
-use std::fmt::Write as foo;
 
-
-struct Page {
-    size: usize,
-    links: Vec<String>,  // list of all website urls found
-    images: Vec<usize>, // list of all images urls found
- }
-
- impl Page {
-    fn generate_size() -> usize {
-        100
-    }
-    
-    fn generate_links() -> Vec<String> {
-        let mut links = Vec::new();
-        for _i in 1..10 {
-            let rand_string: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
-    
-            links.push(["127.0.0.1:7878/", &rand_string].concat());
-        }
-        links
-    }
-    
-    fn generate_imgs() -> Vec<usize> {
-        let mut links = Vec::new();
-        for _i in 1..10 {
-            links.push(5);
-        }
-        links
-    }
-
-    fn generate() -> Self {
-        Self { size: Self::generate_size(), links: Self::generate_links(), images: Self::generate_imgs()}
-    }
-
-    fn print(&self) {
-        println!("Size: {}", self.size);
-        println!("Links: {:?}", self.links);
-        println!("Images: {:?}", self.images);
-    }
- }
 fn main() {
-    generate_html(10, 1, 10);
+    generate_html(10, 70, 10);
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
         handle_connection(stream);
-    }
-
-    // let page = Page::generate();
-    // page.print();
-    
+    }    
 }
 
 fn handle_connection(mut stream: TcpStream) {
@@ -84,16 +35,40 @@ fn handle_connection(mut stream: TcpStream) {
 }
 
 fn generate_html(size: usize, num_links: usize, num_images: usize) {
-    let mut buf = Buffer::new();                  //
-    let mut html = buf.html().attr("lang='en'");  // <html lang='en'>
-    writeln!(html.head().title(), "Title!").unwrap();     // <head><title>Title!
-    writeln!(html.body().h1(), "Header!").unwrap();       // </title></head><body><h1>Header!
-    for _i in 0..num_links {
-        writeln!(html.body().a(), "https://docs.rs/html-builder/0.5.0/src/html_builder/html.rs.html#181").unwrap();
+    let mut result = String::new();
+    result += "<!DOCTYPE html>
+    <html lang=\"en\">
+      <head>
+        <meta charset=\"utf-8\">
+        <title>page</title>
+      </head>
+      <body>
+        <h1>This is a header</h1>
+        <p>Here is some text</p>\n";
+    for link in generate_links(num_links) {
+        result += "        <a href=\"";
+        result += &link;
+        result += "\">This is a link</a>\n";
     }
-    let result = buf.finish();   
+    result += "      <body>\n";
+    result += "</html>";
     
-
     let mut file = File::create("page.html").unwrap();
     file.write_all(result.as_bytes());
+}
+
+fn generate_links(num_links: usize) -> Vec<String> {
+    let mut links = Vec::new();
+    for _i in 0..num_links {
+        let rand_string: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(10)
+        .map(char::from)
+        .collect();
+
+        // links.push(["127.0.0.1:7878/", &rand_string].concat());
+        links.push(["/", &rand_string].concat());
+
+    }
+    links
 }
