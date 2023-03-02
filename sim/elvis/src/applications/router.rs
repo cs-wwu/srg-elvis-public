@@ -20,7 +20,7 @@ use tokio::sync::{mpsc::Sender, Barrier};
 pub type Arp = HashMap<Ipv4Address, Mac>;
 
 pub struct Router {
-    outgoing: Arc<RwLock<Option<Vec<SharedSession>>>>,
+    outgoing: RwLock<Vec<SharedSession>>,
     ip_table: IpToTapSlot,
     arp_table: Arp,
 }
@@ -64,8 +64,6 @@ impl Application for Router {
 
         let mut sessions = Vec::with_capacity(number_taps as usize);
 
-        // println!("{}", number_taps);
-
         for i in 0..number_taps {
             let mut participants = Control::new();
             Pci::set_pci_slot(i as u32, &mut participants);
@@ -79,7 +77,7 @@ impl Application for Router {
         *self
             .outgoing
             .write()
-            .expect("could not put array in outgoing") = Some(sessions);
+            .expect("could not put array in outgoing") = sessions;
 
         tokio::spawn(async move {
             initialize.wait().await;
@@ -90,34 +88,30 @@ impl Application for Router {
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
     fn receive(&self, message: Message, mut context: Context) -> Result<(), ApplicationError> {
-        // println!("yoooooooo");
-
         // obtain destination address of the message
         // cant use this as we dont have an ipv4 protocol in the router
         // should probably extract it from the message object somehow
+
+        // if the header cant parse drop the packet
         let header: Ipv4Header =
-            Ipv4Header::from_bytes(message.iter()).expect("Could not parse message header");
+            Ipv4Header::from_bytes(message.iter()).or(Err(ApplicationError::Other))?;
+
         let address = header.destination;
 
-        // println!("{}", address);
-
         if let Some(destination_mac) = self.arp_table.get(&address) {
-            // println!("{}", destination_mac);
-
             Network::set_destination(*destination_mac, &mut context.control);
         }
 
         Network::set_protocol(Ipv4::ID, &mut context.control);
 
         // put destination address through ip table
-        let destination = *self.ip_table.get(&address).expect("Could not find key");
-
-        // println!("{}", destination);
+        let destination = match self.ip_table.get(&address) {
+            Some(destination) => *destination,
+            None => return Ok(()),
+        };
 
         self.outgoing
             .read()
-            .unwrap()
-            .as_ref()
             .expect("could not get outgoing as reference")
             .get(destination as usize)
             .expect("Could not send message")
