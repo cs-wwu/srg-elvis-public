@@ -15,6 +15,8 @@ use tokio::sync::Notify;
 
 use super::Sockets;
 
+/// An implementation of a Socket
+/// An individual Socket, created by the [`Sockets`] API
 pub struct Socket {
     family: ProtocolFamily,
     sock_type: SocketType,
@@ -55,17 +57,25 @@ impl Socket {
         }
     }
 
+    /// Used to specify whether or not certain socket functions should block
     pub fn set_blocking(self: Arc<Self>, is_blocking: bool) {
         *self.is_blocking.write().unwrap() = is_blocking;
     }
 
+    /// Assigns a remote ip address and port to a socket and connects the socket
+    /// to that endpoint
     pub fn connect(self: Arc<Self>, sock_addr: SocketAddress) -> Result<(), SocketError> {
+        // A socket can only be connected once, subsequent calls to connect will
+        // throw an error if the socket is already connected
         if self.session.read().unwrap().is_some() {
             return Err(SocketError::AcceptError(String::from(
                 "Socket is already connected",
             )));
         }
+        // Assign the given remote socket address to the socket
         *self.remote_addr.write().unwrap() = Some(sock_addr);
+        // Gather the necessary data to open a session and pass it on to the
+        // Sockets API to retreive a socket_session
         let mut participants = Control::new();
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
             match local_addr.address {
@@ -103,6 +113,9 @@ impl Socket {
                 }
             }
         }
+        // TODO(giddinl2): Currently sockets must be bound to a port before they
+        // can be connected, this will be changed in the future once automatic
+        // port assigning is implemented
         let session = match self
             .protocols
             .protocol(Sockets::ID)
@@ -112,10 +125,12 @@ impl Socket {
             Ok(v) => v,
             Err(e) => return Err(SocketError::ConnectError(e.to_string())),
         };
+        // Assign the socket_session to the socket
         *self.session.write().unwrap() = Some(session);
         Ok(())
     }
 
+    /// Assigns a local ip address and port to a socket
     pub fn bind(self: Arc<Self>, sock_addr: SocketAddress) -> Result<(), SocketError> {
         match self.family {
             ProtocolFamily::LOCAL => {
@@ -144,14 +159,17 @@ impl Socket {
         Ok(())
     }
 
+    /// TODO(giddinl2): Currently being developed
     pub fn listen(&mut self, _backlog: i32) -> Result<(), SocketError> {
         todo!();
     }
 
+    /// TODO(giddinl2): Currently being developed
     pub fn accept(&mut self) -> Result<Socket, SocketError> {
         todo!();
     }
 
+    /// Sends data to the socket's remote endpoint
     pub fn send(
         self: Arc<Self>,
         message: impl Into<Chunk> + std::marker::Send + 'static,
@@ -176,12 +194,18 @@ impl Socket {
         Ok(())
     }
 
+    /// Receives data from the socket's remote endpoint
     pub async fn recv(self: Arc<Self>, bytes: usize) -> Result<Vec<u8>, SocketError> {
+        // If the socket doesn't have a session yet, data cannot be received and
+        // calls to recv will return an error, a call to connect() must be made
+        // first
         if self.session.read().unwrap().is_none() {
             return Err(SocketError::ReceiveError(String::from(
                 "Socket isn't connected",
             )));
         }
+        // If there is no data in the queue to recv, and the socket is blocking,
+        // block until there is data to be received
         if *self.is_blocking.read().unwrap() {
             self.notify.notified().await;
         }
@@ -203,12 +227,18 @@ impl Socket {
         Ok(buf)
     }
 
+    /// Receives a [`Message`] from the socket's remote endpoint
     pub async fn recv_msg(self: Arc<Self>) -> Result<Message, SocketError> {
+        // If the socket doesn't have a session yet, data cannot be received and
+        // calls to recv will return an error, a call to connect() must be made
+        // first
         if self.session.read().unwrap().is_none() {
             return Err(SocketError::ReceiveError(String::from(
                 "Socket isn't connected",
             )));
         }
+        // If there is no data in the queue to recv, and the socket is blocking,
+        // block until there is data to be received
         if *self.is_blocking.read().unwrap() {
             self.notify.notified().await;
         }
@@ -223,6 +253,8 @@ impl Socket {
         Ok(msg)
     }
 
+    /// Called by the socket's socket_session when it receives data, stores data
+    /// in a queue, which is emptied by calls to recv() or recv_msg()
     pub(crate) fn receive(&self, message: Message) -> Result<(), SocketError> {
         self.messages.write().unwrap().push_back(message);
         self.notify.notify_one();

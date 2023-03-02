@@ -15,18 +15,31 @@ use socket::{IpAddress, ProtocolFamily, Socket, SocketError, SocketId, SocketTyp
 mod socket_session;
 use socket_session::SocketSession;
 
+/// An implementation of the Sockets API
+/// 
+/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`]
+/// 
+/// Purpose:
+/// - To serve as an interface between the x-kernal-style protocol stack and a
+/// unix-style application
+/// - To simplify the process of making connections via the protocol stack to
+/// make applications easier to write
 #[derive(Default)]
 pub struct Sockets {
-    _local_ipv4_address: Option<Ipv4Address>, // TODO: This will be used as soon as I figure out how to dynamically hand out unused ports
-    // local_ipv6_address: Option<Ipv6Address>, // TODO: add this once ipv6 is implemented
+    // TODO(giddinl2): This will be used once I figure out how to dynamically hand out unused ports
+    _local_ipv4_address: Option<Ipv4Address>,
+    // TODO(giddinl2): This will be added once IPv6 is implemented
+    // local_ipv6_address: Option<Ipv6Address>,
     fds: RwLock<u64>,
     sockets: DashMap<Id, Arc<Socket>>,
     socket_sessions: DashMap<SocketId, Arc<SocketSession>>,
 }
 
 impl Sockets {
+    /// A unique identifier for the protocol
     pub const ID: Id = Id::from_string("Sockets");
 
+    /// Creates a new instance of the protocol
     pub fn new(_local_ipv4_address: Option<Ipv4Address>) -> Self {
         Self {
             _local_ipv4_address,
@@ -36,10 +49,12 @@ impl Sockets {
         }
     }
 
+    /// Creates a new shared handle to an instance of the protocol.
     pub fn new_shared(ipv4_address: Option<Ipv4Address>) -> Arc<Self> {
         Arc::new(Self::new(ipv4_address))
     }
 
+    /// Creates a new socket and adds it to its listing of sockets
     pub fn new_socket(
         self: Arc<Self>,
         domain: ProtocolFamily,
@@ -56,6 +71,8 @@ impl Sockets {
             }
             Entry::Vacant(entry) => entry.insert(socket.clone()),
         };
+        // Currently, mock "file descriptors" are distrubuted on an incremental
+        // basis and not reused
         *self.fds.write().unwrap() += 1;
         Ok(socket)
     }
@@ -78,6 +95,8 @@ impl Protocol for Sockets {
         Ok(())
     }
 
+    /// Called from Socket::connect() and Socket::accept()
+    /// Creates a new socket_session based on IP address and port and returns it
     fn open(
         self: Arc<Self>,
         upstream: Id,
@@ -135,6 +154,9 @@ impl Protocol for Sockets {
         todo!()
     }
 
+    /// When the Sockets API receives a message from a Udp or Tcp session, it is
+    /// demux'd to the correct socket_session based on IP address and port, the
+    /// socket_session will then pass it on to its respective socket
     fn demux(
         self: Arc<Self>,
         message: Message,
