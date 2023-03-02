@@ -7,6 +7,7 @@ use std::{
     net::{TcpListener, TcpStream},
     io::Write
 };
+use image::{GenericImage, GenericImageView, ImageBuffer, RgbImage};
 
 fn main() {
     generate_html(10, 70, 10);
@@ -53,6 +54,7 @@ fn generate_html(size: usize, num_links: usize, num_images: usize) {
     result += "      <body>\n";
     result += "</html>";
     
+    generate_img(69);
     let mut file = File::create("page.html").unwrap();
     file.write_all(result.as_bytes());
 }
@@ -71,4 +73,9 @@ fn generate_links(num_links: usize) -> Vec<String> {
 
     }
     links
+}
+
+fn generate_img(img_size: usize) {
+    let img: RgbImage = ImageBuffer::new(100, 100);
+    img.save("test.png");
 }
