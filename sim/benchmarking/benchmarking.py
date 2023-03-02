@@ -1,17 +1,17 @@
 import cmdbench
 import matplotlib.pyplot as plt
 import json
-from os import listdir
+from os import listdir, getcwd
 from os.path import isfile, join
-image_folder = "./benchmarking/benchmarking_graphs/"
-sim_directory = "./benchmarking/sims/"
-data_directory = "./benchmarking/raw_data/"
+import sys
+image_folder = "./benchmarking_graphs/"
+# sim_directory = "./sims/"
+data_directory = "./raw_data/"
+count = 10
 def run_sim(file_name, interations):
-    benchmark_results = cmdbench.benchmark_command("elvis.exe --ndl " + sim_directory + file_name, iterations_num = interations)
+    benchmark_results = cmdbench.benchmark_command("elvis.exe --ndl " + file_name, iterations_num = interations)
     raw_file_name = file_name[0 : len(file_name)-4]
-    #get averages, get statistics, and get resource plot are usefull commands
     testing = benchmark_results.get_statistics()
-    # print(str(testing))
     testing_str = str(testing).replace('\'', '"').replace('(', '{').replace(')', '},').replace('mean', '"mean"').replace('stdev', '"stdev"').replace('min', '"min"').replace('max:', '"max":').replace('None', '"None"').replace(',\n  }', '\n  }').replace(',\n}', '\n}').replace(',\n\t}', '\n\t}')
     with open(data_directory + raw_file_name + ".json", "w") as outfile:
         outfile.write(testing_str)
@@ -60,14 +60,20 @@ def execution_time_comparison_graphs():
     plt.ylabel('Average Execution Time in seconds (per process)')
     plt.savefig(image_folder + 'Excecution-Time-Comparisons.png')
     plt.close()
-
+# TODO: Running manually without the bash script seems to be broken
 if __name__ == '__main__':
-    # run_sim("basic-100.ndl", 10)
-    # run_sim("basic-1000.ndl", 10)
-    # run_sim("basic-10000.ndl", 10)
-    # run_sim("basic-50000.ndl", 10)
-    # run_sim("basic-100000.ndl", 10)
-    # run_sim("basic-250000.ndl", 10)
-    # run_sim("basic-500000.ndl", 10)
+    for file_name in sys.argv[1:]:
+        run_sim(file_name, count)
     mem_comparison_graphs()
     execution_time_comparison_graphs()
+
+# TODO: Rewrite some library files to handle low times/percentages
+#   File "C:\Users\Jacob\Desktop\ELVIS\srg-elvis\sim\benchmarking\benchmarking.py", line 68, in <module>
+#     run_sim(file_name, count)
+#   File "C:\Users\Jacob\Desktop\ELVIS\srg-elvis\sim\benchmarking\benchmarking.py", line 21, in run_sim
+#     benchmark_results.get_resources_plot().savefig(image_folder + raw_file_name)
+#   File "C:\Users\Jacob\AppData\Local\Programs\Python\Python310\lib\site-packages\cmdbench\result.py", line 172, in get_resources_plot
+#     time_series_obj = self.get_averages()
+#   File "C:\Users\Jacob\AppData\Local\Programs\Python\Python310\lib\site-packages\cmdbench\result.py", line 112, in get_averages
+#     for from_ms in np.arange(sample_min_ms, sample_max_ms, avg_ms_per_sample):
+# ValueError: Maximum allowed size exceeded

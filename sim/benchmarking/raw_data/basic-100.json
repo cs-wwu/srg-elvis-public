@@ -5,24 +5,24 @@
     "user_time": {"mean": 0.0, "stdev": 0.0, "min": 0.0, "max": 0.0}
   },
   "disk": {
-    "other_bytes": {"mean": 614.0, "stdev": 332.1854903513999, "min": 386, "max": 1196},
-    "read_bytes": {"mean": 489.0, "stdev": 1260.734785749961, "min": 0, "max": 4224},
-    "total_bytes": {"mean": 491.6, "stdev": 1264.772880797181, "min": 0, "max": 4237},
-    "write_bytes": {"mean": 2.6, "stdev": 5.2, "min": 0, "max": 13}
+    "other_bytes": {"mean": 264.0, "stdev": 0.0, "min": 264, "max": 264},
+    "read_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0},
+    "total_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0},
+    "write_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0}
   },
   "memory": {
-    "max": {"mean": 9080422.4, "stdev": 544334.9761702254, "min": 7614464, "max": 9428992},
-    "max_perprocess": {"mean": 9080422.4, "stdev": 544334.9761702254, "min": 7614464, "max": 9428992}
+    "max": {"mean": 2995814.4, "stdev": 60259.94217587667, "min": 2916352, "max": 3121152},
+    "max_perprocess": {"mean": 2995814.4, "stdev": 60259.94217587667, "min": 2916352, "max": 3121152}
   },
   "process": {
-    "execution_time": {"mean": 0.03400000000000001, "stdev": 0.006899275324264136, "min": 0.023, "max": 0.047},
-    "exit_code": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0},
+    "execution_time": {"mean": 0.014499999999999999, "stdev": 0.0022022715545545243, "min": 0.013, "max": 0.02},
+    "exit_code": {"mean": 101.0, "stdev": 0.0, "min": 101, "max": 101},
     "stderr_data": "None",
     "stdout_data": "None"
   },
   "time_series": {
-    "cpu_percentages": {"mean": 6.72258064516129, "stdev": 25.598824439710302, "min": 0.0, "max": 104.2},
-    "memory_bytes": {"mean": 6281546.322580645, "stdev": 2749934.0356094223, "min": 1646592, "max": 9428992},
-    "sample_milliseconds": {"mean": 10.548387096774194, "stdev": 7.165502974838135, "min": 2, "max": 30}
+    "cpu_percentages": {"mean": 0.0, "stdev": 0.0, "min": 0.0, "max": 0.0},
+    "memory_bytes": {"mean": 2995814.4, "stdev": 60259.94217587667, "min": 2916352, "max": 3121152},
+    "sample_milliseconds": {"mean": 2.0, "stdev": 0.4472135954999579, "min": 1, "max": 3}
   }
 }
