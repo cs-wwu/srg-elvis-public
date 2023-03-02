@@ -28,12 +28,17 @@ dir_path="./sims"
 file_list=""
 for file in "$dir_path"/*; do
     if [[ -f "$file" ]]; then
-        file_list="$file_list $(basename "$file")"
+        # file_list="$file_list $(basename "$file")"
+        py benchmarking.py $(basename "$file")
     fi
 done
 
 echo "$file_list"
-py benchmarking.py $file_list
+# py benchmarking.py $file_list
+
+# py benchmarking.py basic-1000.ndl
+# echo "should have waited"
+# py benchmarking.py basic-10000.ndl
 
 # py benchmarking.py basic-1000.ndl basic-10000.ndl basic-50000.ndl basic-100000.ndl basic-250000.ndl basic-500000.ndl
 
