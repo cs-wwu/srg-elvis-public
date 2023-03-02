@@ -3,7 +3,7 @@ use elvis::simulations;
 use tokio::runtime::Runtime;
 
 fn basic(c: &mut Criterion) {
-    c.bench_function("Basic", |b| b.to_async(runtime()).iter(simulations::basic));
+    c.bench_function("basic", |b| b.to_async(runtime()).iter(simulations::basic));
 }
 
 fn telephone_multi(c: &mut Criterion) {
@@ -18,6 +18,7 @@ fn telephone_single(c: &mut Criterion) {
     });
 }
 
+#[allow(unused)]
 fn tcp_gigabyte(c: &mut Criterion) {
     let mut group = c.benchmark_group("low_samples");
     group.sample_size(10);
@@ -35,6 +36,6 @@ criterion_group!(
     basic,
     telephone_multi,
     telephone_single,
-    tcp_gigabyte,
+    // tcp_gigabyte,
 );
 criterion_main!(benches);

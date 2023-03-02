@@ -307,6 +307,10 @@ impl Tcb {
             self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
         }
 
+        // for segment in out.iter() {
+        //     println!("{:?}, {}", segment.header, segment.text.len());
+        // }
+
         out
     }
 
@@ -327,6 +331,9 @@ impl Tcb {
             }
             let segment = self.incoming.segments.pop().unwrap();
             let receive_result = self.process_segment(segment);
+            if receive_result != ProcessSegmentResult::Success {
+                println!("{:?}", receive_result);
+            }
             if receive_result.should_delete_tcb() {
                 return SegmentArrivesResult::Close;
             }
@@ -396,6 +403,7 @@ impl Tcb {
                 State::SynReceived => {
                     if mod_bounded(self.snd.una, Lt, seg.ack, Leq, self.snd.nxt) {
                         self.state = State::Established;
+                        println!("Established");
                         self.snd.wnd = seg.wnd;
                         self.snd.wl1 = seg.seq;
                         self.snd.wl2 = seg.ack;
@@ -491,6 +499,7 @@ impl Tcb {
                     self.snd.wl2 = seg.ack;
                     if mod_gt(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
+                        println!("Established");
                         self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     } else {
                         self.state = State::SynReceived;

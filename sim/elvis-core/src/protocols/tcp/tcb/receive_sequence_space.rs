@@ -30,7 +30,7 @@ impl Default for ReceiveSequenceSpace {
         Self {
             irs: 0,
             nxt: 0,
-            wnd: u16::MAX,
+            wnd: 4096,
         }
     }
 }

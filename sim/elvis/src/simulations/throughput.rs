@@ -28,14 +28,14 @@ pub async fn throughput() {
         .into_iter()
         .collect();
 
+    let message = Message::new("Hello!");
+    let messages: Vec<_> = (0..3).map(|_| message.clone()).collect();
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SendMessage::new(Message::new("Hello!"), capture_ip_address, 0xbeef)
-                .count(3)
-                .shared(),
+            SendMessage::new(messages, capture_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,

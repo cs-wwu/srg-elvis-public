@@ -21,14 +21,14 @@ pub async fn tcp_gigabyte_bench() {
         .into_iter()
         .collect();
 
-    let message: Vec<_> = (0..i32::MAX).map(|i| i as u8).collect();
+    let message: Vec<_> = (0..1_000_000_00).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
         Machine::new([
             Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SendMessage::new(message.clone(), capture_ip_address, 0xbeef)
+            SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef)
                 .transport(Transport::Tcp)
                 .shared(),
         ]),

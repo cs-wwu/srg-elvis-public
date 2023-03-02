@@ -30,7 +30,7 @@ pub async fn latency() {
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SendMessage::new(Message::new("Hello!"), capture_ip_address, 0xbeef).shared(),
+            SendMessage::new(vec![Message::new("Hello!")], capture_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,

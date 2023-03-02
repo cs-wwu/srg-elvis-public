@@ -6,6 +6,6 @@ use std::time::Instant;
 async fn main() {
     console_subscriber::init();
     let now = Instant::now();
-    simulations::tcp_gigabyte_bench().await;
+    simulations::udp_gigabyte_bench().await;
     println!("{:?}", now.elapsed());
 }

@@ -36,7 +36,7 @@ pub async fn tcp_with_unreliable() {
             Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SendMessage::new(message.clone(), dst_ip_address, 0xbeef)
+            SendMessage::new(vec![message.clone()], dst_ip_address, 0xbeef)
                 .transport(Transport::Tcp)
                 .shared(),
         ]),

@@ -9,7 +9,7 @@ use elvis_core::{
     },
     Control, Id, ProtocolMap, Shutdown,
 };
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
 use super::Transport;
@@ -17,25 +17,22 @@ use super::Transport;
 /// An application that sends a single message over the network.
 pub struct SendMessage {
     /// The body of the message to send
-    body: Message,
+    messages: RwLock<Vec<Message>>,
     /// The IP address to send to
     remote_ip: Ipv4Address,
     /// The port to send on
     remote_port: u16,
-    /// The number of copies of the message to send
-    count: u16,
     /// The protocol to use in delivering the message
     transport: Transport,
 }
 
 impl SendMessage {
     /// Creates a new send message application.
-    pub fn new(body: Message, remote_ip: Ipv4Address, remote_port: u16) -> Self {
+    pub fn new(messages: Vec<Message>, remote_ip: Ipv4Address, remote_port: u16) -> Self {
         Self {
-            body,
+            messages: RwLock::new(messages),
             remote_ip,
             remote_port,
-            count: 1,
             transport: Transport::Udp,
         }
     }
@@ -43,12 +40,6 @@ impl SendMessage {
     /// Wrap the SendMessage in a user process
     pub fn shared(self) -> Arc<UserProcess<Self>> {
         UserProcess::new(self).shared()
-    }
-
-    /// The number of copies of the message to send
-    pub fn count(mut self, count: u16) -> Self {
-        self.count = count;
-        self
     }
 
     /// The protocol to use in delivering the message
@@ -85,14 +76,13 @@ impl Application for SendMessage {
             .expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
         let context = Context::new(protocols);
-        let count = self.count;
-        let body = self.body.clone();
+        let messages = std::mem::take(&mut *self.messages.write().unwrap());
         tokio::spawn(async move {
             initialized.wait().await;
-            for _ in 0..count {
+            for message in messages {
                 session
                     .clone()
-                    .send(body.clone(), context.clone())
+                    .send(message, context.clone())
                     .expect("SendMessage failed to send");
             }
         });

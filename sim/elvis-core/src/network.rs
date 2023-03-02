@@ -127,8 +127,7 @@ impl Network {
                     break;
                 };
 
-                let rng = rand::random::<f32>();
-                if rng < self.loss_rate {
+                if self.loss_rate > 0.0 && rand::random::<f32>() < self.loss_rate {
                     // Drop the message
                     continue;
                 }

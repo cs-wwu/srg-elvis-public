@@ -28,6 +28,7 @@ pub struct TcpSession {
     upstream: Id,
     /// The downstream session
     downstream: SharedSession,
+    send_count: RwLock<usize>,
 }
 
 impl TcpSession {
@@ -37,6 +38,7 @@ impl TcpSession {
             tcb,
             upstream,
             downstream,
+            send_count: RwLock::new(0),
         }
     }
 
