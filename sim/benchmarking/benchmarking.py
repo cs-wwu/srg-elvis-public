@@ -63,8 +63,8 @@ def execution_time_comparison_graphs():
     plt.close()
 # TODO: Running manually without the bash script seems to be broken
 if __name__ == '__main__':
-    # for file_name in sys.argv[1:]:
-    #     run_sim(file_name, count)
+    for file_name in sys.argv[1:]:
+        run_sim(file_name, count)
     mem_comparison_graphs()
     execution_time_comparison_graphs()
 
