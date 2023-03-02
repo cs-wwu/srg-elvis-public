@@ -16,8 +16,8 @@ use crate::{
     session::SharedSession,
     Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
 use std::{
+    collections::{hash_map::Entry, HashMap},
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -35,9 +35,9 @@ mod tcp_session;
 pub struct Tcp {
     /// A record of which protocol requested to listen for connections on
     /// particular sockets.
-    listen_bindings: DashMap<Socket, Id>,
+    listen_bindings: RwLock<HashMap<Socket, Id>>,
     /// A lookup table for sessions based on their endpoints.
-    sessions: DashMap<ConnectionId, Arc<TcpSession>>,
+    sessions: RwLock<HashMap<ConnectionId, Arc<TcpSession>>>,
 }
 
 impl Tcp {
@@ -106,7 +106,7 @@ impl Protocol for Tcp {
 
         let session_id = ConnectionId { local, remote };
 
-        match self.sessions.entry(session_id) {
+        match self.sessions.write().unwrap().entry(session_id) {
             Entry::Occupied(_) => Err(OpenError::Existing),
             Entry::Vacant(entry) => {
                 // Create the session and save it
@@ -144,7 +144,10 @@ impl Protocol for Tcp {
             port: Self::get_local_port(&participants).unwrap(),
             address: Ipv4::get_local_address(&participants).unwrap(),
         };
-        self.listen_bindings.insert(socket, upstream);
+        self.listen_bindings
+            .write()
+            .unwrap()
+            .insert(socket, upstream);
         // Ask lower-level protocols to add the binding as well
         protocols
             .protocol(Ipv4::ID)
@@ -185,7 +188,7 @@ impl Protocol for Tcp {
         Tcp::set_remote_port(remote.port, &mut context.control);
 
         let segment = Segment::new(header, message);
-        match self.sessions.entry(connection_id) {
+        match self.sessions.write().unwrap().entry(connection_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
                 match session.receive(segment, context) {
@@ -207,7 +210,7 @@ impl Protocol for Tcp {
             }
 
             Entry::Vacant(session_entry) => {
-                match self.listen_bindings.entry(local) {
+                match self.listen_bindings.write().unwrap().entry(local) {
                     Entry::Occupied(listen_entry) => {
                         // TODO(hardint): Incomplete. See 3.10.7.2 for handling
                         // of segments in LISTEN state.
@@ -273,19 +276,20 @@ impl Protocol for Tcp {
                 const SLEEP_DURATION: Duration = Duration::from_millis(33);
                 tokio::time::sleep(SLEEP_DURATION).await;
                 let mut to_remove = vec![];
-                for entry in self.sessions.iter_mut() {
+                for entry in self.sessions.write().unwrap().iter_mut() {
                     match entry
+                        .1
                         .clone()
                         .advance_time(SLEEP_DURATION, protocols.clone())
                     {
                         AdvanceTimeResult::Ignore => {}
                         AdvanceTimeResult::CloseConnection => {
-                            to_remove.push(*entry.key());
+                            to_remove.push(*entry.0);
                         }
                     }
                 }
                 for id in to_remove {
-                    self.sessions.remove(&id);
+                    self.sessions.write().unwrap().remove(&id);
                 }
             }
         });

@@ -13,8 +13,10 @@ use crate::{
     session::SharedSession,
     Control, Network, Protocol, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::Arc;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
 
 mod ipv4_parsing;
@@ -28,9 +30,9 @@ use ipv4_session::{Ipv4Session, SessionId};
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
-    listen_bindings: DashMap<Ipv4Address, Id>,
-    sessions: DashMap<SessionId, Arc<Ipv4Session>>,
-    recipients: Recipients,
+    listen_bindings: RwLock<HashMap<Ipv4Address, Id>>,
+    sessions: RwLock<HashMap<SessionId, Arc<Ipv4Session>>>,
+    recipients: RwLock<Recipients>,
 }
 
 impl Ipv4 {
@@ -42,7 +44,7 @@ impl Ipv4 {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            recipients,
+            recipients: RwLock::new(recipients),
         }
     }
 
@@ -106,7 +108,7 @@ impl Protocol for Ipv4 {
             })?,
         );
 
-        match self.sessions.entry(key) {
+        match self.sessions.write().unwrap().entry(key) {
             Entry::Occupied(_) => {
                 tracing::error!(
                     "A session already exists for {} -> {}",
@@ -118,7 +120,7 @@ impl Protocol for Ipv4 {
 
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
-                let recipient = match self.recipients.get(&key.remote) {
+                let recipient = match self.recipients.read().unwrap().get(&key.remote) {
                     Some(tap_slot) => *tap_slot,
                     None => {
                         tracing::error!("No tap slot found for the IP {}", key.remote);
@@ -149,7 +151,7 @@ impl Protocol for Ipv4 {
             ListenError::MissingContext
         })?;
 
-        match self.listen_bindings.entry(local) {
+        match self.listen_bindings.write().unwrap().entry(local) {
             Entry::Occupied(_) => {
                 tracing::error!("A binding already exists for local address {}", local);
                 Err(ListenError::Existing)?
@@ -189,36 +191,38 @@ impl Protocol for Ipv4 {
         Self::set_local_address(identifier.local, &mut context.control);
         Self::set_remote_address(identifier.remote, &mut context.control);
 
-        let session = match self.sessions.entry(identifier) {
+        let session = match self.sessions.write().unwrap().entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
 
-            Entry::Vacant(entry) => match self.listen_bindings.get(&identifier.local) {
-                Some(binding) => {
-                    // If the session does not exist but we have a listen
-                    // binding for it, create the session
-                    let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
-                        tracing::error!("Missing network ID on context");
-                        DemuxError::MissingContext
-                    })?;
-                    let mac = Network::get_sender(&context.control).map_err(|_| {
-                        tracing::error!("Missing sender MAC on context");
-                        DemuxError::MissingContext
-                    })?;
-                    let destination = Recipient::new(slot, mac);
-                    let session =
-                        Arc::new(Ipv4Session::new(caller, *binding, identifier, destination));
-                    entry.insert(session.clone());
-                    session
-                }
+            Entry::Vacant(entry) => {
+                match self.listen_bindings.read().unwrap().get(&identifier.local) {
+                    Some(binding) => {
+                        // If the session does not exist but we have a listen
+                        // binding for it, create the session
+                        let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
+                            tracing::error!("Missing network ID on context");
+                            DemuxError::MissingContext
+                        })?;
+                        let mac = Network::get_sender(&context.control).map_err(|_| {
+                            tracing::error!("Missing sender MAC on context");
+                            DemuxError::MissingContext
+                        })?;
+                        let destination = Recipient::new(slot, mac);
+                        let session =
+                            Arc::new(Ipv4Session::new(caller, *binding, identifier, destination));
+                        entry.insert(session.clone());
+                        session
+                    }
 
-                None => {
-                    tracing::error!(
-                        "Could not find a listen binding for the local address {}",
-                        identifier.local
-                    );
-                    Err(DemuxError::MissingSession)?
+                    None => {
+                        tracing::error!(
+                            "Could not find a listen binding for the local address {}",
+                            identifier.local
+                        );
+                        Err(DemuxError::MissingSession)?
+                    }
                 }
-            },
+            }
         };
         session.receive(message, context)?;
         Ok(())
@@ -229,7 +233,7 @@ impl Protocol for Ipv4 {
     }
 }
 
-pub type Recipients = DashMap<Ipv4Address, Recipient>;
+pub type Recipients = HashMap<Ipv4Address, Recipient>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Recipient {
