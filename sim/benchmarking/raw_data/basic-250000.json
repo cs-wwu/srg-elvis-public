@@ -1,28 +1,43 @@
 {
-  "cpu": {
-    "system_time": {"mean": 0.0, "stdev": 0.0, "min": 0.0, "max": 0.0},
-    "total_time": {"mean": 0.0015625, "stdev": 0.004687500000000001, "min": 0.0, "max": 0.015625},
-    "user_time": {"mean": 0.0015625, "stdev": 0.004687500000000001, "min": 0.0, "max": 0.015625}
-  },
-  "disk": {
-    "other_bytes": {"mean": 257.6, "stdev": 19.2, "min": 200, "max": 264},
-    "read_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0},
-    "total_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0},
-    "write_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0}
-  },
-  "memory": {
-    "max": {"mean": 3010969.6, "stdev": 111249.19986696534, "min": 2760704, "max": 3149824},
-    "max_perprocess": {"mean": 3010969.6, "stdev": 111249.19986696534, "min": 2760704, "max": 3149824}
-  },
-  "process": {
-    "execution_time": {"mean": 0.012199999999999999, "stdev": 0.0005999999999999998, "min": 0.011, "max": 0.013},
-    "exit_code": {"mean": 101.0, "stdev": 0.0, "min": 101, "max": 101},
-    "stderr_data": "None",
-    "stdout_data": "None"
-  },
-  "time_series": {
-    "cpu_percentages": {"mean": 0.0, "stdev": 0.0, "min": 0.0, "max": 0.0},
-    "memory_bytes": {"mean": 3010969.6, "stdev": 111249.19986696534, "min": 2760704, "max": 3149824},
-    "sample_milliseconds": {"mean": 1.6, "stdev": 0.48989794855663565, "min": 1, "max": 2}
-  }
+    "memory": {
+        "mean": 1690828.8,
+        "max": 1695744.0,
+        "min": 1687552.0,
+        "raw": [
+            1695744,
+            1691648,
+            1687552,
+            1687552,
+            1691648,
+            1691648,
+            1691648,
+            1687552,
+            1691648,
+            1691648
+        ]
+    },
+    "processing_time": {
+        "mean": 14.394,
+        "max": 17.11,
+        "min": 13.44,
+        "raw": [
+            15.85,
+            13.62,
+            13.8,
+            14.65,
+            13.49,
+            14.07,
+            13.44,
+            13.57,
+            14.34,
+            17.11
+        ]
+    },
+    "platform": {
+        "OS": "Linux",
+        "CPU": "x86_64",
+        "CORE_COUNT": 8,
+        "RAM": 8143175680
+    },
+    "name": "basic-250000"
 }

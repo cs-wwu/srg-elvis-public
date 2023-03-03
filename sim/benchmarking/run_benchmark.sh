@@ -10,38 +10,45 @@ fi
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+echo "Moving to script directory"
+
 cd $SCRIPT_DIR
 
 echo "Installing Python Requirements"
 
-pip install -r requirements.txt
+pip install -r requirements.txt | grep -v 'already satisfied'
+
+echo "Moving to sim directory for binary building"
 
 cd ..
 
-cargo build --release
+# cargo build --release
+# cargo build
+
+echo "Moving to script directory"
 
 cd $SCRIPT_DIR
 
 cp ../target/release/elvis.exe ./
 
+echo "Starting sim file collection"
+
 dir_path="./sims"
 file_list=""
 for file in "$dir_path"/*; do
     if [[ -f "$file" ]]; then
-        # file_list="$file_list $(basename "$file")"
-        py benchmarking.py $(basename "$file")
+        file_list="$file_list $(basename "$file")"
+        # python3 benchmarking.py $(basename "$file")
     fi
 done
 
-echo "$file_list"
-# py benchmarking.py $file_list
+echo "Found sims:"
+echo $file_list
 
-# py benchmarking.py basic-1000.ndl
-# echo "should have waited"
-# py benchmarking.py basic-10000.ndl
+echo "Beginning benchmarking"
+
+python3 benchmarking.py $file_list
 
 # py benchmarking.py basic-1000.ndl basic-10000.ndl basic-50000.ndl basic-100000.ndl basic-250000.ndl basic-500000.ndl
-
-rm ./elvis.exe
-
-sleep 10
+echo "Benchmarking finished, removing binaries"
+# rm ./elvis.exe

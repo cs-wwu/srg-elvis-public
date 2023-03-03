@@ -1,28 +1,43 @@
 {
-  "cpu": {
-    "system_time": {"mean": 0.0, "stdev": 0.0, "min": 0.0, "max": 0.0},
-    "total_time": {"mean": 0.0, "stdev": 0.0, "min": 0.0, "max": 0.0},
-    "user_time": {"mean": 0.0, "stdev": 0.0, "min": 0.0, "max": 0.0}
-  },
-  "disk": {
-    "other_bytes": {"mean": 264.0, "stdev": 0.0, "min": 264, "max": 264},
-    "read_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0},
-    "total_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0},
-    "write_bytes": {"mean": 0.0, "stdev": 0.0, "min": 0, "max": 0}
-  },
   "memory": {
-    "max": {"mean": 3004006.4, "stdev": 42258.33492981, "min": 2916352, "max": 3051520},
-    "max_perprocess": {"mean": 3004006.4, "stdev": 42258.33492981, "min": 2916352, "max": 3051520}
+    "mean": 1689600.0,
+    "max": 1691648.0,
+    "min": 1687552.0,
+    "raw": [
+      1687552,
+      1691648,
+      1691648,
+      1687552,
+      1691648,
+      1691648,
+      1691648,
+      1687552,
+      1687552,
+      1687552
+    ]
   },
-  "process": {
-    "execution_time": {"mean": 0.011899999999999999, "stdev": 0.0007000000000000001, "min": 0.011, "max": 0.013},
-    "exit_code": {"mean": 101.0, "stdev": 0.0, "min": 101, "max": 101},
-    "stderr_data": "None",
-    "stdout_data": "None"
+  "processing_time": {
+    "mean": 35.369,
+    "max": 41.17,
+    "min": 30.47,
+    "raw": [
+      35.92,
+      32.04,
+      30.47,
+      33.94,
+      32.97,
+      34.96,
+      36.79,
+      40.43,
+      41.17,
+      35.0
+    ]
   },
-  "time_series": {
-    "cpu_percentages": {"mean": 0.0, "stdev": 0.0, "min": 0.0, "max": 0.0},
-    "memory_bytes": {"mean": 3004006.4, "stdev": 42258.33492981, "min": 2916352, "max": 3051520},
-    "sample_milliseconds": {"mean": 1.8, "stdev": 0.4, "min": 1, "max": 2}
-  }
+  "platform": {
+    "OS": "Linux",
+    "CPU": "x86_64",
+    "CORE_COUNT": 8,
+    "RAM": 8143175680
+  },
+  "name": "basic-500000"
 }
