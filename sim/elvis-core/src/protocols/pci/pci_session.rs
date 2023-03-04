@@ -41,10 +41,16 @@ impl PciSession {
                 let context = context.clone();
                 tokio::select! {
                     message = direct_receiver.recv() => {
-                        self.clone().receive_direct(message, context);
+                        let me = self.clone();
+                        tokio::spawn(async move {
+                            me.receive_direct(message, context);
+                        });
                     }
                     message = broadcast_receiver.recv() => {
-                        self.clone().receive_broadcast(message, context);
+                        let me = self.clone();
+                        tokio::spawn(async move {
+                            me.receive_broadcast(message, context);
+                        });
                     }
                     _ = shutdown_receiver.recv() => break,
                 }

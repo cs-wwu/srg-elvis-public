@@ -533,7 +533,6 @@ impl Tcb {
                     connection.snd.wl2 = seg.ack;
                     if mod_gt(connection.snd.una, connection.snd.iss) {
                         connection.state = State::Established;
-                        println!("Established");
                         self.enqueue(
                             self.header_builder(connection.snd.nxt)
                                 .ack(connection.rcv.nxt),
