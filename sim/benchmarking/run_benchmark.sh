@@ -22,8 +22,7 @@ echo "Moving to sim directory for binary building"
 
 cd ..
 
-# cargo build --release
-# cargo build
+cargo build --release
 
 echo "Moving to script directory"
 
@@ -38,7 +37,6 @@ file_list=""
 for file in "$dir_path"/*; do
     if [[ -f "$file" ]]; then
         file_list="$file_list $(basename "$file")"
-        # python3 benchmarking.py $(basename "$file")
     fi
 done
 
@@ -47,8 +45,11 @@ echo $file_list
 
 echo "Beginning benchmarking"
 
-python3 benchmarking.py $file_list
+python benchmarking.py $file_list
 
-# py benchmarking.py basic-1000.ndl basic-10000.ndl basic-50000.ndl basic-100000.ndl basic-250000.ndl basic-500000.ndl
 echo "Benchmarking finished, removing binaries"
-# rm ./elvis.exe
+
+# TODO: May be elvis for linux, not elvis.exe
+rm ./elvis.exe
+
+sleep 5

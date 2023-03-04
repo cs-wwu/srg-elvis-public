@@ -1,5 +1,5 @@
 import cmdbench
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt, ticker as mticker
 import json
 import platform
 import psutil
@@ -15,6 +15,7 @@ import numpy as np
 ## CPU utilization
 ## CPU VS Memory usage
 # TODO: Run full suite at 100+ iterations for full data points
+#TODO: Fix subplot scaling
 
 image_folder = "./benchmarking_graphs/"
 sim_directory = "./sims/"
@@ -75,19 +76,18 @@ def mem_comparison_graphs():
     for file_name in onlyfiles:
         f = open(data_directory + file_name, 'r')
         dictionary = json.loads(f.read())
-        mem = float(dictionary['memory']['mean'])
+        mem = float(dictionary['memory']['mean']) / 1000000
         yAxis.append(mem)
         xAxis.append(file_name[file_name.index('-')+1 : -5])
     # disabling the offset on y axis
     ax = plt.gca()
-    ax.ticklabel_format(style='plain')
+    ax.ticklabel_format(style='plain', axis='y')
     plt.grid(True)
-    plt.subplots_adjust(bottom=0.2, left=0.2)
+    # plt.subplots_adjust(wspace=.5, hspace=.5)
     plt.plot(xAxis,yAxis, color='maroon', marker='o')
     plt.title('Memory Usage Comparisons')
-    plt.yscale('log')
     plt.xlabel('Machine Counts')
-    plt.ylabel('Average Memory Usage in Bytes (per process)')
+    plt.ylabel('Average Memory Usage in MB (per process)')
     plt.savefig(image_folder + 'Memory-Usage-Comparisons.png')
     plt.close()
 
@@ -102,24 +102,23 @@ def execution_time_comparison_graphs():
         time = dictionary['processing_time']['mean']
         yAxis.append(time)
         xAxis.append(file_name[file_name.index('-')+1 : -5])
+    ax = plt.gca()
+    ax.ticklabel_format(style='plain', axis='y')
     plt.grid(True)
-    plt.subplots_adjust(bottom=0.2, left=0.2)
-    plt.plot(xAxis,yAxis, color='maroon', marker='o')
+    plt.plot(xAxis, yAxis, color='maroon', marker='o')
     plt.title('Excecution Time Comparisons')
-    plt.yscale('log')
     plt.xlabel('Machine Counts')
     plt.ylabel('Average Execution Time in seconds (per process)')
     plt.savefig(image_folder + 'Excecution-Time-Comparisons.png')
     plt.close()
 
+def specific_tests():
+    run_sim("basic-100.ndl", count)
+
 if __name__ == '__main__':
-    for file_name in sys.argv[1:]:
-        run_sim(file_name, count)
-    # # run_sim("basic-100.ndl", count)
-    # # run_sim("basic-10000.ndl", count)
-    # # run_sim("basic-50000.ndl", count)
-    # # run_sim("basic-100000.ndl", count)
-    # # run_sim("basic-250000.ndl", count)
-    # # run_sim("basic-500000.ndl", count)
+    # for file_name in sys.argv[1:]:
+    #     run_sim(file_name, count)
+    #Uncomment this next line to run any of the tests in the specific tests function
+    # specific_tests()
     mem_comparison_graphs()
     execution_time_comparison_graphs()
