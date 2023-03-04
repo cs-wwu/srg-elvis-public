@@ -20,7 +20,7 @@ import numpy as np
 image_folder = "./benchmarking_graphs/"
 sim_directory = "./sims/"
 data_directory = "./raw_data/"
-count = 10
+count = 100
 def run_sim(file_name, interations):
     raw_file_name = file_name[0 : len(file_name)-4]
     print("Staring benchmark on: " + file_name)
@@ -116,8 +116,8 @@ def specific_tests():
     run_sim("basic-100.ndl", count)
 
 if __name__ == '__main__':
-    # for file_name in sys.argv[1:]:
-    #     run_sim(file_name, count)
+    for file_name in sys.argv[1:]:
+        run_sim(file_name, count)
     #Uncomment this next line to run any of the tests in the specific tests function
     # specific_tests()
     mem_comparison_graphs()
