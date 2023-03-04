@@ -77,8 +77,6 @@ impl Application for SocketSendMessage {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         tokio::spawn(async move {
-            initialized.wait().await;
-
             // Create a new IPv4 Datagram Socket
             let socket = self
                 .sockets
@@ -94,13 +92,23 @@ impl Application for SocketSendMessage {
             let remote_sock_addr = SocketAddress::new_v4(self.remote_ip, self.remote_port);
             socket.clone().connect(remote_sock_addr).unwrap();
 
+            initialized.wait().await;
+
+            // Send a connection request
+            println!("Sending connection request");
+            socket.clone().send("SYN").unwrap();
+
+            // Receive a connection response
+            let _ack = socket.clone().recv(32).await.unwrap();
+            println!("Connection response received");
+
             // Send a message
             println!("Sending Request: {:?}", self.text);
             socket.clone().send(self.text).unwrap();
 
             // Receive a message
             let msg = socket.clone().recv(32).await.unwrap();
-            println!("Response Received: {:?}", String::from_utf8(msg));
+            println!("Response Received: {:?}", String::from_utf8(msg).unwrap());
 
             // Send another message
             println!("Sending Request: Shutdown");

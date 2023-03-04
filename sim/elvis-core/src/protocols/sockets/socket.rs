@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     message::Chunk,
-    protocol::Context,
+    protocol::{Context, DemuxError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
     Control, Id, Message, ProtocolMap,
@@ -15,22 +15,26 @@ use tokio::sync::Notify;
 
 use super::Sockets;
 
-/// An implementation of a Socket
-/// An individual Socket, created by the [`Sockets`] API
+/// An implementation of an individual Socket
+/// Created by the [`Sockets`] API
 pub struct Socket {
     family: ProtocolFamily,
     sock_type: SocketType,
     fd: Id,
-    _is_active: bool, // These three will be needed when it comes to implementing listening and accepting
-    _is_bound: bool,
-    _is_listening: bool,
+    _is_active: RwLock<bool>, // These three will be needed when it comes to implementing listening and accepting
+    is_bound: RwLock<bool>,
+    is_listening: RwLock<bool>,
     is_blocking: RwLock<bool>,
     local_addr: RwLock<Option<SocketAddress>>,
     remote_addr: RwLock<Option<SocketAddress>>,
     session: Arc<RwLock<Option<SharedSession>>>,
+    listen_addresses: Arc<RwLock<VecDeque<SocketAddress>>>,
+    listen_backlog: RwLock<usize>,
+    notify_listen: Notify,
     messages: Arc<RwLock<VecDeque<Message>>>,
-    notify: Notify,
+    notify_recv: Notify,
     protocols: ProtocolMap,
+    socket_api: Arc<Sockets>,
 }
 
 impl Socket {
@@ -39,21 +43,37 @@ impl Socket {
         sock_type: SocketType,
         fd: Id,
         protocols: ProtocolMap,
+        socket_api: Arc<Sockets>,
     ) -> Socket {
         Self {
             family: domain,
             sock_type,
             fd,
-            _is_active: true,
-            _is_bound: false,
-            _is_listening: false,
+            _is_active: RwLock::new(true),
+            is_bound: RwLock::new(false),
+            is_listening: RwLock::new(false),
             is_blocking: RwLock::new(true),
             local_addr: RwLock::new(None),
             remote_addr: RwLock::new(None),
+            listen_addresses: Default::default(),
+            listen_backlog: RwLock::new(0),
+            notify_listen: Notify::new(),
             messages: Default::default(),
-            notify: Notify::new(),
+            notify_recv: Notify::new(),
             session: Default::default(),
             protocols,
+            socket_api,
+        }
+    }
+
+    pub(super) fn add_listen_address(self: Arc<Self>, remote_address: SocketAddress) {
+        let backlog = *self.listen_backlog.read().unwrap();
+        if backlog == 0 || self.listen_addresses.read().unwrap().len() >= backlog {
+            self.listen_addresses
+                .write()
+                .unwrap()
+                .push_back(remote_address);
+            self.notify_listen.notify_one();
         }
     }
 
@@ -68,9 +88,11 @@ impl Socket {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected
         if self.session.read().unwrap().is_some() {
-            return Err(SocketError::AcceptError(String::from(
-                "Socket is already connected",
-            )));
+            return Err(SocketError::AcceptError);
+        }
+        if self.local_addr.read().unwrap().is_none() {
+            *self.local_addr.write().unwrap() =
+                Some(self.socket_api.clone().get_ephemeral_endpoint().unwrap());
         }
         // Assign the given remote socket address to the socket
         *self.remote_addr.write().unwrap() = Some(sock_addr);
@@ -123,7 +145,7 @@ impl Socket {
             .open(self.fd, participants, self.protocols.clone())
         {
             Ok(v) => v,
-            Err(e) => return Err(SocketError::ConnectError(e.to_string())),
+            Err(_) => return Err(SocketError::ConnectError),
         };
         // Assign the socket_session to the socket
         *self.session.write().unwrap() = Some(session);
@@ -134,39 +156,83 @@ impl Socket {
     pub fn bind(self: Arc<Self>, sock_addr: SocketAddress) -> Result<(), SocketError> {
         match self.family {
             ProtocolFamily::LOCAL => {
-                return Err(SocketError::BindError(String::from(
-                    "Cannot bind a local socket",
-                )));
+                return Err(SocketError::BindError);
             }
             ProtocolFamily::INET => match sock_addr.address {
                 IpAddress::IPv4(_v) => *self.local_addr.write().unwrap() = Some(sock_addr),
-                IpAddress::IPv6() => {
-                    return Err(SocketError::BindError(String::from(
-                        "Cannot bind an INET socket to an IPv6 address",
-                    )))
-                }
+                IpAddress::IPv6() => return Err(SocketError::BindError),
             },
             ProtocolFamily::INET6 => match sock_addr.address {
-                IpAddress::IPv4(_v) => {
-                    return Err(SocketError::BindError(String::from(
-                        "Cannot bind an INET6 socket to an IPv4 address",
-                    )))
-                }
+                IpAddress::IPv4(_v) => return Err(SocketError::BindError),
                 IpAddress::IPv6() => *self.local_addr.write().unwrap() = Some(sock_addr),
             },
         }
-        // self._is_bound = true;
+        *self.is_bound.write().unwrap() = true;
         Ok(())
     }
 
     /// TODO(giddinl2): Currently being developed
-    pub fn listen(&mut self, _backlog: i32) -> Result<(), SocketError> {
-        todo!();
+    pub fn listen(self: Arc<Self>, backlog: usize) -> Result<(), SocketError> {
+        if !*self.is_bound.read().unwrap() {
+            return Err(SocketError::AcceptError);
+        }
+        let mut participants = Control::new();
+        if let Some(local_addr) = *self.local_addr.read().unwrap() {
+            match local_addr.address {
+                IpAddress::IPv4(addr) => {
+                    Ipv4::set_local_address(addr, &mut participants);
+                }
+                IpAddress::IPv6() => {
+                    todo!();
+                }
+            }
+            match self.sock_type {
+                SocketType::SocketDatagram => {
+                    Udp::set_local_port(local_addr.port, &mut participants);
+                }
+                SocketType::SocketStream => {
+                    todo!();
+                }
+            }
+        }
+        match self
+            .protocols
+            .protocol(Sockets::ID)
+            .expect("Sockets API not found")
+            .listen(self.fd, participants, self.protocols.clone())
+        {
+            Ok(_) => {
+                *self.is_listening.write().unwrap() = true;
+                *self.listen_backlog.write().unwrap() = backlog;
+                Ok(())
+            }
+            Err(_) => Err(SocketError::ListenError),
+        }
     }
 
     /// TODO(giddinl2): Currently being developed
-    pub fn accept(&mut self) -> Result<Socket, SocketError> {
-        todo!();
+    pub async fn accept(self: Arc<Self>) -> Result<Arc<Socket>, SocketError> {
+        if *self.is_blocking.read().unwrap() {
+            self.notify_listen.notified().await;
+        }
+        let new_sock = self.socket_api.clone().new_socket(
+            self.family,
+            self.sock_type,
+            self.protocols.clone(),
+        )?;
+        let local_addr = SocketAddress {
+            address: self.socket_api.clone().get_local_ipv4()?,
+            port: self.local_addr.read().unwrap().unwrap().port,
+        };
+        new_sock.clone().bind(local_addr)?;
+        *new_sock.remote_addr.write().unwrap() = self.listen_addresses.write().unwrap().pop_front();
+        let session = self.socket_api.clone().get_socket_session(
+            new_sock.local_addr.read().unwrap().unwrap(),
+            new_sock.remote_addr.read().unwrap().unwrap(),
+        )?;
+        *session.upstream.write().unwrap() = Some(new_sock.fd);
+        *new_sock.session.write().unwrap() = Some(session);
+        Ok(new_sock)
     }
 
     /// Sends data to the socket's remote endpoint
@@ -175,9 +241,7 @@ impl Socket {
         message: impl Into<Chunk> + std::marker::Send + 'static,
     ) -> Result<(), SocketError> {
         if self.session.read().unwrap().is_none() {
-            return Err(SocketError::SendError(String::from(
-                "Socket isn't connected",
-            )));
+            return Err(SocketError::SendError);
         }
         let context = Context::new(self.protocols.clone());
         let session = self.session.clone();
@@ -200,14 +264,12 @@ impl Socket {
         // calls to recv will return an error, a call to connect() must be made
         // first
         if self.session.read().unwrap().is_none() {
-            return Err(SocketError::ReceiveError(String::from(
-                "Socket isn't connected",
-            )));
+            return Err(SocketError::ReceiveError);
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
         if *self.is_blocking.read().unwrap() {
-            self.notify.notified().await;
+            self.notify_recv.notified().await;
         }
         let mut buf = Vec::new();
         let queue = &mut *self.messages.write().unwrap();
@@ -222,7 +284,7 @@ impl Socket {
             }
         }
         if !queue.is_empty() {
-            self.notify.notify_one();
+            self.notify_recv.notify_one();
         }
         Ok(buf)
     }
@@ -233,31 +295,29 @@ impl Socket {
         // calls to recv will return an error, a call to connect() must be made
         // first
         if self.session.read().unwrap().is_none() {
-            return Err(SocketError::ReceiveError(String::from(
-                "Socket isn't connected",
-            )));
+            return Err(SocketError::ReceiveError);
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
         if *self.is_blocking.read().unwrap() {
-            self.notify.notified().await;
+            self.notify_recv.notified().await;
         }
         let mut queue = self.messages.write().unwrap().clone();
         let msg = match queue.pop_front() {
             Some(v) => v,
-            None => return Err(SocketError::Other(String::from("Message queue empty"))),
+            None => return Err(SocketError::Other),
         };
         if !queue.is_empty() {
-            self.notify.notify_one();
+            self.notify_recv.notify_one();
         }
         Ok(msg)
     }
 
     /// Called by the socket's socket_session when it receives data, stores data
     /// in a queue, which is emptied by calls to recv() or recv_msg()
-    pub(crate) fn receive(&self, message: Message) -> Result<(), SocketError> {
+    pub(crate) fn receive(&self, message: Message) -> Result<(), DemuxError> {
         self.messages.write().unwrap().push_back(message);
-        self.notify.notify_one();
+        self.notify_recv.notify_one();
         Ok(())
     }
 }
@@ -265,19 +325,19 @@ impl Socket {
 #[derive(Debug, ThisError, Clone, PartialEq, Eq)]
 pub enum SocketError {
     #[error("Bind error")]
-    BindError(String),
+    BindError,
     #[error("Connect error")]
-    ConnectError(String),
+    ConnectError,
     #[error("Listen error")]
-    ListenError(String),
+    ListenError,
     #[error("Accept error")]
-    AcceptError(String),
+    AcceptError,
     #[error("Send error")]
-    SendError(String),
+    SendError,
     #[error("Receive error")]
-    ReceiveError(String),
+    ReceiveError,
     #[error("Unspecified error")]
-    Other(String),
+    Other,
 }
 
 #[derive(Clone, Copy)]
@@ -293,16 +353,16 @@ pub enum SocketType {
     SocketDatagram,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IpAddress {
     IPv4(Ipv4Address),
     IPv6(),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SocketAddress {
-    address: IpAddress,
-    port: u16,
+    pub address: IpAddress,
+    pub port: u16,
 }
 
 impl SocketAddress {
@@ -328,10 +388,10 @@ impl SocketAddress {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SocketId {
-    local_address: SocketAddress,
-    remote_address: SocketAddress,
+    pub local_address: SocketAddress,
+    pub remote_address: SocketAddress,
 }
 
 impl SocketId {
@@ -344,6 +404,16 @@ impl SocketId {
         Self {
             local_address: SocketAddress::new(local_address, local_port),
             remote_address: SocketAddress::new(remote_address, remote_port),
+        }
+    }
+
+    pub fn new_from_addresses(
+        local_address: SocketAddress,
+        remote_address: SocketAddress,
+    ) -> SocketId {
+        Self {
+            local_address,
+            remote_address,
         }
     }
 }

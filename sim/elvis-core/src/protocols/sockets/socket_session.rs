@@ -1,35 +1,28 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError},
     session::{QueryError, SendError, SharedSession},
-    Message, Session,
+    Id, Message, Session,
 };
 
-use super::socket::Socket;
+use super::Sockets;
 
 pub(super) struct SocketSession {
-    pub upstream: Arc<Socket>,
+    pub upstream: RwLock<Option<Id>>,
     pub downstream: SharedSession,
+    pub socket_api: Arc<Sockets>,
 }
 
 impl SocketSession {
-    pub fn receive(self: Arc<Self>, message: Message, _context: Context) -> Result<(), DemuxError> {
-        /* receive_message_event(
-            self.id.local.address,
-            self.id.remote.address,
-            self.id.local.port,
-            self.id.remote.port,
-            message.clone(),
-        );
-        context
-            .protocol(self.upstream)
-            .expect("No such protocol")
-            .demux(message, self, context)?; */
-        match self.upstream.receive(message) {
-            Ok(v) => Ok(v),
-            Err(_e) => Err(DemuxError::Other),
+    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
+        match *self.upstream.read().unwrap() {
+            Some(sock) => self
+                .socket_api
+                .clone()
+                .forward_to_socket(sock, message, context),
+            None => Ok(()),
         }
     }
 }

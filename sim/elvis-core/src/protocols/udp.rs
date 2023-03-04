@@ -7,7 +7,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::ipv4::Ipv4,
+    protocols::ipv4::{Ipv4, Ipv4Address},
     session::SharedSession,
     Control, Protocol,
 };
@@ -186,7 +186,6 @@ impl Protocol for Udp {
         // Add the header information to the context
         Self::set_local_port(session_id.local.port, &mut context.control);
         Self::set_remote_port(session_id.remote.port, &mut context.control);
-
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
@@ -212,10 +211,27 @@ impl Protocol for Udp {
                         session
                     }
                     Entry::Vacant(_) => {
-                        tracing::error!(
-                            "Tried to demux with a missing session and no listen bindings"
-                        );
-                        Err(DemuxError::MissingSession)?
+                        let any_listen_id = Socket {
+                            address: Ipv4Address::CURRENT_NETWORK,
+                            port: session_id.local.port,
+                        };
+                        match self.listen_bindings.entry(any_listen_id) {
+                            Entry::Occupied(any_listen_entry) => {
+                                let session = Arc::new(UdpSession {
+                                    upstream: *any_listen_entry.get(),
+                                    downstream: caller,
+                                    id: session_id,
+                                });
+                                session_entry.insert(session.clone());
+                                session
+                            }
+                            Entry::Vacant(_) => {
+                                tracing::error!(
+                                    "Tried to demux with a missing session and no listen bindings"
+                                );
+                                Err(DemuxError::MissingSession)?
+                            }
+                        }
                     }
                 }
             }

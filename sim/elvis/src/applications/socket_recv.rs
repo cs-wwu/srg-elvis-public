@@ -23,39 +23,39 @@ pub struct SocketRecvMessage {
     /// The message that was received, if any
     message: Arc<RwLock<Vec<u8>>>,
     /// The address we capture a message on
-    local_ip: Ipv4Address,
+    _local_ip: Ipv4Address,
     /// The port we capture a message on
     local_port: u16,
-    /// The address we capture a message from
-    remote_ip: Ipv4Address,
-    /// The port we capture a message from
-    remote_port: u16,
+    ///// The address we capture a message from
+    // remote_ip: Ipv4Address,
+    //// The port we capture a message from
+    // remote_port: u16,
 }
 
 impl SocketRecvMessage {
     pub fn new(
         sockets: Arc<Sockets>,
         text: &'static str,
-        local_ip: Ipv4Address,
+        _local_ip: Ipv4Address,
         local_port: u16,
-        remote_ip: Ipv4Address,
-        remote_port: u16,
+        _remote_ip: Ipv4Address,
+        _remote_port: u16,
     ) -> Self {
         Self {
             sockets,
             text,
             message: Default::default(),
-            local_ip,
+            _local_ip,
             local_port,
-            remote_ip,
-            remote_port,
+            // remote_ip,
+            // remote_port,
         }
     }
 
     pub fn new_shared(
         sockets: Arc<Sockets>,
         text: &'static str,
-        local_ip: Ipv4Address,
+        _local_ip: Ipv4Address,
         local_port: u16,
         remote_ip: Ipv4Address,
         remote_port: u16,
@@ -63,7 +63,7 @@ impl SocketRecvMessage {
         UserProcess::new_shared(Self::new(
             sockets,
             text,
-            local_ip,
+            _local_ip,
             local_port,
             remote_ip,
             remote_port,
@@ -84,29 +84,37 @@ impl Application for SocketRecvMessage {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let join = tokio::spawn(async move {
-            initialized.wait().await;
-
+        tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
-            let socket = self
+            let listen_socket = self
                 .sockets
                 .clone()
                 .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
                 .unwrap();
 
             // Bind the socket to your local address
-            let local_sock_addr = SocketAddress::new_v4(self.local_ip, self.local_port);
-            socket.clone().bind(local_sock_addr).unwrap();
+            let local_sock_addr =
+                SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, self.local_port);
+            listen_socket.clone().bind(local_sock_addr).unwrap();
 
-            // "Connect" the socket to a remote address
-            let remote_sock_addr = SocketAddress::new_v4(self.remote_ip, self.remote_port);
-            socket.clone().connect(remote_sock_addr).unwrap();
+            // Listen for incoming connections
+            listen_socket.clone().listen(0).unwrap();
+
+            initialized.wait().await;
+
+            // Accept an incoming connection
+            let socket = listen_socket.clone().accept().await.unwrap();
+            println!("Connection accepted");
+
+            // Send a connection response
+            println!("Sending connection response");
+            socket.clone().send("ACK").unwrap();
 
             // Receive a message
             *self.message.write().unwrap() = socket.clone().recv(32).await.unwrap();
             println!(
-                "Captured Request: {:?}",
-                String::from_utf8(self.message.read().unwrap().clone())
+                "Request Received: {:?}",
+                String::from_utf8(self.message.read().unwrap().clone()).unwrap()
             );
 
             // Send a message
@@ -115,13 +123,10 @@ impl Application for SocketRecvMessage {
 
             // Receive another message
             let msg = socket.clone().recv(32).await.unwrap();
-            println!("Captured Request: {:?}", String::from_utf8(msg));
-        });
-        tokio::spawn(async move {
-            join.await.unwrap();
+            println!("Captured Request: {:?}", String::from_utf8(msg).unwrap());
+
             shutdown.send(()).await.unwrap();
         });
-
         Ok(())
     }
 

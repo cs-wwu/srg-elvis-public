@@ -184,11 +184,32 @@ impl Protocol for Ipv4 {
                     session
                 }
                 None => {
-                    tracing::error!(
-                        "Could not find a listen binding for the local address {}",
-                        identifier.local
-                    );
-                    Err(DemuxError::MissingSession)?
+                    let any_listen_id = Ipv4Address::CURRENT_NETWORK;
+                    match self.listen_bindings.get(&any_listen_id) {
+                        Some(any_binding) => {
+                            // If the session does not exist and we don't have a
+                            // listen binding for it,
+                            let network = Pci::get_pci_slot(&context.control).map_err(|_| {
+                                tracing::error!("Missing network ID on context");
+                                DemuxError::MissingContext
+                            })?;
+                            let session = Arc::new(Ipv4Session::new(
+                                caller,
+                                *any_binding,
+                                identifier,
+                                network,
+                            ));
+                            entry.insert(session.clone());
+                            session
+                        }
+                        None => {
+                            tracing::error!(
+                                "Could not find a listen binding for the local address {}",
+                                identifier.local
+                            );
+                            Err(DemuxError::MissingSession)?
+                        }
+                    }
                 }
             },
         };
