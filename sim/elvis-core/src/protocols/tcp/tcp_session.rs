@@ -23,7 +23,7 @@ use std::{
 /// The session part of the TCP protocol.
 pub struct TcpSession {
     /// The transmission control block for the connection
-    tcb: RwLock<Tcb>,
+    tcb: Tcb,
     /// The upstream protocol
     upstream: Id,
     /// The downstream session
@@ -33,7 +33,7 @@ pub struct TcpSession {
 
 impl TcpSession {
     /// Create a new TCP session
-    pub fn new(tcb: RwLock<Tcb>, upstream: Id, downstream: SharedSession) -> Self {
+    pub fn new(tcb: Tcb, upstream: Id, downstream: SharedSession) -> Self {
         Self {
             tcb,
             upstream,
@@ -48,14 +48,9 @@ impl TcpSession {
         segment: Segment,
         context: Context,
     ) -> Result<SegmentArrivesResult, ReceiveError> {
-        let mut tcb = self.tcb.write().unwrap();
-        let result = tcb.segment_arrives(segment);
-        let segments = tcb.segments();
-        drop(tcb);
-        self.deliver_outgoing(segments, context.clone())?;
-        let mut tcb = self.tcb.write().unwrap();
-        let received = tcb.receive();
-        drop(tcb);
+        let result = self.tcb.segment_arrives(segment);
+        self.deliver_outgoing(self.tcb.segments(), context.clone())?;
+        let received = self.tcb.receive();
         if !received.is_empty() {
             context
                 .clone()
@@ -72,12 +67,9 @@ impl TcpSession {
         delta_time: Duration,
         protocols: ProtocolMap,
     ) -> AdvanceTimeResult {
-        let mut tcb = self.tcb.write().unwrap();
-        let result = tcb.advance_time(delta_time);
+        let result = self.tcb.advance_time(delta_time);
         let context = Context::new(protocols);
-        let segments = tcb.segments();
-        drop(tcb);
-        match self.deliver_outgoing(segments, context) {
+        match self.deliver_outgoing(self.tcb.segments(), context) {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Send error while advancing time: {}", e);
@@ -100,11 +92,8 @@ impl TcpSession {
 
 impl Session for TcpSession {
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
-        let mut tcb = self.tcb.write().unwrap();
-        tcb.send(&message);
-        let segments = tcb.segments();
-        drop(tcb);
-        self.deliver_outgoing(segments, context)?;
+        self.tcb.send(&message);
+        self.deliver_outgoing(self.tcb.segments(), context)?;
         Ok(())
     }
 
