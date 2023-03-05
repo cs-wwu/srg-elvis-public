@@ -1,10 +1,9 @@
 import cmdbench
-from matplotlib import pyplot as plt, ticker as mticker
+from matplotlib import pyplot as plt
 import json
 import platform
 import psutil
-from os import listdir, remove as remove_file
-from os.path import isfile, join
+from os import remove as remove_file
 import sys
 import numpy as np
 
@@ -16,9 +15,6 @@ import numpy as np
 ## CPU VS Memory usage
 # TODO: Run full suite at 100+ iterations for full data points
 # TODO: Fix subplot scaling
-# TODO: Should all the json data go into one file? Seperated by machine counts?
-## In an attempt to do that i have realized that if the runs don't finish all data is now lost. 
-# May be worth saving temp files and compiling into one big one instead of the dict method
 
 image_folder = "./benchmarking_graphs/"
 sim_directory = "./sims/"
@@ -37,6 +33,7 @@ final_dict = {
 def run_sim(file_name, interations):
     raw_file_name = file_name[0 : len(file_name)-4].replace("./sims/", "")
     print("Staring benchmark on: " + raw_file_name)
+    sys.stdout.flush()
     benchmark_results = cmdbench.benchmark_command("./elvis.exe --ndl "+ sim_directory + file_name, iterations_num = interations)
     memory_arr = benchmark_results.get_values_per_attribute()["memory"]
     process_time_arr = benchmark_results.get_values_per_attribute()['process']
@@ -120,7 +117,7 @@ def mem_comparison_graphs():
     plt.plot(xAxis,yAxis, color='maroon', marker='o')
     plt.title('Memory Usage Comparisons')
     plt.xlabel('Machine Counts')
-    plt.ylabel('Average Memory Usage in MB (per process)')
+    plt.ylabel('Average Memory Usage in MB')
     plt.savefig(image_folder + 'Memory-Usage-Comparisons.png')
     plt.close()
 
@@ -144,7 +141,7 @@ def execution_time_comparison_graphs():
     plt.plot(xAxis, yAxis, color='maroon', marker='o')
     plt.title('Excecution Time Comparisons')
     plt.xlabel('Machine Counts')
-    plt.ylabel('Average Execution Time in seconds (per process)')
+    plt.ylabel('Average Execution Time in seconds')
     plt.savefig(image_folder + 'Excecution-Time-Comparisons.png')
     plt.close()
 
