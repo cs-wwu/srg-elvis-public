@@ -78,24 +78,28 @@ impl TcpSession {
                     }
                 };
 
-                for mut segment in tcb.segments() {
-                    segment.text.header(segment.header.serialize());
-                    match downstream.clone().send(segment.text, context.clone()) {
-                        Ok(_) => {}
-                        Err(e) => eprintln!("Send error: {}", e),
-                    }
-                }
-
+                let segments = tcb.segments();
                 let received = tcb.receive();
-                if !received.is_empty() {
-                    match upstream
-                        .clone()
-                        .demux(received, me.clone(), context.clone())
-                    {
-                        Ok(_) => {}
-                        Err(e) => eprintln!("Demux error: {}", e),
+                let downstream = downstream.clone();
+                let context = context.clone();
+                let upstream = upstream.clone();
+                let me = me.clone();
+                tokio::spawn(async move {
+                    for mut segment in segments {
+                        segment.text.header(segment.header.serialize());
+                        match downstream.clone().send(segment.text, context.clone()) {
+                            Ok(_) => {}
+                            Err(e) => eprintln!("Send error: {}", e),
+                        }
                     }
-                }
+
+                    if !received.is_empty() {
+                        match upstream.demux(received, me, context) {
+                            Ok(_) => {}
+                            Err(e) => eprintln!("Demux error: {}", e),
+                        }
+                    }
+                });
             }
         });
         out
