@@ -166,6 +166,8 @@ pub enum StartError {
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum OpenError {
+    #[error("Could not find the given protocol: {0}")]
+    MissingProtocol(Id),
     #[error("The session already exists")]
     Existing,
     #[error("Data expected through the context was missing")]

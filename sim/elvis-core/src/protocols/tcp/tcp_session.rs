@@ -1,14 +1,12 @@
-use super::tcb::{AdvanceTimeResult, Segment, SegmentArrivesResult, Tcb};
+use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError},
+    protocol::{Context, DemuxError, SharedProtocol},
     session::{QueryError, SendError, SharedSession},
     Id, Message, ProtocolMap, Session,
 };
-use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::sync::Arc;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 // TODO(hardint): The unwraps used on channels should be removed and cleaned up
 // along with proper simulation teardown.
@@ -22,89 +20,76 @@ use std::{
 
 /// The session part of the TCP protocol.
 pub struct TcpSession {
-    /// The transmission control block for the connection
-    tcb: RwLock<Tcb>,
-    /// The upstream protocol
-    upstream: Id,
-    /// The downstream session
+    send: UnboundedSender<Instruction>,
     downstream: SharedSession,
-    send_count: RwLock<usize>,
 }
 
 impl TcpSession {
     /// Create a new TCP session
-    pub fn new(tcb: RwLock<Tcb>, upstream: Id, downstream: SharedSession) -> Self {
-        Self {
-            tcb,
-            upstream,
-            downstream,
-            send_count: RwLock::new(0),
-        }
+    pub fn new(
+        mut tcb: Tcb,
+        upstream: SharedProtocol,
+        downstream: SharedSession,
+        protocols: ProtocolMap,
+    ) -> Arc<Self> {
+        let (send, mut recv) = unbounded_channel();
+        let me = Arc::new(Self {
+            send,
+            downstream: downstream.clone(),
+        });
+        let out = me.clone();
+        let context = Context::new(protocols);
+        tokio::spawn(async move {
+            while let Some(instruction) = recv.recv().await {
+                match instruction {
+                    Instruction::Incoming(segment) => match tcb.segment_arrives(segment) {
+                        SegmentArrivesResult::Ok => {}
+                        // TODO(hardint): Signal close
+                        SegmentArrivesResult::Close => break,
+                    },
+                    Instruction::Outgoing(message) => {
+                        tcb.send(&message);
+                    }
+                }
+
+                for mut segment in tcb.segments() {
+                    segment.text.header(segment.header.serialize());
+                    match downstream.clone().send(segment.text, context.clone()) {
+                        Ok(_) => {}
+                        Err(e) => eprintln!("Send error: {}", e),
+                    }
+                }
+
+                let received = tcb.receive();
+                if !received.is_empty() {
+                    match upstream
+                        .clone()
+                        .demux(received, me.clone(), context.clone())
+                    {
+                        Ok(_) => {}
+                        Err(e) => eprintln!("Demux error: {}", e),
+                    }
+                }
+            }
+        });
+        out
     }
 
     /// Receive an incoming message from the TCP as part of the demux flow
-    pub fn receive(
-        self: Arc<Self>,
-        segment: Segment,
-        context: Context,
-    ) -> Result<SegmentArrivesResult, ReceiveError> {
-        let mut tcb = self.tcb.write().unwrap();
-        let result = tcb.segment_arrives(segment);
-        let segments = tcb.segments();
-        drop(tcb);
-        self.deliver_outgoing(segments, context.clone())?;
-        let mut tcb = self.tcb.write().unwrap();
-        let received = tcb.receive();
-        drop(tcb);
-        if !received.is_empty() {
-            context
-                .clone()
-                .protocol(self.upstream)
-                .ok_or(ReceiveError::Protocol(self.upstream))?
-                .demux(received, self.clone(), context)?;
-        }
-        Ok(result)
-    }
-
-    /// Increase the current time by the given delta, used to trigger timeouts
-    pub fn advance_time(
-        self: Arc<Self>,
-        delta_time: Duration,
-        protocols: ProtocolMap,
-    ) -> AdvanceTimeResult {
-        let mut tcb = self.tcb.write().unwrap();
-        let result = tcb.advance_time(delta_time);
-        let context = Context::new(protocols);
-        let segments = tcb.segments();
-        drop(tcb);
-        match self.deliver_outgoing(segments, context) {
+    pub fn receive(self: Arc<Self>, segment: Segment, _context: Context) {
+        match self.send.send(Instruction::Incoming(segment)) {
             Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Send error while advancing time: {}", e);
-            }
+            Err(e) => eprintln!("TCP receive error: {}", e),
         }
-        result
-    }
-
-    /// Transfer outgoing segments from the TCB to the downstream session
-    fn deliver_outgoing(&self, segments: Vec<Segment>, context: Context) -> Result<(), SendError> {
-        for mut segment in segments {
-            segment.text.header(segment.header.serialize());
-            self.downstream
-                .clone()
-                .send(segment.text, context.clone())?;
-        }
-        Ok(())
     }
 }
 
 impl Session for TcpSession {
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
-        let mut tcb = self.tcb.write().unwrap();
-        tcb.send(&message);
-        let segments = tcb.segments();
-        drop(tcb);
-        self.deliver_outgoing(segments, context)?;
+    fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), SendError> {
+        match self.send.send(Instruction::Outgoing(message)) {
+            Ok(_) => {}
+            Err(e) => eprintln!("TCP send error: {}", e),
+        }
         Ok(())
     }
 
@@ -125,4 +110,9 @@ pub enum ReceiveError {
     Demux(#[from] DemuxError),
     #[error("{0}")]
     Send(#[from] SendError),
+}
+
+enum Instruction {
+    Incoming(Segment),
+    Outgoing(Message),
 }

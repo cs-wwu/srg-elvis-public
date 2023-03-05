@@ -2,9 +2,9 @@
 //! Protocol](https://www.rfc-editor.org/rfc/rfc9293.html).
 
 use self::{
-    tcb::{segment_arrives_closed, ListenResult, Segment, SegmentArrivesResult, Tcb},
+    tcb::{segment_arrives_closed, ListenResult, Segment, Tcb},
     tcp_parsing::TcpHeader,
-    tcp_session::{ReceiveError, TcpSession},
+    tcp_session::TcpSession,
 };
 use super::{utility::Socket, Ipv4, Pci};
 use crate::{
@@ -12,15 +12,12 @@ use crate::{
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
-    protocols::tcp::tcb::{segment_arrives_listen, AdvanceTimeResult},
+    protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
     Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 mod tcb;
@@ -120,11 +117,14 @@ impl Protocol for Tcp {
                     .map_err(|_| OpenError::Other)?
                     .ok_u32()
                     .map_err(|_| OpenError::Other)?;
-                let session = Arc::new(TcpSession::new(
-                    RwLock::new(Tcb::open(session_id, rand::random(), mtu)),
-                    upstream,
+                let session = TcpSession::new(
+                    Tcb::open(session_id, rand::random(), mtu),
+                    protocols
+                        .protocol(upstream)
+                        .ok_or(OpenError::MissingProtocol(upstream))?,
                     downstream,
-                ));
+                    protocols,
+                );
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -188,22 +188,7 @@ impl Protocol for Tcp {
         match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
-                match session.receive(segment, context) {
-                    Ok(receive_result) => {
-                        if receive_result == SegmentArrivesResult::Close {
-                            entry.remove_entry();
-                        }
-                    }
-                    Err(e) => match e {
-                        ReceiveError::Closing => {
-                            tracing::error!("The TCP connection is already closing. Cannot demux.");
-                            return Err(DemuxError::Other);
-                        }
-                        ReceiveError::Protocol(id) => return Err(DemuxError::MissingProtocol(id)),
-                        ReceiveError::Demux(e) => Err(e)?,
-                        ReceiveError::Send(e) => Err(e)?,
-                    },
-                }
+                session.receive(segment, context);
             }
 
             Entry::Vacant(session_entry) => {
@@ -233,11 +218,15 @@ impl Protocol for Tcp {
                                     caller.send(Message::new(response.serialize()), context)?;
                                 }
                                 ListenResult::Tcb(tcb) => {
-                                    let session = Arc::new(TcpSession::new(
-                                        RwLock::new(tcb),
-                                        *listen_entry.get(),
+                                    let upstream = *listen_entry.get();
+                                    let session = TcpSession::new(
+                                        tcb,
+                                        context
+                                            .protocol(upstream)
+                                            .ok_or(OpenError::MissingProtocol(upstream))?,
                                         caller,
-                                    ));
+                                        context.protocols,
+                                    );
                                     session_entry.insert(session);
                                 }
                             }
@@ -265,29 +254,10 @@ impl Protocol for Tcp {
         self: Arc<Self>,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
-            loop {
-                const SLEEP_DURATION: Duration = Duration::from_millis(33);
-                tokio::time::sleep(SLEEP_DURATION).await;
-                let mut to_remove = vec![];
-                for entry in self.sessions.iter_mut() {
-                    match entry
-                        .clone()
-                        .advance_time(SLEEP_DURATION, protocols.clone())
-                    {
-                        AdvanceTimeResult::Ignore => {}
-                        AdvanceTimeResult::CloseConnection => {
-                            to_remove.push(*entry.key());
-                        }
-                    }
-                }
-                for id in to_remove {
-                    self.sessions.remove(&id);
-                }
-            }
         });
         Ok(())
     }
