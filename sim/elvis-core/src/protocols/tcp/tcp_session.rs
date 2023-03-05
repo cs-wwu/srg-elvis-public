@@ -2,11 +2,16 @@ use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, SharedProtocol},
+    protocols::tcp::tcb::AdvanceTimeResult,
     session::{QueryError, SendError, SharedSession},
     Id, Message, ProtocolMap, Session,
 };
-use std::sync::Arc;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use std::{sync::Arc, time::Duration};
+use tokio::{
+    select,
+    sync::mpsc::{unbounded_channel, UnboundedSender},
+    time::sleep,
+};
 
 // TODO(hardint): The unwraps used on channels should be removed and cleaned up
 // along with proper simulation teardown.
@@ -40,17 +45,38 @@ impl TcpSession {
         let out = me.clone();
         let context = Context::new(protocols);
         tokio::spawn(async move {
-            while let Some(instruction) = recv.recv().await {
-                match instruction {
-                    Instruction::Incoming(segment) => match tcb.segment_arrives(segment) {
-                        SegmentArrivesResult::Ok => {}
-                        // TODO(hardint): Signal close
-                        SegmentArrivesResult::Close => break,
-                    },
-                    Instruction::Outgoing(message) => {
-                        tcb.send(&message);
+            loop {
+                const TIMEOUT: Duration = Duration::from_millis(5);
+                // TODO(hardint): Listen for shutdown
+                select! {
+                    instruction = recv.recv() => {
+                        match instruction {
+                            Some(instruction) => {
+                                match instruction {
+                                    Instruction::Incoming(segment) => {
+                                        match tcb.segment_arrives(segment) {
+                                            SegmentArrivesResult::Ok => {}
+                                            // TODO(hardint): Signal close
+                                            SegmentArrivesResult::Close => break,
+                                        }
+                                    }
+                                    Instruction::Outgoing(message) => {
+                                        tcb.send(&message);
+                                    }
+                                }
+                            }
+                            // TODO(hardint): Signal close
+                            None => break,
+                        }
                     }
-                }
+                    _ = sleep(TIMEOUT) => {
+                        match tcb.advance_time(TIMEOUT) {
+                            AdvanceTimeResult::Ignore => {}
+                            // TODO(hardint): Signal close
+                            AdvanceTimeResult::CloseConnection => break,
+                        };
+                    }
+                };
 
                 for mut segment in tcb.segments() {
                     segment.text.header(segment.header.serialize());
