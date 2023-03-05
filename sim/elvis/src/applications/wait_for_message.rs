@@ -68,7 +68,7 @@ impl WaitForMessage {
 }
 
 impl Application for WaitForMessage {
-    const ID: Id = Id::from_string("Capture");
+    const ID: Id = Id::from_string("Wait for message");
 
     fn start(
         &self,
