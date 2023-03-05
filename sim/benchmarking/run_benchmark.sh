@@ -32,20 +32,21 @@ cp ../target/release/elvis.exe ./
 
 echo "Starting sim file collection"
 
-dir_path="./sims"
-file_list=""
-for file in "$dir_path"/*; do
-    if [[ -f "$file" ]]; then
-        file_list="$file_list $(basename "$file")"
-    fi
-done
+# dir_path="./sims"
+# file_list=""
+# for file in "$dir_path"/*; do
+#     if [[ -f "$file" ]]; then
+#         file_list="$file_list $(basename "$file")"
+#     fi
+# done
 
-echo "Found sims:"
-echo $file_list
+# echo "Found sims:"
+# echo $file_list
 
 echo "Beginning benchmarking"
 
-python benchmarking.py $file_list
+# python benchmarking.py $file_list
+python benchmarking.py 100 500000 100
 
 echo "Benchmarking finished, removing binaries"
 

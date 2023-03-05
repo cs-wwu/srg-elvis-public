@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt, ticker as mticker
 import json
 import platform
 import psutil
-from os import listdir
+from os import listdir, remove as remove_file
 from os.path import isfile, join
 import sys
 import numpy as np
@@ -15,15 +15,16 @@ import numpy as np
 ## CPU utilization
 ## CPU VS Memory usage
 # TODO: Run full suite at 100+ iterations for full data points
-#TODO: Fix subplot scaling
+# TODO: Fix subplot scaling
+# TODO: Should all the json data go into one file? Seperated by machine counts?
 
 image_folder = "./benchmarking_graphs/"
 sim_directory = "./sims/"
 data_directory = "./raw_data/"
-count = 100
+count = 10
 def run_sim(file_name, interations):
-    raw_file_name = file_name[0 : len(file_name)-4]
-    print("Staring benchmark on: " + file_name)
+    raw_file_name = file_name[0 : len(file_name)-4].replace("./sims/", "")
+    print("Staring benchmark on: " + raw_file_name)
     benchmark_results = cmdbench.benchmark_command("./elvis.exe --ndl "+ sim_directory + file_name, iterations_num = interations)
     memory_arr = benchmark_results.get_values_per_attribute()["memory"]
     process_time_arr = benchmark_results.get_values_per_attribute()['process']
@@ -113,12 +114,24 @@ def execution_time_comparison_graphs():
     plt.close()
 
 def specific_tests():
-    run_sim("basic-100.ndl", count)
+    run_sim("basic-5000.ndl", count)
+
+# Generates sim files with machine counts from start to end counts. Increments machine counts by increment value.
+def create_and_run_sims(start_count, end_count, increment):
+    f = open(sim_directory + "base-basic.ndl", 'r')
+    sim = f.read()
+    for cur_count in range(start_count, end_count, increment):
+        cur_file_name = sim_directory + "basic-" + str(cur_count) + ".ndl"
+        with open(cur_file_name, "w") as outfile:
+            outfile.write(sim.replace('#', str(cur_count)))
+        run_sim(cur_file_name, count)
+        remove_file(cur_file_name)
 
 if __name__ == '__main__':
-    for file_name in sys.argv[1:]:
-        run_sim(file_name, count)
+    # for file_name in sys.argv[1:]:
+    #     run_sim(file_name, count)
     #Uncomment this next line to run any of the tests in the specific tests function
     # specific_tests()
+    create_and_run_sims(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
     mem_comparison_graphs()
     execution_time_comparison_graphs()
