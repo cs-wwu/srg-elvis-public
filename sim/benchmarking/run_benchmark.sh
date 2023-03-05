@@ -47,7 +47,7 @@ echo "Beginning benchmarking"
 
 # python benchmarking.py $file_list
 # python benchmarking.py 100 500000 100
-python benchmarking.py 100 1000 100
+python benchmarking.py 1000 500000 1000
 
 echo "Benchmarking finished, removing binaries"
 

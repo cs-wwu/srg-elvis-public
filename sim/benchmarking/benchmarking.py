@@ -17,11 +17,23 @@ import numpy as np
 # TODO: Run full suite at 100+ iterations for full data points
 # TODO: Fix subplot scaling
 # TODO: Should all the json data go into one file? Seperated by machine counts?
+## In an attempt to do that i have realized that if the runs don't finish all data is now lost. 
+# May be worth saving temp files and compiling into one big one instead of the dict method
 
 image_folder = "./benchmarking_graphs/"
 sim_directory = "./sims/"
 data_directory = "./raw_data/"
-count = 10
+iteration_count = 50
+final_dict = {
+    "platform":{
+        'OS': platform.system(),
+        'CPU': platform.processor(),
+        'CORE_COUNT': psutil.cpu_count(),
+        'RAM': psutil.virtual_memory().total
+    }
+}
+
+
 def run_sim(file_name, interations):
     raw_file_name = file_name[0 : len(file_name)-4].replace("./sims/", "")
     print("Staring benchmark on: " + raw_file_name)
@@ -31,13 +43,14 @@ def run_sim(file_name, interations):
     create_json_data(memory_arr, process_time_arr, raw_file_name)
     
 def create_json_data(memory_arr, process_time_arr, raw_file_name):
-    run_dict = {
+    cur_sim = "Sim-" + raw_file_name
+    core_data_dict = {
         'memory':
         {
-        'mean': 0,
-        'max': 0,
-        'min': 0,
-        'raw': [],
+            'mean': 0,
+            'max': 0,
+            'min': 0,
+            'raw': [],
         },
         'processing_time':{
             'mean': 0,
@@ -45,6 +58,39 @@ def create_json_data(memory_arr, process_time_arr, raw_file_name):
             'min': 0,
             'raw': [],
         },
+    }
+    run_dict = {
+        "Machine_Count": raw_file_name[raw_file_name.index('-')+1::],
+        "Iteration_Count": str(iteration_count),
+        "data": core_data_dict
+    }
+    # # Find and set the memory data
+    run_dict["data"]['memory']['mean'] = float(np.mean(memory_arr['max_perprocess']))
+    run_dict["data"]['memory']['max'] = float(np.amax(memory_arr['max_perprocess']))
+    run_dict["data"]['memory']['min'] = float(np.amin(memory_arr['max_perprocess']))
+    run_dict["data"]['memory']['raw'] = memory_arr['max_perprocess']
+    # # Find and set the processing data
+    run_dict["data"]['processing_time']['mean'] = float(np.mean(process_time_arr['execution_time']))
+    run_dict["data"]['processing_time']['max'] = float(np.amax(process_time_arr['execution_time']))
+    run_dict["data"]['processing_time']['min'] = float(np.amin(process_time_arr['execution_time']))
+    run_dict["data"]['processing_time']['raw'] = process_time_arr['execution_time']
+    with open(data_directory + "core_data.json", "r") as outfile:
+        temp_data = outfile.read()
+        if temp_data != "":
+            final_dict = json.loads(temp_data)
+        else:
+            final_dict = {
+                "platform":{
+                    'OS': platform.system(),
+                    'CPU': platform.processor(),
+                    'CORE_COUNT': psutil.cpu_count(),
+                    'RAM': psutil.virtual_memory().total
+                }
+            }
+    final_dict[cur_sim] = run_dict
+    with open(data_directory + "core_data.json", "w") as outfile:
+        json.dump(final_dict, outfile)
+    final_dict = {
         "platform":{
             'OS': platform.system(),
             'CPU': platform.processor(),
@@ -52,39 +98,25 @@ def create_json_data(memory_arr, process_time_arr, raw_file_name):
             'RAM': psutil.virtual_memory().total
         }
     }
-    run_dict['name'] = raw_file_name
-    # Find and set the memory data
-    run_dict['memory']['mean'] = float(np.mean(memory_arr['max_perprocess']))
-    run_dict['memory']['max'] = float(np.amax(memory_arr['max_perprocess']))
-    run_dict['memory']['min'] = float(np.amin(memory_arr['max_perprocess']))
-    run_dict['memory']['raw'] = memory_arr['max_perprocess']
-    # # Find and set the processing data
-    run_dict['processing_time']['mean'] = float(np.mean(process_time_arr['execution_time']))
-    run_dict['processing_time']['max'] = float(np.amax(process_time_arr['execution_time']))
-    run_dict['processing_time']['min'] = float(np.amin(process_time_arr['execution_time']))
-    run_dict['processing_time']['raw'] = process_time_arr['execution_time']
 
-    run_json = json.dumps(run_dict)
-    with open(data_directory + raw_file_name +".json", "w") as outfile:
-        outfile.write(run_json)
-
-# TODO: remove scientific notation
 def mem_comparison_graphs():
     yAxis = []
     xAxis = []
-    onlyfiles = [f for f in listdir(data_directory) if isfile(join(data_directory, f))]
-    onlyfiles.sort(key=lambda a: int(a[a.index('-')+1 : -5]))
-    for file_name in onlyfiles:
-        f = open(data_directory + file_name, 'r')
-        dictionary = json.loads(f.read())
-        mem = float(dictionary['memory']['mean']) / 1000000
-        yAxis.append(mem)
-        xAxis.append(file_name[file_name.index('-')+1 : -5])
+    f = open(data_directory + "core_data.json", 'r')
+    dictionary = json.loads(f.read())
+    for sim in dictionary:
+        for j in dictionary[sim].keys():
+            if j == "data":
+                mem = float(dictionary[sim][j]['memory']['mean']) / 1000000
+                yAxis.append(mem)
+        machine_count = ''.join(ch for ch in sim if ch.isdigit())
+        if machine_count != '':
+            xAxis.append(int(machine_count))
     # disabling the offset on y axis
     ax = plt.gca()
     ax.ticklabel_format(style='plain', axis='y')
     plt.grid(True)
-    # plt.subplots_adjust(wspace=.5, hspace=.5)
+    plt.subplots_adjust(bottom=.2, left=.2)
     plt.plot(xAxis,yAxis, color='maroon', marker='o')
     plt.title('Memory Usage Comparisons')
     plt.xlabel('Machine Counts')
@@ -95,17 +127,20 @@ def mem_comparison_graphs():
 def execution_time_comparison_graphs():
     yAxis = []
     xAxis = []
-    onlyfiles = [f for f in listdir(data_directory) if isfile(join(data_directory, f))]
-    onlyfiles.sort(key=lambda a: int(a[a.index('-')+1 : -5]))
-    for file_name in onlyfiles:
-        f = open(data_directory + file_name, 'r')
-        dictionary = json.loads(f.read())
-        time = dictionary['processing_time']['mean']
-        yAxis.append(time)
-        xAxis.append(file_name[file_name.index('-')+1 : -5])
+    f = open(data_directory + "core_data.json", 'r')
+    dictionary = json.loads(f.read())
+    for sim in dictionary:
+        for j in dictionary[sim].keys():
+            if j == "data":
+                time = float(dictionary[sim][j]['processing_time']['mean'])
+                yAxis.append(time)
+        machine_count = ''.join(ch for ch in sim if ch.isdigit())
+        if machine_count != '':
+            xAxis.append(int(machine_count))
     ax = plt.gca()
     ax.ticklabel_format(style='plain', axis='y')
     plt.grid(True)
+    plt.subplots_adjust(bottom=.2, left=.2)
     plt.plot(xAxis, yAxis, color='maroon', marker='o')
     plt.title('Excecution Time Comparisons')
     plt.xlabel('Machine Counts')
@@ -113,25 +148,21 @@ def execution_time_comparison_graphs():
     plt.savefig(image_folder + 'Excecution-Time-Comparisons.png')
     plt.close()
 
-def specific_tests():
-    run_sim("basic-5000.ndl", count)
-
 # Generates sim files with machine counts from start to end counts. Increments machine counts by increment value.
 def create_and_run_sims(start_count, end_count, increment):
+    with open(data_directory + "core_data.json", "w") as outfile:
+        pass
     f = open(sim_directory + "base-basic.ndl", 'r')
     sim = f.read()
-    for cur_count in range(start_count, end_count, increment):
+    for cur_count in range(start_count, end_count + increment, increment):
         cur_file_name = sim_directory + "basic-" + str(cur_count) + ".ndl"
         with open(cur_file_name, "w") as outfile:
             outfile.write(sim.replace('#', str(cur_count)))
-        run_sim(cur_file_name, count)
+        run_sim(cur_file_name, iteration_count)
         remove_file(cur_file_name)
 
+
 if __name__ == '__main__':
-    # for file_name in sys.argv[1:]:
-    #     run_sim(file_name, count)
-    #Uncomment this next line to run any of the tests in the specific tests function
-    # specific_tests()
     create_and_run_sims(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
     mem_comparison_graphs()
     execution_time_comparison_graphs()
