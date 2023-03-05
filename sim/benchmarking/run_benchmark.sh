@@ -46,7 +46,8 @@ echo "Starting sim file collection"
 echo "Beginning benchmarking"
 
 # python benchmarking.py $file_list
-python benchmarking.py 100 500000 100
+# python benchmarking.py 100 500000 100
+python benchmarking.py 100 1000 100
 
 echo "Benchmarking finished, removing binaries"
 
