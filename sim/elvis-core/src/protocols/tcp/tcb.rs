@@ -112,8 +112,9 @@ impl Tcb {
             ReceiveSequenceSpace::default(),
         );
         tcb.enqueue(
-            tcb.header_builder(iss).syn(),
-            ReceiveSequenceSpace::default().wnd,
+            tcb.header_builder(iss)
+                .syn()
+                .wnd(ReceiveSequenceSpace::default().wnd),
         );
         tcb
     }
@@ -210,8 +211,8 @@ impl Tcb {
                 self.enqueue(
                     self.header_builder(connection.snd.nxt)
                         .fin()
-                        .ack(connection.rcv.nxt),
-                    connection.rcv.wnd,
+                        .ack(connection.rcv.nxt)
+                        .wnd(connection.rcv.wnd),
                 );
                 connection.snd.nxt += 1;
                 connection.state = State::FinWait1;
@@ -222,8 +223,8 @@ impl Tcb {
                 self.enqueue(
                     self.header_builder(connection.snd.nxt)
                         .fin()
-                        .ack(connection.rcv.nxt),
-                    connection.rcv.wnd,
+                        .ack(connection.rcv.nxt)
+                        .wnd(connection.rcv.wnd),
                 );
                 connection.snd.nxt += 1;
                 connection.state = State::LastAck;
@@ -251,8 +252,9 @@ impl Tcb {
             | State::CloseWait => {
                 self.outgoing.reset();
                 self.enqueue(
-                    self.header_builder(connection.snd.nxt).rst(),
-                    connection.rcv.wnd,
+                    self.header_builder(connection.snd.nxt)
+                        .rst()
+                        .wnd(connection.rcv.wnd),
                 );
             }
 
@@ -280,8 +282,8 @@ impl Tcb {
             .collect();
 
         // TODO(hardint): Would love to make this locking more fine-grained
-        let mut connection = self.connection.write().unwrap();
-        match connection.state {
+        let state = self.connection.read().unwrap().state;
+        match state {
             State::SynSent | State::SynReceived | State::Established | State::CloseWait => {
                 // TODO(hardint): This could be incorrect for when optional
                 // headers are used. It also is not as efficient as possible.
@@ -289,6 +291,7 @@ impl Tcb {
                 let max_segment_length = (self.mtu - SPACE_FOR_HEADERS) as usize;
                 let mut queued_bytes = self.outgoing.queued_bytes();
                 loop {
+                    let connection = self.connection.read().unwrap();
                     let max_bytes = connection.snd.wnd as usize - queued_bytes;
                     let mut text = self.outgoing.text.write().unwrap();
                     let bytes = max_segment_length.min(max_bytes).min(text.len());
@@ -310,7 +313,10 @@ impl Tcb {
                             new_text.iter(),
                         )
                         .expect("Unexpectedly large MTU and message");
+                    drop(connection);
+                    let mut connection = self.connection.write().unwrap();
                     connection.snd.nxt = connection.snd.nxt.wrapping_add(new_text.len() as u32);
+                    drop(connection);
                     self.outgoing
                         .retransmit
                         .write()
@@ -321,7 +327,6 @@ impl Tcb {
 
             _ => {}
         }
-        drop(connection);
 
         for transmit in self.outgoing.retransmit.write().unwrap().iter_mut() {
             if transmit.needs_transmit {
@@ -385,8 +390,8 @@ impl Tcb {
                 if !self.is_seq_ok(&connection, text_len, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
                     self.enqueue(
                         self.header_builder(connection.snd.nxt)
-                            .ack(connection.rcv.nxt),
-                        connection.rcv.wnd,
+                            .ack(connection.rcv.nxt)
+                            .wnd(connection.rcv.wnd),
                     );
                     return ProcessSegmentResult::DiscardSegment;
                 }
@@ -400,7 +405,9 @@ impl Tcb {
                         if seg.ctl.rst() {
                             return ProcessSegmentResult::DiscardSegment;
                         } else {
-                            self.enqueue(self.header_builder(seg.ack).rst(), connection.rcv.wnd);
+                            self.enqueue(
+                                self.header_builder(seg.ack).rst().wnd(connection.rcv.wnd),
+                            );
                             return ProcessSegmentResult::InvalidAck;
                         }
                     }
@@ -427,7 +434,7 @@ impl Tcb {
                     } else {
                         // Same ACK twice causes this reset to trigger. See the
                         // comment above.
-                        self.enqueue(self.header_builder(seg.ack).rst(), connection.rcv.wnd);
+                        self.enqueue(self.header_builder(seg.ack).rst().wnd(connection.rcv.wnd));
                         return ProcessSegmentResult::InvalidAck;
                     }
                 }
@@ -443,7 +450,7 @@ impl Tcb {
                             other => return other,
                         }
                     } else {
-                        self.enqueue(self.header_builder(seg.ack).rst(), connection.rcv.wnd);
+                        self.enqueue(self.header_builder(seg.ack).rst().wnd(connection.rcv.wnd));
                     }
                 }
 
@@ -486,8 +493,9 @@ impl Tcb {
                     // The only thing that can arrive is a retransmission of the
                     // remote FIN. Acknowledge it and restart the 2 MSL timeout.
                     self.enqueue(
-                        self.header_builder(connection.snd.nxt).ack(seg.seq + 1),
-                        connection.rcv.wnd,
+                        self.header_builder(connection.snd.nxt)
+                            .ack(seg.seq + 1)
+                            .wnd(connection.rcv.wnd),
                     );
                     *self.timeouts.time_wait.write().unwrap() = Some(MSL * 2);
                 }
@@ -535,16 +543,16 @@ impl Tcb {
                         connection.state = State::Established;
                         self.enqueue(
                             self.header_builder(connection.snd.nxt)
-                                .ack(connection.rcv.nxt),
-                            connection.rcv.wnd,
+                                .ack(connection.rcv.nxt)
+                                .wnd(connection.rcv.wnd),
                         );
                     } else {
                         connection.state = State::SynReceived;
                         self.enqueue(
                             self.header_builder(connection.snd.iss)
                                 .syn()
-                                .ack(connection.rcv.nxt),
-                            connection.rcv.wnd,
+                                .ack(connection.rcv.nxt)
+                                .wnd(connection.rcv.wnd),
                         );
                         return ProcessSegmentResult::Success;
                     }
@@ -562,8 +570,8 @@ impl Tcb {
                     // segment.
                     self.enqueue(
                         self.header_builder(connection.snd.nxt)
-                            .ack(connection.rcv.nxt),
-                        connection.rcv.wnd,
+                            .ack(connection.rcv.nxt)
+                            .wnd(connection.rcv.wnd),
                     );
                     return ProcessSegmentResult::DiscardSegment;
                 }
@@ -601,8 +609,8 @@ impl Tcb {
                     // TODO(hardint): Aggregate and piggyback ACK segments
                     self.enqueue(
                         self.header_builder(connection.snd.nxt)
-                            .ack(connection.rcv.nxt),
-                        connection.rcv.wnd,
+                            .ack(connection.rcv.nxt)
+                            .wnd(connection.rcv.wnd),
                     );
                 }
 
@@ -621,8 +629,8 @@ impl Tcb {
                     connection.rcv.nxt = last_text_byte + 1;
                     self.enqueue(
                         self.header_builder(connection.snd.nxt)
-                            .ack(connection.rcv.nxt),
-                        connection.rcv.wnd,
+                            .ack(connection.rcv.nxt)
+                            .wnd(connection.rcv.wnd),
                     );
                 }
             }
@@ -695,8 +703,8 @@ impl Tcb {
             // ACKs something not yet sent
             self.enqueue(
                 self.header_builder(connection.snd.nxt)
-                    .ack(connection.rcv.nxt),
-                connection.rcv.wnd,
+                    .ack(connection.rcv.nxt)
+                    .wnd(connection.rcv.wnd),
             );
             return ProcessSegmentResult::InvalidAck;
         } else {
@@ -722,9 +730,8 @@ impl Tcb {
 
     /// Queue a segment without segment text for transmission. SYN and FIN
     /// segments may be retransmitted.
-    fn enqueue(&self, header_builder: TcpHeaderBuilder, rcv_wnd: u16) {
+    fn enqueue(&self, header_builder: TcpHeaderBuilder) {
         let header = header_builder
-            .wnd(rcv_wnd)
             .build(
                 self.id.local.address,
                 self.id.remote.address,
@@ -876,8 +883,10 @@ pub fn segment_arrives_listen(
             },
         );
         tcb.enqueue(
-            tcb.header_builder(iss).syn().ack(rcv_nxt),
-            ReceiveSequenceSpace::default().wnd,
+            tcb.header_builder(iss)
+                .syn()
+                .ack(rcv_nxt)
+                .wnd(ReceiveSequenceSpace::default().wnd),
         );
 
         // Processing of SYN and ACK should not be repeated.
