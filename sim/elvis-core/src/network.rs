@@ -68,7 +68,7 @@ impl Network {
 
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
-        let funnel = mpsc::channel(4096);
+        let funnel = mpsc::channel(8);
         Self {
             mtu: mtu.unwrap_or(Mtu::MAX),
             latency,
@@ -77,7 +77,7 @@ impl Network {
             delivery_sender: funnel.0,
             delivery_receiver: RwLock::new(Some(funnel.1)),
             taps: Default::default(),
-            broadcast: broadcast::channel::<Delivery>(4096).0,
+            broadcast: broadcast::channel::<Delivery>(16).0,
         }
     }
 
@@ -91,7 +91,7 @@ impl Network {
     /// a [`Pci`](crate::protocols::Pci) to allow a [`Machine`](crate::Machine)
     /// to send and receive messages through the network.
     pub fn tap(self: &Arc<Self>) -> Tap {
-        let (send, receive) = mpsc::channel(16);
+        let (send, receive) = mpsc::channel(8);
         let mac = self.taps.read().unwrap().len() as u64;
         self.taps.write().unwrap().push(send);
         Tap {
