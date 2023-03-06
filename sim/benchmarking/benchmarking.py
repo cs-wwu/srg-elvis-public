@@ -8,18 +8,14 @@ import sys
 import numpy as np
 
 # TODO: Fix building of cargo and selection of elvis vs elvis.exe for running based on OS
-# TODO: Collect all data needed and build full proper comparison graphs some may be
-# TODO: Add new requirements to build file
-## memory over time
-## CPU utilization
-## CPU VS Memory usage
+# TODO: fixing stdout prints
 # TODO: Run full suite at 100+ iterations for full data points
 # TODO: Fix subplot scaling
 
 image_folder = "./benchmarking_graphs/"
 sim_directory = "./sims/"
 data_directory = "./raw_data/"
-iteration_count = 50
+iteration_count = 5
 final_dict = {
     "platform":{
         'OS': platform.system(),
@@ -33,8 +29,10 @@ final_dict = {
 def run_sim(file_name, interations):
     raw_file_name = file_name[0 : len(file_name)-4].replace("./sims/", "")
     print("Staring benchmark on: " + raw_file_name)
-    sys.stdout.flush()
-    benchmark_results = cmdbench.benchmark_command("./elvis.exe --ndl "+ sim_directory + file_name, iterations_num = interations)
+    # sys.stdout.flush()
+    benchmark_results = cmdbench.benchmark_command("./elvis.exe --ndl "+ sim_directory + raw_file_name, iterations_num = interations)
+    # TODO: Grab the correct arrays (time series)
+    # time_series_data = benchmark_results.get_values_per_attribute()['time_series']
     memory_arr = benchmark_results.get_values_per_attribute()["memory"]
     process_time_arr = benchmark_results.get_values_per_attribute()['process']
     create_json_data(memory_arr, process_time_arr, raw_file_name)
