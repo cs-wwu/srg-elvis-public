@@ -32,15 +32,17 @@ impl Checksum {
     /// Repeatedly gets the next two bytes at a `u16` from a byte iterator. If the `payload`
     /// contains an odd number of bytes, the last `u8` will be appended with the
     /// value zero. Returns the number of bytes consumed.
-    pub fn accumulate_remainder(&mut self, payload: &mut impl Iterator<Item = u8>) {
-        self.0 = payload
-            .array_chunks::<2>()
-            .try_fold(self.0, |acc, next| {
-                let a = u16::from_be_bytes(next);
-                let (sum, carry) = acc.overflowing_add(a);
-                Some(sum + carry as u16)
-            })
-            .unwrap();
+    pub fn accumulate_remainder(&mut self, payload: impl Iterator<Item = u8>) {
+        let mut chunks = payload.array_chunks::<2>();
+        for chunk in chunks.by_ref() {
+            self.add_u16(u16::from_be_bytes(chunk));
+        }
+        if let Some(remainder) = chunks.into_remainder() {
+            let remainder = remainder.as_slice();
+            if let Some(remainder) = remainder.get(0) {
+                self.add_u8(*remainder, 0);
+            }
+        }
     }
 
     /// Computes the final checksum value.
