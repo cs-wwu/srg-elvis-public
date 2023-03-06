@@ -56,8 +56,8 @@ impl Sockets {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared(ipv4_address: Option<Ipv4Address>) -> Arc<Self> {
-        Arc::new(Self::new(ipv4_address))
+    pub fn shared(self) -> Arc<Self> {
+        Arc::new(self)
     }
 
     /// Creates a new socket and adds it to its listing of sockets

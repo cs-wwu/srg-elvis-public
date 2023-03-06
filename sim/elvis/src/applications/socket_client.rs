@@ -14,35 +14,27 @@ use elvis_core::{
 use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
 
-pub struct SocketSendMessage {
+pub struct SocketClient {
     /// The Sockets API
     sockets: Arc<Sockets>,
     /// The text of the message to send
     text: &'static str,
-    /// The IP address to send from
-    local_ip: Ipv4Address,
-    /// The port to send from
-    local_port: u16,
     /// The IP address to send to
     remote_ip: Ipv4Address,
-    /// The port to send on
+    /// The port to send to
     remote_port: u16,
 }
 
-impl SocketSendMessage {
+impl SocketClient {
     pub fn new(
         sockets: Arc<Sockets>,
         text: &'static str,
-        local_ip: Ipv4Address,
-        local_port: u16,
         remote_ip: Ipv4Address,
         remote_port: u16,
     ) -> Self {
         Self {
             sockets,
             text,
-            local_ip,
-            local_port,
             remote_ip,
             remote_port,
         }
@@ -51,24 +43,20 @@ impl SocketSendMessage {
     pub fn new_shared(
         sockets: Arc<Sockets>,
         text: &'static str,
-        local_ip: Ipv4Address,
-        local_port: u16,
         remote_ip: Ipv4Address,
         remote_port: u16,
     ) -> Arc<UserProcess<Self>> {
         UserProcess::new_shared(Self::new(
             sockets,
             text,
-            local_ip,
-            local_port,
             remote_ip,
             remote_port,
         ))
     }
 }
 
-impl Application for SocketSendMessage {
-    const ID: Id = Id::from_string("Socket Send");
+impl Application for SocketClient {
+    const ID: Id = Id::from_string("Socket Client");
 
     fn start(
         self: Arc<Self>,
@@ -85,33 +73,34 @@ impl Application for SocketSendMessage {
                 .unwrap();
 
             // Bind the socket to your local address
-            let local_sock_addr = SocketAddress::new_v4(self.local_ip, self.local_port);
-            socket.clone().bind(local_sock_addr).unwrap();
+            // let local_sock_addr = SocketAddress::new_v4(self.local_ip, self.local_port);
+            // socket.clone().bind(local_sock_addr).unwrap();
 
             // "Connect" the socket to a remote address
             let remote_sock_addr = SocketAddress::new_v4(self.remote_ip, self.remote_port);
             socket.clone().connect(remote_sock_addr).unwrap();
 
+            // Wait on initialization before sending any message across the network
             initialized.wait().await;
 
             // Send a connection request
-            println!("Sending connection request");
+            println!("CLIENT: Sending connection request");
             socket.clone().send("SYN").unwrap();
 
             // Receive a connection response
             let _ack = socket.clone().recv(32).await.unwrap();
-            println!("Connection response received");
+            println!("CLIENT: Connection response received");
 
             // Send a message
-            println!("Sending Request: {:?}", self.text);
+            println!("CLIENT: Sending Request: {:?}", self.text);
             socket.clone().send(self.text).unwrap();
 
             // Receive a message
             let msg = socket.clone().recv(32).await.unwrap();
-            println!("Response Received: {:?}", String::from_utf8(msg).unwrap());
+            println!("CLIENT: Response Received: {:?}", String::from_utf8(msg).unwrap());
 
             // Send another message
-            println!("Sending Request: Shutdown");
+            println!("CLIENT: Sending Request: \"Shutdown\"");
             socket.clone().send("Shutdown").unwrap();
         });
         Ok(())

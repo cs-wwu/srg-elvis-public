@@ -1,4 +1,4 @@
-use crate::applications::{SocketRecvMessage, SocketSendMessage};
+use crate::applications::{SocketServer, SocketClient};
 use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
@@ -17,42 +17,37 @@ use elvis_core::{
 /// Finally, the second machine receives the "shutdown" message, and shuts down the simulation.
 pub async fn socket_basic() {
     let network = Network::basic();
-    let send_ip_address: Ipv4Address = [123, 45, 67, 90].into();
-    let recv_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(recv_ip_address, 0), (send_ip_address, 0)]
+    let client_ip_address: Ipv4Address = [123, 45, 67, 90].into();
+    let server_ip_address: Ipv4Address = [123, 45, 67, 89].into();
+    let ip_table: IpToTapSlot = [(server_ip_address, 0), (client_ip_address, 0)]
         .into_iter()
         .collect();
 
     // let capture = Capture::new_shared(capture_ip_address, 0xbeef);
-    let send_socket_api = Sockets::new_shared(Some(send_ip_address));
-    let recv_socket_api = Sockets::new_shared(Some(recv_ip_address));
+    let client_socket_api = Sockets::new(Some(client_ip_address)).shared();
+    let server_socket_api = Sockets::new(Some(server_ip_address)).shared();
     let machines = vec![
         Machine::new([
-            send_socket_api.clone(),
+            client_socket_api.clone(),
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table.clone()),
             Pci::new_shared([network.tap()]),
-            SocketSendMessage::new_shared(
-                send_socket_api.clone(),
+            SocketClient::new_shared(
+                client_socket_api,
                 "Ground Control to Major Tom",
-                send_ip_address,
-                0xface,
-                recv_ip_address,
+                server_ip_address,
                 0xbeef,
             ),
         ]),
         Machine::new([
-            recv_socket_api.clone(),
+            server_socket_api.clone(),
             Udp::new_shared() as SharedProtocol,
             Ipv4::new_shared(ip_table),
             Pci::new_shared([network.tap()]),
-            SocketRecvMessage::new_shared(
-                recv_socket_api.clone(),
+            SocketServer::new_shared(
+                server_socket_api,
                 "Major Tom to Ground Control",
-                recv_ip_address,
                 0xbeef,
-                send_ip_address,
-                0xface,
             ),
         ]),
     ];
