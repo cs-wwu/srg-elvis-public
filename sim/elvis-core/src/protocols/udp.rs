@@ -211,6 +211,8 @@ impl Protocol for Udp {
                         session
                     }
                     Entry::Vacant(_) => {
+                        // If we don't have a normal listen binding, check for
+                        // a 0.0.0.0 binding
                         let any_listen_id = Socket {
                             address: Ipv4Address::CURRENT_NETWORK,
                             port: session_id.local.port,

@@ -188,7 +188,7 @@ impl Protocol for Ipv4 {
                     match self.listen_bindings.get(&any_listen_id) {
                         Some(any_binding) => {
                             // If the session does not exist and we don't have a
-                            // listen binding for it,
+                            // listen binding for it, check for a 0.0.0.0 listen binding
                             let network = Pci::get_pci_slot(&context.control).map_err(|_| {
                                 tracing::error!("Missing network ID on context");
                                 DemuxError::MissingContext
