@@ -127,6 +127,36 @@ impl Message {
         self.chunks.drain(i..);
     }
 
+    /// Removes the first `len` bytes from the message and returns them as a new
+    /// message.
+    pub fn chop_front(&mut self, len: usize) -> Self {
+        assert!(len < self.len);
+        self.len -= len;
+
+        let mut chunks = VecDeque::new();
+        let mut to_remove = len;
+
+        // Remove leading chunks that are no longer accessible
+        while let Some(mut head) = self.chunks.pop_front() {
+            let head_len = head.len();
+            if head_len <= to_remove {
+                to_remove -= head_len;
+                chunks.push_back(head);
+            } else {
+                if to_remove > 0 {
+                    let mut head = head.clone();
+                    head.end = head.start + to_remove;
+                    chunks.push_back(head);
+                }
+                head.start += to_remove;
+                self.chunks.push_front(head);
+                break;
+            }
+        }
+
+        Self { chunks, len }
+    }
+
     /// The length of the message.
     pub fn len(&self) -> usize {
         self.len
@@ -317,5 +347,25 @@ mod tests {
     fn empty_message() {
         let message = Message::new("");
         assert_eq!(&message.to_vec(), b"");
+    }
+
+    #[test]
+    fn chop() {
+        let mut a = Message::new("Hello, world");
+        let b = a.chop_front(5);
+        assert_eq!(a, Message::new(", world"));
+        assert_eq!(b, Message::new("Hello"));
+    }
+
+    #[test]
+    fn chop_more_complex() {
+        let mut a = Message::new("stuffa");
+        a.header(" and ");
+        a.header("athings");
+        a.slice(1..);
+        a.slice(..16);
+        let b = a.chop_front(10);
+        assert_eq!(a, Message::new(" stuff"));
+        assert_eq!(b, Message::new("things and"));
     }
 }
