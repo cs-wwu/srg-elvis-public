@@ -163,7 +163,7 @@ impl Protocol for Tcp {
         let remote_address = Ipv4::get_remote_address(&context.control).unwrap();
 
         // Parse the header
-        let header = TcpHeader::from_bytes(&message, remote_address, local_address)
+        let header = TcpHeader::from_bytes(message.iter(), remote_address, local_address)
             .map_err(|_| DemuxError::Header)?;
         message.remove_front(20);
 
