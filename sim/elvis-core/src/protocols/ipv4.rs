@@ -183,7 +183,7 @@ impl Protocol for Ipv4 {
                 Err(DemuxError::Header)?
             }
         };
-        message.slice(header.ihl as usize * 4..);
+        message.remove_front(header.ihl as usize * 4);
         let identifier = SessionId::new(header.destination, header.source);
 
         Self::set_local_address(identifier.local, &mut context.control);

@@ -272,10 +272,8 @@ impl Tcb {
                     if bytes == 0 {
                         break;
                     }
-                    let mut text = self.outgoing.text.clone();
-                    text.slice(..bytes);
-                    self.outgoing.text.slice(bytes..);
-                    queued_bytes += text.len();
+                    let text = self.outgoing.text.cut(bytes);
+                    queued_bytes += bytes;
                     let header = self
                         .header_builder(self.snd.nxt)
                         .ack(self.rcv.nxt)

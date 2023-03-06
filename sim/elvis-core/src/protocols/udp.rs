@@ -175,7 +175,7 @@ impl Protocol for Udp {
                 Err(DemuxError::Header)?
             }
         };
-        message.slice(8..);
+        message.remove_front(8);
 
         // Use the context and the header information to identify the session
         let session_id = SessionId::new(

@@ -165,7 +165,7 @@ impl Protocol for Tcp {
         // Parse the header
         let header = TcpHeader::from_bytes(message.iter(), remote_address, local_address)
             .map_err(|_| DemuxError::Header)?;
-        message.slice(20..);
+        message.remove_front(20);
 
         let local = Socket {
             address: local_address,

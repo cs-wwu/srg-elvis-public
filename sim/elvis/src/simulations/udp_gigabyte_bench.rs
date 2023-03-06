@@ -26,9 +26,7 @@ pub async fn udp_gigabyte_bench() {
     let mut messages = vec![];
     let mut remainder = message.clone();
     while remainder.len() > 1450 {
-        let mut part = remainder.clone();
-        part.slice(..1450);
-        remainder.slice(1450..);
+        let part = remainder.cut(1450);
         messages.push(part);
     }
     messages.push(remainder);

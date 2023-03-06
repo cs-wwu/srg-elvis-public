@@ -129,8 +129,8 @@ impl Message {
 
     /// Removes the first `len` bytes from the message and returns them as a new
     /// message.
-    pub fn clip_front(&mut self, len: usize) -> Self {
-        assert!(len < self.len);
+    pub fn cut(&mut self, len: usize) -> Self {
+        assert!(len <= self.len);
         self.len -= len;
 
         let mut chunks = VecDeque::new();
@@ -158,7 +158,7 @@ impl Message {
     }
 
     pub fn remove_front(&mut self, len: usize) {
-        assert!(len < self.len);
+        assert!(len <= self.len);
         self.len -= len;
 
         let mut to_remove = len;
@@ -369,21 +369,21 @@ mod tests {
     }
 
     #[test]
-    fn clip() {
+    fn cut() {
         let mut a = Message::new("Hello, world");
-        let b = a.clip_front(5);
+        let b = a.cut(5);
         assert_eq!(a, Message::new(", world"));
         assert_eq!(b, Message::new("Hello"));
     }
 
     #[test]
-    fn clip_more_complex() {
+    fn cut_more_complex() {
         let mut a = Message::new("stuffa");
         a.header(" and ");
         a.header("athings");
         a.slice(1..);
         a.slice(..16);
-        let b = a.clip_front(10);
+        let b = a.cut(10);
         assert_eq!(a, Message::new(" stuff"));
         assert_eq!(b, Message::new("things and"));
     }
