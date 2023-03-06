@@ -10,9 +10,6 @@ pub use chunk::Chunk;
 mod slice_range;
 use slice_range::SliceRange;
 
-mod message_bytes;
-pub use message_bytes::MessageBytes;
-
 /// A byte collection with efficient operations for implementing protocols.
 ///
 /// When writing a networking protocol, it is standard to append headers, remove
@@ -197,8 +194,10 @@ impl Message {
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
-    pub fn iter(&self) -> MessageBytes {
-        MessageBytes::new(&self.chunks)
+    pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
+        self.chunks
+            .iter()
+            .flat_map(|chunk| chunk.as_slice().iter().cloned())
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
