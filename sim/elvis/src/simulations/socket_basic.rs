@@ -1,4 +1,4 @@
-use crate::applications::{SocketServer, SocketClient};
+use crate::applications::{SocketClient, SocketServer};
 use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
@@ -29,26 +29,23 @@ pub async fn socket_basic() {
     let machines = vec![
         Machine::new([
             client_socket_api.clone(),
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table.clone()),
-            Pci::new_shared([network.tap()]),
-            SocketClient::new_shared(
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
+            SocketClient::new(
                 client_socket_api,
                 "Ground Control to Major Tom",
                 server_ip_address,
                 0xbeef,
-            ),
+            )
+            .shared(),
         ]),
         Machine::new([
             server_socket_api.clone(),
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table),
-            Pci::new_shared([network.tap()]),
-            SocketServer::new_shared(
-                server_socket_api,
-                "Major Tom to Ground Control",
-                0xbeef,
-            ),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table).shared(),
+            Pci::new([network.tap()]).shared(),
+            SocketServer::new(server_socket_api, "Major Tom to Ground Control", 0xbeef).shared(),
         ]),
     ];
 

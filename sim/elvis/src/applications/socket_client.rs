@@ -40,18 +40,8 @@ impl SocketClient {
         }
     }
 
-    pub fn new_shared(
-        sockets: Arc<Sockets>,
-        text: &'static str,
-        remote_ip: Ipv4Address,
-        remote_port: u16,
-    ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(
-            sockets,
-            text,
-            remote_ip,
-            remote_port,
-        ))
+    pub fn shared(self) -> Arc<UserProcess<Self>> {
+        UserProcess::new(self).shared()
     }
 }
 
@@ -59,25 +49,24 @@ impl Application for SocketClient {
     const ID: Id = Id::from_string("Socket Client");
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Sender<()>,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
+        // Create a new IPv4 Datagram Socket
+        let socket = self
+            .sockets
+            .clone()
+            .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
+            .unwrap();
+        let remote_ip = self.remote_ip;
+        let remote_port = self.remote_port;
+        let text = self.text;
+
         tokio::spawn(async move {
-            // Create a new IPv4 Datagram Socket
-            let socket = self
-                .sockets
-                .clone()
-                .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
-                .unwrap();
-
-            // Bind the socket to your local address
-            // let local_sock_addr = SocketAddress::new_v4(self.local_ip, self.local_port);
-            // socket.clone().bind(local_sock_addr).unwrap();
-
             // "Connect" the socket to a remote address
-            let remote_sock_addr = SocketAddress::new_v4(self.remote_ip, self.remote_port);
+            let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
             socket.clone().connect(remote_sock_addr).unwrap();
 
             // Wait on initialization before sending any message across the network
@@ -92,12 +81,15 @@ impl Application for SocketClient {
             println!("CLIENT: Connection response received");
 
             // Send a message
-            println!("CLIENT: Sending Request: {:?}", self.text);
-            socket.clone().send(self.text).unwrap();
+            println!("CLIENT: Sending Request: {:?}", text);
+            socket.clone().send(text).unwrap();
 
             // Receive a message
             let msg = socket.clone().recv(32).await.unwrap();
-            println!("CLIENT: Response Received: {:?}", String::from_utf8(msg).unwrap());
+            println!(
+                "CLIENT: Response Received: {:?}",
+                String::from_utf8(msg).unwrap()
+            );
 
             // Send another message
             println!("CLIENT: Sending Request: \"Shutdown\"");
@@ -106,11 +98,7 @@ impl Application for SocketClient {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        _message: Message,
-        _context: Context,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
         Ok(())
     }
 }
