@@ -34,9 +34,9 @@ impl Checksum {
     /// value zero. Returns the number of bytes consumed.
     pub fn accumulate_remainder(&mut self, payload: &mut impl Iterator<Item = u8>) {
         self.0 = payload
-            .enumerate()
-            .try_fold(self.0, |acc, (i, next)| {
-                let a = u16::from_be_bytes(if i % 2 == 0 { [next, 0] } else { [0, next] });
+            .array_chunks::<2>()
+            .try_fold(self.0, |acc, next| {
+                let a = u16::from_be_bytes(next);
                 let (sum, carry) = acc.overflowing_add(a);
                 Some(sum + carry as u16)
             })
