@@ -46,6 +46,7 @@ impl Session for UdpSession {
             self.id.remote.address,
             id.remote.port,
             message.iter(),
+            message.len(),
         ) {
             Ok(header) => header,
             Err(e) => {

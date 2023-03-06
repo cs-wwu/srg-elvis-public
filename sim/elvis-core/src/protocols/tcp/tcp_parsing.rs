@@ -42,12 +42,13 @@ pub struct TcpHeader {
 impl TcpHeader {
     /// Parses a serialized TCP header into its constituent fields.
     pub fn from_bytes(
-        mut bytes: impl Iterator<Item = u8>,
+        mut packet: impl Iterator<Item = u8>,
+        packet_len: usize,
         src_address: Ipv4Address,
         dst_address: Ipv4Address,
     ) -> Result<Self, ParseError> {
         let mut next =
-            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
+            || -> Result<u8, ParseError> { packet.next().ok_or(ParseError::HeaderTooShort) };
         let mut checksum = Checksum::new();
 
         let src_port = u16::from_be_bytes([next()?, next()?]);
@@ -82,15 +83,18 @@ impl TcpHeader {
         let urg = u16::from_be_bytes([next()?, next()?]);
         checksum.add_u16(urg);
 
-        let text_length = checksum.accumulate_remainder(&mut bytes);
-        let tcp_length = text_length + data_offset as u16 * 4;
+        checksum.accumulate_remainder(&mut packet);
 
         // Pseudo header stuff
         checksum.add_u32(src_address.into());
         checksum.add_u32(dst_address.into());
         // zero, TCP protocol number
         checksum.add_u8(0, 6);
-        checksum.add_u16(tcp_length);
+        checksum.add_u16(
+            packet_len
+                .try_into()
+                .map_err(|_| ParseError::PacketTooLong)?,
+        );
 
         let checksum = checksum.as_u16();
         if expected_checksum == checksum {
@@ -141,6 +145,8 @@ impl TcpHeader {
 pub enum ParseError {
     #[error("Too few bytes to constitute a TCP header")]
     HeaderTooShort,
+    #[error("The packet length could not fit into a u16")]
+    PacketTooLong,
     #[error(
         "The computed checksum {actual:#06x} did not match the header checksum {expected:#06x}"
     )]
@@ -220,13 +226,14 @@ impl TcpHeaderBuilder {
         self,
         src_address: Ipv4Address,
         dst_address: Ipv4Address,
-        mut payload: impl Iterator<Item = u8>,
+        mut text: impl Iterator<Item = u8>,
+        text_len: usize,
     ) -> Result<TcpHeader, BuildHeaderError> {
         let mut checksum = Checksum::new();
-        let length = checksum
-            .accumulate_remainder(&mut payload)
-            .checked_add(BASE_HEADER_OCTETS as u16)
-            .ok_or(BuildHeaderError::OverlyLongPayload)?;
+        let length: u16 = (text_len + BASE_HEADER_OCTETS as usize)
+            .try_into()
+            .map_err(|_| BuildHeaderError::OverlyLongPayload)?;
+        checksum.accumulate_remainder(&mut text);
 
         // TODO(hardint): Should change when header options are supported
         let data_offset = BASE_HEADER_WORDS;
@@ -446,8 +453,10 @@ mod tests {
             serial
         };
 
+        let len = serial.len() + payload.len();
         let actual = TcpHeader::from_bytes(
             serial.into_iter().chain(payload.iter().cloned()),
+            len,
             src_address,
             dst_address,
         )?;
@@ -516,7 +525,12 @@ mod tests {
             .wnd(window)
             .psh()
             .ack(acknowledgement)
-            .build(id.local.address, id.remote.address, payload.iter().cloned())?
+            .build(
+                id.local.address,
+                id.remote.address,
+                payload.iter().cloned(),
+                payload.len(),
+            )?
             .serialize();
 
         assert_eq!(expected, actual);

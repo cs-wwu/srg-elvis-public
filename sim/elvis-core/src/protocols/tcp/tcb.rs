@@ -278,7 +278,12 @@ impl Tcb {
                         .header_builder(self.snd.nxt)
                         .ack(self.rcv.nxt)
                         .wnd(self.rcv.wnd)
-                        .build(self.id.local.address, self.id.remote.address, text.iter())
+                        .build(
+                            self.id.local.address,
+                            self.id.remote.address,
+                            text.iter(),
+                            text.len(),
+                        )
                         .expect("Unexpectedly large MTU and message");
                     self.snd.nxt = self.snd.nxt.wrapping_add(text.len() as u32);
                     self.outgoing
@@ -656,6 +661,7 @@ impl Tcb {
                 self.id.local.address,
                 self.id.remote.address,
                 [].into_iter(),
+                0,
             )
             // Okay for short segments
             .unwrap();
@@ -730,7 +736,7 @@ pub fn segment_arrives_closed(
             .rst()
             .ack(seg.seq + text_len)
     }
-    .build(local, remote, [].into_iter())
+    .build(local, remote, [].into_iter(), 0)
     .ok()
 }
 
@@ -758,7 +764,7 @@ pub fn segment_arrives_listen(
         // Bad acknowledgement, reset
         TcpHeaderBuilder::new(seg.dst_port, seg.src_port, seg.ack)
             .rst()
-            .build(local, remote, [].into_iter())
+            .build(local, remote, [].into_iter(), 0)
             .ok()
             .map(ListenResult::Response)
     } else if seg.ctl.syn() {

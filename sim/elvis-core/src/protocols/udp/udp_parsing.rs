@@ -24,12 +24,13 @@ pub(super) struct UdpHeader {
 impl UdpHeader {
     /// Parses a UDP header from an iterator of bytes
     pub fn from_bytes_ipv4(
-        mut bytes: impl Iterator<Item = u8>,
+        mut packet: impl Iterator<Item = u8>,
+        packet_len: usize,
         source_address: Ipv4Address,
         destination_address: Ipv4Address,
     ) -> Result<Self, ParseError> {
         let mut next =
-            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
+            || -> Result<u8, ParseError> { packet.next().ok_or(ParseError::HeaderTooShort) };
 
         let mut checksum = Checksum::new();
 
@@ -53,9 +54,9 @@ impl UdpHeader {
         // [zero, UDP protocol number] from pseudo header
         checksum.add_u8(0, 17);
 
-        let bytes_consumed = checksum.accumulate_remainder(&mut bytes) + 8;
+        checksum.accumulate_remainder(&mut packet);
 
-        if bytes_consumed != length || bytes.next().is_some() {
+        if packet_len != length as usize || packet.next().is_some() {
             Err(ParseError::LengthMismatch)?
         }
 
@@ -94,14 +95,15 @@ pub(super) fn build_udp_header(
     source_port: u16,
     destination_address: Ipv4Address,
     destination_port: u16,
-    mut payload: impl Iterator<Item = u8>,
+    mut text: impl Iterator<Item = u8>,
+    text_len: usize,
 ) -> Result<Vec<u8>, BuildHeaderError> {
     let mut checksum = Checksum::new();
-    let length = checksum.accumulate_remainder(&mut payload);
+    checksum.accumulate_remainder(&mut text);
 
-    let length = HEADER_OCTETS
-        .checked_add(length)
-        .ok_or(BuildHeaderError::OverlyLongPayload)?;
+    let length: u16 = (text_len + HEADER_OCTETS as usize)
+        .try_into()
+        .map_err(|_| BuildHeaderError::OverlyLongPayload)?;
 
     // Once for the header, again for the pseudo header
     checksum.add_u16(length);
@@ -170,10 +172,12 @@ mod tests {
     #[test]
     fn parses_header() -> anyhow::Result<()> {
         let (ip_header, expected, expected_serial, payload) = etherparse_headers();
+        let len = expected_serial.len() + payload.len();
         let actual = UdpHeader::from_bytes_ipv4(
             expected_serial
                 .into_iter()
                 .chain(payload.as_bytes().iter().cloned()),
+            len,
             SOURCE_ADDRESS.into(),
             DESTINATION_ADDRESS.into(),
         )?;
@@ -198,6 +202,7 @@ mod tests {
             DESTINATION_ADDRESS.into(),
             DESTINATION_PORT,
             payload.as_bytes().iter().cloned(),
+            payload.len(),
         )?;
         assert_eq!(actual, expected);
         Ok(())

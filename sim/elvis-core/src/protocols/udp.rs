@@ -167,8 +167,12 @@ impl Protocol for Udp {
         })?;
 
         // Parse the header
-        let header = match UdpHeader::from_bytes_ipv4(message.iter(), remote_address, local_address)
-        {
+        let header = match UdpHeader::from_bytes_ipv4(
+            message.iter(),
+            message.len(),
+            remote_address,
+            local_address,
+        ) {
             Ok(header) => header,
             Err(e) => {
                 tracing::error!("{}", e);
