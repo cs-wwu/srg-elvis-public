@@ -4,7 +4,6 @@ if command -v python3 < /dev/null 2>&1; then
     echo "Valid Python Version Found"
 else
     echo "Invalid Python Version Found"
-    sleep 5
     exit
 fi
 
@@ -35,13 +34,14 @@ echo "Moving to script directory"
 
 cd $SCRIPT_DIR
 # Check if OS type is Linux or Windows based
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+if [[ "$(uname)" =~ "MINGW" ]]; then
     BINARY_NAME="elvis.exe"
 # Check if the OS is Linux
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+elif [[ "$(uname)" == "Linux" ]]; then
     BINARY_NAME="elvis"
 else
     echo "Unsupported operating system"
+    sleep 10
     exit
 fi
 
