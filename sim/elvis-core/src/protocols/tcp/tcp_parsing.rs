@@ -89,7 +89,7 @@ impl TcpHeader {
         if text_length > u16::MAX as usize {
             return Err(ParseError::TextTooLong);
         }
-        checksum.accumulate_remainder(&mut iter, message.len() - BASE_HEADER_OCTETS as usize);
+        checksum.accumulate_remainder(&mut iter);
         let tcp_length = text_length as u16 + data_offset as u16 * 4;
 
         // Pseudo header stuff
@@ -237,7 +237,7 @@ impl TcpHeaderBuilder {
             .try_into()
             .map_err(|_| BuildHeaderError::OverlyLongPayload)?;
 
-        checksum.accumulate_remainder(&mut text.iter(), text.len());
+        checksum.accumulate_remainder(&mut text.iter());
 
         // TODO(hardint): Should change when header options are supported
         let data_offset = BASE_HEADER_WORDS;
