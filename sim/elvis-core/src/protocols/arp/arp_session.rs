@@ -82,9 +82,10 @@ impl ArpSession {
         sender_ip: Ipv4Address,
         protocols: ProtocolMap,
     ) {
+        let mut update_receiver = self.sender.subscribe();
+        
         // Return if the MAC is already set or failed to get
-        let current_status = self.clone().get_status().await;
-        match current_status {
+        match self.clone().get_status().await {
             MacStatus::FailedToGet | MacStatus::Set(_) => return,
             MacStatus::Waiting => (),
         };
@@ -111,7 +112,6 @@ impl ArpSession {
 
         // Repeatedly send ARP requests
         let mut requests = 0;
-        let mut receiver = self.sender.subscribe();
         loop {
             let send_result = self
                 .downstream
@@ -127,7 +127,7 @@ impl ArpSession {
             requests += 1;
 
             // Wait RESEND_DELAY seconds, or stop waiting early if receiver.changed() occured
-            let timeout = tokio::time::timeout(Arp::RESEND_DELAY, receiver.recv()).await;
+            let timeout = tokio::time::timeout(Arp::RESEND_DELAY, update_receiver.recv()).await;
 
             // If we've sent 10 requests, set the status to failed, and break out.
             if requests == 10 {
