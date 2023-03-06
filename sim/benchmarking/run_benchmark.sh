@@ -8,6 +8,13 @@ else
     exit
 fi
 
+if command -v rustc > /dev/null 2>&1; then
+    echo "Rust is installed"
+else
+    echo "Invalid Rust Version Found"
+    exit
+fi
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 echo "Moving to script directory"
@@ -27,16 +34,25 @@ cargo build --release
 echo "Moving to script directory"
 
 cd $SCRIPT_DIR
+# Check if OS type is Linux or Windows based
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    BINARY_NAME="elvis.exe"
+# Check if the OS is Linux
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    BINARY_NAME="elvis"
+else
+    echo "Unsupported operating system"
+    exit
+fi
 
-cp ../target/release/elvis.exe ./
+echo "Moving ELVIS binary to benchmarking directory"
+
+cp ../target/release/$BINARY_NAME ./
 
 echo "Beginning benchmarking"
 
-python benchmarking.py 490000 500000 10000
+python benchmarking.py 100 1000 100
 
 echo "Benchmarking finished, removing binaries"
 
-# TODO: May be elvis for linux, not elvis.exe
-rm ./elvis.exe
-
-sleep 5
+rm ./$BINARY_NAME

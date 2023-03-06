@@ -29,8 +29,15 @@ final_dict = {
 def run_sim(file_name, interations):
     raw_file_name = file_name[0 : len(file_name)-4].replace("./sims/", "")
     print("Staring benchmark on: " + raw_file_name)
-    # sys.stdout.flush()
-    benchmark_results = cmdbench.benchmark_command("./elvis.exe --ndl "+ sim_directory + raw_file_name, iterations_num = interations)
+    sys.stdout.flush()
+    binary_file = ""
+    if platform.system() == 'Linux':
+        binary_file = "elvis"
+    elif platform.system() == 'Windows':
+        binary_file = "elvis.exe"
+    else:
+        print('Unsupported operating system')
+    benchmark_results = cmdbench.benchmark_command("./" + binary_file + " --ndl "+ sim_directory + raw_file_name, iterations_num = interations)
     # TODO: Grab the correct arrays (time series)
     # time_series_data = benchmark_results.get_values_per_attribute()['time_series']
     memory_arr = benchmark_results.get_values_per_attribute()["memory"]
