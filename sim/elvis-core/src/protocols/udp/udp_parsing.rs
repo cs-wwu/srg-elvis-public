@@ -57,7 +57,7 @@ impl UdpHeader {
         // [zero, UDP protocol number] from pseudo header
         checksum.add_u8(0, 17);
 
-        checksum.accumulate_remainder(&mut iter);
+        checksum.accumulate_remainder(&mut iter, message.len() - HEADER_OCTETS as usize);
 
         if message.len() != length as usize {
             return Err(ParseError::LengthMismatch);
@@ -98,12 +98,12 @@ pub(super) fn build_udp_header(
     source_port: u16,
     destination_address: Ipv4Address,
     destination_port: u16,
-    message: &Message,
+    text: &Message,
 ) -> Result<Vec<u8>, BuildHeaderError> {
     let mut checksum = Checksum::new();
-    checksum.accumulate_remainder(&mut message.iter());
+    checksum.accumulate_remainder(&mut text.iter(), text.len());
 
-    let length: u16 = (message.len() + HEADER_OCTETS as usize)
+    let length: u16 = (text.len() + HEADER_OCTETS as usize)
         .try_into()
         .map_err(|_| BuildHeaderError::OverlyLongPayload)?;
 
