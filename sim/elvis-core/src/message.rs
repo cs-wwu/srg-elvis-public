@@ -129,7 +129,7 @@ impl Message {
 
     /// Removes the first `len` bytes from the message and returns them as a new
     /// message.
-    pub fn chop_front(&mut self, len: usize) -> Self {
+    pub fn clip_front(&mut self, len: usize) -> Self {
         assert!(len < self.len);
         self.len -= len;
 
@@ -155,6 +155,25 @@ impl Message {
         }
 
         Self { chunks, len }
+    }
+
+    pub fn remove_front(&mut self, len: usize) {
+        assert!(len < self.len);
+        self.len -= len;
+
+        let mut to_remove = len;
+
+        // Remove leading chunks that are no longer accessible
+        while let Some(head) = self.chunks.front_mut() {
+            let head_len = head.len();
+            if head_len <= to_remove {
+                to_remove -= head_len;
+                self.chunks.pop_front();
+            } else {
+                head.start += to_remove;
+                break;
+            }
+        }
     }
 
     /// The length of the message.
@@ -350,22 +369,40 @@ mod tests {
     }
 
     #[test]
-    fn chop() {
+    fn clip() {
         let mut a = Message::new("Hello, world");
-        let b = a.chop_front(5);
+        let b = a.clip_front(5);
         assert_eq!(a, Message::new(", world"));
         assert_eq!(b, Message::new("Hello"));
     }
 
     #[test]
-    fn chop_more_complex() {
+    fn clip_more_complex() {
         let mut a = Message::new("stuffa");
         a.header(" and ");
         a.header("athings");
         a.slice(1..);
         a.slice(..16);
-        let b = a.chop_front(10);
+        let b = a.clip_front(10);
         assert_eq!(a, Message::new(" stuff"));
         assert_eq!(b, Message::new("things and"));
+    }
+
+    #[test]
+    fn remove_front() {
+        let mut a = Message::new("Hello, world");
+        a.remove_front(5);
+        assert_eq!(a, Message::new(", world"));
+    }
+
+    #[test]
+    fn remove_front_more_complex() {
+        let mut a = Message::new("stuffa");
+        a.header(" and ");
+        a.header("athings");
+        a.slice(1..);
+        a.slice(..16);
+        a.remove_front(10);
+        assert_eq!(a, Message::new(" stuff"));
     }
 }
