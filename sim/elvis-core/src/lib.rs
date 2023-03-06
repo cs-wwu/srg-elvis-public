@@ -1,5 +1,3 @@
-#![feature(iter_array_chunks)]
-
 //! The Extensible, Large-scale Virtual Internet Simulator, a library for
 //! running simulations of many computers communicating over networks.
 //!
