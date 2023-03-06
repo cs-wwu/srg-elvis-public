@@ -61,7 +61,7 @@ impl TcpSession {
                                         }
                                     }
                                     Instruction::Outgoing(message) => {
-                                        tcb.send(&message);
+                                        tcb.send(message);
                                     }
                                 }
                             }

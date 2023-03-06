@@ -95,7 +95,7 @@ impl Application for WaitForMessage {
 
     fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
         let mut actual = self.actual.write().unwrap();
-        actual.concatenate(&message);
+        actual.concatenate(message);
 
         if actual.len() < self.expected.len() {
             return Ok(());

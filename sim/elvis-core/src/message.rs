@@ -67,9 +67,9 @@ impl Message {
     }
 
     /// Adds the given message to the end of this one.
-    pub fn concatenate(&mut self, other: &Message) {
+    pub fn concatenate(&mut self, other: Message) {
         self.len += other.len;
-        self.chunks.extend(other.chunks.iter().cloned());
+        self.chunks.extend(other.chunks.into_iter());
     }
 
     /// Creates a slice of the message for the given range. All Rust range types
@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn concatenate() {
         let mut message = Message::new("Hello");
-        message.concatenate(&Message::new(" world!"));
+        message.concatenate(Message::new(" world!"));
         assert_eq!(&message.to_vec(), b"Hello world!");
     }
 

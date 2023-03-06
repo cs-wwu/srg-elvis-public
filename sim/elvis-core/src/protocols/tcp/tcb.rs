@@ -14,11 +14,7 @@ use crate::{
     protocols::{ipv4::Ipv4Address, utility::Socket},
     Message,
 };
-use std::{
-    collections::{BinaryHeap, VecDeque},
-    mem,
-    time::Duration,
-};
+use std::{collections::BinaryHeap, mem, time::Duration};
 
 #[cfg(test)]
 mod tests;
@@ -148,7 +144,7 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.2](https://www.rfc-editor.org/rfc/rfc9293.html#name-send-call).
-    pub fn send(&mut self, message: &Message) {
+    pub fn send(&mut self, message: Message) {
         // 3.10.2 (Not compliant, doing things differently. We don't have a
         // retransmission queue.)
         match self.state {
@@ -548,7 +544,7 @@ impl Tcb {
                     let accept = unreceived.min(space_available);
                     self.rcv.nxt += accept;
                     text.slice(already_received as usize..(already_received + accept) as usize);
-                    self.incoming.text.concatenate(&text);
+                    self.incoming.text.concatenate(text);
                     // TODO(hardint): Aggregate and piggyback ACK segments
                     self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                 }
@@ -810,23 +806,6 @@ pub fn segment_arrives_listen(
         // Any other control or data-bearing segment should be discarded
         None
     }
-}
-
-/// Removes and aggregates the given number of bytes from a FIFO queue of
-/// messages.
-fn consume_text(queue: &mut VecDeque<Message>, bytes: usize) -> Vec<u8> {
-    let mut out = vec![];
-    while let Some(text) = queue.front_mut() {
-        if text.len() <= bytes {
-            out.extend(text.iter());
-            queue.pop_front();
-        } else {
-            out.extend(text.iter().take(bytes));
-            text.slice(bytes..);
-            break;
-        }
-    }
-    out
 }
 
 /// Timeouts used by TCP
