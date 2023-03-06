@@ -52,7 +52,7 @@ cp ../target/release/$BINARY_NAME ./
 
 echo "Beginning benchmarking"
 
-python benchmarking.py 100 1000 100
+python benchmarking.py 100000 1000000 100000
 
 echo "Benchmarking finished, removing binaries"
 
