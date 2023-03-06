@@ -1,4 +1,7 @@
-use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
+use crate::{
+    protocols::{ipv4::Ipv4Address, utility::Checksum},
+    Message,
+};
 use thiserror::Error as ThisError;
 
 /// The number of 32-bit words in a TCP header without optional header parts
@@ -42,12 +45,13 @@ pub struct TcpHeader {
 impl TcpHeader {
     /// Parses a serialized TCP header into its constituent fields.
     pub fn from_bytes(
-        mut bytes: impl Iterator<Item = u8>,
+        message: &Message,
         src_address: Ipv4Address,
         dst_address: Ipv4Address,
     ) -> Result<Self, ParseError> {
+        let mut iter = message.iter();
         let mut next =
-            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
+            || -> Result<u8, ParseError> { iter.next().ok_or(ParseError::HeaderTooShort) };
         let mut checksum = Checksum::new();
 
         let src_port = u16::from_be_bytes([next()?, next()?]);
@@ -76,14 +80,17 @@ impl TcpHeader {
 
         let wnd = u16::from_be_bytes([next()?, next()?]);
         checksum.add_u16(wnd);
-
         let expected_checksum = u16::from_be_bytes([next()?, next()?]);
 
         let urg = u16::from_be_bytes([next()?, next()?]);
         checksum.add_u16(urg);
 
-        let text_length = checksum.accumulate_remainder(&mut bytes);
-        let tcp_length = text_length + data_offset as u16 * 4;
+        let text_length = message.len() - BASE_HEADER_OCTETS as usize;
+        if text_length > u16::MAX as usize {
+            return Err(ParseError::TextTooLong);
+        }
+        checksum.accumulate_remainder(&mut iter);
+        let tcp_length = text_length as u16 + data_offset as u16 * 4;
 
         // Pseudo header stuff
         checksum.add_u32(src_address.into());
@@ -147,6 +154,8 @@ pub enum ParseError {
     Checksum { actual: u16, expected: u16 },
     #[error("Data offset was different from that expected for a simple header")]
     UnexpectedOptions,
+    #[error("The TCP packet contains greater than the maximum bytes")]
+    TextTooLong,
 }
 
 /// Used for building a serialized TCP header
@@ -220,13 +229,15 @@ impl TcpHeaderBuilder {
         self,
         src_address: Ipv4Address,
         dst_address: Ipv4Address,
-        mut payload: impl Iterator<Item = u8>,
+        text: &Message,
     ) -> Result<TcpHeader, BuildHeaderError> {
         let mut checksum = Checksum::new();
-        let length = checksum
-            .accumulate_remainder(&mut payload)
-            .checked_add(BASE_HEADER_OCTETS as u16)
-            .ok_or(BuildHeaderError::OverlyLongPayload)?;
+        let length = text.len() + BASE_HEADER_OCTETS as usize;
+        let length: u16 = length
+            .try_into()
+            .map_err(|_| BuildHeaderError::OverlyLongPayload)?;
+
+        checksum.accumulate_remainder(&mut text.iter());
 
         // TODO(hardint): Should change when header options are supported
         let data_offset = BASE_HEADER_WORDS;
@@ -446,11 +457,9 @@ mod tests {
             serial
         };
 
-        let actual = TcpHeader::from_bytes(
-            serial.into_iter().chain(payload.iter().cloned()),
-            src_address,
-            dst_address,
-        )?;
+        let mut packet = Message::new(payload);
+        packet.header(serial);
+        let actual = TcpHeader::from_bytes(&packet, src_address, dst_address)?;
 
         assert_eq!(actual.src_port, src_port);
         assert_eq!(actual.src_port, src_port);
@@ -516,7 +525,7 @@ mod tests {
             .wnd(window)
             .psh()
             .ack(acknowledgement)
-            .build(id.local.address, id.remote.address, payload.iter().cloned())?
+            .build(id.local.address, id.remote.address, &Message::new(payload))?
             .serialize();
 
         assert_eq!(expected, actual);
