@@ -1,3 +1,4 @@
+#!/bin/bash
 # Runs the automated benchmarking of every sim in the sims directory. May take a long time.
 # Usage: .\run_benchmark
 if command -v python3 < /dev/null 2>&1; then
@@ -41,7 +42,7 @@ elif [[ "$(uname)" == "Linux" ]]; then
     BINARY_NAME="elvis"
 else
     echo "Unsupported operating system"
-    sleep 10
+    sleep 5
     exit
 fi
 
