@@ -21,7 +21,7 @@ pub struct Socket {
     family: ProtocolFamily,
     sock_type: SocketType,
     fd: Id,
-    _is_active: RwLock<bool>, // These three will be needed when it comes to implementing listening and accepting
+    is_active: RwLock<bool>,
     is_bound: RwLock<bool>,
     is_listening: RwLock<bool>,
     is_blocking: RwLock<bool>,
@@ -49,7 +49,7 @@ impl Socket {
             family: domain,
             sock_type,
             fd,
-            _is_active: RwLock::new(true),
+            is_active: RwLock::new(false),
             is_bound: RwLock::new(false),
             is_listening: RwLock::new(false),
             is_blocking: RwLock::new(true),
@@ -68,7 +68,7 @@ impl Socket {
 
     pub(super) fn add_listen_address(self: Arc<Self>, remote_address: SocketAddress) {
         let backlog = *self.listen_backlog.read().unwrap();
-        if backlog == 0 || self.listen_addresses.read().unwrap().len() >= backlog {
+        if backlog == 0 || self.listen_addresses.read().unwrap().len() <= backlog {
             self.listen_addresses
                 .write()
                 .unwrap()
@@ -86,8 +86,9 @@ impl Socket {
     /// to that endpoint
     pub fn connect(self: Arc<Self>, sock_addr: SocketAddress) -> Result<(), SocketError> {
         // A socket can only be connected once, subsequent calls to connect will
-        // throw an error if the socket is already connected
-        if self.session.read().unwrap().is_some() {
+        // throw an error if the socket is already connected. Also, a listening
+        // socket cannot connect to a remote endpoint
+        if *self.is_active.read().unwrap() || *self.is_listening.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
         if self.local_addr.read().unwrap().is_none() {
@@ -146,6 +147,7 @@ impl Socket {
         };
         // Assign the socket_session to the socket
         *self.session.write().unwrap() = Some(session);
+        *self.is_active.write().unwrap() = true;
         Ok(())
     }
 
@@ -172,7 +174,10 @@ impl Socket {
     /// used to send or receive messages, but can instead be used to accept
     /// incoming connections on the specified port via accept()
     pub fn listen(self: Arc<Self>, backlog: usize) -> Result<(), SocketError> {
-        if !*self.is_bound.read().unwrap() {
+        if !*self.is_bound.read().unwrap()
+            || *self.is_active.read().unwrap()
+            || *self.is_listening.read().unwrap()
+        {
             return Err(SocketError::AcceptError);
         }
         let mut participants = Control::new();
@@ -215,7 +220,7 @@ impl Socket {
     /// This function will block if the queue of pending connections is empty
     /// until a new connection arrives
     pub async fn accept(self: Arc<Self>) -> Result<Arc<Socket>, SocketError> {
-        if !*self.is_listening.read().unwrap() {
+        if !*self.is_listening.read().unwrap() || !*self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
         if *self.is_blocking.read().unwrap() {
@@ -246,7 +251,7 @@ impl Socket {
         self: Arc<Self>,
         message: impl Into<Chunk> + std::marker::Send + 'static,
     ) -> Result<(), SocketError> {
-        if self.session.read().unwrap().is_none() {
+        if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {
             return Err(SocketError::SendError);
         }
         let context = Context::new(self.protocols.clone());
@@ -272,7 +277,7 @@ impl Socket {
         // If the socket doesn't have a session yet, data cannot be received and
         // calls to recv will return an error, a call to connect() must be made
         // first
-        if self.session.read().unwrap().is_none() {
+        if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {
             return Err(SocketError::ReceiveError);
         }
         // If there is no data in the queue to recv, and the socket is blocking,
@@ -306,7 +311,7 @@ impl Socket {
         // If the socket doesn't have a session yet, data cannot be received and
         // calls to recv will return an error, a call to connect() must be made
         // first
-        if self.session.read().unwrap().is_none() {
+        if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {
             return Err(SocketError::ReceiveError);
         }
         // If there is no data in the queue to recv, and the socket is blocking,
