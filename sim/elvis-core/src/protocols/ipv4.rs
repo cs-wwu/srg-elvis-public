@@ -175,22 +175,22 @@ impl Protocol for Ipv4 {
                 // If the session does not exist, see if we have a listen
                 // binding for it
                 let binding = match self.listen_bindings.get(&identifier.local) {
-                Some(binding) => binding,
-                None => {
-                    // If we don't have a normal listen binding, check for
-                    // a 0.0.0.0 binding
-                    let any_listen_id = Ipv4Address::CURRENT_NETWORK;
-                    match self.listen_bindings.get(&any_listen_id) {
-                        Some(any_binding) => any_binding,
-                        None => {
-                            tracing::error!(
-                                "Could not find a listen binding for the local address {}",
-                                identifier.local
-                            );
-                            Err(DemuxError::MissingSession)?
+                    Some(binding) => binding,
+                    None => {
+                        // If we don't have a normal listen binding, check for
+                        // a 0.0.0.0 binding
+                        let any_listen_id = Ipv4Address::CURRENT_NETWORK;
+                        match self.listen_bindings.get(&any_listen_id) {
+                            Some(any_binding) => any_binding,
+                            None => {
+                                tracing::error!(
+                                    "Could not find a listen binding for the local address {}",
+                                    identifier.local
+                                );
+                                Err(DemuxError::MissingSession)?
+                            }
                         }
                     }
-                }
                 };
                 let network = Pci::get_pci_slot(&context.control).map_err(|_| {
                     tracing::error!("Missing network ID on context");
@@ -199,7 +199,7 @@ impl Protocol for Ipv4 {
                 let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
                 entry.insert(session.clone());
                 session
-            },
+            }
         };
         session.receive(message, context)?;
         Ok(())

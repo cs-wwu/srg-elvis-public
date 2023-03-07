@@ -211,7 +211,7 @@ impl Socket {
 
     /// Takes the first connection out of this socket's queue of pending
     /// connections, assigns it to a new socket, and returns the new socket
-    /// 
+    ///
     /// This function will block if the queue of pending connections is empty
     /// until a new connection arrives
     pub async fn accept(self: Arc<Self>) -> Result<Arc<Socket>, SocketError> {
@@ -265,7 +265,7 @@ impl Socket {
     }
 
     /// Receives data from the socket's remote endpoint
-    /// 
+    ///
     /// This function will block if the queue of incoming messages is empty
     /// until a new message is received
     pub async fn recv(self: Arc<Self>, bytes: usize) -> Result<Vec<u8>, SocketError> {
@@ -299,7 +299,7 @@ impl Socket {
     }
 
     /// Receives a [`Message`] from the socket's remote endpoint
-    /// 
+    ///
     /// This function will block if the queue of incoming messages is empty
     /// until a new message is received
     pub async fn recv_msg(self: Arc<Self>) -> Result<Message, SocketError> {
