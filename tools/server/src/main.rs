@@ -11,7 +11,7 @@ use std::{
 use image::{GenericImage, GenericImageView, ImageBuffer, RgbImage};
 
 fn main() {
-    generate_html(400, 5, 10);
+    generate_html(500, 2, 5);
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -38,8 +38,10 @@ fn handle_connection(mut stream: TcpStream) {
 
 fn generate_html(size: usize, num_links: usize, num_images: usize) {
     let mut result = String::new();
-    let link_size = 28;
-    let base_page_size = 151;
+    let link_bytes = 28;
+    let empty_page_bytes = 151;
+    let image_bytes = 22;
+
     result += "<!DOCTYPE html>
     <html lang=\"en\">
       <head>
@@ -52,8 +54,12 @@ fn generate_html(size: usize, num_links: usize, num_images: usize) {
         result += &link;
         result += "\">a</a>\n";
     }
-    let bytes_to_write = size - (link_size * num_links);
-    for _byte in base_page_size..bytes_to_write {
+    for _img in 0..num_images {
+        result += "<img src=\"/image.jpg\">";
+    }
+    
+    let current_page_size = empty_page_bytes + (link_bytes * num_links) + (image_bytes * num_images);
+    for _byte in current_page_size..size {
         result += "0";
     }
     result += "<body> \n</html>";
@@ -77,3 +83,8 @@ fn generate_links(num_links: usize) -> Vec<String> {
     }
     links
 }
+
+fn generate_size() {
+
+}
+
