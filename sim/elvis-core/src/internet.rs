@@ -1,12 +1,8 @@
 use super::Machine;
 use crate::{network::NetworkMonitors, Network, Shutdown};
-use std::{
-    fmt::{Debug, Display},
-    sync::Arc,
-    time::Duration,
-};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::sync::Barrier;
-use tokio_metrics::{Instrumented, TaskMonitor};
+use tokio_metrics::{Instrumented, TaskMetrics, TaskMonitor};
 
 /// Runs the simulation with the given machines and networks
 pub async fn run_internet(
@@ -37,9 +33,13 @@ pub async fn run_internet(
 
     const METRICS_FREQUENCY: Duration = Duration::from_secs(1);
     tokio::spawn(async move {
+        let mut intervals: Vec<_> = monitors
+            .into_iter()
+            .map(|info| (info.monitor.intervals(), info.name))
+            .collect();
         loop {
-            for monitor in monitors.iter() {
-                println!("{}", monitor);
+            for (interval, name) in intervals.iter_mut() {
+                print_interval(name, interval.next().unwrap());
             }
             println!("\n");
             tokio::time::sleep(METRICS_FREQUENCY).await;
@@ -74,23 +74,19 @@ impl MonitorInfo {
     }
 }
 
-impl Display for MonitorInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let interval = self.monitor.intervals().next().unwrap();
-        write!(
-            f,
-            "{} = {{
+fn print_interval(name: &'static str, interval: TaskMetrics) {
+    println!(
+        "{} = {{
     idle      = {:?}, {:?}
     scheduled = {:?}, {:?}
     poll      = {:?}, {:?}
 }}",
-            self.name,
-            interval.total_idle_duration,
-            interval.mean_idle_duration(),
-            interval.total_scheduled_duration,
-            interval.mean_scheduled_duration(),
-            interval.total_poll_duration,
-            interval.mean_poll_duration(),
-        )
-    }
+        name,
+        interval.total_idle_duration,
+        interval.mean_idle_duration(),
+        interval.total_scheduled_duration,
+        interval.mean_scheduled_duration(),
+        interval.total_poll_duration,
+        interval.mean_poll_duration(),
+    )
 }
