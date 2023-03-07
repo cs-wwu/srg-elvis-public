@@ -220,7 +220,7 @@ impl Socket {
     /// This function will block if the queue of pending connections is empty
     /// until a new connection arrives
     pub async fn accept(self: Arc<Self>) -> Result<Arc<Socket>, SocketError> {
-        if !*self.is_listening.read().unwrap() || !*self.is_active.read().unwrap() {
+        if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
         if *self.is_blocking.read().unwrap() {
@@ -243,6 +243,7 @@ impl Socket {
         )?;
         *session.upstream.write().unwrap() = Some(new_sock.fd);
         *new_sock.session.write().unwrap() = Some(session);
+        *new_sock.is_active.write().unwrap() = true;
         Ok(new_sock)
     }
 
