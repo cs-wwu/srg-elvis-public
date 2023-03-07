@@ -38,11 +38,11 @@ pub async fn run_internet(
             .map(|info| (info.monitor.intervals(), info.name))
             .collect();
         loop {
+            tokio::time::sleep(METRICS_FREQUENCY).await;
             for (interval, name) in intervals.iter_mut() {
                 print_interval(name, interval.next().unwrap());
             }
             println!("\n");
-            tokio::time::sleep(METRICS_FREQUENCY).await;
         }
     });
 
@@ -77,16 +77,16 @@ impl MonitorInfo {
 fn print_interval(name: &'static str, interval: TaskMetrics) {
     println!(
         "{} = {{
-    idle      = {:?}, {:?}
-    scheduled = {:?}, {:?}
-    poll      = {:?}, {:?}
+    idle      = {:06?}ms, {:?}
+    scheduled = {:06?}ms, {:?}
+    poll      = {:06?}ms, {:?}
 }}",
         name,
-        interval.total_idle_duration,
-        interval.mean_idle_duration(),
-        interval.total_scheduled_duration,
-        interval.mean_scheduled_duration(),
-        interval.total_poll_duration,
-        interval.mean_poll_duration(),
+        interval.total_idle_duration.as_millis(),
+        interval.total_idled_count,
+        interval.total_scheduled_duration.as_millis(),
+        interval.total_scheduled_count,
+        interval.total_poll_duration.as_millis(),
+        interval.total_poll_count,
     )
 }
