@@ -16,6 +16,7 @@ use crate::{
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
 use tokio::sync::Barrier;
+use tokio_metrics::TaskMonitor;
 
 mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
@@ -81,6 +82,7 @@ impl Protocol for Ipv4 {
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
+        _monitor: TaskMonitor,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;

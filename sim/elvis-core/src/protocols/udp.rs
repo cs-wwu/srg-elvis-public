@@ -14,6 +14,7 @@ use crate::{
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
 use tokio::sync::Barrier;
+use tokio_metrics::TaskMonitor;
 
 mod udp_session;
 use udp_session::{SessionId, UdpSession};
@@ -232,6 +233,7 @@ impl Protocol for Udp {
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
+        _monitor: TaskMonitor,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;

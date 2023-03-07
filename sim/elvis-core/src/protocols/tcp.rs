@@ -19,6 +19,7 @@ use crate::{
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
 use tokio::sync::Barrier;
+use tokio_metrics::TaskMonitor;
 
 mod tcb;
 mod tcp_parsing;
@@ -256,6 +257,7 @@ impl Protocol for Tcp {
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
+        _monitor: TaskMonitor,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;

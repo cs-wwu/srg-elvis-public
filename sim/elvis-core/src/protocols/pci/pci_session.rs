@@ -10,6 +10,7 @@ use crate::{
 };
 use std::sync::Arc;
 use tokio::sync::{broadcast::error::RecvError, Barrier};
+use tokio_metrics::TaskMonitor;
 
 /// The session type for a [`Tap`](super::Tap).
 pub struct PciSession {
@@ -30,11 +31,12 @@ impl PciSession {
         protocols: ProtocolMap,
         barrier: Arc<Barrier>,
         shutdown: Shutdown,
+        monitor: TaskMonitor,
     ) {
         let mut direct_receiver = self.tap.unicast_receiver.write().unwrap().take().unwrap();
         let mut broadcast_receiver = self.tap.broadcast.write().unwrap().take().unwrap();
         let context = Context::new(protocols);
-        tokio::spawn(async move {
+        tokio::spawn(monitor.instrument(async move {
             barrier.wait().await;
             let mut shutdown_receiver = shutdown.receiver();
             loop {
@@ -49,7 +51,7 @@ impl PciSession {
                     _ = shutdown_receiver.recv() => break,
                 }
             }
-        });
+        }));
     }
 
     fn receive_direct(self: Arc<Self>, delivery: Option<Delivery>, context: Context) {

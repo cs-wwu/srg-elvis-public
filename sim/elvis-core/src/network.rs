@@ -27,6 +27,7 @@ use tokio::{
     sync::{broadcast, mpsc, Barrier},
     time::sleep,
 };
+use tokio_metrics::TaskMonitor;
 
 type Taps = Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>;
 
@@ -106,13 +107,18 @@ impl Network {
     }
 
     /// Called at the beginning of the simulation to start the network running
-    pub(crate) fn start(self: Arc<Self>, shutdown: Shutdown, initialized: Arc<Barrier>) {
+    pub(crate) fn start(
+        self: Arc<Self>,
+        shutdown: Shutdown,
+        initialized: Arc<Barrier>,
+        monitor: TaskMonitor,
+    ) {
         let mut receiver = self.delivery_receiver.write().unwrap().take().unwrap();
         let throughput = self.throughput;
         let latency = self.latency;
         let taps = self.taps.clone();
         let broadcast = self.broadcast.clone();
-        tokio::spawn(async move {
+        tokio::spawn(monitor.instrument(async move {
             initialized.wait().await;
             let mut shutdown_receiver = shutdown.receiver();
             loop {
@@ -160,7 +166,7 @@ impl Network {
                     complete_delivery(delivery, taps, broadcast).await;
                 }
             }
-        });
+        }));
     }
 
     /// Set the destination MAC address on a [`Control`]

@@ -17,6 +17,7 @@ use tokio::sync::Barrier;
 
 mod pci_session;
 pub(crate) use pci_session::PciSession;
+use tokio_metrics::TaskMonitor;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
@@ -118,12 +119,16 @@ impl Protocol for Pci {
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
+        monitor: TaskMonitor,
     ) -> Result<(), StartError> {
         let barrier = Arc::new(Barrier::new(self.sessions.len() + 1));
         for session in self.sessions.iter() {
-            session
-                .clone()
-                .start(protocols.clone(), barrier.clone(), shutdown.clone());
+            session.clone().start(
+                protocols.clone(),
+                barrier.clone(),
+                shutdown.clone(),
+                monitor.clone(),
+            );
         }
         tokio::spawn(async move {
             // Wait until all the taps have started before starting the sim

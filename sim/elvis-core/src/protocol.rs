@@ -14,6 +14,7 @@ use tokio::sync::Barrier;
 
 mod context;
 pub use context::Context;
+use tokio_metrics::TaskMonitor;
 
 // TODO(hardint): Should add a str argument to the Other variant of errors so
 // that the reason for an error shows up in traces and such.
@@ -44,6 +45,7 @@ pub trait Protocol {
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
+        monitor: TaskMonitor,
     ) -> Result<(), StartError>;
 
     /// Actively open a new network connection.
