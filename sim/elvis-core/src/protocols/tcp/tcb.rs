@@ -254,7 +254,7 @@ impl Tcb {
     pub fn segments(&mut self) -> Vec<Segment> {
         let mut out: Vec<_> = mem::take(&mut self.outgoing.oneshot)
             .into_iter()
-            .map(|header| Segment::new(header, [].into()))
+            .map(|header| Segment::new(header, Default::default()))
             .collect();
 
         match self.state {
@@ -305,10 +305,6 @@ impl Tcb {
         if !out.is_empty() {
             self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
         }
-
-        // for segment in out.iter() {
-        //     println!("{:?}, {}", segment.header, segment.text.len());
-        // }
 
         out
     }
@@ -668,7 +664,7 @@ impl Tcb {
         if header.ctl.syn() || header.ctl.fin() {
             self.outgoing
                 .retransmit
-                .push_back(Transmit::new(Segment::new(header, [].into())));
+                .push_back(Transmit::new(Segment::new(header, Default::default())));
         } else {
             self.outgoing.oneshot.push(header);
         }
