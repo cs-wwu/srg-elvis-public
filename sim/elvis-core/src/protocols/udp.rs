@@ -7,7 +7,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::ipv4::Ipv4,
+    protocols::ipv4::{Ipv4, Ipv4Address},
     session::SharedSession,
     Control, Protocol,
 };
@@ -165,7 +165,6 @@ impl Protocol for Udp {
             tracing::error!("Missing remote address on context");
             DemuxError::MissingContext
         })?;
-
         // Parse the header
         let header = match UdpHeader::from_bytes_ipv4(message.iter(), remote_address, local_address)
         {
@@ -186,12 +185,8 @@ impl Protocol for Udp {
         // Add the header information to the context
         Self::set_local_port(session_id.local.port, &mut context.control);
         Self::set_remote_port(session_id.remote.port, &mut context.control);
-
         let session = match self.sessions.entry(session_id) {
-            Entry::Occupied(entry) => {
-                let session = entry.get().clone();
-                session
-            }
+            Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(session_entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
@@ -199,25 +194,33 @@ impl Protocol for Udp {
                     address: local_address,
                     port: session_id.local.port,
                 };
-                match self.listen_bindings.entry(listen_id) {
-                    Entry::Occupied(listen_entry) => {
-                        // If we have a listen binding, create the session and
-                        // save it
-                        let session = Arc::new(UdpSession {
-                            upstream: *listen_entry.get(),
-                            downstream: caller,
-                            id: session_id,
-                        });
-                        session_entry.insert(session.clone());
-                        session
+                let binding = match self.listen_bindings.get(&listen_id) {
+                    Some(listen_entry) => listen_entry,
+                    None => {
+                        // If we don't have a normal listen binding, check for
+                        // a 0.0.0.0 binding
+                        let any_listen_id = Socket {
+                            address: Ipv4Address::CURRENT_NETWORK,
+                            port: session_id.local.port,
+                        };
+                        match self.listen_bindings.get(&any_listen_id) {
+                            Some(any_listen_entry) => any_listen_entry,
+                            None => {
+                                tracing::error!(
+                                    "Tried to demux with a missing session and no listen bindings"
+                                );
+                                Err(DemuxError::MissingSession)?
+                            }
+                        }
                     }
-                    Entry::Vacant(_) => {
-                        tracing::error!(
-                            "Tried to demux with a missing session and no listen bindings"
-                        );
-                        Err(DemuxError::MissingSession)?
-                    }
-                }
+                };
+                let session = Arc::new(UdpSession {
+                    upstream: *binding,
+                    downstream: caller,
+                    id: session_id,
+                });
+                session_entry.insert(session.clone());
+                session
             }
         };
         session.receive(message, context)?;
