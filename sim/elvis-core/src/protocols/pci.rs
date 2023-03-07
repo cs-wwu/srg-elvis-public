@@ -3,6 +3,7 @@
 use crate::{
     control::{ControlError, Key, Primitive},
     id::Id,
+    internet::MonitorInfo,
     machine::PciSlot,
     message::Message,
     network::Tap,
@@ -12,12 +13,11 @@ use crate::{
     session::SharedSession,
     Control, Protocol, ProtocolMap, Shutdown,
 };
-use std::sync::Arc;
+use std::{iter::once, sync::Arc};
 use tokio::sync::Barrier;
 
 mod pci_session;
 pub(crate) use pci_session::PciSession;
-use tokio_metrics::TaskMonitor;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
@@ -42,12 +42,12 @@ impl Pci {
     pub const MTU_QUERY_KEY: Key = (Self::ID, 1);
 
     /// Creates a new network tap.
-    pub fn new(taps: impl IntoIterator<Item = Tap>) -> Self {
+    pub fn new(taps: impl IntoIterator<Item = Tap>, monitors: PciMonitors) -> Self {
         Self {
             sessions: taps
                 .into_iter()
                 .enumerate()
-                .map(|(i, tap)| Arc::new(PciSession::new(tap, i as u32)))
+                .map(|(i, tap)| Arc::new(PciSession::new(tap, i as u32, monitors.clone())))
                 .collect(),
         }
     }
@@ -119,16 +119,12 @@ impl Protocol for Pci {
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-        monitor: TaskMonitor,
     ) -> Result<(), StartError> {
         let barrier = Arc::new(Barrier::new(self.sessions.len() + 1));
         for session in self.sessions.iter() {
-            session.clone().start(
-                protocols.clone(),
-                barrier.clone(),
-                shutdown.clone(),
-                monitor.clone(),
-            );
+            session
+                .clone()
+                .start(protocols.clone(), barrier.clone(), shutdown.clone());
         }
         tokio::spawn(async move {
             // Wait until all the taps have started before starting the sim
@@ -143,5 +139,34 @@ impl Protocol for Pci {
             Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.len() as u64).into()),
             _ => Err(QueryError::NonexistentKey),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PciMonitors {
+    pub receive: MonitorInfo,
+    pub send: MonitorInfo,
+}
+
+impl PciMonitors {
+    pub fn new() -> Self {
+        Self {
+            receive: MonitorInfo::new("PCI Receive"),
+            send: MonitorInfo::new("PCI Send"),
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &MonitorInfo> {
+        once(&self.receive).chain(once(&self.send))
+    }
+}
+
+impl IntoIterator for PciMonitors {
+    type Item = MonitorInfo;
+
+    type IntoIter = core::array::IntoIter<Self::Item, 2>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        [self.receive, self.send].into_iter()
     }
 }

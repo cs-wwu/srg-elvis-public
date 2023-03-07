@@ -226,7 +226,7 @@ impl TcpHeaderBuilder {
         self,
         src_address: Ipv4Address,
         dst_address: Ipv4Address,
-        mut text: impl Iterator<Item = u8>,
+        _text: impl Iterator<Item = u8>,
         text_len: usize,
     ) -> Result<TcpHeader, BuildHeaderError> {
         let mut checksum = Checksum::new();

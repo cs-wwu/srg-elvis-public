@@ -1,4 +1,7 @@
-use super::tcb::{Segment, SegmentArrivesResult, Tcb};
+use super::{
+    tcb::{Segment, SegmentArrivesResult, Tcb},
+    TcpMonitors,
+};
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, SharedProtocol},
@@ -9,7 +12,7 @@ use crate::{
 use std::{sync::Arc, time::Duration};
 use tokio::{
     select,
-    sync::mpsc::{unbounded_channel, UnboundedSender},
+    sync::mpsc::{channel, Sender},
     time::sleep,
 };
 
@@ -25,7 +28,7 @@ use tokio::{
 
 /// The session part of the TCP protocol.
 pub struct TcpSession {
-    send: UnboundedSender<Instruction>,
+    send: Sender<Instruction>,
     downstream: SharedSession,
 }
 
@@ -36,15 +39,16 @@ impl TcpSession {
         upstream: SharedProtocol,
         downstream: SharedSession,
         protocols: ProtocolMap,
+        monitors: TcpMonitors,
     ) -> Arc<Self> {
-        let (send, mut recv) = unbounded_channel();
+        let (send, mut recv) = channel(8);
         let me = Arc::new(Self {
             send,
             downstream: downstream.clone(),
         });
         let out = me.clone();
         let context = Context::new(protocols);
-        tokio::spawn(async move {
+        tokio::spawn(monitors.outer.instrument(async move {
             loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
                 // TODO(hardint): Listen for shutdown
@@ -84,7 +88,7 @@ impl TcpSession {
                 let context = context.clone();
                 let upstream = upstream.clone();
                 let me = me.clone();
-                tokio::spawn(async move {
+                tokio::spawn(monitors.inner.instrument(async move {
                     for mut segment in segments {
                         segment.text.header(segment.header.serialize());
                         match downstream.clone().send(segment.text, context.clone()) {
@@ -99,27 +103,31 @@ impl TcpSession {
                             Err(e) => eprintln!("Demux error: {}", e),
                         }
                     }
-                });
+                }));
             }
-        });
+        }));
         out
     }
 
     /// Receive an incoming message from the TCP as part of the demux flow
     pub fn receive(self: Arc<Self>, segment: Segment, _context: Context) {
-        match self.send.send(Instruction::Incoming(segment)) {
-            Ok(_) => {}
-            Err(e) => eprintln!("TCP receive error: {}", e),
-        }
+        tokio::spawn(async move {
+            match self.send.send(Instruction::Incoming(segment)).await {
+                Ok(_) => {}
+                Err(e) => eprintln!("TCP receive error: {}", e),
+            }
+        });
     }
 }
 
 impl Session for TcpSession {
     fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), SendError> {
-        match self.send.send(Instruction::Outgoing(message)) {
-            Ok(_) => {}
-            Err(e) => eprintln!("TCP send error: {}", e),
-        }
+        tokio::spawn(async move {
+            match self.send.send(Instruction::Outgoing(message)).await {
+                Ok(_) => {}
+                Err(e) => eprintln!("TCP send error: {}", e),
+            }
+        });
         Ok(())
     }
 

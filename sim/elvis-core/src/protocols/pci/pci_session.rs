@@ -1,4 +1,4 @@
-use super::Pci;
+use super::{Pci, PciMonitors};
 use crate::{
     control::{Key, Primitive},
     machine::{PciSlot, ProtocolMap},
@@ -10,18 +10,22 @@ use crate::{
 };
 use std::sync::Arc;
 use tokio::sync::{broadcast::error::RecvError, Barrier};
-use tokio_metrics::TaskMonitor;
 
 /// The session type for a [`Tap`](super::Tap).
 pub struct PciSession {
     tap: Tap,
     index: PciSlot,
+    monitors: PciMonitors,
 }
 
 impl PciSession {
     /// Creates a new Tap session
-    pub(super) fn new(tap: Tap, index: u32) -> Self {
-        Self { tap, index }
+    pub(super) fn new(tap: Tap, index: u32, monitors: PciMonitors) -> Self {
+        Self {
+            tap,
+            index,
+            monitors,
+        }
     }
 
     /// Called by the owning [`Pci`] protocol at the beginning of the simulation
@@ -31,22 +35,22 @@ impl PciSession {
         protocols: ProtocolMap,
         barrier: Arc<Barrier>,
         shutdown: Shutdown,
-        monitor: TaskMonitor,
     ) {
         let mut direct_receiver = self.tap.unicast_receiver.write().unwrap().take().unwrap();
         let mut broadcast_receiver = self.tap.broadcast.write().unwrap().take().unwrap();
         let context = Context::new(protocols);
-        tokio::spawn(monitor.instrument(async move {
+        let me = self.clone();
+        tokio::spawn(self.monitors.receive.instrument(async move {
             barrier.wait().await;
             let mut shutdown_receiver = shutdown.receiver();
             loop {
                 let context = context.clone();
                 tokio::select! {
                     message = direct_receiver.recv() => {
-                        self.clone().receive_direct(message, context);
+                        me.clone().receive_direct(message, context);
                     }
                     message = broadcast_receiver.recv() => {
-                        self.clone().receive_broadcast(message, context);
+                        me.clone().receive_broadcast(message, context);
                     }
                     _ = shutdown_receiver.recv() => break,
                 }
@@ -131,14 +135,14 @@ impl Session for PciSession {
             protocol,
         };
 
-        tokio::spawn(async move {
+        tokio::spawn(self.monitors.send.instrument(async move {
             match funnel.send(delivery).await {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::error!("Failed to send on direct network: {}", e);
                 }
             }
-        });
+        }));
 
         Ok(())
     }

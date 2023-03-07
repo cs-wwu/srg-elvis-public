@@ -4,7 +4,6 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::Barrier;
-use tokio_metrics::TaskMonitor;
 
 /// A tap's PCI slot index
 pub type PciSlot = u32;
@@ -68,7 +67,7 @@ impl Machine {
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub(crate) fn start(self, shutdown: Shutdown, initialized: Arc<Barrier>, monitor: TaskMonitor) {
+    pub(crate) fn start(self, shutdown: Shutdown, initialized: Arc<Barrier>) {
         for protocol in self.protocols.iter() {
             protocol
                 .clone()
@@ -76,7 +75,6 @@ impl Machine {
                     shutdown.clone(),
                     initialized.clone(),
                     self.protocols.clone(),
-                    monitor.clone(),
                 )
                 .expect("A protocol failed to start")
         }

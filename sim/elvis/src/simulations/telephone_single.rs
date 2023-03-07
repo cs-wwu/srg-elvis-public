@@ -4,6 +4,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
+        pci::PciMonitors,
         udp::Udp,
         Pci,
     },
@@ -17,13 +18,14 @@ use elvis_core::{
 pub async fn telephone_single() {
     const END: u32 = 1000;
     let network = Network::basic();
+    let pci_monitors = PciMonitors::new();
 
     let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
         Udp::new().shared() as SharedProtocol,
         Ipv4::new([(remote, Recipient::new(0, 1))].into_iter().collect()).shared(),
-        Pci::new([network.tap()]).shared(),
+        Pci::new([network.tap()], pci_monitors.clone()).shared(),
         SendMessage::new(vec![message.clone()], remote, 0xbeef).shared(),
     ])];
 
@@ -36,7 +38,7 @@ pub async fn telephone_single() {
         machines.push(Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.tap()], pci_monitors.clone()).shared(),
             Forward::new(local, remote, 0xbeef, 0xbeef).shared(),
         ]));
     }
@@ -46,11 +48,11 @@ pub async fn telephone_single() {
     machines.push(Machine::new([
         Udp::new().shared() as SharedProtocol,
         Ipv4::new(Default::default()).shared(),
-        Pci::new([network.tap()]).shared(),
+        Pci::new([network.tap()], pci_monitors.clone()).shared(),
         capture.clone(),
     ]));
 
-    run_internet(machines, vec![network]).await;
+    run_internet(machines, vec![network], pci_monitors.into_iter().collect()).await;
     assert_eq!(capture.application().message(), Some(message));
 }
 

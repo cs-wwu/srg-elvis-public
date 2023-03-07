@@ -398,7 +398,6 @@ impl Tcb {
                 State::SynReceived => {
                     if mod_bounded(self.snd.una, Lt, seg.ack, Leq, self.snd.nxt) {
                         self.state = State::Established;
-                        println!("Established");
                         self.snd.wnd = seg.wnd;
                         self.snd.wl1 = seg.seq;
                         self.snd.wl2 = seg.ack;
@@ -494,7 +493,6 @@ impl Tcb {
                     self.snd.wl2 = seg.ack;
                     if mod_gt(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
-                        println!("Established");
                         self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     } else {
                         self.state = State::SynReceived;

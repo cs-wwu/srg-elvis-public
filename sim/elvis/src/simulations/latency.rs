@@ -4,6 +4,7 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
+        pci::PciMonitors,
         udp::Udp,
         Pci,
     },
@@ -23,25 +24,26 @@ pub async fn latency() {
     let ip_table: Recipients = [(capture_ip_address, Recipient::new(0, 1))]
         .into_iter()
         .collect();
+    let pci_monitors = PciMonitors::new();
 
     let capture = Capture::new(capture_ip_address, 0xbeef).shared();
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.tap()], pci_monitors.clone()).shared(),
             SendMessage::new(vec![Message::new("Hello!")], capture_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.tap()], pci_monitors.clone()).shared(),
             capture.clone(),
         ]),
     ];
 
     let now = SystemTime::now();
-    run_internet(machines, vec![network]).await;
+    run_internet(machines, vec![network], pci_monitors.into_iter().collect()).await;
     assert!(now.elapsed().unwrap().as_millis() >= 1000);
 }
 

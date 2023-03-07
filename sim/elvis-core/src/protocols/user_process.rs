@@ -12,7 +12,6 @@ use crate::{
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
-use tokio_metrics::TaskMonitor;
 use tracing::error;
 
 /// A program being run in a [`UserProcess`].
@@ -120,7 +119,6 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-        _monitor: TaskMonitor,
     ) -> Result<(), StartError> {
         self.application.start(shutdown, initialized, protocols)?;
         Ok(())

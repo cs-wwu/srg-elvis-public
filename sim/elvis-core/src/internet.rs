@@ -1,11 +1,19 @@
 use super::Machine;
-use crate::{Network, Shutdown};
-use std::{sync::Arc, time::Duration};
+use crate::{network::NetworkMonitors, Network, Shutdown};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::Barrier;
-use tokio_metrics::{TaskMetrics, TaskMonitor};
+use tokio_metrics::{Instrumented, TaskMonitor};
 
 /// Runs the simulation with the given machines and networks
-pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
+pub async fn run_internet(
+    machines: Vec<Machine>,
+    networks: Vec<Arc<Network>>,
+    mut monitors: Vec<MonitorInfo>,
+) {
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
@@ -13,28 +21,27 @@ pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
         .sum();
     let initialized = Arc::new(Barrier::new(total_protocols + networks.len()));
 
-    let pci_monitor = TaskMonitor::new();
     for machine in machines {
-        machine.start(shutdown.clone(), initialized.clone(), pci_monitor.clone());
+        machine.start(shutdown.clone(), initialized.clone());
     }
 
-    let network_monitor = TaskMonitor::new();
+    let network_monitors = NetworkMonitors::new();
     for network in networks {
         network.start(
             shutdown.clone(),
             initialized.clone(),
-            network_monitor.clone(),
+            network_monitors.clone(),
         );
     }
+    monitors.extend(network_monitors);
 
     const METRICS_FREQUENCY: Duration = Duration::from_secs(1);
     tokio::spawn(async move {
-        for (pci, network) in pci_monitor.intervals().zip(network_monitor.intervals()) {
-            print!("PCI = ");
-            print_metrics(pci);
-            print!("Network = ");
-            print_metrics(network);
-            println!();
+        loop {
+            for monitor in monitors.iter() {
+                println!("{}", monitor);
+            }
+            println!("\n");
             tokio::time::sleep(METRICS_FREQUENCY).await;
         }
     });
@@ -48,18 +55,42 @@ pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
     let _ = shutdown_receiver.recv().await;
 }
 
-fn print_metrics(metrics: TaskMetrics) {
-    println!(
-        "{{
+#[derive(Debug, Clone)]
+pub struct MonitorInfo {
+    pub name: &'static str,
+    pub monitor: TaskMonitor,
+}
+
+impl MonitorInfo {
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            monitor: TaskMonitor::new(),
+        }
+    }
+
+    pub fn instrument<F>(&self, task: F) -> Instrumented<F> {
+        self.monitor.instrument(task)
+    }
+}
+
+impl Display for MonitorInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let interval = self.monitor.intervals().next().unwrap();
+        write!(
+            f,
+            "{} = {{
     idle      = {:?}, {:?}
     scheduled = {:?}, {:?}
     poll      = {:?}, {:?}
 }}",
-        metrics.total_idle_duration,
-        metrics.mean_idle_duration(),
-        metrics.total_scheduled_duration,
-        metrics.mean_scheduled_duration(),
-        metrics.total_poll_duration,
-        metrics.mean_poll_duration(),
-    )
+            self.name,
+            interval.total_idle_duration,
+            interval.mean_idle_duration(),
+            interval.total_scheduled_duration,
+            interval.mean_scheduled_duration(),
+            interval.total_poll_duration,
+            interval.mean_poll_duration(),
+        )
+    }
 }
