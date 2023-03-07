@@ -1,16 +1,21 @@
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
-use std::num;
+use std::sync::mpsc::RecvError;
 use std::{
     fs,
     fs::File,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
-    io::Write
+    io::Write,
+    error::Error,
 };
-use image::{GenericImage, GenericImageView, ImageBuffer, RgbImage};
+use rand_distr::WeightedAliasIndex;
+use rand::prelude::*;
+use csv::{Reader, StringRecord};
 
 fn main() {
+    // println!("{}", generate_number());
+    println!("{}", generate_number("foo.csv").unwrap());
     generate_html(500, 2, 5);
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     for stream in listener.incoming() {
@@ -84,7 +89,19 @@ fn generate_links(num_links: usize) -> Vec<String> {
     links
 }
 
-fn generate_size() {
+fn generate_number(data_file: &str) -> Result<usize, Box<dyn Error>> {
+    let mut buckets: Vec<usize> = Vec::new();
+    let mut weights: Vec<usize> = Vec::new();
 
+    let mut rdr = Reader::from_path(data_file)?;
+    for result in rdr.records() {
+        let record = result?;
+        buckets.push(record.get(0).unwrap().parse::<usize>().unwrap());
+        weights.push(record.get(1).unwrap().parse::<usize>().unwrap());
+    }
+    let dist = WeightedAliasIndex::new(weights).unwrap();
+    let mut rng = thread_rng();
+    
+    Ok(buckets[dist.sample(&mut rng)])
 }
 
