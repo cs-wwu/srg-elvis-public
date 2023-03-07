@@ -14,8 +14,7 @@ use rand::prelude::*;
 use csv::{Reader, StringRecord};
 
 fn main() {
-    // println!("{}", generate_number());
-    println!("{}", generate_number("foo.csv").unwrap());
+    // println!("{}", generate_number("foo.csv").unwrap());
     generate_html(500, 2, 5);
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     for stream in listener.incoming() {
