@@ -56,6 +56,6 @@ pub async fn socket_basic() {
 mod tests {
     #[tokio::test]
     async fn socket_basic() {
-        super::socket_basic().await
+        super::socket_basic().await;
     }
 }

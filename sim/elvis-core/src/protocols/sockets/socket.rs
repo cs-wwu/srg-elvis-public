@@ -135,9 +135,6 @@ impl Socket {
                 }
             }
         }
-        // TODO(giddinl2): Currently sockets must be bound to a port before they
-        // can be connected, this will be changed in the future once automatic
-        // port assigning is implemented
         let session = match self
             .protocols
             .protocol(Sockets::ID)
@@ -171,7 +168,9 @@ impl Socket {
         Ok(())
     }
 
-    /// TODO(giddinl2): Currently being developed
+    /// Makes this socket a listening socket, meaning that it can no longer be
+    /// used to send or receive messages, but can instead be used to accept
+    /// incoming connections on the specified port via accept()
     pub fn listen(self: Arc<Self>, backlog: usize) -> Result<(), SocketError> {
         if !*self.is_bound.read().unwrap() {
             return Err(SocketError::AcceptError);
@@ -210,8 +209,15 @@ impl Socket {
         }
     }
 
-    /// TODO(giddinl2): Currently being developed
+    /// Takes the first connection out of this socket's queue of pending
+    /// connections, assigns it to a new socket, and returns the new socket
+    /// 
+    /// This function will block if the queue of pending connections is empty
+    /// until a new connection arrives
     pub async fn accept(self: Arc<Self>) -> Result<Arc<Socket>, SocketError> {
+        if !*self.is_listening.read().unwrap() {
+            return Err(SocketError::AcceptError);
+        }
         if *self.is_blocking.read().unwrap() {
             self.notify_listen.notified().await;
         }
@@ -259,6 +265,9 @@ impl Socket {
     }
 
     /// Receives data from the socket's remote endpoint
+    /// 
+    /// This function will block if the queue of incoming messages is empty
+    /// until a new message is received
     pub async fn recv(self: Arc<Self>, bytes: usize) -> Result<Vec<u8>, SocketError> {
         // If the socket doesn't have a session yet, data cannot be received and
         // calls to recv will return an error, a call to connect() must be made
@@ -290,6 +299,9 @@ impl Socket {
     }
 
     /// Receives a [`Message`] from the socket's remote endpoint
+    /// 
+    /// This function will block if the queue of incoming messages is empty
+    /// until a new message is received
     pub async fn recv_msg(self: Arc<Self>) -> Result<Message, SocketError> {
         // If the socket doesn't have a session yet, data cannot be received and
         // calls to recv will return an error, a call to connect() must be made

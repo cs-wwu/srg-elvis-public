@@ -70,6 +70,7 @@ impl Application for SocketServer {
 
             // Listen for incoming connections
             listen_socket.clone().listen(0).unwrap();
+            println!("SERVER: Listening for incoming connections");
 
             // Wait on ititialization before receiving any message from the network
             initialized.wait().await;

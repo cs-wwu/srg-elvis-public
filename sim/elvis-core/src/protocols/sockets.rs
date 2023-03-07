@@ -250,44 +250,36 @@ impl Protocol for Sockets {
             SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
         let session = match self.socket_sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => match self.listen_bindings.entry(identifier.local_address) {
-                Entry::Occupied(listen_entry) => {
-                    let socket = match self.sockets.entry(*listen_entry.get()) {
-                        Entry::Occupied(entry) => entry.get().clone(),
-                        Entry::Vacant(_) => return Err(DemuxError::MissingSession),
-                    };
-                    let session = Arc::new(SocketSession {
-                        upstream: RwLock::new(None),
-                        downstream: caller,
-                        socket_api: self.clone(),
-                    });
-                    socket.add_listen_address(identifier.remote_address);
-                    entry.insert(session.clone());
-                    session
-                }
-                Entry::Vacant(_) => match self.listen_bindings.entry(any_identifier) {
-                    Entry::Occupied(listen_entry) => {
-                        let socket = match self.sockets.entry(*listen_entry.get()) {
-                            Entry::Occupied(entry) => entry.get().clone(),
-                            Entry::Vacant(_) => return Err(DemuxError::MissingSession),
-                        };
-                        let session = Arc::new(SocketSession {
-                            upstream: RwLock::new(None),
-                            downstream: caller,
-                            socket_api: self.clone(),
-                        });
-                        socket.add_listen_address(identifier.remote_address);
-                        entry.insert(session.clone());
-                        session
-                    }
-                    Entry::Vacant(_) => {
-                        tracing::error!(
-                            "Tried to demux with a missing session and no listen bindings"
-                        );
-                        Err(DemuxError::MissingSession)?
-                    }
-                },
-            },
+            Entry::Vacant(entry) => {
+                // If the session does not exist, see if we have a listen
+                // binding for it
+                let binding = match self.listen_bindings.get(&identifier.local_address) {
+                    Some(listen_entry) => listen_entry,
+                    // If we don't have a normal listen binding, check for
+                    // a 0.0.0.0 binding
+                    None => match self.listen_bindings.get(&any_identifier) {
+                        Some(any_listen_entry) => any_listen_entry,
+                        None => {
+                            tracing::error!(
+                                "Tried to demux with a missing session and no listen bindings"
+                            );
+                            Err(DemuxError::MissingSession)?
+                        }
+                    },
+                };
+                let socket = match self.sockets.entry(*binding) {
+                    Entry::Occupied(entry) => entry.get().clone(),
+                    Entry::Vacant(_) => return Err(DemuxError::MissingSession),
+                };
+                let session = Arc::new(SocketSession {
+                    upstream: RwLock::new(None),
+                    downstream: caller,
+                    socket_api: self.clone(),
+                });
+                socket.add_listen_address(identifier.remote_address);
+                entry.insert(session.clone());
+                session
+            }
         };
         session.receive(message, context)?;
         Ok(())
