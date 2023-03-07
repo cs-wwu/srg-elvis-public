@@ -28,6 +28,8 @@ use tokio::{
     time::sleep,
 };
 
+type Taps = Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>;
+
 /// A network that allows the exchange of [`Message`]s between
 /// [`Machine`](crate::Machine)s.
 ///
@@ -53,7 +55,7 @@ pub struct Network {
     delivery_receiver: RwLock<Option<mpsc::Receiver<Delivery>>>,
     /// A vector for channels for sending messages to specific taps attached to
     /// the network
-    taps: Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>,
+    taps: Taps,
 }
 
 impl Default for Network {
@@ -143,46 +145,20 @@ impl Network {
 
                 let taps = taps.clone();
                 let broadcast = broadcast.clone();
-                let shutdown = shutdown.clone();
-                tokio::spawn(async move {
+                let latency = latency.next();
+                if latency > Duration::ZERO {
+                    let shutdown = shutdown.clone();
                     let mut shutdown_receiver = shutdown.receiver();
-                    let latency = latency.next();
-                    if latency > Duration::ZERO {
+                    tokio::spawn(async move {
                         tokio::select! {
                             _ = sleep(latency) => {},
                             _ = shutdown_receiver.recv() => return,
                         }
-                    }
-                    match delivery.destination {
-                        Some(destination) => {
-                            let tap = {
-                                let taps = taps.read().unwrap();
-                                match taps.get(destination as usize) {
-                                    Some(tap) => tap,
-                                    None => {
-                                        tracing::error!(
-                                            "Trying to deliver to an invalid MAC address"
-                                        );
-                                        return;
-                                    }
-                                }
-                                .clone()
-                            };
-                            match tap.send(delivery).await {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    tracing::error!("Failed to deliver a message: {}", e)
-                                }
-                            }
-                        }
-                        None => match broadcast.clone().send(delivery) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                tracing::error!("Failed to deliver a message: {}", e)
-                            }
-                        },
-                    }
-                });
+                        complete_delivery(delivery, taps, broadcast).await;
+                    });
+                } else {
+                    complete_delivery(delivery, taps, broadcast).await;
+                }
             }
         });
     }
@@ -386,5 +362,35 @@ impl Throughput {
             let uniform = Uniform::from(self.base.0..self.base.0 + self.randomness.0);
             Baud::bytes_per_second(uniform.sample(&mut rand::thread_rng()))
         }
+    }
+}
+
+async fn complete_delivery(delivery: Delivery, taps: Taps, broadcast: broadcast::Sender<Delivery>) {
+    match delivery.destination {
+        Some(destination) => {
+            let tap = {
+                let taps = taps.read().unwrap();
+                match taps.get(destination as usize) {
+                    Some(tap) => tap,
+                    None => {
+                        tracing::error!("Trying to deliver to an invalid MAC address");
+                        return;
+                    }
+                }
+                .clone()
+            };
+            match tap.send(delivery).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("Failed to deliver a message: {}", e)
+                }
+            }
+        }
+        None => match broadcast.clone().send(delivery) {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Failed to deliver a message: {}", e)
+            }
+        },
     }
 }
