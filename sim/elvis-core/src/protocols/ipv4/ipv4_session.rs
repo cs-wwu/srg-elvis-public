@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+
 use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address, Recipient};
 use crate::{
     control::{Key, Primitive},
@@ -38,18 +40,28 @@ impl Ipv4Session {
         }
     }
 
-    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
+    pub async fn receive(
+        self: Arc<Self>,
+        message: Message,
+        context: Context,
+    ) -> Result<(), DemuxError> {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, context)?;
+            .demux(message, self, context)
+            .await?;
         Ok(())
     }
 }
 
+#[async_trait]
 impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
+    async fn send(
+        self: Arc<Self>,
+        mut message: Message,
+        mut context: Context,
+    ) -> Result<(), SendError> {
         let length = message.iter().count();
         let header = match Ipv4HeaderBuilder::new(
             self.id.local,
@@ -69,7 +81,7 @@ impl Session for Ipv4Session {
         Network::set_protocol(Ipv4::ID, &mut context.control);
         Network::set_destination(self.destination.mac, &mut context.control);
         message.header(header);
-        self.downstream.clone().send(message, context)?;
+        self.downstream.clone().send(message, context).await?;
         Ok(())
     }
 

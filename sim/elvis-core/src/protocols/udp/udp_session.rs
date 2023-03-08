@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+
 use super::udp_parsing::build_udp_header;
 use crate::{
     control::{Key, Primitive},
@@ -18,7 +20,11 @@ pub(super) struct UdpSession {
 }
 
 impl UdpSession {
-    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
+    pub async fn receive(
+        self: Arc<Self>,
+        message: Message,
+        context: Context,
+    ) -> Result<(), DemuxError> {
         receive_message_event(
             self.id.local.address,
             self.id.remote.address,
@@ -29,14 +35,20 @@ impl UdpSession {
         context
             .protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, context)?;
+            .demux(message, self, context)
+            .await?;
         Ok(())
     }
 }
 
+#[async_trait]
 impl Session for UdpSession {
     #[tracing::instrument(name = "UdpSession::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
+    async fn send(
+        self: Arc<Self>,
+        mut message: Message,
+        context: Context,
+    ) -> Result<(), SendError> {
         let id = self.id;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
@@ -62,7 +74,7 @@ impl Session for UdpSession {
             message.clone(),
         );
         message.header(header);
-        self.downstream.clone().send(message, context)?;
+        self.downstream.clone().send(message, context).await?;
         Ok(())
     }
 

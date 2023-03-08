@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use elvis_core::{
     message::Message,
     protocol::Context,
@@ -50,6 +51,7 @@ impl Forward {
     }
 }
 
+#[async_trait]
 impl Application for Forward {
     const ID: Id = Id::from_string("Forward");
 
@@ -79,14 +81,9 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
-        self.outgoing
-            .read()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .clone()
-            .send(message, context)?;
+    async fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
+        let outgoing = self.outgoing.read().unwrap().as_ref().unwrap().clone();
+        outgoing.send(message, context).await?;
         Ok(())
     }
 }

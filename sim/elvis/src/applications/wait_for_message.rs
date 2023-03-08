@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use elvis_core::{
     message::Message,
     protocol::Context,
@@ -67,6 +68,7 @@ impl WaitForMessage {
     }
 }
 
+#[async_trait]
 impl Application for WaitForMessage {
     const ID: Id = Id::from_string("Capture");
 
@@ -93,7 +95,7 @@ impl Application for WaitForMessage {
         Ok(())
     }
 
-    fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
+    async fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
         let mut actual = self.actual.write().unwrap();
         actual.concatenate(message);
 

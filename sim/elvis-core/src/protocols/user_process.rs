@@ -10,6 +10,7 @@ use crate::{
     session::{SendError, SharedSession},
     Control, Protocol, Shutdown,
 };
+use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::Barrier;
 use tracing::error;
@@ -20,6 +21,7 @@ use tracing::error;
 /// [`Session`](crate::Session). It runs when messages come in over the
 /// network or when the containing machine awakens the
 /// application to give it time to run.
+#[async_trait]
 pub trait Application {
     /// A unique identifier for the application.
     const ID: Id;
@@ -35,7 +37,7 @@ pub trait Application {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError>;
+    async fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError>;
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
@@ -81,6 +83,7 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
     }
 }
 
+#[async_trait]
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     fn id(self: Arc<Self>) -> Id {
         A::ID
@@ -104,13 +107,13 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         panic!("Cannot listen on a user process")
     }
 
-    fn demux(
+    async fn demux(
         self: Arc<Self>,
         message: Message,
         _caller: SharedSession,
         context: Context,
     ) -> Result<(), DemuxError> {
-        self.application.receive(message, context)?;
+        self.application.receive(message, context).await?;
         Ok(())
     }
 

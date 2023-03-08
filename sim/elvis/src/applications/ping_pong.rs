@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use elvis_core::{
     message::Message,
     protocol::Context,
@@ -56,6 +57,7 @@ impl PingPong {
     }
 }
 
+#[async_trait]
 impl Application for PingPong {
     const ID: Id = Id::from_string("PingPong");
 
@@ -84,13 +86,14 @@ impl Application for PingPong {
                 session
                     //Send the first "Ping" message with TTL of 255
                     .send(Message::new(vec![255]), context)
+                    .await
                     .unwrap();
             }
         });
         Ok(())
     }
 
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
+    async fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
@@ -107,13 +110,8 @@ impl Application for PingPong {
                 shutdown.shut_down();
             }
         } else {
-            self.session
-                .read()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .clone()
-                .send(Message::new(vec![ttl]), context)?;
+            let session = self.session.read().unwrap().as_ref().unwrap().clone();
+            session.send(Message::new(vec![ttl]), context).await?;
         }
         Ok(())
     }

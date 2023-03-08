@@ -17,6 +17,7 @@ use crate::{
     session::SharedSession,
     Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
+use async_trait::async_trait;
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{iter::once, sync::Arc};
 use tokio::sync::Barrier;
@@ -77,6 +78,7 @@ impl Tcp {
     }
 }
 
+#[async_trait]
 impl Protocol for Tcp {
     fn id(self: Arc<Self>) -> Id {
         Self::ID
@@ -155,7 +157,7 @@ impl Protocol for Tcp {
             .listen(Self::ID, participants, protocols)
     }
 
-    fn demux(
+    async fn demux(
         self: Arc<Self>,
         mut message: Message,
         caller: SharedSession,
@@ -219,7 +221,9 @@ impl Protocol for Tcp {
                         if let Some(listen_result) = listen_result {
                             match listen_result {
                                 ListenResult::Response(response) => {
-                                    caller.send(Message::new(response.serialize()), context)?;
+                                    caller
+                                        .send(Message::new(response.serialize()), context)
+                                        .await?;
                                 }
                                 ListenResult::Tcb(tcb) => {
                                     let upstream = *listen_entry.get();
@@ -245,7 +249,9 @@ impl Protocol for Tcp {
                             local.address,
                             remote.address,
                         ) {
-                            caller.send(Message::new(response.serialize()), context)?;
+                            caller
+                                .send(Message::new(response.serialize()), context)
+                                .await?;
                         }
                         Err(DemuxError::MissingSession)?
                     }
