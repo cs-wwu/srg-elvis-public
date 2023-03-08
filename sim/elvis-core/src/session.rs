@@ -5,7 +5,6 @@ use crate::{
     control::{Key, Primitive},
     network::Mtu,
 };
-use async_trait::async_trait;
 use std::sync::Arc;
 use thiserror::Error as ThisError;
 
@@ -22,11 +21,10 @@ pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 /// in charge of appending headers to outgoing messages, deciding which protocol
 /// to use for demuxing incoming messages, and keeping track of state such as
 /// TCP windows.
-#[async_trait]
 pub trait Session {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    async fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError>;
+    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError>;
 
     /// Gets a piece of information from some session in the protocol stack.
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;

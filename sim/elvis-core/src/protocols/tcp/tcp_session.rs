@@ -9,7 +9,6 @@ use crate::{
     session::{QueryError, SendError, SharedSession},
     Id, Message, ProtocolMap, Session,
 };
-use async_trait::async_trait;
 use std::{sync::Arc, time::Duration};
 use tokio::{
     select,
@@ -92,14 +91,14 @@ impl TcpSession {
                 tokio::spawn(monitors.inner.instrument(async move {
                     for mut segment in segments {
                         segment.text.header(segment.header.serialize());
-                        match downstream.clone().send(segment.text, context.clone()).await {
+                        match downstream.clone().send(segment.text, context.clone()) {
                             Ok(_) => {}
                             Err(e) => eprintln!("Send error: {}", e),
                         }
                     }
 
                     if !received.is_empty() {
-                        match upstream.demux(received, me, context).await {
+                        match upstream.demux(received, me, context) {
                             Ok(_) => {}
                             Err(e) => eprintln!("Demux error: {}", e),
                         }
@@ -121,9 +120,8 @@ impl TcpSession {
     }
 }
 
-#[async_trait]
 impl Session for TcpSession {
-    async fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), SendError> {
+    fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), SendError> {
         tokio::spawn(async move {
             match self.send.send(Instruction::Outgoing(message)).await {
                 Ok(_) => {}

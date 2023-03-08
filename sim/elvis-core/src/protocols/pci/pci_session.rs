@@ -8,7 +8,6 @@ use crate::{
     session::{QueryError, SendError},
     Id, Network, Session, Shutdown,
 };
-use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::{broadcast::error::RecvError, Barrier};
 
@@ -49,10 +48,10 @@ impl PciSession {
                 let context = context.clone();
                 tokio::select! {
                     message = monitors.channel_recv.instrument(direct_receiver.recv()) => {
-                        me.clone().receive_direct(message, context).await;
+                        me.clone().receive_direct(message, context);
                     }
                     message = broadcast_receiver.recv() => {
-                        me.clone().receive_broadcast(message, context).await;
+                        me.clone().receive_broadcast(message, context);
                     }
                     _ = shutdown_receiver.recv() => break,
                 }
@@ -60,9 +59,9 @@ impl PciSession {
         }));
     }
 
-    async fn receive_direct(self: Arc<Self>, delivery: Option<Delivery>, context: Context) {
+    fn receive_direct(self: Arc<Self>, delivery: Option<Delivery>, context: Context) {
         if let Some(delivery) = delivery {
-            match self.receive_delivery(delivery, context).await {
+            match self.receive_delivery(delivery, context) {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::error!("Failed to receive on direct network: {}", e);
@@ -71,13 +70,9 @@ impl PciSession {
         }
     }
 
-    async fn receive_broadcast(
-        self: Arc<Self>,
-        delivery: Result<Delivery, RecvError>,
-        context: Context,
-    ) {
+    fn receive_broadcast(self: Arc<Self>, delivery: Result<Delivery, RecvError>, context: Context) {
         match delivery {
-            Ok(delivery) => match self.receive_delivery(delivery, context).await {
+            Ok(delivery) => match self.receive_delivery(delivery, context) {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::error!("Failed to receive on a broadcast network: {}", e);
@@ -94,7 +89,7 @@ impl PciSession {
     /// tap holds a reference to this session as a concrete type and having
     /// specialized arguments to pass a full network frame to this session is
     /// useful.
-    pub(crate) async fn receive_delivery(
+    pub(crate) fn receive_delivery(
         self: Arc<Self>,
         delivery: Delivery,
         mut context: Context,
@@ -111,15 +106,14 @@ impl PciSession {
                 Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
-        protocol.demux(delivery.message, self, context).await?;
+        protocol.demux(delivery.message, self, context)?;
         Ok(())
     }
 }
 
-#[async_trait]
 impl Session for PciSession {
     #[tracing::instrument(name = "PciSession::send", skip_all)]
-    async fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
+    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
         let protocol = match Network::get_protocol(&context.control) {
             Ok(protocol) => protocol,
             Err(_) => {
@@ -142,12 +136,14 @@ impl Session for PciSession {
             protocol,
         };
 
-        match funnel.send(delivery).await {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Failed to send on direct network: {}", e);
+        tokio::spawn(self.monitors.send.instrument(async move {
+            match funnel.send(delivery).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("Failed to send on direct network: {}", e);
+                }
             }
-        }
+        }));
 
         Ok(())
     }

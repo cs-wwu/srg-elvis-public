@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use elvis_core::{
     message::Message,
     protocol::Context,
@@ -50,7 +49,6 @@ impl SendMessage {
     }
 }
 
-#[async_trait]
 impl Application for SendMessage {
     const ID: Id = Id::from_string("Send Message");
 
@@ -85,14 +83,13 @@ impl Application for SendMessage {
                 session
                     .clone()
                     .send(message, context.clone())
-                    .await
                     .expect("SendMessage failed to send");
             }
         });
         Ok(())
     }
 
-    async fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

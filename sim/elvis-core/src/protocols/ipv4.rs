@@ -13,7 +13,6 @@ use crate::{
     session::SharedSession,
     Control, Network, Protocol, Shutdown,
 };
-use async_trait::async_trait;
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -72,7 +71,6 @@ impl Ipv4 {
 // TODO(hardint): Add a static IP lookup table in the constructor so that
 // messages can be sent to the correct network
 
-#[async_trait]
 impl Protocol for Ipv4 {
     fn id(self: Arc<Self>) -> Id {
         Self::ID
@@ -170,7 +168,7 @@ impl Protocol for Ipv4 {
     }
 
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
-    async fn demux(
+    fn demux(
         self: Arc<Self>,
         mut message: Message,
         caller: SharedSession,
@@ -222,7 +220,7 @@ impl Protocol for Ipv4 {
                 }
             },
         };
-        session.receive(message, context).await?;
+        session.receive(message, context)?;
         Ok(())
     }
 

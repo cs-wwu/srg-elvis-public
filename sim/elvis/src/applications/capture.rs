@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use elvis_core::{
     message::Message,
     protocol::Context,
@@ -59,7 +58,6 @@ impl Capture {
     }
 }
 
-#[async_trait]
 impl Application for Capture {
     const ID: Id = Id::from_string("Capture");
 
@@ -86,7 +84,7 @@ impl Application for Capture {
         Ok(())
     }
 
-    async fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
         *self.message.write().unwrap() = Some(message);
         if let Some(shutdown) = self.shutdown.write().unwrap().take() {
             shutdown.shut_down();

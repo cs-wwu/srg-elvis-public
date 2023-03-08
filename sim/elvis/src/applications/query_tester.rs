@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use elvis_core::{
     protocol::Context,
     protocols::{
@@ -24,7 +23,6 @@ impl QueryTester {
     }
 }
 
-#[async_trait]
 impl Application for QueryTester {
     const ID: Id = Id::from_string("Query tester");
 
@@ -66,7 +64,7 @@ impl Application for QueryTester {
         Ok(())
     }
 
-    async fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
         unreachable!()
     }
 }

@@ -13,7 +13,6 @@ use crate::{
     session::SharedSession,
     Control, Protocol, ProtocolMap, Shutdown,
 };
-use async_trait::async_trait;
 use std::{iter::once, sync::Arc};
 use tokio::sync::Barrier;
 
@@ -71,7 +70,6 @@ impl Pci {
     }
 }
 
-#[async_trait]
 impl Protocol for Pci {
     fn id(self: Arc<Self>) -> Id {
         Self::ID
@@ -107,7 +105,7 @@ impl Protocol for Pci {
         Ok(())
     }
 
-    async fn demux(
+    fn demux(
         self: Arc<Self>,
         _message: Message,
         _caller: SharedSession,

@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use elvis_core::{
     message::Message,
     protocol::Context,
@@ -57,7 +56,6 @@ impl ThroughputTester {
     }
 }
 
-#[async_trait]
 impl Application for ThroughputTester {
     const ID: Id = Id::from_string("Capture");
 
@@ -81,7 +79,7 @@ impl Application for ThroughputTester {
         Ok(())
     }
 
-    async fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
         let now = SystemTime::now();
         if let Some(previous) = self.previous_receipt.write().unwrap().replace(now) {
             let elapsed = now.duration_since(previous).unwrap();

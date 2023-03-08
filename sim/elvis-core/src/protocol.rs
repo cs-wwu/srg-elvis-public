@@ -9,7 +9,6 @@ use crate::{
     session::SendError,
     Shutdown,
 };
-use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
@@ -26,7 +25,6 @@ pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
-#[async_trait]
 pub trait Protocol {
     /// Returns a unique identifier for the protocol.
     fn id(self: Arc<Self>) -> Id;
@@ -109,7 +107,7 @@ pub trait Protocol {
     ///   asked to receive the message by calling [`listen`](Protocol::listen)
     ///   at an earlier time. If so, a new session should be created.
     /// - Call `receive` on the selected session.
-    async fn demux(
+    fn demux(
         self: Arc<Self>,
         message: Message,
         caller: SharedSession,

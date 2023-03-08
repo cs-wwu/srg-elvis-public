@@ -11,7 +11,6 @@ use crate::{
     session::SharedSession,
     Control, Protocol, Shutdown,
 };
-use async_trait::async_trait;
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -62,7 +61,6 @@ impl Udp {
     }
 }
 
-#[async_trait]
 impl Protocol for Udp {
     fn id(self: Arc<Self>) -> Id {
         Self::ID
@@ -152,7 +150,7 @@ impl Protocol for Udp {
     }
 
     #[tracing::instrument(name = "Udp::demux", skip_all)]
-    async fn demux(
+    fn demux(
         self: Arc<Self>,
         mut message: Message,
         caller: SharedSession,
@@ -225,7 +223,7 @@ impl Protocol for Udp {
                 }
             }
         };
-        session.receive(message, context).await?;
+        session.receive(message, context)?;
         Ok(())
     }
 
