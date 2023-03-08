@@ -77,16 +77,16 @@ impl MonitorInfo {
 fn print_interval(name: &'static str, interval: TaskMetrics) {
     println!(
         "{} = {{
-    idle      = {:06?}ms, {:?}
-    scheduled = {:06?}ms, {:?}
-    poll      = {:06?}ms, {:?}
+    idle      = {:.0?}, {:?}
+    scheduled = {:.0?}, {:?}
+    poll      = {:.0?}, {:?}
 }}",
         name,
-        interval.total_idle_duration.as_millis(),
+        interval.mean_idle_duration(),
         interval.total_idled_count,
-        interval.total_scheduled_duration.as_millis(),
+        interval.mean_scheduled_duration(),
         interval.total_scheduled_count,
-        interval.total_poll_duration.as_millis(),
+        interval.mean_poll_duration(),
         interval.total_poll_count,
     )
 }

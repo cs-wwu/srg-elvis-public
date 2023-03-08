@@ -40,13 +40,14 @@ impl PciSession {
         let mut broadcast_receiver = self.tap.broadcast.write().unwrap().take().unwrap();
         let context = Context::new(protocols);
         let me = self.clone();
-        tokio::spawn(self.monitors.receive.instrument(async move {
+        let monitors = self.monitors.clone();
+        tokio::spawn(monitors.receive.instrument(async move {
             barrier.wait().await;
             let mut shutdown_receiver = shutdown.receiver();
             loop {
                 let context = context.clone();
                 tokio::select! {
-                    message = direct_receiver.recv() => {
+                    message = monitors.channel_recv.instrument(direct_receiver.recv()) => {
                         me.clone().receive_direct(message, context);
                     }
                     message = broadcast_receiver.recv() => {
