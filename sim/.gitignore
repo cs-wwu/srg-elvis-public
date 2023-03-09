@@ -13,3 +13,6 @@ Cargo.lock
 .vscode
 
 *.log
+
+/sim/benchmarking/raw_data/*
+/sim/benchmarking/benchmarking_graphs/*

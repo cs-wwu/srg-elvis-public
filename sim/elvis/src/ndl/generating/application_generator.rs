@@ -39,22 +39,23 @@ pub fn send_message_builder(
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message = app.options.get("message").unwrap().to_owned();
 
+    let mut final_message;
+
     // Determines whether or not we are using an IP or a name to send this message
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Send_Message declaration");
 
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            SendMessage::new(Message::new(message), to.into(), port).shared()
+            final_message = SendMessage::new(Message::new(message), to.into(), port)
         }
         // case where ip to mac does have a mac
         else {
-            return SendMessage::new(Message::new(message), to.into(), port)
-                .remote_mac(*ip_to_mac.get(&to.into()).unwrap())
-                .shared();
+            final_message = SendMessage::new(Message::new(message), to.into(), port)
+                .remote_mac(*ip_to_mac.get(&to.into()).unwrap());
         }
     } else {
-        return SendMessage::new(
+        final_message = SendMessage::new(
             Message::new(message),
             *name_to_ip
                 .get(&to)
@@ -65,9 +66,19 @@ pub fn send_message_builder(
             *name_to_mac
                 .get(&to)
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
-        )
-        .shared();
+        );
     }
+
+    if app.options.contains_key("message_count") {
+        final_message = final_message.count(app
+            .options
+            .get("message_count")
+            .unwrap()
+            .parse::<u32>()
+            .expect("Invalid u32 found in Capture for message count"));
+    }
+
+    final_message.shared()
 }
 
 /// Builds the [Capture] application for a machine

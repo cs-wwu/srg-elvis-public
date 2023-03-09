@@ -149,20 +149,27 @@ def execution_time_comparison_graphs():
     plt.close()
 
 # Generates sim files with machine counts from start to end counts. Increments machine counts by increment value.
-def create_and_run_sims(start_count, end_count, increment):
+def create_and_run_sims(base_file, start_count, end_count, increment):
     with open(data_directory + "core_data.json", "w") as outfile:
         pass
-    f = open(sim_directory + "base-basic.ndl", 'r')
+    f = open(sim_directory + base_file, 'r')
     sim = f.read()
+    message_count = 1000
     for cur_count in range(start_count, end_count + increment, increment):
-        cur_file_name = sim_directory + "basic-" + str(cur_count) + ".ndl"
+        cur_file_name = sim_directory + base_file[0:-4] + str(cur_count) + ".ndl"
+        sim = sim.replace('#message_count', str(message_count))
+        sim = sim.replace('#machine_count', str(cur_count))
+        if '#message_count' in sim:
+            sim = sim.replace('#recieve_count', str(message_count*cur_count))
+        else:
+            sim = sim.replace('#recieve_count', str(cur_count))
         with open(cur_file_name, "w") as outfile:
-            outfile.write(sim.replace('#', str(cur_count)))
+            outfile.write(sim)
         run_sim(cur_file_name, iteration_count)
         remove_file(cur_file_name)
 
 
 if __name__ == '__main__':
-    create_and_run_sims(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
+    create_and_run_sims(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
     mem_comparison_graphs()
     execution_time_comparison_graphs()

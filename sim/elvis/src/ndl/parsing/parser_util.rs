@@ -80,7 +80,7 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
         }
 
         Err(e) => {
-            return Err(format!("{e}"));
+            Err(format!("{e}"))
         }
     }
 }

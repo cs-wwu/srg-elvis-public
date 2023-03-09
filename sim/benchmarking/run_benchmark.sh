@@ -52,7 +52,7 @@ cp ../target/release/$BINARY_NAME ./
 
 echo "Beginning benchmarking"
 
-python3 benchmarking.py 100000 1000000 100000
+python3 benchmarking.py base-high-bandwidth.ndl 100 1000 100
 
 echo "Benchmarking finished, removing binaries"
 

@@ -48,3 +48,11 @@ async fn basic_pingpong_ip_valid_test() {
         "./tests/generator_tests/valid/basic_pingpong_ip_valid_test.txt".to_string();
     generate_and_run_sim(file_path).await;
 }
+
+#[tokio::test]
+#[ntest::timeout(100)]
+async fn multi_message_valid_test() {
+    let file_path: String =
+        "./tests/generator_tests/valid/multi_message_valid_test.txt".to_string();
+    generate_and_run_sim(file_path).await;
+}

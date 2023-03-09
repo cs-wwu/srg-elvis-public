@@ -26,7 +26,7 @@ pub struct SendMessage {
     /// The machine that will receive the message
     remote_mac: Option<Mac>,
     /// The number of copies of the message to send
-    count: u16,
+    count: u32,
     /// The protocol to use in delivering the message
     transport: Transport,
 }
@@ -56,7 +56,7 @@ impl SendMessage {
     }
 
     /// The number of copies of the message to send
-    pub fn count(mut self, count: u16) -> Self {
+    pub fn count(mut self, count: u32) -> Self {
         self.count = count;
         self
     }

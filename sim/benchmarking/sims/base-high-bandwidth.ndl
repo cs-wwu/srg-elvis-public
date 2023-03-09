@@ -9,7 +9,7 @@
             [Protocol name='IPv4']
             [Protocol name='UDP']
         [Applications]
-            [Application name='send_message' message='Hello!' to='capturer' port='0xbeef']
+            [Application name='send_message' message='Hello!' to='capturer' port='0xbeef' message_count='#message_count']
     [Machine name='capturer']
         [Networks]
             [Network id='3']
