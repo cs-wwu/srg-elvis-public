@@ -13,6 +13,3 @@ Cargo.lock
 .vscode
 
 *.log
-
-**/benchmarking_graphs/*
-**/raw_data/*

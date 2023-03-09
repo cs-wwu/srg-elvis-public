@@ -16,7 +16,7 @@ image_folder = "./benchmarking_graphs/"
 sim_directory = "./sims/"
 temp_sim_directory = sim_directory + "temp/"
 data_directory = "./raw_data/"
-iteration_count = 5
+iteration_count = 10
 final_dict = {
     "platform":{
         'OS': platform.system(),
@@ -38,9 +38,10 @@ def run_sim(file_name, interations):
         binary_file = "elvis.exe"
     else:
         print('Unsupported operating system')
-    benchmark_results = cmdbench.benchmark_command("./" + binary_file + " --ndl "+ sim_directory + raw_file_name, iterations_num = interations)
+    benchmark_results = cmdbench.benchmark_command("./" + binary_file + " --ndl " + file_name, iterations_num = interations)
     memory_arr = benchmark_results.get_values_per_attribute()["memory"]
     process_time_arr = benchmark_results.get_values_per_attribute()['process']
+    # print(benchmark_results.get_values_per_attribute())
     create_json_data(memory_arr, process_time_arr, raw_file_name)
     
 def create_json_data(memory_arr, process_time_arr, raw_file_name):
