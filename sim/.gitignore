@@ -14,5 +14,5 @@ Cargo.lock
 
 *.log
 
-/sim/benchmarking/raw_data/*
-/sim/benchmarking/benchmarking_graphs/*
+**/benchmarking_graphs/*
+**/raw_data/*
