@@ -183,15 +183,20 @@ def create_and_run_sims(base_file, start_count, end_count, increment):
     sim = f.read()
     message_count = 1000
     for cur_count in range(start_count, end_count + increment, increment):
+        temp_sim = sim
         cur_file_name = temp_sim_directory + base_file[0:-4] + '-' + str(cur_count) + ".ndl"
-        sim = sim.replace('#message_count', str(message_count))
-        sim = sim.replace('#machine_count', str(cur_count))
-        if '#message_count' in sim:
-            sim = sim.replace('#recieve_count', str(message_count*cur_count))
+
+        if '#message_count' in temp_sim:
+            temp_sim = temp_sim.replace('#recieve_count', str(message_count*cur_count))
         else:
-            sim = sim.replace('#recieve_count', str(cur_count))
+            temp_sim = temp_sim.replace('#recieve_count', str(cur_count))
+        
+        temp_sim = temp_sim.replace('#message_count', str(message_count))
+
+        temp_sim = temp_sim.replace('#machine_count', str(cur_count))
+        
         with open(cur_file_name, "w") as outfile:
-            outfile.write(sim)
+            outfile.write(temp_sim)
         run_sim(cur_file_name, iteration_count)
         remove_file(cur_file_name)
 
