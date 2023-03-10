@@ -79,9 +79,7 @@ pub fn general_parser(s: &str, line_num: &mut i32) -> Result<(DecType, Params, S
             Ok((dectype, args, remaining_string[num_new_line..].to_string()))
         }
 
-        Err(e) => {
-            Err(format!("{e}"))
-        }
+        Err(e) => Err(format!("{e}")),
     }
 }
 

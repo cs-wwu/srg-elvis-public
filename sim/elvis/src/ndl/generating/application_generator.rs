@@ -70,12 +70,13 @@ pub fn send_message_builder(
     }
 
     if app.options.contains_key("message_count") {
-        final_message = final_message.count(app
-            .options
-            .get("message_count")
-            .unwrap()
-            .parse::<u32>()
-            .expect("Invalid u32 found in Capture for message count"));
+        final_message = final_message.count(
+            app.options
+                .get("message_count")
+                .unwrap()
+                .parse::<u32>()
+                .expect("Invalid u32 found in Capture for message count"),
+        );
     }
 
     final_message.shared()
