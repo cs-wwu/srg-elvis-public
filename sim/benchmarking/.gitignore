@@ -10,3 +10,6 @@
 # Ignore anything inside temp
 /sims/temp/*
 !/sims/temp/.gitkeep
+
+# Ignore python cache
+__pycache__/

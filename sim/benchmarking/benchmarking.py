@@ -16,7 +16,7 @@ ITERATION_COUNT = 10
 final_dict = {
     "platform": {
         'OS': platform.system(),
-        'CPU': cpuinfo.get_cpu_info()['brand_raw'],
+        'CPU': cpuinfo.get_cpu_info()['brand_raw'].replace('.', '-'),
         'CORE_COUNT': psutil.cpu_count(),
         'RAM': psutil.virtual_memory().total
     }
@@ -106,7 +106,7 @@ def create_json_data(memory_arr, process_time_arr, cpu_usage, raw_file_name):
             final_dict = {
                 "platform": {
                     'OS': platform.system(),
-                    'CPU': cpuinfo.get_cpu_info()['brand_raw'],
+                    'CPU': cpuinfo.get_cpu_info()['brand_raw'].replace('.', '-'),
                     'CORE_COUNT': psutil.cpu_count(),
                     'RAM': psutil.virtual_memory().total
                 }
@@ -117,7 +117,7 @@ def create_json_data(memory_arr, process_time_arr, cpu_usage, raw_file_name):
     final_dict = {
         "platform": {
             'OS': platform.system(),
-            'CPU': cpuinfo.get_cpu_info()['brand_raw'],
+            'CPU': cpuinfo.get_cpu_info()['brand_raw'].replace('.', '-'),
             'CORE_COUNT': psutil.cpu_count(),
             'RAM': psutil.virtual_memory().total
         }
