@@ -9,9 +9,6 @@ import numpy as np
 import re
 from generate_graphs import generate_all_graphs
 
-# TODO: 
-# git ignore?
-
 SIM_DIRECTORY = "./sims/"
 TEMP_SIM_DIRECTORY = SIM_DIRECTORY + "temp/"
 DATA_DIRECTORY = "./raw_data/"
