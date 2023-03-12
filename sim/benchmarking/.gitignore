@@ -1,0 +1,12 @@
+
+# Ignore PNG subfolders and files
+/benchmarking_graphs/**/
+!/benchmarking_graphs/**/.gitkeep
+
+# Ignore Json subfolders and files
+/raw_data/*
+!/raw_data/.gitkeep
+
+# Ignore anything inside temp
+/sims/temp/*
+!/sims/temp/.gitkeep
