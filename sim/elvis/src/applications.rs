@@ -11,6 +11,9 @@ pub use send_message::SendMessage;
 mod forward;
 pub use forward::Forward;
 
+mod on_receive;
+pub use on_receive::OnReceive;
+
 mod ping_pong;
 pub use ping_pong::PingPong;
 

@@ -83,7 +83,7 @@ impl ArpSession {
         protocols: ProtocolMap,
     ) {
         let mut update_receiver = self.sender.subscribe();
-        
+
         // Return if the MAC is already set or failed to get
         match self.clone().get_status().await {
             MacStatus::FailedToGet | MacStatus::Set(_) => return,
