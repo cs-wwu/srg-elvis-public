@@ -151,7 +151,7 @@ impl ArpSession {
         let local_mac = self.clone().get_local_mac();
 
         let arp_reply = ArpPacket {
-            is_request: true,
+            is_request: false,
             sender_ip: local_ip,
             sender_mac: local_mac,
             target_mac: remote_mac,
