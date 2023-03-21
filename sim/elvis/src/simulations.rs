@@ -33,5 +33,5 @@ pub use tcp_with_reliable::tcp_with_reliable;
 mod tcp_with_unreliable;
 pub use tcp_with_unreliable::tcp_with_unreliable;
 
-mod arp_tests;
-pub use arp_tests::arp_simple;
+mod arp_sims;
+pub use arp_sims::simple;

@@ -1,5 +1,3 @@
-use std::sync::mpsc::Sender;
-
 use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
@@ -8,7 +6,6 @@ use elvis_core::{
     },
     run_internet, Machine, Message, Network,
 };
-use tokio::sync::mpsc;
 
 use crate::applications::{Capture, SendMessage};
 
@@ -46,9 +43,9 @@ pub async fn simple() {
 
 #[cfg(test)]
 mod tests {
+
     #[tokio::test]
     async fn simple() {
-        todo!("fix me");
         super::simple().await;
     }
 }
