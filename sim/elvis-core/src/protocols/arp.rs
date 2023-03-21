@@ -145,7 +145,6 @@ impl Protocol for Arp {
         caller: SharedSession,
         context: Context,
     ) -> Result<(), DemuxError> {
-        assert_eq!(Network::get_protocol(&context.control), Ok(Arp::ID));
         let result = ArpPacket::from_bytes(message.iter());
         let packet = result.or(Err(DemuxError::Header))?;
 
