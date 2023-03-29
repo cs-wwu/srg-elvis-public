@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use crate::applications::{SendMessage, Transport, WaitForMessage};
 use elvis_core::{
     message::Message,
@@ -23,7 +21,7 @@ pub async fn tcp_gigabyte_bench() {
         .into_iter()
         .collect();
 
-    let message: Vec<_> = (0..1_000_000_00).map(|i| i as u8).collect();
+    let message: Vec<_> = (0..1_000_000_000).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
         Machine::new([
@@ -45,7 +43,5 @@ pub async fn tcp_gigabyte_bench() {
         ]),
     ];
 
-    let instant = Instant::now();
     run_internet(machines, vec![network]).await;
-    println!("{:?}", instant.elapsed());
 }
