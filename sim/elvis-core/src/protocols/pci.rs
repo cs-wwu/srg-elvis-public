@@ -81,14 +81,14 @@ impl Protocol for Pci {
         _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let pci_slot = Pci::get_pci_slot(&participants).map_err(|_| {
-            tracing::error!("Missing PCI slot on context");
+            eprintln!("Missing PCI slot on context");
             OpenError::MissingContext
         })?;
         let session = self
             .sessions
             .get(pci_slot as usize)
             .ok_or_else(|| {
-                tracing::error!("PCI slot is out of bounds");
+                eprintln!("PCI slot is out of bounds");
                 OpenError::Other
             })?
             .clone();

@@ -375,7 +375,7 @@ async fn complete_delivery(delivery: Delivery, taps: Taps, broadcast: broadcast:
                 match taps.get(destination as usize) {
                     Some(tap) => tap,
                     None => {
-                        tracing::error!("Trying to deliver to an invalid MAC address");
+                        eprintln!("Trying to deliver to an invalid MAC address");
                         return;
                     }
                 }
@@ -384,14 +384,14 @@ async fn complete_delivery(delivery: Delivery, taps: Taps, broadcast: broadcast:
             match tap.send(delivery).await {
                 Ok(_) => {}
                 Err(e) => {
-                    tracing::error!("Failed to deliver a message: {}", e)
+                    eprintln!("Failed to deliver a message: {}", e)
                 }
             }
         }
         None => match broadcast.clone().send(delivery) {
             Ok(_) => {}
             Err(e) => {
-                tracing::error!("Failed to deliver a message: {}", e)
+                eprintln!("Failed to deliver a message: {}", e)
             }
         },
     }
