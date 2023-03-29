@@ -83,8 +83,6 @@ impl TcpHeader {
         let urg = u16::from_be_bytes([next()?, next()?]);
         checksum.add_u16(urg);
 
-        // checksum.accumulate_remainder(&mut packet);
-
         // Pseudo header stuff
         checksum.add_u32(src_address.into());
         checksum.add_u32(dst_address.into());
@@ -233,7 +231,6 @@ impl TcpHeaderBuilder {
         let length: u16 = (text_len + BASE_HEADER_OCTETS as usize)
             .try_into()
             .map_err(|_| BuildHeaderError::OverlyLongPayload)?;
-        // checksum.accumulate_remainder(&mut text);
 
         // TODO(hardint): Should change when header options are supported
         let data_offset = BASE_HEADER_WORDS;
