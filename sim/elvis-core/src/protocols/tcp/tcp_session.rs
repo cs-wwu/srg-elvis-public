@@ -8,9 +8,8 @@ use crate::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
-    select,
     sync::mpsc::{channel, Sender},
-    time::sleep,
+    time::timeout,
 };
 
 // TODO(hardint): The unwraps used on channels should be removed and cleaned up
@@ -47,9 +46,8 @@ impl TcpSession {
         tokio::spawn(async move {
             loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
-                // TODO(hardint): Listen for shutdown
-                select! {
-                    instruction = recv.recv() => {
+                match timeout(TIMEOUT, recv.recv()).await {
+                    Ok(instruction) => {
                         match instruction {
                             Some(instruction) => {
                                 match instruction {
@@ -69,14 +67,14 @@ impl TcpSession {
                             None => break,
                         }
                     }
-                    _ = sleep(TIMEOUT) => {
+                    Err(_) => {
                         match tcb.advance_time(TIMEOUT) {
                             AdvanceTimeResult::Ignore => {}
                             // TODO(hardint): Signal close
                             AdvanceTimeResult::CloseConnection => break,
                         };
                     }
-                };
+                }
 
                 let segments = tcb.segments();
                 let received = tcb.receive();

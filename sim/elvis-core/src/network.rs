@@ -25,7 +25,7 @@ use std::{
 };
 use tokio::{
     sync::{broadcast, mpsc, Barrier},
-    time::sleep,
+    time::timeout,
 };
 
 type Taps = Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>;
@@ -137,11 +137,10 @@ impl Network {
                 let throughput = throughput.next();
                 if throughput.0 > 0 {
                     let ms = delivery.message.len() as u64 * 1000 / throughput.0;
-                    tokio::select! {
-                        _ = sleep(Duration::from_millis(ms)) => {},
-                        _ = shutdown_receiver.recv() => break,
-                    };
-                    unreachable!();
+                    match timeout(Duration::from_millis(ms), shutdown_receiver.recv()).await {
+                        Ok(_) => break,
+                        Err(_) => {}
+                    }
                 }
 
                 let taps = taps.clone();
@@ -151,9 +150,9 @@ impl Network {
                     let shutdown = shutdown.clone();
                     let mut shutdown_receiver = shutdown.receiver();
                     tokio::spawn(async move {
-                        tokio::select! {
-                            _ = sleep(latency) => {},
-                            _ = shutdown_receiver.recv() => return,
+                        match timeout(latency, shutdown_receiver.recv()).await {
+                            Ok(_) => return,
+                            Err(_) => {}
                         }
                         complete_delivery(delivery, taps, broadcast).await;
                     });
