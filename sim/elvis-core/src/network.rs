@@ -17,14 +17,16 @@
 //!   similar to adding a networking card to computer. This way, a machine can
 //!   add multiple taps to attach to different networks.
 
-use crate::{control::ControlError, id::Id, Control, Message, Shutdown};
+use crate::{
+    control::ControlError, id::Id, protocols::pci::PciSession, Control, Message, Shutdown,
+};
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
 use tokio::{
-    sync::{broadcast, mpsc, Barrier},
+    sync::{mpsc, Barrier},
     time::sleep,
 };
 
@@ -37,9 +39,6 @@ use tokio::{
 /// reliability. It should provide a reasonable approximation of many kinds of
 /// networks, including Ethernet and WiFi.
 pub struct Network {
-    /// A channel for sending a message to all taps attached to the network.
-    /// Each tap subscribes to this.
-    broadcast: broadcast::Sender<Delivery>,
     mtu: Mtu,
     latency: Latency,
     throughput: Throughput,
@@ -53,7 +52,7 @@ pub struct Network {
     delivery_receiver: RwLock<Option<mpsc::Receiver<Delivery>>>,
     /// A vector for channels for sending messages to specific taps attached to
     /// the network
-    taps: Arc<RwLock<Vec<mpsc::Sender<Delivery>>>>,
+    taps: Arc<RwLock<Vec<Arc<RwLock<Option<Arc<PciSession>>>>>>>,
 }
 
 impl Default for Network {
@@ -77,7 +76,6 @@ impl Network {
             delivery_sender: funnel.0,
             delivery_receiver: RwLock::new(Some(funnel.1)),
             taps: Default::default(),
-            broadcast: broadcast::channel::<Delivery>(4096).0,
         }
     }
 
@@ -91,16 +89,15 @@ impl Network {
     /// a [`Pci`](crate::protocols::Pci) to allow a [`Machine`](crate::Machine)
     /// to send and receive messages through the network.
     pub fn tap(self: &Arc<Self>) -> Tap {
-        let (send, receive) = mpsc::channel(16);
-        let mac = self.taps.read().unwrap().len() as u64;
-        self.taps.write().unwrap().push(send);
-        Tap {
+        let pci_session = Arc::new(RwLock::new(None));
+        let tap = Tap {
             mtu: self.mtu,
-            mac,
+            mac: self.taps.read().unwrap().len() as u64,
             delivery_sender: self.delivery_sender.clone(),
-            unicast_receiver: RwLock::new(Some(receive)),
-            broadcast: RwLock::new(Some(self.broadcast.subscribe())),
-        }
+            pci_session: pci_session.clone(),
+        };
+        self.taps.write().unwrap().push(pci_session);
+        tap
     }
 
     /// Called at the beginning of the simulation to start the network running
@@ -109,7 +106,6 @@ impl Network {
         let throughput = self.throughput;
         let latency = self.latency;
         let taps = self.taps.clone();
-        let broadcast = self.broadcast.clone();
         tokio::spawn(async move {
             initialized.wait().await;
             let mut shutdown_receiver = shutdown.receiver();
@@ -142,7 +138,6 @@ impl Network {
                 }
 
                 let taps = taps.clone();
-                let broadcast = broadcast.clone();
                 let shutdown = shutdown.clone();
                 tokio::spawn(async move {
                     let mut shutdown_receiver = shutdown.receiver();
@@ -153,10 +148,11 @@ impl Network {
                             _ = shutdown_receiver.recv() => return,
                         }
                     }
+
+                    let taps = taps.read().unwrap();
                     match delivery.destination {
                         Some(destination) => {
                             let tap = {
-                                let taps = taps.read().unwrap();
                                 match taps.get(destination as usize) {
                                     Some(tap) => tap,
                                     None => {
@@ -168,19 +164,26 @@ impl Network {
                                 }
                                 .clone()
                             };
-                            match tap.send(delivery).await {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    tracing::error!("Failed to deliver a message: {}", e)
-                                }
+                            let _ = tap
+                                .read()
+                                .unwrap()
+                                .as_ref()
+                                .unwrap()
+                                .clone()
+                                .receive(delivery);
+                        }
+
+                        None => {
+                            for tap in taps.iter() {
+                                let _ = tap
+                                    .read()
+                                    .unwrap()
+                                    .as_ref()
+                                    .unwrap()
+                                    .clone()
+                                    .receive(delivery.clone());
                             }
                         }
-                        None => match broadcast.clone().send(delivery) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                tracing::error!("Failed to deliver a message: {}", e)
-                            }
-                        },
                     }
                 });
             }
@@ -301,8 +304,7 @@ pub struct Tap {
     pub(crate) mtu: Mtu,
     pub(crate) mac: Mac,
     pub(crate) delivery_sender: mpsc::Sender<Delivery>,
-    pub(crate) broadcast: RwLock<Option<broadcast::Receiver<Delivery>>>,
-    pub(crate) unicast_receiver: RwLock<Option<mpsc::Receiver<Delivery>>>,
+    pub(crate) pci_session: Arc<RwLock<Option<Arc<PciSession>>>>,
 }
 
 /// A network maximum transmission unit.
