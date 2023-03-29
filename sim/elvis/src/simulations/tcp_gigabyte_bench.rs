@@ -17,7 +17,6 @@ use elvis_core::{
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
 pub async fn tcp_gigabyte_bench() {
-    let network = NetworkBuilder::new().mtu(1500).build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: Recipients = [(capture_ip_address, Recipient::new(0, 1))]
         .into_iter()
@@ -25,27 +24,38 @@ pub async fn tcp_gigabyte_bench() {
 
     let message: Vec<_> = (0..1_000_000_00).map(|i| i as u8).collect();
     let message = Message::new(message);
-    let machines = vec![
-        Machine::new([
-            Tcp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
-            SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef)
-                .transport(Transport::Tcp)
-                .shared(),
-        ]),
-        Machine::new([
-            Tcp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table).shared(),
-            Pci::new([network.tap()]).shared(),
-            WaitForMessage::new(capture_ip_address, 0xbeef, message)
-                .transport(Transport::Tcp)
-                .disable_checking()
-                .shared(),
-        ]),
-    ];
+
+    let networks: Vec<_> = (0..10)
+        .map(|_| NetworkBuilder::new().mtu(1500).build())
+        .collect();
+
+    let machines: Vec<_> = networks
+        .iter()
+        .flat_map(|network| {
+            [
+                Machine::new([
+                    Tcp::new().shared() as SharedProtocol,
+                    Ipv4::new(ip_table.clone()).shared(),
+                    Pci::new([network.tap()]).shared(),
+                    SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef)
+                        .transport(Transport::Tcp)
+                        .shared(),
+                ]),
+                Machine::new([
+                    Tcp::new().shared() as SharedProtocol,
+                    Ipv4::new(ip_table.clone()).shared(),
+                    Pci::new([network.tap()]).shared(),
+                    WaitForMessage::new(capture_ip_address, 0xbeef, message.clone())
+                        .transport(Transport::Tcp)
+                        .disable_checking()
+                        .shared(),
+                ]),
+            ]
+            .into_iter()
+        })
+        .collect();
 
     let instant = Instant::now();
-    run_internet(machines, vec![network]).await;
+    run_internet(machines, networks).await;
     println!("{:?}", instant.elapsed());
 }
