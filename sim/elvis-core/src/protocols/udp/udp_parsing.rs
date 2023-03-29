@@ -25,7 +25,7 @@ impl UdpHeader {
     /// Parses a UDP header from an iterator of bytes
     pub fn from_bytes_ipv4(
         mut packet: impl Iterator<Item = u8>,
-        packet_len: usize,
+        _packet_len: usize,
         source_address: Ipv4Address,
         destination_address: Ipv4Address,
     ) -> Result<Self, ParseError> {
@@ -54,20 +54,6 @@ impl UdpHeader {
         // [zero, UDP protocol number] from pseudo header
         checksum.add_u8(0, 17);
 
-        checksum.accumulate_remainder(&mut packet);
-
-        if packet_len != length as usize || packet.next().is_some() {
-            Err(ParseError::LengthMismatch)?
-        }
-
-        let actual_checksum = checksum.as_u16();
-        if actual_checksum != expected_checksum {
-            Err(ParseError::Checksum {
-                actual: actual_checksum,
-                expected: expected_checksum,
-            })?
-        }
-
         Ok(Self {
             source: source_port,
             destination: destination_port,
@@ -84,7 +70,9 @@ pub(super) enum ParseError {
     #[error(
         "The computed checksum {actual:#06x} did not match the header checksum {expected:#06x}"
     )]
+    #[allow(unused)]
     Checksum { actual: u16, expected: u16 },
+    #[allow(unused)]
     #[error("The number of message bytes differs from the header")]
     LengthMismatch,
 }
@@ -95,11 +83,10 @@ pub(super) fn build_udp_header(
     source_port: u16,
     destination_address: Ipv4Address,
     destination_port: u16,
-    mut text: impl Iterator<Item = u8>,
+    _text: impl Iterator<Item = u8>,
     text_len: usize,
 ) -> Result<Vec<u8>, BuildHeaderError> {
     let mut checksum = Checksum::new();
-    checksum.accumulate_remainder(&mut text);
 
     let length: u16 = (text_len + HEADER_OCTETS as usize)
         .try_into()
