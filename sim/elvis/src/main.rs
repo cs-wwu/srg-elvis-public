@@ -5,6 +5,6 @@ use std::time::Instant;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let now = Instant::now();
-    simulations::udp_gigabyte_bench().await;
+    simulations::tcp_gigabyte_bench().await;
     println!("{:?}", now.elapsed());
 }

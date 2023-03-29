@@ -145,7 +145,6 @@ impl Protocol for Pci {
 #[derive(Debug, Clone)]
 pub struct PciMonitors {
     pub receive: MonitorInfo,
-    pub channel_recv: MonitorInfo,
     pub send: MonitorInfo,
 }
 
@@ -153,24 +152,21 @@ impl PciMonitors {
     pub fn new() -> Self {
         Self {
             receive: MonitorInfo::new("PCI Receive"),
-            channel_recv: MonitorInfo::new("PCI Channel Receive"),
             send: MonitorInfo::new("PCI Send"),
         }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &MonitorInfo> {
-        once(&self.receive)
-            .chain(once(&self.channel_recv))
-            .chain(once(&self.send))
+        once(&self.receive).chain(once(&self.send))
     }
 }
 
 impl IntoIterator for PciMonitors {
     type Item = MonitorInfo;
 
-    type IntoIter = core::array::IntoIter<Self::Item, 3>;
+    type IntoIter = core::array::IntoIter<Self::Item, 2>;
 
     fn into_iter(self) -> Self::IntoIter {
-        [self.receive, self.channel_recv, self.send].into_iter()
+        [self.receive, self.send].into_iter()
     }
 }

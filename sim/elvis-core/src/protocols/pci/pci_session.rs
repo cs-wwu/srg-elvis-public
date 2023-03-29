@@ -47,7 +47,7 @@ impl PciSession {
             loop {
                 let context = context.clone();
                 tokio::select! {
-                    message = monitors.channel_recv.instrument(direct_receiver.recv()) => {
+                    message = direct_receiver.recv() => {
                         me.clone().receive_direct(message, context);
                     }
                     message = broadcast_receiver.recv() => {

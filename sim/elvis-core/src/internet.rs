@@ -32,19 +32,6 @@ pub async fn run_internet(
     monitors.extend(network_monitors);
 
     const METRICS_FREQUENCY: Duration = Duration::from_secs(1);
-    tokio::spawn(async move {
-        let mut intervals: Vec<_> = monitors
-            .into_iter()
-            .map(|info| (info.monitor.intervals(), info.name))
-            .collect();
-        loop {
-            tokio::time::sleep(METRICS_FREQUENCY).await;
-            for (interval, name) in intervals.iter_mut() {
-                print_interval(name, interval.next().unwrap());
-            }
-            println!("\n");
-        }
-    });
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever
     let mut shutdown_receiver = shutdown.receiver();
@@ -53,6 +40,15 @@ pub async fn run_internet(
     // When every sender has gone out of scope, the recv call
     // will return with an error. We ignore the error.
     let _ = shutdown_receiver.recv().await;
+
+    let intervals: Vec<_> = monitors
+        .into_iter()
+        .map(|info| (info.monitor.intervals(), info.name))
+        .collect();
+    for (mut interval, name) in intervals {
+        print_interval(name, interval.next().unwrap());
+    }
+    println!("\n");
 }
 
 #[derive(Debug, Clone)]
@@ -77,16 +73,19 @@ impl MonitorInfo {
 fn print_interval(name: &'static str, interval: TaskMetrics) {
     println!(
         "{} = {{
-    idle      = {:.0?}, {:?}
-    scheduled = {:.0?}, {:?}
-    poll      = {:.0?}, {:?}
+    idle      = {:.0?}, {:.0?}, {:?}
+    scheduled = {:.0?}, {:.0?}, {:?}
+    poll      = {:.0?}, {:.0?}, {:?}
 }}",
         name,
         interval.mean_idle_duration(),
+        interval.total_idle_duration,
         interval.total_idled_count,
         interval.mean_scheduled_duration(),
+        interval.total_scheduled_duration,
         interval.total_scheduled_count,
         interval.mean_poll_duration(),
+        interval.total_poll_duration,
         interval.total_poll_count,
     )
 }
