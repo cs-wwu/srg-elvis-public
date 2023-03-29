@@ -3,7 +3,6 @@
 use crate::{
     control::{ControlError, Key, Primitive},
     id::Id,
-    internet::MonitorInfo,
     machine::PciSlot,
     message::Message,
     network::Tap,
@@ -13,7 +12,7 @@ use crate::{
     session::SharedSession,
     Control, Protocol, ProtocolMap, Shutdown,
 };
-use std::{iter::once, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 mod pci_session;
@@ -42,12 +41,12 @@ impl Pci {
     pub const MTU_QUERY_KEY: Key = (Self::ID, 1);
 
     /// Creates a new network tap.
-    pub fn new(taps: impl IntoIterator<Item = Tap>, monitors: PciMonitors) -> Self {
+    pub fn new(taps: impl IntoIterator<Item = Tap>) -> Self {
         Self {
             sessions: taps
                 .into_iter()
                 .enumerate()
-                .map(|(i, tap)| Arc::new(PciSession::new(tap, i as u32, monitors.clone())))
+                .map(|(i, tap)| Arc::new(PciSession::new(tap, i as u32)))
                 .collect(),
         }
     }
@@ -139,34 +138,5 @@ impl Protocol for Pci {
             Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.len() as u64).into()),
             _ => Err(QueryError::NonexistentKey),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct PciMonitors {
-    pub receive: MonitorInfo,
-    pub send: MonitorInfo,
-}
-
-impl PciMonitors {
-    pub fn new() -> Self {
-        Self {
-            receive: MonitorInfo::new("PCI Receive"),
-            send: MonitorInfo::new("PCI Send"),
-        }
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &MonitorInfo> {
-        once(&self.receive).chain(once(&self.send))
-    }
-}
-
-impl IntoIterator for PciMonitors {
-    type Item = MonitorInfo;
-
-    type IntoIter = core::array::IntoIter<Self::Item, 2>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        [self.receive, self.send].into_iter()
     }
 }

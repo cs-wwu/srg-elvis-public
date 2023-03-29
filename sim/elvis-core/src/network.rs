@@ -17,10 +17,9 @@
 //!   similar to adding a networking card to computer. This way, a machine can
 //!   add multiple taps to attach to different networks.
 
-use crate::{control::ControlError, id::Id, internet::MonitorInfo, Control, Message, Shutdown};
+use crate::{control::ControlError, id::Id, Control, Message, Shutdown};
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
-    iter::once,
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -107,23 +106,18 @@ impl Network {
     }
 
     /// Called at the beginning of the simulation to start the network running
-    pub(crate) fn start(
-        self: Arc<Self>,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        monitors: NetworkMonitors,
-    ) {
+    pub(crate) fn start(self: Arc<Self>, shutdown: Shutdown, initialized: Arc<Barrier>) {
         let mut receiver = self.delivery_receiver.write().unwrap().take().unwrap();
         let throughput = self.throughput;
         let latency = self.latency;
         let taps = self.taps.clone();
         let broadcast = self.broadcast.clone();
-        tokio::spawn(monitors.outer.instrument(async move {
+        tokio::spawn(async move {
             initialized.wait().await;
             let mut shutdown_receiver = shutdown.receiver();
             loop {
                 let delivery = tokio::select! {
-                    delivery = monitors.receive_delivery.instrument(receiver.recv()) => delivery,
+                    delivery = receiver.recv() => delivery,
                     _ = shutdown_receiver.recv() => {
                         break;
                     }
@@ -165,13 +159,10 @@ impl Network {
                     });
                     unreachable!();
                 } else {
-                    monitors
-                        .complete_delivery
-                        .instrument(complete_delivery(delivery, taps, broadcast))
-                        .await;
+                    complete_delivery(delivery, taps, broadcast).await;
                 }
             }
-        }));
+        });
     }
 
     /// Set the destination MAC address on a [`Control`]
@@ -403,38 +394,5 @@ async fn complete_delivery(delivery: Delivery, taps: Taps, broadcast: broadcast:
                 tracing::error!("Failed to deliver a message: {}", e)
             }
         },
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct NetworkMonitors {
-    pub outer: MonitorInfo,
-    pub receive_delivery: MonitorInfo,
-    pub complete_delivery: MonitorInfo,
-}
-
-impl NetworkMonitors {
-    pub fn new() -> Self {
-        Self {
-            outer: MonitorInfo::new("Network Outer"),
-            receive_delivery: MonitorInfo::new("Network Receive Delivery"),
-            complete_delivery: MonitorInfo::new("Network Complete Delivery"),
-        }
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &MonitorInfo> {
-        once(&self.outer)
-            .chain(once(&self.receive_delivery))
-            .chain(once(&self.complete_delivery))
-    }
-}
-
-impl IntoIterator for NetworkMonitors {
-    type Item = MonitorInfo;
-
-    type IntoIter = core::array::IntoIter<Self::Item, 3>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        [self.outer, self.receive_delivery, self.complete_delivery].into_iter()
     }
 }

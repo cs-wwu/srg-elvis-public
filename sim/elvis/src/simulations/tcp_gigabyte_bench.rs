@@ -7,8 +7,6 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
-        pci::PciMonitors,
-        tcp::TcpMonitors,
         Pci, Tcp,
     },
     run_internet, Machine,
@@ -24,24 +22,22 @@ pub async fn tcp_gigabyte_bench() {
     let ip_table: Recipients = [(capture_ip_address, Recipient::new(0, 1))]
         .into_iter()
         .collect();
-    let pci_monitors = PciMonitors::new();
-    let tcp_monitors = TcpMonitors::new();
 
     let message: Vec<_> = (0..1_000_000_00).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
         Machine::new([
-            Tcp::new(tcp_monitors.clone()).shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()], pci_monitors.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
             SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef)
                 .transport(Transport::Tcp)
                 .shared(),
         ]),
         Machine::new([
-            Tcp::new(tcp_monitors.clone()).shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table).shared(),
-            Pci::new([network.tap()], pci_monitors.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
             WaitForMessage::new(capture_ip_address, 0xbeef, message)
                 .transport(Transport::Tcp)
                 .disable_checking()
@@ -50,14 +46,6 @@ pub async fn tcp_gigabyte_bench() {
     ];
 
     let instant = Instant::now();
-    run_internet(
-        machines,
-        vec![network],
-        pci_monitors
-            .into_iter()
-            .chain(tcp_monitors.into_iter())
-            .collect(),
-    )
-    .await;
+    run_internet(machines, vec![network]).await;
     println!("{:?}", instant.elapsed());
 }

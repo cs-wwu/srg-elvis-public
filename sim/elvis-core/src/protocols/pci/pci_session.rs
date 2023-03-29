@@ -1,4 +1,4 @@
-use super::{Pci, PciMonitors};
+use super::Pci;
 use crate::{
     control::{Key, Primitive},
     machine::{PciSlot, ProtocolMap},
@@ -15,17 +15,12 @@ use tokio::sync::{broadcast::error::RecvError, Barrier};
 pub struct PciSession {
     tap: Tap,
     index: PciSlot,
-    monitors: PciMonitors,
 }
 
 impl PciSession {
     /// Creates a new Tap session
-    pub(super) fn new(tap: Tap, index: u32, monitors: PciMonitors) -> Self {
-        Self {
-            tap,
-            index,
-            monitors,
-        }
+    pub(super) fn new(tap: Tap, index: u32) -> Self {
+        Self { tap, index }
     }
 
     /// Called by the owning [`Pci`] protocol at the beginning of the simulation
@@ -40,8 +35,7 @@ impl PciSession {
         let mut broadcast_receiver = self.tap.broadcast.write().unwrap().take().unwrap();
         let context = Context::new(protocols);
         let me = self.clone();
-        let monitors = self.monitors.clone();
-        tokio::spawn(monitors.receive.instrument(async move {
+        tokio::spawn(async move {
             barrier.wait().await;
             let mut shutdown_receiver = shutdown.receiver();
             loop {
@@ -56,7 +50,7 @@ impl PciSession {
                     _ = shutdown_receiver.recv() => break,
                 }
             }
-        }));
+        });
     }
 
     fn receive_direct(self: Arc<Self>, delivery: Option<Delivery>, context: Context) {
@@ -136,14 +130,14 @@ impl Session for PciSession {
             protocol,
         };
 
-        tokio::spawn(self.monitors.send.instrument(async move {
+        tokio::spawn(async move {
             match funnel.send(delivery).await {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::error!("Failed to send on direct network: {}", e);
                 }
             }
-        }));
+        });
 
         Ok(())
     }

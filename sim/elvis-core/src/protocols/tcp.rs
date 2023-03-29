@@ -9,7 +9,6 @@ use self::{
 use super::{utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
-    internet::MonitorInfo,
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
@@ -18,7 +17,7 @@ use crate::{
     Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{iter::once, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 mod tcb;
@@ -35,7 +34,6 @@ pub struct Tcp {
     listen_bindings: DashMap<Socket, Id>,
     /// A lookup table for sessions based on their endpoints.
     sessions: DashMap<ConnectionId, Arc<TcpSession>>,
-    monitors: TcpMonitors,
 }
 
 impl Tcp {
@@ -43,11 +41,10 @@ impl Tcp {
     pub const ID: Id = Id::new(6);
 
     /// Creates a new TCP protocol
-    pub fn new(monitors: TcpMonitors) -> Self {
+    pub fn new() -> Self {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            monitors,
         }
     }
 
@@ -126,7 +123,6 @@ impl Protocol for Tcp {
                         .ok_or(OpenError::MissingProtocol(upstream))?,
                     downstream,
                     protocols,
-                    self.monitors.clone(),
                 );
                 entry.insert(session.clone());
                 Ok(session)
@@ -230,7 +226,6 @@ impl Protocol for Tcp {
                                             .ok_or(OpenError::MissingProtocol(upstream))?,
                                         caller,
                                         context.protocols,
-                                        self.monitors.clone(),
                                     );
                                     session_entry.insert(session);
                                 }
@@ -294,34 +289,5 @@ impl ConnectionId {
             local: self.remote,
             remote: self.local,
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TcpMonitors {
-    pub outer: MonitorInfo,
-    pub inner: MonitorInfo,
-}
-
-impl TcpMonitors {
-    pub fn new() -> Self {
-        Self {
-            outer: MonitorInfo::new("TCP Outer"),
-            inner: MonitorInfo::new("TCP Inner"),
-        }
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &MonitorInfo> {
-        once(&self.outer).chain(once(&self.inner))
-    }
-}
-
-impl IntoIterator for TcpMonitors {
-    type Item = MonitorInfo;
-
-    type IntoIter = core::array::IntoIter<Self::Item, 2>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        [self.outer, self.inner].into_iter()
     }
 }

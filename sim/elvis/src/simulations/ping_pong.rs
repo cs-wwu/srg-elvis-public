@@ -3,7 +3,6 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
-        pci::PciMonitors,
         udp::Udp,
         Pci,
     },
@@ -25,24 +24,23 @@ pub async fn ping_pong() {
     ]
     .into_iter()
     .collect();
-    let pci_monitors = PciMonitors::new();
 
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()], pci_monitors.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
             PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()], pci_monitors.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
             PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef).shared(),
         ]),
     ];
 
-    run_internet(machines, vec![network], pci_monitors.into_iter().collect()).await;
+    run_internet(machines, vec![network]).await;
 
     // TODO(hardint): Should check here that things actually ran correctly
 }

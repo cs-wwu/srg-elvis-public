@@ -1,7 +1,4 @@
-use super::{
-    tcb::{Segment, SegmentArrivesResult, Tcb},
-    TcpMonitors,
-};
+use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, SharedProtocol},
@@ -39,7 +36,6 @@ impl TcpSession {
         upstream: SharedProtocol,
         downstream: SharedSession,
         protocols: ProtocolMap,
-        monitors: TcpMonitors,
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);
         let me = Arc::new(Self {
@@ -48,7 +44,7 @@ impl TcpSession {
         });
         let out = me.clone();
         let context = Context::new(protocols);
-        tokio::spawn(monitors.outer.instrument(async move {
+        tokio::spawn(async move {
             loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
                 // TODO(hardint): Listen for shutdown
@@ -88,7 +84,7 @@ impl TcpSession {
                 let context = context.clone();
                 let upstream = upstream.clone();
                 let me = me.clone();
-                tokio::spawn(monitors.inner.instrument(async move {
+                tokio::spawn(async move {
                     for mut segment in segments {
                         segment.text.header(segment.header.serialize());
                         match downstream.clone().send(segment.text, context.clone()) {
@@ -103,9 +99,9 @@ impl TcpSession {
                             Err(e) => eprintln!("Demux error: {}", e),
                         }
                     }
-                }));
+                });
             }
-        }));
+        });
         out
     }
 

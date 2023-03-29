@@ -1,15 +1,10 @@
 use super::Machine;
-use crate::{network::NetworkMonitors, Network, Shutdown};
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use crate::{Network, Shutdown};
+use std::sync::Arc;
 use tokio::sync::Barrier;
-use tokio_metrics::{Instrumented, TaskMetrics, TaskMonitor};
 
 /// Runs the simulation with the given machines and networks
-pub async fn run_internet(
-    machines: Vec<Machine>,
-    networks: Vec<Arc<Network>>,
-    mut monitors: Vec<MonitorInfo>,
-) {
+pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
@@ -21,17 +16,9 @@ pub async fn run_internet(
         machine.start(shutdown.clone(), initialized.clone());
     }
 
-    let network_monitors = NetworkMonitors::new();
     for network in networks {
-        network.start(
-            shutdown.clone(),
-            initialized.clone(),
-            network_monitors.clone(),
-        );
+        network.start(shutdown.clone(), initialized.clone());
     }
-    monitors.extend(network_monitors);
-
-    const METRICS_FREQUENCY: Duration = Duration::from_secs(1);
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever
     let mut shutdown_receiver = shutdown.receiver();
@@ -40,52 +27,4 @@ pub async fn run_internet(
     // When every sender has gone out of scope, the recv call
     // will return with an error. We ignore the error.
     let _ = shutdown_receiver.recv().await;
-
-    let intervals: Vec<_> = monitors
-        .into_iter()
-        .map(|info| (info.monitor.intervals(), info.name))
-        .collect();
-    for (mut interval, name) in intervals {
-        print_interval(name, interval.next().unwrap());
-    }
-    println!("\n");
-}
-
-#[derive(Debug, Clone)]
-pub struct MonitorInfo {
-    pub name: &'static str,
-    pub monitor: TaskMonitor,
-}
-
-impl MonitorInfo {
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            monitor: TaskMonitor::new(),
-        }
-    }
-
-    pub fn instrument<F>(&self, task: F) -> Instrumented<F> {
-        self.monitor.instrument(task)
-    }
-}
-
-fn print_interval(name: &'static str, interval: TaskMetrics) {
-    println!(
-        "{} = {{
-    idle      = {:.0?}, {:.0?}, {:?}
-    scheduled = {:.0?}, {:.0?}, {:?}
-    poll      = {:.0?}, {:.0?}, {:?}
-}}",
-        name,
-        interval.mean_idle_duration(),
-        interval.total_idle_duration,
-        interval.total_idled_count,
-        interval.mean_scheduled_duration(),
-        interval.total_scheduled_duration,
-        interval.total_scheduled_count,
-        interval.mean_poll_duration(),
-        interval.total_poll_duration,
-        interval.total_poll_count,
-    )
 }
