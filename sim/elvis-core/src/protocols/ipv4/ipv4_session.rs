@@ -48,6 +48,7 @@ impl Ipv4Session {
 }
 
 impl Session for Ipv4Session {
+    #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
     fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
         let length = message.iter().count();
         let header = match Ipv4HeaderBuilder::new(
@@ -60,7 +61,7 @@ impl Session for Ipv4Session {
         {
             Ok(header) => header,
             Err(e) => {
-                eprintln!("{}", e);
+                tracing::error!("{}", e);
                 Err(SendError::Header)?
             }
         };

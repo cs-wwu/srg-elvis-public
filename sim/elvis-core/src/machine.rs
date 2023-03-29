@@ -1,4 +1,4 @@
-use crate::{protocol::SharedProtocol, Id, Shutdown};
+use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id, Shutdown};
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
@@ -59,6 +59,7 @@ impl Machine {
                 }
             }
         }
+        machine_creation_event(protocol_ids);
         Self {
             protocols: ProtocolMap::new(protocols_map),
         }

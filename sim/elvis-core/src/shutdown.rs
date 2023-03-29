@@ -21,7 +21,7 @@ impl Shutdown {
 
     pub fn shut_down(&self) {
         while let Err(e) = self.notify.send(()) {
-            eprintln!("Failed to initiate shutdown: {}", e);
+            tracing::error!("Failed to initiate shutdown: {}", e);
         }
     }
 

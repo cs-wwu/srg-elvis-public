@@ -58,7 +58,7 @@ impl PciSession {
             match self.receive_delivery(delivery, context) {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("Failed to receive on direct network: {}", e);
+                    tracing::error!("Failed to receive on direct network: {}", e);
                 }
             }
         }
@@ -69,11 +69,11 @@ impl PciSession {
             Ok(delivery) => match self.receive_delivery(delivery, context) {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("Failed to receive on a broadcast network: {}", e);
+                    tracing::error!("Failed to receive on a broadcast network: {}", e);
                 }
             },
             Err(e) => {
-                eprintln!("Broadcast receive error: {}", e);
+                tracing::error!("Broadcast receive error: {}", e);
             }
         }
     }
@@ -93,7 +93,7 @@ impl PciSession {
         let protocol = match context.protocol(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
-                eprintln!(
+                tracing::error!(
                     "Could not find a protocol for the protocol ID {}",
                     delivery.protocol
                 );
@@ -106,18 +106,19 @@ impl PciSession {
 }
 
 impl Session for PciSession {
+    #[tracing::instrument(name = "PciSession::send", skip_all)]
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
         let protocol = match Network::get_protocol(&context.control) {
             Ok(protocol) => protocol,
             Err(_) => {
-                eprintln!("Protocol missing from context");
+                tracing::error!("Protocol missing from context");
                 Err(SendError::MissingContext)?
             }
         };
         let destination = Network::get_destination(&context.control).ok();
 
         if message.len() > self.tap.mtu as usize {
-            eprintln!("Attempted to send a message larger than the network can handle");
+            tracing::error!("Attempted to send a message larger than the network can handle");
             Err(SendError::Mtu(self.tap.mtu))?
         }
 
@@ -133,7 +134,7 @@ impl Session for PciSession {
             match funnel.send(delivery).await {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("Failed to send on direct network: {}", e);
+                    tracing::error!("Failed to send on direct network: {}", e);
                 }
             }
         });

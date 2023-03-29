@@ -36,6 +36,7 @@
 //!
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
+mod logging;
 pub mod protocols;
 
 pub mod control;

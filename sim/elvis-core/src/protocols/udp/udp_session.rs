@@ -2,6 +2,7 @@ use super::udp_parsing::build_udp_header;
 use crate::{
     control::{Key, Primitive},
     id::Id,
+    logging::{receive_message_event, send_message_event},
     message::Message,
     protocol::{Context, DemuxError},
     protocols::utility::Socket,
@@ -18,6 +19,13 @@ pub(super) struct UdpSession {
 
 impl UdpSession {
     pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
+        receive_message_event(
+            self.id.local.address,
+            self.id.remote.address,
+            self.id.local.port,
+            self.id.remote.port,
+            message.clone(),
+        );
         context
             .protocol(self.upstream)
             .expect("No such protocol")
@@ -27,6 +35,7 @@ impl UdpSession {
 }
 
 impl Session for UdpSession {
+    #[tracing::instrument(name = "UdpSession::send", skip(message, context))]
     fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
         let id = self.id;
         // TODO(hardint): Should this fail or just segment the message into
@@ -41,10 +50,17 @@ impl Session for UdpSession {
         ) {
             Ok(header) => header,
             Err(e) => {
-                eprintln!("{}", e);
+                tracing::error!("{}", e);
                 Err(SendError::Header)?
             }
         };
+        send_message_event(
+            self.id.local.address,
+            self.id.remote.address,
+            id.local.port,
+            id.remote.port,
+            message.clone(),
+        );
         message.header(header);
         self.downstream.clone().send(message, context)?;
         Ok(())

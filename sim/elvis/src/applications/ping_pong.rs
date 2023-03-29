@@ -94,15 +94,15 @@ impl Application for PingPong {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
-            println!("Pong {}", ttl);
+            tracing::info!("Pong {}", ttl);
         } else {
-            println!("Ping {}", ttl);
+            tracing::info!("Ping {}", ttl);
         }
 
         let ttl = ttl - 1;
 
         if ttl == 0 {
-            println!("TTL has reach 0, PingPong has successfully completed");
+            tracing::info!("TTL has reach 0, PingPong has successfully completed");
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
                 shutdown.shut_down();
             }

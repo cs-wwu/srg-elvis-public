@@ -12,6 +12,7 @@ use crate::{
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
+use tracing::error;
 
 /// A program being run in a [`UserProcess`].
 ///

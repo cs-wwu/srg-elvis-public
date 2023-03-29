@@ -66,6 +66,7 @@ impl Protocol for Udp {
         Self::ID
     }
 
+    #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
         self: Arc<Self>,
         upstream: Id,
@@ -79,28 +80,28 @@ impl Protocol for Udp {
         let identifier = SessionId::new(
             Socket::new(
                 Ipv4::get_local_address(&participants).map_err(|_| {
-                    eprintln!("Missing local address on context");
+                    tracing::error!("Missing local address on context");
                     OpenError::MissingContext
                 })?,
                 Self::get_local_port(&participants).map_err(|_| {
-                    eprintln!("Missing local port on context");
+                    tracing::error!("Missing local port on context");
                     OpenError::MissingContext
                 })?,
             ),
             Socket::new(
                 Ipv4::get_remote_address(&participants).map_err(|_| {
-                    eprintln!("Missing remote address on context");
+                    tracing::error!("Missing remote address on context");
                     OpenError::MissingContext
                 })?,
                 Self::get_remote_port(&participants).map_err(|_| {
-                    eprintln!("Missing remote port on context");
+                    tracing::error!("Missing remote port on context");
                     OpenError::MissingContext
                 })?,
             ),
         );
         match self.sessions.entry(identifier) {
             Entry::Occupied(_) => {
-                eprintln!("Tried to create an existing session");
+                tracing::error!("Tried to create an existing session");
                 Err(OpenError::Existing)?
             }
             Entry::Vacant(entry) => {
@@ -120,6 +121,7 @@ impl Protocol for Udp {
         }
     }
 
+    #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
         upstream: Id,
@@ -131,11 +133,11 @@ impl Protocol for Udp {
         // we should crash. Unwrapping serves the purpose.
         let identifier = Socket {
             port: Self::get_local_port(&participants).map_err(|_| {
-                eprintln!("Missing local port on context");
+                tracing::error!("Missing local port on context");
                 ListenError::MissingContext
             })?,
             address: Ipv4::get_local_address(&participants).map_err(|_| {
-                eprintln!("Missing local address on context");
+                tracing::error!("Missing local address on context");
                 ListenError::MissingContext
             })?,
         };
@@ -147,6 +149,7 @@ impl Protocol for Udp {
             .listen(Self::ID, participants, protocols)
     }
 
+    #[tracing::instrument(name = "Udp::demux", skip_all)]
     fn demux(
         self: Arc<Self>,
         mut message: Message,
@@ -155,11 +158,11 @@ impl Protocol for Udp {
     ) -> Result<(), DemuxError> {
         // Extract information from the context
         let local_address = Ipv4::get_local_address(&context.control).map_err(|_| {
-            eprintln!("Missing local address on context");
+            tracing::error!("Missing local address on context");
             DemuxError::MissingContext
         })?;
         let remote_address = Ipv4::get_remote_address(&context.control).map_err(|_| {
-            eprintln!("Missing remote address on context");
+            tracing::error!("Missing remote address on context");
             DemuxError::MissingContext
         })?;
 
@@ -172,7 +175,7 @@ impl Protocol for Udp {
         ) {
             Ok(header) => header,
             Err(e) => {
-                eprintln!("{}", e);
+                tracing::error!("{}", e);
                 Err(DemuxError::Header)?
             }
         };
@@ -212,7 +215,9 @@ impl Protocol for Udp {
                     }
 
                     Entry::Vacant(_) => {
-                        eprintln!("Tried to demux with a missing session and no listen bindings");
+                        tracing::error!(
+                            "Tried to demux with a missing session and no listen bindings"
+                        );
                         Err(DemuxError::MissingSession)?
                     }
                 }

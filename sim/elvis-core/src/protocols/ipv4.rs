@@ -88,6 +88,7 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
+    #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
         self: Arc<Self>,
         upstream: Id,
@@ -96,20 +97,21 @@ impl Protocol for Ipv4 {
     ) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(
             Self::get_local_address(&participants).map_err(|_| {
-                eprintln!("Missing local address on context");
+                tracing::error!("Missing local address on context");
                 OpenError::MissingContext
             })?,
             Self::get_remote_address(&participants).map_err(|_| {
-                eprintln!("Missing remote address on context");
+                tracing::error!("Missing remote address on context");
                 OpenError::MissingContext
             })?,
         );
 
         match self.sessions.entry(key) {
             Entry::Occupied(_) => {
-                eprintln!(
+                tracing::error!(
                     "A session already exists for {} -> {}",
-                    key.local, key.remote
+                    key.local,
+                    key.remote
                 );
                 Err(OpenError::Existing)
             }
@@ -119,7 +121,7 @@ impl Protocol for Ipv4 {
                 let recipient = match self.recipients.get(&key.remote) {
                     Some(tap_slot) => *tap_slot,
                     None => {
-                        eprintln!("No tap slot found for the IP {}", key.remote);
+                        tracing::error!("No tap slot found for the IP {}", key.remote);
                         return Err(OpenError::Other);
                     }
                 };
@@ -135,6 +137,7 @@ impl Protocol for Ipv4 {
         }
     }
 
+    #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
         self: Arc<Self>,
         upstream: Id,
@@ -142,13 +145,13 @@ impl Protocol for Ipv4 {
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         let local = Self::get_local_address(&participants).map_err(|_| {
-            eprintln!("Missing local address on context");
+            tracing::error!("Missing local address on context");
             ListenError::MissingContext
         })?;
 
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => {
-                eprintln!("A binding already exists for local address {}", local);
+                tracing::error!("A binding already exists for local address {}", local);
                 Err(ListenError::Existing)?
             }
 
@@ -164,6 +167,7 @@ impl Protocol for Ipv4 {
             .listen(Self::ID, participants, protocols)
     }
 
+    #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
         self: Arc<Self>,
         mut message: Message,
@@ -175,7 +179,7 @@ impl Protocol for Ipv4 {
         let header = match Ipv4Header::from_bytes(message.iter()) {
             Ok(header) => header,
             Err(e) => {
-                eprintln!("{}", e);
+                tracing::error!("{}", e);
                 Err(DemuxError::Header)?
             }
         };
@@ -193,11 +197,11 @@ impl Protocol for Ipv4 {
                     // If the session does not exist but we have a listen
                     // binding for it, create the session
                     let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
-                        eprintln!("Missing network ID on context");
+                        tracing::error!("Missing network ID on context");
                         DemuxError::MissingContext
                     })?;
                     let mac = Network::get_sender(&context.control).map_err(|_| {
-                        eprintln!("Missing sender MAC on context");
+                        tracing::error!("Missing sender MAC on context");
                         DemuxError::MissingContext
                     })?;
                     let destination = Recipient::new(slot, mac);
@@ -208,7 +212,7 @@ impl Protocol for Ipv4 {
                 }
 
                 None => {
-                    eprintln!(
+                    tracing::error!(
                         "Could not find a listen binding for the local address {}",
                         identifier.local
                     );
