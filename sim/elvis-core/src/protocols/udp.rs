@@ -9,9 +9,9 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, Protocol, Shutdown,
+    Control, FxDashMap, Protocol, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
+use dashmap::mapref::entry::Entry;
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
@@ -26,8 +26,8 @@ use super::utility::Socket;
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: DashMap<Socket, Id>,
-    sessions: DashMap<SessionId, Arc<UdpSession>>,
+    listen_bindings: FxDashMap<Socket, Id>,
+    sessions: FxDashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {

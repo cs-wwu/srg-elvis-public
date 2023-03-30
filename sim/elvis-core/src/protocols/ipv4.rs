@@ -11,9 +11,9 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, Network, Protocol, Shutdown,
+    Control, FxDashMap, Network, Protocol, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
+use dashmap::mapref::entry::Entry;
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
@@ -28,8 +28,8 @@ use ipv4_session::{Ipv4Session, SessionId};
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
-    listen_bindings: DashMap<Ipv4Address, Id>,
-    sessions: DashMap<SessionId, Arc<Ipv4Session>>,
+    listen_bindings: FxDashMap<Ipv4Address, Id>,
+    sessions: FxDashMap<SessionId, Arc<Ipv4Session>>,
     recipients: Recipients,
 }
 
@@ -229,7 +229,7 @@ impl Protocol for Ipv4 {
     }
 }
 
-pub type Recipients = DashMap<Ipv4Address, Recipient>;
+pub type Recipients = FxDashMap<Ipv4Address, Recipient>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Recipient {

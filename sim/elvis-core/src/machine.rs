@@ -1,8 +1,6 @@
 use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id, Shutdown};
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    sync::Arc,
-};
+use rustc_hash::FxHashMap;
+use std::{collections::hash_map::Entry, sync::Arc};
 use tokio::sync::Barrier;
 
 /// A tap's PCI slot index
@@ -10,10 +8,10 @@ pub type PciSlot = u32;
 
 /// A mapping of protocol IDs to protocols
 #[derive(Clone)]
-pub struct ProtocolMap(Arc<HashMap<Id, SharedProtocol>>);
+pub struct ProtocolMap(Arc<FxHashMap<Id, SharedProtocol>>);
 
 impl ProtocolMap {
-    pub fn new(protocols: HashMap<Id, SharedProtocol>) -> Self {
+    pub fn new(protocols: FxHashMap<Id, SharedProtocol>) -> Self {
         Self(Arc::new(protocols))
     }
 
@@ -48,7 +46,7 @@ impl Machine {
     /// Creates a new machine containing the given `protocols`. Returns the
     /// machine and a channel which can be used to send messages to the machine.
     pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>) -> Machine {
-        let mut protocols_map = HashMap::new();
+        let mut protocols_map = FxHashMap::default();
         let mut protocol_ids = Vec::new();
         for protocol in protocols.into_iter() {
             match protocols_map.entry(protocol.clone().id()) {

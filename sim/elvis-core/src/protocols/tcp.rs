@@ -14,9 +14,9 @@ use crate::{
     },
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
+use dashmap::mapref::entry::Entry;
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
@@ -31,9 +31,9 @@ mod tcp_session;
 pub struct Tcp {
     /// A record of which protocol requested to listen for connections on
     /// particular sockets.
-    listen_bindings: DashMap<Socket, Id>,
+    listen_bindings: FxDashMap<Socket, Id>,
     /// A lookup table for sessions based on their endpoints.
-    sessions: DashMap<ConnectionId, Arc<TcpSession>>,
+    sessions: FxDashMap<ConnectionId, Arc<TcpSession>>,
 }
 
 impl Tcp {
