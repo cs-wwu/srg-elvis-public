@@ -28,6 +28,7 @@ mod tcp_session;
 
 /// Implements the Transmission Control Protocol. See the module-level
 /// documentation for more details.
+#[derive(Default)]
 pub struct Tcp {
     /// A record of which protocol requested to listen for connections on
     /// particular sockets.
@@ -42,10 +43,7 @@ impl Tcp {
 
     /// Creates a new TCP protocol
     pub fn new() -> Self {
-        Self {
-            listen_bindings: Default::default(),
-            sessions: Default::default(),
-        }
+        Default::default()
     }
 
     /// Converts the TCP into a shared protocol.

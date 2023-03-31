@@ -45,7 +45,7 @@ impl Pci {
             sessions: networks
                 .into_iter()
                 .enumerate()
-                .map(|(i, network)| PciSession::new(network.clone(), i as u32))
+                .map(|(i, network)| PciSession::new(network, i as u32))
                 .collect(),
         }
     }
