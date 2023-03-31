@@ -3,7 +3,7 @@ use crate::{
     control::{Key, Primitive},
     machine::{PciSlot, ProtocolMap},
     message::Message,
-    network::{Delivery, Tap},
+    network::{Delivery, Mac},
     protocol::{Context, DemuxError},
     session::{QueryError, SendError},
     Id, Network, Session,
@@ -12,19 +12,20 @@ use std::sync::{Arc, RwLock};
 
 /// The session type for a [`Tap`](super::Tap).
 pub struct PciSession {
-    tap: Tap,
+    mac: Mac,
     index: PciSlot,
+    network: Arc<Network>,
     protocols: RwLock<Option<ProtocolMap>>,
 }
 
 impl PciSession {
     /// Creates a new Tap session
-    pub(super) fn new(tap: Tap, index: u32) -> Arc<Self> {
-        let network = tap.network.clone();
-        let mac = tap.mac;
+    pub(super) fn new(network: Arc<Network>, index: u32) -> Arc<Self> {
+        let mac = network.next_mac();
         let this = Self {
-            tap,
+            mac,
             index,
+            network: network.clone(),
             protocols: Default::default(),
         };
         let this = Arc::new(this);
@@ -74,34 +75,27 @@ impl Session for PciSession {
         };
         let destination = Network::get_destination(&context.control).ok();
 
-        if message.len() > self.tap.mtu as usize {
+        if message.len() > self.network.mtu as usize {
             tracing::error!("Attempted to send a message larger than the network can handle");
-            Err(SendError::Mtu(self.tap.mtu))?
+            Err(SendError::Mtu(self.network.mtu))?
         }
 
-        let funnel = self.tap.delivery_sender.clone();
         let delivery = Delivery {
             message,
-            sender: self.tap.mac,
+            sender: self.mac,
             destination,
             protocol,
         };
 
         tokio::spawn(async move {
-            match funnel.send(delivery).await {
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!("Failed to send on direct network: {}", e);
-                }
-            }
+            self.network.send(delivery).await;
         });
-
         Ok(())
     }
 
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         match key {
-            Pci::MTU_QUERY_KEY => Ok(self.tap.mtu.into()),
+            Pci::MTU_QUERY_KEY => Ok(self.network.mtu.into()),
             _ => Err(QueryError::MissingKey),
         }
     }

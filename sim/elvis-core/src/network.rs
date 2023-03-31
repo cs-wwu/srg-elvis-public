@@ -19,17 +19,13 @@
 
 use crate::{
     control::ControlError, id::Id, protocols::pci::PciSession, Control, FxDashMap, Message,
-    Shutdown,
 };
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::{
-    sync::{mpsc, Barrier},
-    time::timeout,
-};
+use tokio::{sync::Notify, time::sleep};
 
 type Taps = Arc<FxDashMap<Mac, Arc<PciSession>>>;
 
@@ -42,19 +38,11 @@ type Taps = Arc<FxDashMap<Mac, Arc<PciSession>>>;
 /// reliability. It should provide a reasonable approximation of many kinds of
 /// networks, including Ethernet and WiFi.
 pub struct Network {
-    mtu: Mtu,
+    pub(crate) mtu: Mtu,
     latency: Latency,
     throughput: Throughput,
     loss_rate: f32,
-    /// The sending half of a channel for taps to send messages to the network
-    /// for delivery over the network. The other half is `delivery_receiver`.
-    /// Each tap gets its own copy of this and the network does not use it.
-    delivery_sender: mpsc::Sender<Delivery>,
-    /// The receiving half of a channel for receiving messages from taps for
-    /// delivery over the network. The other half is `delivery_sender`.
-    delivery_receiver: RwLock<Option<mpsc::Receiver<Delivery>>>,
-    /// A vector for channels for sending messages to specific taps attached to
-    /// the network
+    throughput_permit: Arc<Notify>,
     taps: Taps,
     next_mac: Mutex<Mac>,
 }
@@ -71,14 +59,14 @@ impl Network {
 
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
-        let funnel = mpsc::channel(16);
+        let throughput_permit = Arc::new(Notify::new());
+        throughput_permit.notify_one();
         Self {
             mtu: mtu.unwrap_or(Mtu::MAX),
             latency,
             throughput,
             loss_rate,
-            delivery_sender: funnel.0,
-            delivery_receiver: RwLock::new(Some(funnel.1)),
+            throughput_permit,
             taps: Default::default(),
             next_mac: Default::default(),
         }
@@ -90,22 +78,11 @@ impl Network {
         Arc::new(Default::default())
     }
 
-    /// Get an access point to the network. The returned [`Tap`] can be added to
-    /// a [`Pci`](crate::protocols::Pci) to allow a [`Machine`](crate::Machine)
-    /// to send and receive messages through the network.
-    pub fn tap(self: &Arc<Self>) -> Tap {
-        let mac = {
-            let mut lock = self.next_mac.lock().unwrap();
-            let mac = *lock;
-            *lock += 1;
-            mac
-        };
-        Tap {
-            mtu: self.mtu,
-            mac,
-            delivery_sender: self.delivery_sender.clone(),
-            network: self.clone(),
-        }
+    pub(crate) fn next_mac(self: &Arc<Self>) -> Mac {
+        let mut lock = self.next_mac.lock().unwrap();
+        let mac = *lock;
+        *lock += 1;
+        mac
     }
 
     pub(crate) fn register_tap(self: &Arc<Self>, mac: Mac, session: Arc<PciSession>) {
@@ -113,57 +90,55 @@ impl Network {
     }
 
     /// Called at the beginning of the simulation to start the network running
-    pub(crate) fn start(self: Arc<Self>, shutdown: Shutdown, initialized: Arc<Barrier>) {
-        let mut receiver = self.delivery_receiver.write().unwrap().take().unwrap();
-        let throughput = self.throughput;
-        let latency = self.latency;
-        let taps = self.taps.clone();
-        tokio::spawn(async move {
-            initialized.wait().await;
-            let mut shutdown_receiver = shutdown.receiver();
-            loop {
-                let delivery = tokio::select! {
-                    delivery = receiver.recv() => delivery,
-                    _ = shutdown_receiver.recv() => {
-                        break;
-                    }
-                };
+    pub(crate) async fn send(self: &Arc<Self>, delivery: Delivery) {
+        if self.loss_rate > 0.0 && rand::random::<f32>() < self.loss_rate {
+            // Drop the message
+            return;
+        }
 
-                let delivery = if let Some(delivery) = delivery {
-                    delivery
-                } else {
-                    break;
-                };
+        let throughput = self.throughput.next();
+        if throughput.0 > 0 {
+            self.throughput_permit.notified().await;
+            let ms = delivery.message.len() as u64 * 1000 / throughput.0;
+            sleep(Duration::from_millis(ms)).await;
+            self.throughput_permit.notify_one();
+        }
 
-                if self.loss_rate > 0.0 && rand::random::<f32>() < self.loss_rate {
-                    // Drop the message
-                    continue;
-                }
-
-                let throughput = throughput.next();
-                if throughput.0 > 0 {
-                    let ms = delivery.message.len() as u64 * 1000 / throughput.0;
-                    match timeout(Duration::from_millis(ms), shutdown_receiver.recv()).await {
-                        Ok(_) => break,
-                        Err(_) => {}
-                    }
-                }
-
-                let taps = taps.clone();
-                let latency = latency.next();
-                let shutdown = shutdown.clone();
-                let mut shutdown_receiver = shutdown.receiver();
-                tokio::spawn(async move {
-                    if latency > Duration::ZERO {
-                        match timeout(latency, shutdown_receiver.recv()).await {
-                            Ok(_) => return,
-                            Err(_) => {}
+        let latency = self.latency.next();
+        if latency > Duration::ZERO {
+            sleep(latency).await;
+        }
+        match delivery.destination {
+            Some(destination) => {
+                let tap = {
+                    match self.taps.get(&destination) {
+                        Some(tap) => tap,
+                        None => {
+                            tracing::error!("Trying to deliver to an invalid MAC address");
+                            return;
                         }
                     }
-                    complete_delivery(delivery, taps);
-                });
+                    .clone()
+                };
+                match tap.receive(delivery) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::error!("Failed to deliver a message: {}", e)
+                    }
+                }
             }
-        });
+
+            None => {
+                for tap in self.taps.iter() {
+                    match tap.clone().receive(delivery.clone()) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("Failed to deliver a message: {}", e)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Set the destination MAC address on a [`Control`]
@@ -194,40 +169,6 @@ impl Network {
     /// Get the protocol that should respond to a network frame on a [`Control`]
     pub fn get_protocol(control: &Control) -> Result<Id, ControlError> {
         Ok(control.get((Self::ID, 2))?.ok_u64()?.into())
-    }
-}
-
-fn complete_delivery(delivery: Delivery, taps: Taps) {
-    match delivery.destination {
-        Some(destination) => {
-            let tap = {
-                match taps.get(&destination) {
-                    Some(tap) => tap,
-                    None => {
-                        tracing::error!("Trying to deliver to an invalid MAC address");
-                        return;
-                    }
-                }
-                .clone()
-            };
-            match tap.receive(delivery) {
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!("Failed to deliver a message: {}", e)
-                }
-            }
-        }
-
-        None => {
-            for tap in taps.iter() {
-                match tap.clone().receive(delivery.clone()) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        tracing::error!("Failed to deliver a message: {}", e)
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -305,16 +246,6 @@ pub(crate) struct Delivery {
     pub destination: Option<Mac>,
     /// The protocol that should respond to the packet, usually an IP protocol
     pub protocol: Id,
-}
-
-/// An access point to a [`Network`]. A tap can be created by calling
-/// [`Network::tap`]. Taps should be added to a [`crate::protocols::Pci`]
-/// protocol to allow a [`Machine`](crate::Machine) to access the network.
-pub struct Tap {
-    pub(crate) mtu: Mtu,
-    pub(crate) mac: Mac,
-    pub(crate) delivery_sender: mpsc::Sender<Delivery>,
-    pub(crate) network: Arc<Network>,
 }
 
 /// A network maximum transmission unit.

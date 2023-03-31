@@ -5,12 +5,11 @@ use crate::{
     id::Id,
     machine::PciSlot,
     message::Message,
-    network::Tap,
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
     session::SharedSession,
-    Control, Protocol, ProtocolMap, Shutdown,
+    Control, Network, Protocol, ProtocolMap, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -41,12 +40,12 @@ impl Pci {
     pub const MTU_QUERY_KEY: Key = (Self::ID, 1);
 
     /// Creates a new network tap.
-    pub fn new(taps: impl IntoIterator<Item = Tap>) -> Self {
+    pub fn new(networks: impl IntoIterator<Item = Arc<Network>>) -> Self {
         Self {
-            sessions: taps
+            sessions: networks
                 .into_iter()
                 .enumerate()
-                .map(|(i, tap)| PciSession::new(tap, i as u32))
+                .map(|(i, network)| PciSession::new(network.clone(), i as u32))
                 .collect(),
         }
     }
