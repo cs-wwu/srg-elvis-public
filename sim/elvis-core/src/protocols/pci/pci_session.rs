@@ -6,76 +6,36 @@ use crate::{
     network::{Delivery, Tap},
     protocol::{Context, DemuxError},
     session::{QueryError, SendError},
-    Id, Network, Session, Shutdown,
+    Id, Network, Session,
 };
-use std::sync::Arc;
-use tokio::sync::{broadcast::error::RecvError, Barrier};
+use std::sync::{Arc, RwLock};
 
 /// The session type for a [`Tap`](super::Tap).
 pub struct PciSession {
     tap: Tap,
     index: PciSlot,
+    protocols: RwLock<Option<ProtocolMap>>,
 }
 
 impl PciSession {
     /// Creates a new Tap session
-    pub(super) fn new(tap: Tap, index: u32) -> Self {
-        Self { tap, index }
+    pub(super) fn new(tap: Tap, index: u32) -> Arc<Self> {
+        let network = tap.network.clone();
+        let mac = tap.mac;
+        let this = Self {
+            tap,
+            index,
+            protocols: Default::default(),
+        };
+        let this = Arc::new(this);
+        network.register_tap(mac, this.clone());
+        this
     }
 
     /// Called by the owning [`Pci`] protocol at the beginning of the simulation
     /// to start the contained tap running
-    pub(super) fn start(
-        self: Arc<Self>,
-        protocols: ProtocolMap,
-        barrier: Arc<Barrier>,
-        shutdown: Shutdown,
-    ) {
-        let mut direct_receiver = self.tap.unicast_receiver.write().unwrap().take().unwrap();
-        let mut broadcast_receiver = self.tap.broadcast.write().unwrap().take().unwrap();
-        let context = Context::new(protocols);
-        let me = self.clone();
-        tokio::spawn(async move {
-            barrier.wait().await;
-            let mut shutdown_receiver = shutdown.receiver();
-            loop {
-                let context = context.clone();
-                tokio::select! {
-                    message = direct_receiver.recv() => {
-                        me.clone().receive_direct(message, context);
-                    }
-                    message = broadcast_receiver.recv() => {
-                        me.clone().receive_broadcast(message, context);
-                    }
-                    _ = shutdown_receiver.recv() => break,
-                }
-            }
-        });
-    }
-
-    fn receive_direct(self: Arc<Self>, delivery: Option<Delivery>, context: Context) {
-        if let Some(delivery) = delivery {
-            match self.receive_delivery(delivery, context) {
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!("Failed to receive on direct network: {}", e);
-                }
-            }
-        }
-    }
-
-    fn receive_broadcast(self: Arc<Self>, delivery: Result<Delivery, RecvError>, context: Context) {
-        match delivery {
-            Ok(delivery) => match self.receive_delivery(delivery, context) {
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!("Failed to receive on a broadcast network: {}", e);
-                }
-            },
-            Err(e) => {
-                tracing::error!("Broadcast receive error: {}", e);
-            }
-        }
+    pub(super) fn start(self: Arc<Self>, protocols: ProtocolMap) {
+        *self.protocols.write().unwrap() = Some(protocols);
     }
 
     /// Called by the owned [`Tap`] to pass a frame from the network up the
@@ -83,11 +43,8 @@ impl PciSession {
     /// tap holds a reference to this session as a concrete type and having
     /// specialized arguments to pass a full network frame to this session is
     /// useful.
-    pub(crate) fn receive_delivery(
-        self: Arc<Self>,
-        delivery: Delivery,
-        mut context: Context,
-    ) -> Result<(), ReceiveError> {
+    pub(crate) fn receive(self: Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
+        let mut context = Context::new(self.protocols.read().unwrap().as_ref().unwrap().clone());
         Pci::set_pci_slot(self.index, &mut context.control);
         Network::set_sender(delivery.sender, &mut context.control);
         let protocol = match context.protocol(delivery.protocol) {

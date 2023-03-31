@@ -46,7 +46,7 @@ impl Pci {
             sessions: taps
                 .into_iter()
                 .enumerate()
-                .map(|(i, tap)| Arc::new(PciSession::new(tap, i as u32)))
+                .map(|(i, tap)| PciSession::new(tap, i as u32))
                 .collect(),
         }
     }
@@ -115,19 +115,15 @@ impl Protocol for Pci {
 
     fn start(
         self: Arc<Self>,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        let barrier = Arc::new(Barrier::new(self.sessions.len() + 1));
         for session in self.sessions.iter() {
-            session
-                .clone()
-                .start(protocols.clone(), barrier.clone(), shutdown.clone());
+            session.clone().start(protocols.clone());
         }
         tokio::spawn(async move {
             // Wait until all the taps have started before starting the sim
-            barrier.wait().await;
             initialized.wait().await;
         });
         Ok(())
