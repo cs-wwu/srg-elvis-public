@@ -8,7 +8,7 @@ use crate::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::mpsc::{channel, Sender},
+    sync::mpsc::{channel, error::TryRecvError, Sender},
     time::timeout,
 };
 
@@ -44,35 +44,52 @@ impl TcpSession {
         let out = me.clone();
         let context = Context::new(protocols);
         tokio::spawn(async move {
-            loop {
+            'outer: loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
-                match timeout(TIMEOUT, recv.recv()).await {
-                    Ok(instruction) => {
-                        match instruction {
-                            Some(instruction) => {
-                                match instruction {
-                                    Instruction::Incoming(segment) => {
-                                        match tcb.segment_arrives(segment) {
-                                            SegmentArrivesResult::Ok => {}
-                                            // TODO(hardint): Signal close
-                                            SegmentArrivesResult::Close => break,
-                                        }
-                                    }
-                                    Instruction::Outgoing(message) => {
-                                        tcb.send(message);
+
+                // This is for optimization. Tokio was spending a lot of time
+                // getting the current time for timeouts, so we first process
+                // any ready instructions without setting up a timeout and then
+                // maybe do the timeout if there were no instructions ready.
+                let mut needs_timeout = true;
+
+                loop {
+                    match recv.try_recv() {
+                        Ok(instruction) => {
+                            match handle_instruction(instruction, &mut tcb) {
+                                InstructionResult::Ok => {}
+                                InstructionResult::Close => break 'outer,
+                            }
+                            needs_timeout = false;
+                        }
+                        Err(e) => match e {
+                            TryRecvError::Empty => break,
+                            TryRecvError::Disconnected => break 'outer,
+                        },
+                    }
+                }
+
+                if needs_timeout {
+                    match timeout(TIMEOUT, recv.recv()).await {
+                        Ok(instruction) => {
+                            match instruction {
+                                Some(instruction) => {
+                                    match handle_instruction(instruction, &mut tcb) {
+                                        InstructionResult::Ok => {}
+                                        InstructionResult::Close => break,
                                     }
                                 }
+                                // TODO(hardint): Signal close
+                                None => break,
                             }
-                            // TODO(hardint): Signal close
-                            None => break,
                         }
-                    }
-                    Err(_) => {
-                        match tcb.advance_time(TIMEOUT) {
-                            AdvanceTimeResult::Ignore => {}
-                            // TODO(hardint): Signal close
-                            AdvanceTimeResult::CloseConnection => break,
-                        };
+                        Err(_) => {
+                            match tcb.advance_time(TIMEOUT) {
+                                AdvanceTimeResult::Ignore => {}
+                                // TODO(hardint): Signal close
+                                AdvanceTimeResult::CloseConnection => break,
+                            };
+                        }
                     }
                 }
 
@@ -108,6 +125,24 @@ impl TcpSession {
             }
         });
     }
+}
+
+fn handle_instruction(instruction: Instruction, tcb: &mut Tcb) -> InstructionResult {
+    match instruction {
+        Instruction::Incoming(segment) => match tcb.segment_arrives(segment) {
+            SegmentArrivesResult::Ok => InstructionResult::Ok,
+            SegmentArrivesResult::Close => InstructionResult::Close,
+        },
+        Instruction::Outgoing(message) => {
+            tcb.send(message);
+            InstructionResult::Ok
+        }
+    }
+}
+
+enum InstructionResult {
+    Ok,
+    Close,
 }
 
 impl Session for TcpSession {
