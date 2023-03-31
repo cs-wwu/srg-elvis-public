@@ -31,7 +31,7 @@ use tokio::{
     time::timeout,
 };
 
-type Taps = FxDashMap<Mac, Arc<PciSession>>;
+type Taps = Arc<FxDashMap<Mac, Arc<PciSession>>>;
 
 /// A network that allows the exchange of [`Message`]s between
 /// [`Machine`](crate::Machine)s.
