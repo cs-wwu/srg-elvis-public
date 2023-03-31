@@ -20,3 +20,4 @@ Cargo.lock
 *.old
 *.svg
 callgrind.*
+dhat.*
