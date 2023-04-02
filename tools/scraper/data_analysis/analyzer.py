@@ -1,8 +1,8 @@
-import pandas
+import pandas as pd
 import matplotlib.pyplot as plt
 from urllib import request
 #import matplotlib
-#import numpy as np
+import numpy as np
 
 def get_img_size(img_link):
     # get file size *and* image size (None if not known)
@@ -86,6 +86,38 @@ def parse_lines(lines):
             link_data.append(line)
     return [dataset, img_sizes]
 
+def get_weights_csv(df, filename, column, num_buckets, low, high):
+    # populate weights
+    weights = [0] * num_buckets
+    bucket_size = (high-low)/num_buckets
+    for index, row in df.iterrows():
+        if row[column] > high or row[column] < low:
+            continue
+        weights[int((row[column]-low) // bucket_size)] += 1
+    # populate buckets
+    buckets = []
+    temp = low
+    for i in range(num_buckets):
+        buckets.append(temp)
+        temp += bucket_size
+    # create dataframe 
+    data = {
+        "buckets": buckets,
+        "weights": weights
+    }
+    result = pd.DataFrame(data)
+    path = r'/home/robinpreble/elvis/srg-elvis/tools/scraper/data_analysis/' + filename + '.csv'
+    result.to_csv(path, index=False, header=True)
+
+def main():
+    df = pd.read_csv('dataframe.csv')
+    #img_df = pd.read_csv('img_dataframe.csv')
+    get_weights_csv(df, 'size_weights', 1, 50, 0, 2500)
+    get_weights_csv(df, 'num_links_weights', 2, 50, 0, 1500)
+    get_weights_csv(df, 'num_images_weights', 3, 50, 0, 400)
+    #get_weights_csv(df, 'image_size_weights', 0, 50, 0, 350)
+    
+"""
 def main():
     f = open("visited.json", "r")
     lines = f.readlines()
@@ -128,7 +160,7 @@ def main():
     plt.close()
 
     f.close()
-
+"""
 
 if __name__ == "__main__":
     main()
