@@ -11,6 +11,8 @@ use elvis_core::{
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
+use super::Transport;
+
 /// An application that stores the first message it receives and then exits the
 /// simulation.
 #[derive(Debug)]
@@ -66,7 +68,7 @@ impl Application for Capture {
     const ID: Id = Id::from_string("Capture");
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -93,9 +95,7 @@ impl Application for Capture {
         *self.cur_count.write().unwrap() += 1;
         if *self.cur_count.read().unwrap() >= self.message_count {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-                tokio::spawn(async move {
-                    shutdown.send(()).await.unwrap();
-                });
+                shutdown.shut_down();
             }
         }
         Ok(())

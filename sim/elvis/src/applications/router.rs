@@ -9,7 +9,7 @@ use elvis_core::{
         Ipv4, Pci,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap,
+    Control, Id, Network, ProtocolMap, Shutdown,
 };
 use std::{
     collections::HashMap,
@@ -47,7 +47,7 @@ impl Application for Router {
     /// begins.
     fn start(
         &self,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

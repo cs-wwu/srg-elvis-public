@@ -14,7 +14,7 @@ use crate::{
     },
     protocols::tcp::tcb::{segment_arrives_listen, AdvanceTimeResult},
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap,
+    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{
@@ -261,7 +261,7 @@ impl Protocol for Tcp {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {

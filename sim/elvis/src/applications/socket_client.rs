@@ -9,7 +9,7 @@ use elvis_core::{
         },
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Id, ProtocolMap,
+    Id, ProtocolMap, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -50,7 +50,7 @@ impl Application for SocketClient {
 
     fn start(
         &self,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

@@ -7,7 +7,7 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap,
+    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 
 pub mod socket;
@@ -139,7 +139,7 @@ impl Protocol for Sockets {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {

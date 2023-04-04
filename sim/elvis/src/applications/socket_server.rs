@@ -9,7 +9,7 @@ use elvis_core::{
         },
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Id, ProtocolMap,
+    Id, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc::Sender, Barrier};
@@ -49,7 +49,7 @@ impl Application for SocketServer {
 
     fn start(
         &self,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
@@ -101,7 +101,8 @@ impl Application for SocketServer {
                 String::from_utf8(msg).unwrap()
             );
 
-            shutdown.send(()).await.unwrap();
+            // shutdown.send(()).await.unwrap();
+            shutdown.shut_down();
         });
         Ok(())
     }
