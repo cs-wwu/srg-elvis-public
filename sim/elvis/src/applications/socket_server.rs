@@ -12,7 +12,7 @@ use elvis_core::{
     Id, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 pub struct SocketServer {
     /// The Sockets API
@@ -54,16 +54,19 @@ impl Application for SocketServer {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         // Create a new IPv4 Datagram Socket
-        let listen_socket = self
-            .sockets
-            .clone()
-            .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
-            .unwrap();
+        let sockets = self.sockets.clone();
         let local_port = self.local_port;
         let text = self.text;
         let message = self.message.clone();
 
         tokio::spawn(async move {
+            // Wait on ititialization before receiving any message from the network
+            initialized.wait().await;
+            let listen_socket = sockets
+                .clone()
+                .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
+                .unwrap();
+
             // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
             let local_sock_addr = SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, local_port);
             listen_socket.clone().bind(local_sock_addr).unwrap();
@@ -71,9 +74,6 @@ impl Application for SocketServer {
             // Listen for incoming connections
             listen_socket.clone().listen(0).unwrap();
             println!("SERVER: Listening for incoming connections");
-
-            // Wait on ititialization before receiving any message from the network
-            initialized.wait().await;
 
             // Accept an incoming connection
             let socket = listen_socket.clone().accept().await.unwrap();

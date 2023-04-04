@@ -12,7 +12,7 @@ use elvis_core::{
     Id, ProtocolMap, Shutdown,
 };
 use std::sync::Arc;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 pub struct SocketClient {
     /// The Sockets API
@@ -55,22 +55,21 @@ impl Application for SocketClient {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         // Create a new IPv4 Datagram Socket
-        let socket = self
-            .sockets
-            .clone()
-            .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
-            .unwrap();
+        let sockets = self.sockets.clone();
         let remote_ip = self.remote_ip;
         let remote_port = self.remote_port;
         let text = self.text;
+        // "Connect" the socket to a remote address
+        let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
 
         tokio::spawn(async move {
-            // "Connect" the socket to a remote address
-            let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
-            socket.clone().connect(remote_sock_addr).unwrap();
-
             // Wait on initialization before sending any message across the network
             initialized.wait().await;
+            let socket = sockets
+                .clone()
+                .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
+                .unwrap();
+            socket.clone().connect(remote_sock_addr).unwrap();
 
             // Send a connection request
             println!("CLIENT: Sending connection request");

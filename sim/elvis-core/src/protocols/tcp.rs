@@ -21,7 +21,7 @@ use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 mod tcb;
 mod tcp_parsing;

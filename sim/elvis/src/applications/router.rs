@@ -15,7 +15,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 pub type Arp = HashMap<Ipv4Address, Mac>;
 

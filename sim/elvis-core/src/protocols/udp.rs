@@ -7,7 +7,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::ipv4::{Ipv4, Ipv4Address},
+    protocols::ipv4::Ipv4,
     session::SharedSession,
     Control, Protocol, Shutdown,
 };

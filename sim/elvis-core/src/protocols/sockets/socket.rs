@@ -8,10 +8,10 @@ use crate::{
     protocol::{Context, DemuxError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
-    Control, Id, Message, ProtocolMap,
+    Control, Id, Message, ProtocolMap, Shutdown,
 };
 use thiserror::Error as ThisError;
-use tokio::sync::Notify;
+use tokio::{select, sync::Notify};
 
 use super::Sockets;
 
@@ -35,6 +35,13 @@ pub struct Socket {
     notify_recv: Notify,
     protocols: ProtocolMap,
     socket_api: Arc<Sockets>,
+    shutdown: Shutdown,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum NotifyResult {
+    Notified,
+    Shutdown,
 }
 
 impl Socket {
@@ -44,6 +51,7 @@ impl Socket {
         fd: Id,
         protocols: ProtocolMap,
         socket_api: Arc<Sockets>,
+        shutdown: Shutdown,
     ) -> Socket {
         Self {
             family: domain,
@@ -63,6 +71,7 @@ impl Socket {
             session: Default::default(),
             protocols,
             socket_api,
+            shutdown,
         }
     }
 
@@ -74,6 +83,18 @@ impl Socket {
                 .unwrap()
                 .push_back(remote_address);
             self.notify_listen.notify_one();
+        }
+    }
+
+    async fn wait_for_notify(&self) -> NotifyResult {
+        if *self.is_blocking.read().unwrap() {
+            let mut shutdown_receiver = self.shutdown.receiver();
+            select! {
+                _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
+                _ = self.notify_listen.notified() => NotifyResult::Notified,
+            }
+        } else {
+            NotifyResult::Notified
         }
     }
 
@@ -223,8 +244,8 @@ impl Socket {
         if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
-        if *self.is_blocking.read().unwrap() {
-            self.notify_listen.notified().await;
+        if self.wait_for_notify().await == NotifyResult::Shutdown {
+            return Err(SocketError::Shutdown);
         }
         let new_sock = self.socket_api.clone().new_socket(
             self.family,
@@ -283,8 +304,8 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if *self.is_blocking.read().unwrap() {
-            self.notify_recv.notified().await;
+        if self.wait_for_notify().await == NotifyResult::Shutdown {
+            return Err(SocketError::Shutdown);
         }
         let mut buf = Vec::new();
         let queue = &mut *self.messages.write().unwrap();
@@ -317,8 +338,8 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if *self.is_blocking.read().unwrap() {
-            self.notify_recv.notified().await;
+        if self.wait_for_notify().await == NotifyResult::Shutdown {
+            return Err(SocketError::Shutdown);
         }
         let mut queue = self.messages.write().unwrap().clone();
         let msg = match queue.pop_front() {
@@ -354,6 +375,8 @@ pub enum SocketError {
     SendError,
     #[error("Receive error")]
     ReceiveError,
+    #[error("The simulation requested to shut down")]
+    Shutdown,
     #[error("Unspecified error")]
     Other,
 }
