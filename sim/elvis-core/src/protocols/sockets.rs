@@ -1,6 +1,6 @@
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 use crate::{
     control::{Key, Primitive},

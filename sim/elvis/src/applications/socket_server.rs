@@ -12,7 +12,7 @@ use elvis_core::{
     Id, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 pub struct SocketServer {
     /// The Sockets API
