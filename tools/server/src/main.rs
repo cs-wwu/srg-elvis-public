@@ -14,8 +14,10 @@ use rand::prelude::*;
 use csv::{Reader, StringRecord};
 
 fn main() {
-    // println!("{}", generate_number("foo.csv").unwrap());
-    generate_html(500, 2, 5);
+    let size = generate_number("size_weights.csv").unwrap();
+    let num_links = generate_number("num_links_weights.csv").unwrap();
+    let num_images = generate_number("num_images_weights.csv").unwrap();
+    generate_html(size, num_links, num_images);
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -89,18 +91,18 @@ fn generate_links(num_links: usize) -> Vec<String> {
 }
 
 fn generate_number(data_file: &str) -> Result<usize, Box<dyn Error>> {
-    let mut buckets: Vec<usize> = Vec::new();
+    let mut buckets: Vec<f64> = Vec::new();
     let mut weights: Vec<usize> = Vec::new();
 
     let mut rdr = Reader::from_path(data_file)?;
     for result in rdr.records() {
         let record = result?;
-        buckets.push(record.get(0).unwrap().parse::<usize>().unwrap());
+        buckets.push(record.get(0).unwrap().parse::<f64>().unwrap());
         weights.push(record.get(1).unwrap().parse::<usize>().unwrap());
     }
     let dist = WeightedAliasIndex::new(weights).unwrap();
     let mut rng = thread_rng();
     
-    Ok(buckets[dist.sample(&mut rng)])
+    Ok(buckets[dist.sample(&mut rng)].round() as usize)
 }
 
