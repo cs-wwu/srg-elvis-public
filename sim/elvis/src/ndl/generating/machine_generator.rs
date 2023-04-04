@@ -40,7 +40,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 });
             assert!(machine_count > 0, "Machine count less than 1.");
         }
-        for temp_machine_count in 0..machine_count{
+        for temp_machine_count in 0..machine_count {
             if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("name") {
                 cur_name = machine
                     .options
@@ -49,7 +49,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     .get("name")
                     .unwrap()
                     .to_string();
-                if machine_count > 1{
+                if machine_count > 1 {
                     cur_name = cur_name + "-" + &temp_machine_count.to_string();
                 }
                 name_to_mac.insert(cur_name.clone(), cur_mac);
@@ -78,12 +78,11 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     }
                 }
             }
-            println!("here");
             cur_mac += 1;
         }
     }
+    println!("{:?}", name_to_mac);
     let mut machine_list = Vec::new();
-
     for machine in &machines {
         let mut machine_count = 1;
         let mut _cur_machine_name: String;
