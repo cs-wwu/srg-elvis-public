@@ -56,10 +56,10 @@ pub use network::Network;
 
 mod machine;
 pub use machine::Machine;
+pub use machine::ProtocolMap;
 
 mod internet;
 pub use internet::run_internet;
-pub use machine::ProtocolMap;
 
 mod id;
 pub use id::Id;

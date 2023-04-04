@@ -9,6 +9,9 @@ pub use pci::Pci;
 pub mod udp;
 pub use udp::Udp;
 
+pub mod sockets;
+pub use sockets::Sockets;
+
 pub mod user_process;
 pub use user_process::UserProcess;
 
@@ -16,4 +19,5 @@ mod utility;
 
 // TODO(hardint): Remove dead code allowance when possible
 #[allow(dead_code)]
-mod tcp;
+pub mod tcp;
+pub use tcp::Tcp;

@@ -7,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Pci,
     },
-    run_internet, Machine,
+    run_internet, Machine, Message,
 };
 use std::time::Duration;
 
@@ -28,21 +28,24 @@ pub async fn throughput() {
 
     let machines = vec![
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table.clone()),
-            Pci::new_shared([network.tap()]),
-            SendMessage::new_shared("First ", capture_ip_address, 0xbeef, None, 3),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
+            SendMessage::new(Message::new("Hello!"), capture_ip_address, 0xbeef)
+                .count(3)
+                .shared(),
         ]),
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table),
-            Pci::new_shared([network.tap()]),
-            ThroughputTester::new_shared(
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table).shared(),
+            Pci::new([network.tap()]).shared(),
+            ThroughputTester::new(
                 capture_ip_address,
                 0xbeef,
                 3,
                 Duration::from_millis(900)..Duration::from_millis(1100),
-            ),
+            )
+            .shared(),
         ]),
     ];
 

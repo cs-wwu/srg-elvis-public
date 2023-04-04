@@ -7,7 +7,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::ipv4::Ipv4,
+    protocols::ipv4::{Ipv4, Ipv4Address},
     session::SharedSession,
     Control, Protocol, Shutdown,
 };
@@ -40,8 +40,8 @@ impl Udp {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared() -> Arc<Self> {
-        Arc::new(Self::new())
+    pub fn shared(self) -> Arc<Self> {
+        Arc::new(self)
     }
 
     pub fn set_local_port(port: u16, control: &mut Control) {
@@ -165,7 +165,6 @@ impl Protocol for Udp {
             tracing::error!("Missing remote address on context");
             DemuxError::MissingContext
         })?;
-
         // Parse the header
         let header = match UdpHeader::from_bytes_ipv4(message.iter(), remote_address, local_address)
         {
@@ -186,7 +185,6 @@ impl Protocol for Udp {
         // Add the header information to the context
         Self::set_local_port(session_id.local.port, &mut context.control);
         Self::set_remote_port(session_id.remote.port, &mut context.control);
-
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
 

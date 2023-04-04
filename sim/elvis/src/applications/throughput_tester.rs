@@ -27,8 +27,8 @@ pub struct ThroughputTester {
     port: u16,
     message_count: u8,
     expected_delay: Range<Duration>,
-    previous_receipt: RwLock<Option<SystemTime>>,
-    received: RwLock<u8>,
+    previous_receipt: Arc<RwLock<Option<SystemTime>>>,
+    received: Arc<RwLock<u8>>,
 }
 
 impl ThroughputTester {
@@ -45,19 +45,14 @@ impl ThroughputTester {
             port,
             message_count,
             expected_delay,
-            previous_receipt: RwLock::new(None),
-            received: RwLock::new(0),
+            previous_receipt: Arc::new(RwLock::new(None)),
+            received: Arc::new(RwLock::new(0)),
         }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn new_shared(
-        ip_address: Ipv4Address,
-        port: u16,
-        message_count: u8,
-        expected_delay: Range<Duration>,
-    ) -> Arc<UserProcess<Self>> {
-        UserProcess::new_shared(Self::new(ip_address, port, message_count, expected_delay))
+    pub fn shared(self) -> Arc<UserProcess<Self>> {
+        UserProcess::new(self).shared()
     }
 }
 
@@ -65,7 +60,7 @@ impl Application for ThroughputTester {
     const ID: Id = Id::from_string("Capture");
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -84,11 +79,7 @@ impl Application for ThroughputTester {
         Ok(())
     }
 
-    fn receive(
-        self: Arc<Self>,
-        _message: Message,
-        _context: Context,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
         let now = SystemTime::now();
         if let Some(previous) = self.previous_receipt.write().unwrap().replace(now) {
             let elapsed = now.duration_since(previous).unwrap();

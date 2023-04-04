@@ -18,12 +18,15 @@ pub async fn telephone_single() {
     const END: u32 = 1000;
     let network = Network::basic();
 
+    let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
-        Udp::new_shared() as SharedProtocol,
-        Ipv4::new_shared([(remote, 0)].into_iter().collect()),
-        Pci::new_shared([network.tap()]),
-        SendMessage::new_shared("Hello!", remote, 0xbeef, Some(1), 1),
+        Udp::new().shared() as SharedProtocol,
+        Ipv4::new([(remote, 0)].into_iter().collect()).shared(),
+        Pci::new([network.tap()]).shared(),
+        SendMessage::new(message.clone(), remote, 0xbeef)
+            .remote_mac(1)
+            .shared(),
     ])];
 
     for i in 0u32..(END - 1) {
@@ -31,27 +34,24 @@ pub async fn telephone_single() {
         let remote: Ipv4Address = (i + 1).to_be_bytes().into();
         let table = [(local, 0), (remote, 0)].into_iter().collect();
         machines.push(Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(table),
-            Pci::new_shared([network.tap()]),
-            Forward::new_shared(local, remote, 0xbeef, 0xbeef, Some(i as Mac + 2)),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(table).shared(),
+            Pci::new([network.tap()]).shared(),
+            Forward::new(local, remote, 0xbeef, 0xbeef, Some(i as Mac + 2)).shared(),
         ]));
     }
 
     let local = (END - 1).to_be_bytes().into();
-    let capture = Capture::new_shared(local, 0xbeef);
+    let capture = Capture::new(local, 0xbeef, 1).shared();
     machines.push(Machine::new([
-        Udp::new_shared() as SharedProtocol,
-        Ipv4::new_shared([(local, 0)].into_iter().collect()),
-        Pci::new_shared([network.tap()]),
+        Udp::new().shared() as SharedProtocol,
+        Ipv4::new([(local, 0)].into_iter().collect()).shared(),
+        Pci::new([network.tap()]).shared(),
         capture.clone(),
     ]));
 
     run_internet(machines, vec![network]).await;
-    assert_eq!(
-        capture.application().message(),
-        Some(Message::new("Hello!"))
-    );
+    assert_eq!(capture.application().message(), Some(message));
 }
 
 #[cfg(test)]

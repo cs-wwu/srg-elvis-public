@@ -16,7 +16,7 @@ use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
-mod ipv4_parsing;
+pub mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
 
 mod ipv4_address;
@@ -48,8 +48,8 @@ impl Ipv4 {
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn new_shared(network_for_ip: IpToTapSlot) -> Arc<Self> {
-        Arc::new(Self::new(network_for_ip))
+    pub fn shared(self) -> Arc<Self> {
+        Arc::new(self)
     }
 
     pub fn set_local_address(address: Ipv4Address, control: &mut Control) {

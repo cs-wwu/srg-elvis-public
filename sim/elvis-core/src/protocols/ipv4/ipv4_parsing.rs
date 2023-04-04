@@ -16,7 +16,7 @@ const FRAGMENT_OFFSET_MASK: u16 = 0x1fff;
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct Ipv4Header {
+pub struct Ipv4Header {
     /// Internet Header Length, the number of `u32` words in the IPv4 header
     pub ihl: u8,
     /// The quality of service desired
@@ -164,7 +164,7 @@ impl Ipv4HeaderBuilder {
     pub fn new(
         source: Ipv4Address,
         destination: Ipv4Address,
-        protocol: ProtocolNumber,
+        protocol: u8,
         payload_length: u16,
     ) -> Self {
         Self {
@@ -174,7 +174,7 @@ impl Ipv4HeaderBuilder {
             fragment_offset: 0,
             flags: Default::default(),
             time_to_live: 30,
-            protocol: protocol as u8,
+            protocol,
             source,
             destination,
         }
@@ -258,26 +258,8 @@ pub enum HeaderBuildError {
     OverlyLongFragmentOffset,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub(super) enum ProtocolNumber {
-    // TODO(hardint): Expand this list as we support more protocols out of the box.
-    // https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
-    #[allow(dead_code)]
-    Icpm = 1,
-    #[allow(dead_code)]
-    Igmp = 2,
-    #[allow(dead_code)]
-    Ipv4 = 4,
-    #[allow(dead_code)]
-    Tcp = 6,
-    Udp = 17,
-    #[allow(dead_code)]
-    Ipv6 = 41,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub(super) struct ControlFlags(u8);
+pub struct ControlFlags(u8);
 
 impl ControlFlags {
     #[allow(dead_code)]
@@ -324,7 +306,7 @@ impl From<ControlFlags> for u8 {
 ///
 /// See RFC791 p11 s3.1 for more details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub(super) struct TypeOfService(u8);
+pub struct TypeOfService(u8);
 
 impl TypeOfService {
     // Note: It should not be possible for any of these functions to fail
@@ -385,7 +367,7 @@ impl From<TypeOfService> for u8 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum Delay {
+pub enum Delay {
     Normal = 0,
     Low = 1,
 }
@@ -410,7 +392,7 @@ pub enum DelayError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum Throughput {
+pub enum Throughput {
     Normal = 0,
     High = 1,
 }
@@ -435,7 +417,7 @@ pub enum ThroughputError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum Reliability {
+pub enum Reliability {
     Normal = 0,
     High = 1,
 }
@@ -468,7 +450,7 @@ pub enum ReliabilityError {
 /// Described in RFC791 p13 s3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub(super) enum Precedence {
+pub enum Precedence {
     NetworkControl = 0b111,
     InternetworkControl = 0b110,
     CriticEcp = 0b101,
@@ -562,7 +544,7 @@ mod tests {
         let actual = Ipv4HeaderBuilder::new(
             Ipv4Address::new([127, 0, 0, 1]),
             Ipv4Address::new([123, 45, 67, 89]),
-            ProtocolNumber::Udp,
+            17,
             payload_length,
         )
         .flags(ControlFlags::new(false, true))

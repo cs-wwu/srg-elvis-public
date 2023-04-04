@@ -19,27 +19,25 @@ pub async fn basic() {
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
 
-    let capture = Capture::new_shared(capture_ip_address, 0xbeef);
+    let message = Message::new("Hello!");
+    let capture = Capture::new(capture_ip_address, 0xbeef, 1).shared();
     let machines = vec![
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table.clone()),
-            Pci::new_shared([network.tap()]),
-            SendMessage::new_shared("Hello!", capture_ip_address, 0xbeef, None, 1),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
+            SendMessage::new(message.clone(), capture_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
-            Udp::new_shared() as SharedProtocol,
-            Ipv4::new_shared(ip_table),
-            Pci::new_shared([network.tap()]),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table).shared(),
+            Pci::new([network.tap()]).shared(),
             capture.clone(),
         ]),
     ];
 
     run_internet(machines, vec![network]).await;
-    assert_eq!(
-        capture.application().message(),
-        Some(Message::new("Hello!"))
-    );
+    assert_eq!(capture.application().message(), Some(message),);
 }
 
 #[cfg(test)]

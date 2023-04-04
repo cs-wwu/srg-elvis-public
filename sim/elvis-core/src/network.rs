@@ -261,7 +261,7 @@ impl NetworkBuilder {
     }
 
     /// The percentage of packets that are lost in transmission. Should be given
-    /// in the range [0,1].
+    /// in the range \[0,1\].
     pub fn loss_rate(mut self, loss_rate: f32) -> Self {
         self.loss_rate = loss_rate;
         self

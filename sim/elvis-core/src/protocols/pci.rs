@@ -52,8 +52,8 @@ impl Pci {
     }
 
     /// Creates a new network tap.
-    pub fn new_shared(taps: impl IntoIterator<Item = Tap>) -> SharedProtocol {
-        Arc::new(Self::new(taps))
+    pub fn shared(self) -> SharedProtocol {
+        Arc::new(self)
     }
 
     /// Sets the index of the tap that a message should be sent over or that a
