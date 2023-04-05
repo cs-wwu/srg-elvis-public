@@ -15,22 +15,20 @@ use csv::{Reader, StringRecord};
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    // Process each connection 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-
         handle_connection(stream);
     }    
 }
 
+// Send the html page data over the stream
 fn handle_connection(mut stream: TcpStream) {
     generate_html();
 
     let buf_reader = BufReader::new(&mut stream);
-    let request_line = buf_reader.lines().next().unwrap().unwrap();
-
+    // let request_line = buf_reader.lines().next().unwrap().unwrap();
     let status_line = "HTTP/1.1 200 OK";
-    let request_line = "page.html";
-
     let contents = fs::read_to_string("page.html").unwrap();
     let length = contents.len();
 
@@ -40,8 +38,11 @@ fn handle_connection(mut stream: TcpStream) {
     stream.write_all(response.as_bytes()).unwrap();
 }
 
+/* Randomly generate an html page with a size, number of links, and number of images
+    based on the distributions in the given .csv files */ 
 fn generate_html() {
     let mut result = String::new();
+    // Constants
     let link_bytes = 28;
     let empty_page_bytes = 151;
     let image_bytes = 22;
@@ -76,6 +77,7 @@ fn generate_html() {
     file.write_all(result.as_bytes());
 }
 
+// Generates a vector of links
 fn generate_links(num_links: usize) -> Vec<String> {
     let mut links = Vec::new();
     for _i in 0..num_links {
@@ -92,6 +94,7 @@ fn generate_links(num_links: usize) -> Vec<String> {
     links
 }
 
+// Radomly generate a number based on the distribution in the given .csv file
 fn generate_number(data_file: &str) -> Result<usize, Box<dyn Error>> {
     let mut buckets: Vec<f64> = Vec::new();
     let mut weights: Vec<usize> = Vec::new();
