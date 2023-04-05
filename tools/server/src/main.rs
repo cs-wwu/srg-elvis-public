@@ -14,10 +14,6 @@ use rand::prelude::*;
 use csv::{Reader, StringRecord};
 
 fn main() {
-    let size = generate_number("size_weights.csv").unwrap();
-    let num_links = generate_number("num_links_weights.csv").unwrap();
-    let num_images = generate_number("num_images_weights.csv").unwrap();
-    generate_html(size, num_links, num_images);
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -27,6 +23,8 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
+    generate_html();
+
     let buf_reader = BufReader::new(&mut stream);
     let request_line = buf_reader.lines().next().unwrap().unwrap();
 
@@ -42,11 +40,15 @@ fn handle_connection(mut stream: TcpStream) {
     stream.write_all(response.as_bytes()).unwrap();
 }
 
-fn generate_html(size: usize, num_links: usize, num_images: usize) {
+fn generate_html() {
     let mut result = String::new();
     let link_bytes = 28;
     let empty_page_bytes = 151;
     let image_bytes = 22;
+
+    let size = generate_number("size_weights.csv").unwrap();
+    let num_links = generate_number("num_links_weights.csv").unwrap();
+    let num_images = generate_number("num_images_weights.csv").unwrap();
 
     result += "<!DOCTYPE html>
     <html lang=\"en\">
