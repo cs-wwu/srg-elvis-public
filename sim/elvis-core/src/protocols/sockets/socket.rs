@@ -6,7 +6,7 @@ use std::{
 use crate::{
     message::Chunk,
     protocol::{Context, DemuxError},
-    protocols::{ipv4::Ipv4Address, Ipv4, Udp},
+    protocols::{ipv4::Ipv4Address, Ipv4, Udp, Tcp},
     session::SharedSession,
     Control, Id, Message, ProtocolMap,
 };
@@ -18,8 +18,8 @@ use super::Sockets;
 /// An implementation of an individual Socket
 /// Created by the [`Sockets`] API
 pub struct Socket {
-    family: ProtocolFamily,
-    sock_type: SocketType,
+    pub family: ProtocolFamily,
+    pub sock_type: SocketType,
     fd: Id,
     is_active: RwLock<bool>,
     is_bound: RwLock<bool>,
@@ -114,7 +114,7 @@ impl Socket {
                     Udp::set_local_port(local_addr.port, &mut participants);
                 }
                 SocketType::SocketStream => {
-                    todo!();
+                    Tcp::set_local_port(local_addr.port, &mut participants);
                 }
             }
         }
@@ -132,7 +132,7 @@ impl Socket {
                     Udp::set_remote_port(remote_addr.port, &mut participants);
                 }
                 SocketType::SocketStream => {
-                    todo!();
+                    Tcp::set_local_port(remote_addr.port, &mut participants);
                 }
             }
         }
@@ -195,7 +195,7 @@ impl Socket {
                     Udp::set_local_port(local_addr.port, &mut participants);
                 }
                 SocketType::SocketStream => {
-                    todo!();
+                    Tcp::set_local_port(local_addr.port, &mut participants);
                 }
             }
         }
