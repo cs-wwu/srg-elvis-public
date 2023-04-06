@@ -44,6 +44,12 @@ enum NotifyResult {
     Shutdown,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum NotifyType {
+    Listening,
+    Receiving,
+}
+
 impl Socket {
     pub(super) fn new(
         domain: ProtocolFamily,
@@ -86,12 +92,19 @@ impl Socket {
         }
     }
 
-    async fn wait_for_notify(&self) -> NotifyResult {
+    async fn wait_for_notify(&self, notify_type: NotifyType) -> NotifyResult {
         if *self.is_blocking.read().unwrap() {
             let mut shutdown_receiver = self.shutdown.receiver();
-            select! {
-                _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
-                _ = self.notify_listen.notified() => NotifyResult::Notified,
+            println!("Waiting for notify");
+            match notify_type {
+                NotifyType::Listening => select! {
+                    _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
+                    _ = self.notify_listen.notified() => NotifyResult::Notified,
+                },
+                NotifyType::Receiving => select! {
+                    _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
+                    _ = self.notify_recv.notified() => NotifyResult::Notified,
+                },
             }
         } else {
             NotifyResult::Notified
@@ -244,9 +257,10 @@ impl Socket {
         if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
-        if self.wait_for_notify().await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::Listening).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
+        println!("Notify received");
         let new_sock = self.socket_api.clone().new_socket(
             self.family,
             self.sock_type,
@@ -304,7 +318,7 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if self.wait_for_notify().await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::Receiving).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
         let mut buf = Vec::new();
@@ -338,7 +352,7 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if self.wait_for_notify().await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::Receiving).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
         let mut queue = self.messages.write().unwrap().clone();

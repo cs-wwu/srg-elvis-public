@@ -181,27 +181,35 @@ impl Protocol for Ipv4 {
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
 
-            Entry::Vacant(entry) => match self.listen_bindings.get(&identifier.local) {
-                Some(binding) => {
-                    // If the session does not exist but we have a listen
-                    // binding for it, create the session
-                    let network = Pci::get_pci_slot(&context.control).map_err(|_| {
-                        tracing::error!("Missing network ID on context");
-                        DemuxError::MissingContext
-                    })?;
-                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
-                    entry.insert(session.clone());
-                    session
-                }
-
-                None => {
-                    tracing::error!(
-                        "Could not find a listen binding for the local address {}",
-                        identifier.local
-                    );
-                    Err(DemuxError::MissingSession)?
-                }
-            },
+            Entry::Vacant(entry) => {
+                // If the session does not exist, see if we have a listen
+                // binding for it
+                let binding = match self.listen_bindings.get(&identifier.local) {
+                    Some(binding) => binding,
+                    None => {
+                        // If we don't have a normal listen binding, check for
+                        // a 0.0.0.0 binding
+                        let any_listen_id = Ipv4Address::CURRENT_NETWORK;
+                        match self.listen_bindings.get(&any_listen_id) {
+                            Some(any_binding) => any_binding,
+                            None => {
+                                tracing::error!(
+                                    "Could not find a listen binding for the local address {}",
+                                    identifier.local
+                                );
+                                Err(DemuxError::MissingSession)?
+                            }
+                        }
+                    }
+                };
+                let network = Pci::get_pci_slot(&context.control).map_err(|_| {
+                    tracing::error!("Missing network ID on context");
+                    DemuxError::MissingContext
+                })?;
+                let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
+                entry.insert(session.clone());
+                session
+            }
         };
         session.receive(message, context)?;
         Ok(())

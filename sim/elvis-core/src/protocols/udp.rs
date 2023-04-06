@@ -21,7 +21,7 @@ use udp_session::{SessionId, UdpSession};
 mod udp_parsing;
 use self::udp_parsing::UdpHeader;
 
-use super::utility::Socket;
+use super::{ipv4::Ipv4Address, utility::Socket};
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
@@ -195,26 +195,33 @@ impl Protocol for Udp {
                     address: local_address,
                     port: session_id.local.port,
                 };
-                match self.listen_bindings.entry(listen_id) {
-                    Entry::Occupied(listen_entry) => {
-                        // If we have a listen binding, create the session and
-                        // save it
-                        let session = Arc::new(UdpSession {
-                            upstream: *listen_entry.get(),
-                            downstream: caller,
-                            id: session_id,
-                        });
-                        session_entry.insert(session.clone());
-                        session
+                let binding = match self.listen_bindings.get(&listen_id) {
+                    Some(listen_entry) => listen_entry,
+                    None => {
+                        // If we don't have a normal listen binding, check for
+                        // a 0.0.0.0 binding
+                        let any_listen_id = Socket {
+                            address: Ipv4Address::CURRENT_NETWORK,
+                            port: session_id.local.port,
+                        };
+                        match self.listen_bindings.get(&any_listen_id) {
+                            Some(any_listen_entry) => any_listen_entry,
+                            None => {
+                                tracing::error!(
+                                    "Tried to demux with a missing session and no listen bindings"
+                                );
+                                Err(DemuxError::MissingSession)?
+                            }
+                        }
                     }
-
-                    Entry::Vacant(_) => {
-                        tracing::error!(
-                            "Tried to demux with a missing session and no listen bindings"
-                        );
-                        Err(DemuxError::MissingSession)?
-                    }
-                }
+                };
+                let session = Arc::new(UdpSession {
+                    upstream: *binding,
+                    downstream: caller,
+                    id: session_id,
+                });
+                session_entry.insert(session.clone());
+                session
             }
         };
         session.receive(message, context)?;
