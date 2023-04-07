@@ -24,7 +24,7 @@ mod query_tester;
 pub use query_tester::QueryTester;
 
 pub mod router;
-pub use router::{Arp, Router};
+pub use router::Router;
 
 mod throughput_tester;
 pub use throughput_tester::ThroughputTester;

@@ -11,7 +11,7 @@ use crate::{
     ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
 };
 use elvis_core::network::Mac;
-use elvis_core::protocols::ipv4::{IpToTapSlot, Ipv4Address};
+use elvis_core::protocols::ipv4::Ipv4Address;
 use elvis_core::protocols::UserProcess;
 use elvis_core::Message;
 
@@ -19,7 +19,6 @@ use elvis_core::Message;
 pub fn send_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-    name_to_mac: &HashMap<String, Mac>,
     ip_to_mac: &HashMap<Ipv4Address, Mac>,
 ) -> Arc<UserProcess<SendMessage>> {
     assert!(
@@ -38,6 +37,8 @@ pub fn send_message_builder(
     let to = app.options.get("to").unwrap().to_string();
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message = app.options.get("message").unwrap().to_owned();
+    let message = Message::new(message);
+    let messages = vec![message];
 
     // Determines whether or not we are using an IP or a name to send this message
     if ip_or_name(to.clone()) {
@@ -45,33 +46,26 @@ pub fn send_message_builder(
 
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            SendMessage::new(Message::new(message), to.into(), port).shared()
+            SendMessage::new(messages.clone(), to.into(), port).shared()
         }
         // case where ip to mac does have a mac
         else {
-            return SendMessage::new(Message::new(message), to.into(), port)
-                .remote_mac(*ip_to_mac.get(&to.into()).unwrap())
-                .shared();
+            return SendMessage::new(messages.clone(), to.into(), port).shared();
         }
     } else {
         return SendMessage::new(
-            Message::new(message),
+            messages,
             *name_to_ip
                 .get(&to)
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
             port,
-        )
-        .remote_mac(
-            *name_to_mac
-                .get(&to)
-                .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
         )
         .shared();
     }
 }
 
 /// Builds the [Capture] application for a machine
-pub fn capture_builder(app: &Application, ip_table: &IpToTapSlot) -> Arc<UserProcess<Capture>> {
+pub fn capture_builder(app: &Application) -> Arc<UserProcess<Capture>> {
     assert!(
         app.options.contains_key("port"),
         "Capture application doesn't contain port."
@@ -88,10 +82,6 @@ pub fn capture_builder(app: &Application, ip_table: &IpToTapSlot) -> Arc<UserPro
         app.options.get("ip").unwrap().to_string(),
         "capture declaration",
     );
-    assert!(
-        ip_table.contains_key(&ip.into()),
-        "Invalid IP found in capture application. IP does not exist in ip table. Found: {ip:?}"
-    );
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message_count = app
         .options
@@ -107,7 +97,6 @@ pub fn capture_builder(app: &Application, ip_table: &IpToTapSlot) -> Arc<UserPro
 pub fn forward_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-    name_to_mac: &HashMap<String, u64>,
     ip_to_mac: &HashMap<Ipv4Address, Mac>,
 ) -> Arc<UserProcess<Forward>> {
     assert!(
@@ -139,18 +128,11 @@ pub fn forward_message_builder(
 
         // case where ip to mac doesn't have a mac
         if !ip_to_mac.contains_key(&to.into()) {
-            Forward::new(ip.into(), to.into(), local_port, remote_port, None).shared()
+            Forward::new(ip.into(), to.into(), local_port, remote_port).shared()
         }
         // case where ip to mac does have a mac
         else {
-            return Forward::new(
-                ip.into(),
-                to.into(),
-                local_port,
-                remote_port,
-                Some(*ip_to_mac.get(&to.into()).unwrap()),
-            )
-            .shared();
+            return Forward::new(ip.into(), to.into(), local_port, remote_port).shared();
         }
     } else {
         Forward::new(
@@ -160,11 +142,6 @@ pub fn forward_message_builder(
                 .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
             local_port,
             remote_port,
-            Some(
-                *name_to_mac
-                    .get(&to)
-                    .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
-            ),
         )
         .shared()
     }

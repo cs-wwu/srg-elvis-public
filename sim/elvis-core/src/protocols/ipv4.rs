@@ -14,7 +14,7 @@ use crate::{
     Control, Network, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
@@ -236,7 +236,7 @@ impl Protocol for Ipv4 {
     }
 }
 
-pub type Recipients = DashMap<Ipv4Address, Recipient>;
+pub type Recipients = HashMap<Ipv4Address, Recipient>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Recipient {

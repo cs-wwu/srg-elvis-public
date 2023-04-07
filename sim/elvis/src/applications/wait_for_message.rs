@@ -6,10 +6,9 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Tcp, Udp,
     },
-    Control, Id, ProtocolMap, Shutdown, Shutdown,
+    Control, Id, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
 use tokio::sync::Barrier;
 
 use super::Transport;
@@ -19,7 +18,6 @@ use super::Transport;
 #[derive(Debug)]
 pub struct WaitForMessage {
     /// The channel we send on to shut down the simulation
-    shutdown: RwLock<Option<Shutdown>>,
     shutdown: RwLock<Option<Shutdown>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,

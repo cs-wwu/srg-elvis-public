@@ -1,36 +1,27 @@
 use elvis_core::{
     message::Message,
-    network::Mac,
     protocol::Context,
-    protocols::ipv4::ipv4_parsing::Ipv4Header,
+    protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4Address},
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Pci,
     },
     session::SharedSession,
     Control, Id, Network, ProtocolMap, Shutdown,
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
-
-pub type Arp = HashMap<Ipv4Address, Mac>;
 
 pub struct Router {
     outgoing: RwLock<Vec<SharedSession>>,
-    ip_table: IpToTapSlot,
-    arp_table: Arp,
+    recipients: Recipients,
 }
 
 impl Router {
-    pub fn new(ip_table: IpToTapSlot, arp_table: Arp) -> Self {
+    pub fn new(recipients: Recipients) -> Self {
         Self {
             outgoing: Default::default(),
-            ip_table,
-            arp_table,
+            recipients,
         }
     }
 
@@ -98,22 +89,17 @@ impl Application for Router {
 
         let address = header.destination;
 
-        if let Some(destination_mac) = self.arp_table.get(&address) {
-            Network::set_destination(*destination_mac, &mut context.control);
-        }
-
-        Network::set_protocol(Ipv4::ID, &mut context.control);
-
-        // put destination address through ip table
-        let destination = match self.ip_table.get(&address) {
-            Some(destination) => *destination,
+        let recipient = match self.recipients.get(&address) {
+            Some(recipient) => recipient,
             None => return Ok(()),
         };
+        Network::set_protocol(Ipv4::ID, &mut context.control);
+        Network::set_destination(recipient.mac, &mut context.control);
 
         self.outgoing
             .read()
             .expect("could not get outgoing as reference")
-            .get(destination as usize)
+            .get(recipient.slot as usize)
             .expect("Could not send message")
             .clone()
             .send(message, context)?;

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::network::Mac;
-use elvis_core::protocols::ipv4::{IpToTapSlot, Ipv4Address};
+use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Pci;
 use elvis_core::{
     protocol::SharedProtocol,
@@ -108,7 +108,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
         for _count in 0..machine_count {
             let mut networks_to_be_added = Vec::new();
             let mut protocols_to_be_added = Vec::new();
-            let mut ip_table = Vec::new();
+            let mut ip_table = HashMap::new();
 
             for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
                 // TODO: maybe still need an error test
@@ -135,10 +135,10 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                         )
                     });
                 for ip in ips {
-                    ip_table.push((*ip, net_num));
+                    let mac = ip_to_mac.get(ip).unwrap();
+                    ip_table.insert(*ip, Recipient::new(net_num, *mac));
                 }
             }
-            let ip_table: IpToTapSlot = ip_table.into_iter().collect();
             protocols_to_be_added.push(Pci::new(networks_to_be_added).shared());
             for protocol in &machine.interfaces.protocols {
                 for option in &protocol.options {
@@ -164,18 +164,16 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     "send_message" => protocols_to_be_added.push(send_message_builder(
                         app,
                         &name_to_ip,
-                        &name_to_mac,
                         &ip_to_mac,
                     )),
 
                     "capture" => {
-                        protocols_to_be_added.push(capture_builder(app, &ip_table));
+                        protocols_to_be_added.push(capture_builder(app));
                     }
 
                     "forward" => protocols_to_be_added.push(forward_message_builder(
                         app,
                         &name_to_ip,
-                        &name_to_mac,
                         &ip_to_mac,
                     )),
 

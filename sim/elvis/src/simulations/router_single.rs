@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
 use crate::applications::{Capture, Router, SendMessage};
 use elvis_core::{
-    network::Mac,
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Pci,
     },
@@ -16,54 +13,42 @@ const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
 const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);
 const IP_ADDRESS_3: Ipv4Address = Ipv4Address::new([123, 45, 67, 91]);
 const IP_ADDRESS_4: Ipv4Address = Ipv4Address::new([123, 45, 67, 92]);
+const DESTINATION: Ipv4Address = IP_ADDRESS_2;
 
 // simulates a staticly configured router routing a single packet to one of three destinations
 pub async fn router_single() {
-    // the destination of the capture we want to send the packet to
-    let destination = IP_ADDRESS_2;
-
-    let ip_table: IpToTapSlot = [
-        (IP_ADDRESS_1, 0),
-        (IP_ADDRESS_2, 1),
-        (IP_ADDRESS_3, 2),
-        (IP_ADDRESS_4, 3),
+    let ip_table: Recipients = [
+        (IP_ADDRESS_1, Recipient::new(0, 0)),
+        (IP_ADDRESS_2, Recipient::new(1, 1)),
+        (IP_ADDRESS_3, Recipient::new(2, 1)),
+        (IP_ADDRESS_4, Recipient::new(3, 1)),
     ]
     .into_iter()
     .collect();
 
-    let arp_table: HashMap<Ipv4Address, Mac> = [
-        (IP_ADDRESS_1, 0),
-        (IP_ADDRESS_2, 1),
-        (IP_ADDRESS_3, 1),
-        (IP_ADDRESS_4, 1),
-    ]
-    .into_iter()
-    .collect();
-
-    let dt1: IpToTapSlot = [(IP_ADDRESS_2, 0)].into_iter().collect();
-    let dt2: IpToTapSlot = [(IP_ADDRESS_3, 0)].into_iter().collect();
-    let dt3: IpToTapSlot = [(IP_ADDRESS_4, 0)].into_iter().collect();
+    let dt1: Recipients = [(IP_ADDRESS_2, Recipient::new(0, 666))]
+        .into_iter()
+        .collect();
+    let dt2: Recipients = [(IP_ADDRESS_3, Recipient::new(0, 666))]
+        .into_iter()
+        .collect();
+    let dt3: Recipients = [(IP_ADDRESS_4, Recipient::new(0, 666))]
+        .into_iter()
+        .collect();
 
     let d1 = Capture::new(IP_ADDRESS_2, 0xbeef, 1).shared();
     let d2 = Capture::new(IP_ADDRESS_3, 0xbeef, 1).shared();
     let d3 = Capture::new(IP_ADDRESS_4, 0xbeef, 1).shared();
 
-    let networks = vec![
-        Network::basic(),
-        Network::basic(),
-        Network::basic(),
-        Network::basic(),
-    ];
+    let networks: Vec<_> = (0..4).map(|_| Network::basic()).collect();
 
     let machines = vec![
         // send message
         Machine::new([
             Udp::new().shared() as SharedProtocol,
-            Ipv4::new([(destination, 0)].into_iter().collect()).shared(),
+            Ipv4::new([(DESTINATION, Recipient::new(0, 1))].into_iter().collect()).shared(),
             Pci::new([networks[0].tap()]).shared(),
-            SendMessage::new(Message::new(b"Hello World!"), destination, 0xbeef)
-                .remote_mac(1)
-                .shared(),
+            SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef).shared(),
         ]),
         // machine representing our router
         Machine::new([
@@ -74,7 +59,7 @@ pub async fn router_single() {
                 networks[3].tap(),
             ])
             .shared(),
-            Router::new(ip_table, arp_table).shared(),
+            Router::new(ip_table).shared(),
         ]),
         // capture for destination 1
         Machine::new([

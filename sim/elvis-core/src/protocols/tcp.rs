@@ -14,7 +14,7 @@ use crate::{
     },
     protocols::tcp::tcb::{segment_arrives_listen, AdvanceTimeResult},
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap, Shutdown, Shutdown,
+    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::{sync::Arc, time::Duration};
