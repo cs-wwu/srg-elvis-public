@@ -22,7 +22,7 @@ pub async fn tcp_with_reliable() {
 
     let message: Vec<_> = (0..20).map(|i| i as u8).collect();
     let message = Message::new(message);
-    let capture = Capture::new(capture_ip_address, 0xbeef)
+    let capture = Capture::new(capture_ip_address, 0xbeef, 1)
         .transport(Transport::Tcp)
         .shared();
     let machines = vec![

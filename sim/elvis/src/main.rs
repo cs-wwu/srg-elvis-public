@@ -1,10 +1,10 @@
-use elvis::simulations;
-use std::time::Instant;
+use elvis::cli::initialize_from_arguments;
+use std::env;
 
-/// Without arguments, main runs the default simulation
+/// Without arguments, will do nothing
 #[tokio::main]
 async fn main() {
-    let now = Instant::now();
-    simulations::udp_gigabyte_bench().await;
-    println!("{:?}", now.elapsed());
+    println!("Elvis v{}", env!("CARGO_PKG_VERSION"));
+    initialize_from_arguments().await;
+    println!("Done");
 }

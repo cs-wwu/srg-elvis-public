@@ -9,6 +9,9 @@ pub use pci::Pci;
 pub mod udp;
 pub use udp::Udp;
 
+pub mod sockets;
+pub use sockets::Sockets;
+
 pub mod user_process;
 pub use user_process::UserProcess;
 

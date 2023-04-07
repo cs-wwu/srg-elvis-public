@@ -1,3 +1,5 @@
+use std::time::{Duration, SystemTime};
+
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     network::{Latency, NetworkBuilder},
@@ -9,7 +11,6 @@ use elvis_core::{
     },
     run_internet, Machine, Message,
 };
-use std::time::{Duration, SystemTime};
 
 /// Runs a basic simulation.
 ///
@@ -24,7 +25,7 @@ pub async fn latency() {
         .into_iter()
         .collect();
 
-    let capture = Capture::new(capture_ip_address, 0xbeef).shared();
+    let capture = Capture::new(capture_ip_address, 0xbeef, 1).shared();
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
