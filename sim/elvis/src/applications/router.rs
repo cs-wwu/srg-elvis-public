@@ -9,13 +9,13 @@ use elvis_core::{
         Ipv4, Pci,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap,
+    Control, Id, Network, ProtocolMap, Shutdown,
 };
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 pub type Arp = HashMap<Ipv4Address, Mac>;
 
@@ -47,7 +47,7 @@ impl Application for Router {
     /// begins.
     fn start(
         &self,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
