@@ -79,6 +79,14 @@ impl SubWrap {
     /// Returns an UnboundedReceiver.
     /// Whenever `demux` is called on this wrapper, the message will be sent to this receiver.
     /// A copy of the message's context will be included.
+    /// 
+    /// # Memory leaks
+    /// 
+    /// This UnboundedReceiver will store an unlimited number of messages.
+    /// To prevent them from taking up all the memory, you must do 1 of 3 things:
+    /// * [`recv()`](mpsc::UnboundedReceiver::recv) them, or
+    /// * [`close()`](mpsc::UnboundedReceiver::close) the receiver, or 
+    /// * drop the Receiver.
     pub fn subscribe_demux(&mut self) -> mpsc::UnboundedReceiver<(Message, Context)> {
         let (send, recv) = mpsc::unbounded_channel();
         self.demux_senders.push(send);
@@ -91,6 +99,14 @@ impl SubWrap {
     ///
     /// NOTE: only sessions created with [`SubWrap::open`] will send to this receiver.
     /// If the inner protocol calls send on its own sessions, they will not be tracked.
+    /// 
+    /// # Memory leaks
+    /// 
+    /// This UnboundedReceiver will store an unlimited number of messages.
+    /// To prevent them from taking up all the memory, you must do 1 of 3 things:
+    /// * [`recv()`](mpsc::UnboundedReceiver::recv) them, or
+    /// * [`close()`](mpsc::UnboundedReceiver::close) the receiver, or 
+    /// * drop the Receiver.
     pub fn subscribe_send(&mut self) -> mpsc::UnboundedReceiver<(Message, Context)> {
         let (send, recv) = mpsc::unbounded_channel();
         self.send_senders.push(send);
