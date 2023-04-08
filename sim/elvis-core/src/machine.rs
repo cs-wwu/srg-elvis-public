@@ -1,9 +1,9 @@
-use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id};
+use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id, Shutdown};
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
 };
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 /// A tap's PCI slot index
 pub type PciSlot = u32;
@@ -67,7 +67,7 @@ impl Machine {
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub(crate) fn start(self, shutdown: Sender<()>, initialized: Arc<Barrier>) {
+    pub(crate) fn start(self, shutdown: Shutdown, initialized: Arc<Barrier>) {
         for protocol in self.protocols.iter() {
             protocol
                 .clone()

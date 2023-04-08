@@ -1,11 +1,11 @@
 use super::Machine;
-use crate::Network;
+use crate::{Network, Shutdown};
 use std::sync::Arc;
-use tokio::sync::{mpsc, Barrier};
+use tokio::sync::Barrier;
 
 /// Runs the simulation with the given machines and networks
 pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
-    let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
+    let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
         .map(|machine| machine.protocol_count())
@@ -13,14 +13,18 @@ pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
     let initialized = Arc::new(Barrier::new(total_protocols + networks.len()));
 
     for machine in machines {
-        machine.start(shutdown_sender.clone(), initialized.clone());
+        machine.start(shutdown.clone(), initialized.clone());
     }
 
     for network in networks {
-        network.start(initialized.clone());
+        network.start(shutdown.clone(), initialized.clone());
     }
 
-    // TODO(hardint): We need to tell all tasks to shut down and wait for
-    // them here before proceeding.
-    shutdown_receiver.recv().await.unwrap();
+    // We drop our shutdown first because otherwise, the recv() sleeps forever
+    let mut shutdown_receiver = shutdown.receiver();
+    drop(shutdown);
+
+    // When every sender has gone out of scope, the recv call
+    // will return with an error. We ignore the error.
+    let _ = shutdown_receiver.recv().await;
 }

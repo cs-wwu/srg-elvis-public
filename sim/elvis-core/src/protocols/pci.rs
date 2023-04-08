@@ -10,10 +10,10 @@ use crate::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
     session::SharedSession,
-    Control, Protocol, ProtocolMap,
+    Control, Protocol, ProtocolMap, Shutdown,
 };
 use std::sync::Arc;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 mod pci_session;
 pub(crate) use pci_session::PciSession;
@@ -115,13 +115,15 @@ impl Protocol for Pci {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let barrier = Arc::new(Barrier::new(self.sessions.len() + 1));
         for session in self.sessions.iter() {
-            session.clone().start(protocols.clone(), barrier.clone());
+            session
+                .clone()
+                .start(protocols.clone(), barrier.clone(), shutdown.clone());
         }
         tokio::spawn(async move {
             // Wait until all the taps have started before starting the sim

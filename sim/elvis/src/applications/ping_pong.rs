@@ -8,10 +8,10 @@ use elvis_core::{
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap,
+    Control, Id, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 use super::Transport;
 
@@ -21,7 +21,7 @@ use super::Transport;
 /// Once the TTL reaches 0 the program ends.
 pub struct PingPong {
     /// The channel we send on to shut down the simulation
-    shutdown: RwLock<Option<Sender<()>>>,
+    shutdown: RwLock<Option<Shutdown>>,
     /// The session we send messages on
     session: RwLock<Option<SharedSession>>,
     is_initiator: bool,
@@ -80,7 +80,7 @@ impl Application for PingPong {
 
     fn start(
         &self,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
@@ -123,9 +123,7 @@ impl Application for PingPong {
         if ttl == 0 {
             tracing::info!("TTL has reach 0, PingPong has successfully completed");
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-                tokio::spawn(async move {
-                    shutdown.send(()).await.unwrap();
-                });
+                shutdown.shut_down();
             }
         } else {
             self.session

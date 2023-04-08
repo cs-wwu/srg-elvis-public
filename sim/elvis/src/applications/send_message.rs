@@ -8,10 +8,10 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Tcp,
     },
-    Control, Id, Network, ProtocolMap,
+    Control, Id, Network, ProtocolMap, Shutdown,
 };
 use std::sync::Arc;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 use super::Transport;
 
@@ -73,7 +73,7 @@ impl Application for SendMessage {
 
     fn start(
         &self,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
