@@ -1,4 +1,4 @@
-//! This module contains several test simulations and examples of how to use the SubWrap protocol.
+//! This module contains several test simulations and examples of how to use the [`SubWrap`] protocol.
 
 use std::collections::HashSet;
 
@@ -37,8 +37,8 @@ fn message_contains(message: &Message, str: &str) -> bool {
     String::from_iter(message.iter().map(char::from)).contains(str)
 }
 
-/// A test simulation for the SubWrap.
-/// Based on the basic.rs simulation.
+/// A test simulation for the [`SubWrap`].
+/// Based on the [`basic.rs`](crate::simulations::basic) simulation.
 pub async fn basic_with_1_subscribe() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
@@ -75,7 +75,7 @@ pub async fn basic_with_1_subscribe() {
     assert!(message_contains(&message, "Hello!"));
 }
 
-/// A version of basic_with_1_subscribe() with more rigorous testing of SubWrap.
+/// A version of [`basic_with_1_subscribe()`] with more rigorous testing of `SubWrap`.
 pub async fn basic_with_lots_of_subscribe() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
@@ -127,7 +127,7 @@ pub async fn basic_with_lots_of_subscribe() {
     );
 }
 
-/// A version of the ping_pong.rs simulation which prints out each ping and pong.
+/// A version of the [`ping_pong.rs`](crate::simulations::ping_pong) simulation which prints out each ping and pong.
 pub async fn print_ping_pong() {
     const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
     const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);

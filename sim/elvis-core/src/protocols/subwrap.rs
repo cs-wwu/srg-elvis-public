@@ -22,7 +22,7 @@ type Senders = Vec<mpsc::UnboundedSender<(Message, Context)>>;
 /// Whenever [`id`], [`demux`], [`open`], [`listen`], or [`query`] is called, these functions are also called on the inner protocol.
 ///
 /// `SubWrap` has 2 special functions: [`subscribe_demux`] and [`subscribe_send`]. These return receivers that will be sent on
-/// whenever [`demux`] and [`SubWrapSession::send`] are called, respectively.
+/// whenever `SubWrap::demux` and [`SubWrapSession::send`] are called, respectively.
 ///
 /// # Example
 ///
@@ -52,6 +52,13 @@ type Senders = Vec<mpsc::UnboundedSender<(Message, Context)>>;
 ///     tokio::spawn(async move { message_recv.recv().await });
 /// }
 /// ```
+/// [`id`]: SubWrap::id
+/// [`demux`]: SubWrap::demux
+/// [`open`]: SubWrap::open
+/// [`listen`]: SubWrap::listen
+/// [`query`]: SubWrap::query
+/// [`subscribe_demux`]: SubWrap::subscribe_demux
+/// [`subscribe_send`]: SubWrap::subscribe_send
 pub struct SubWrap {
     /// The protocol wrapped by this one
     inner: SharedProtocol,
@@ -119,7 +126,7 @@ impl Protocol for SubWrap {
         self.inner.clone().id()
     }
 
-    /// Starts the inner protocol.
+    /// Calls [`start`](Protocol::start) on the inner protocol.
     fn start(
         self: Arc<Self>,
         shutdown: mpsc::Sender<()>,
@@ -129,7 +136,7 @@ impl Protocol for SubWrap {
         self.inner.clone().start(shutdown, initialized, protocols)
     }
 
-    /// Calls open on the inner protocol.
+    /// Calls [`open`](Protocol::open) on the inner protocol.
     /// Wraps the resulting session with a [`SubWrapSession`].
     fn open(
         self: Arc<Self>,
@@ -145,7 +152,7 @@ impl Protocol for SubWrap {
         Ok(Arc::new(result))
     }
 
-    /// Calls listen on the inner protocol.
+    /// Calls [`listen`](Protocol::listen) on the inner protocol.
     fn listen(
         self: Arc<Self>,
         upstream: Id,
@@ -166,7 +173,7 @@ impl Protocol for SubWrap {
         self.inner.clone().demux(message, caller, context)
     }
 
-    /// Returns the result of querying the inner protocol.
+    /// Calls [`query`](Protocol::query) on the inner protocol and returns the result.
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
         self.inner.clone().query(key)
     }
@@ -180,13 +187,14 @@ pub struct SubWrapSession {
 }
 
 impl Session for SubWrapSession {
-    /// Sends the message to all receivers obtained with [`subscribe_send`](SubWrap::subscribe_send), then calls `send` on the inner session.
+    /// Sends the message to all receivers created by [`subscribe_send`](SubWrap::subscribe_send), 
+    /// then calls [`send`](Session::send) on the inner session.
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), session::SendError> {
         send_on_all(&self.parent.send_senders, &message, &context);
         self.inner.clone().send(message, context)
     }
 
-    /// Returns the result of querying the inner session.
+    /// Calls [`query`](Session::query) on the inner Session, then returns the result.
     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, session::QueryError> {
         self.inner.clone().query(key)
     }
