@@ -10,7 +10,7 @@ use crate::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
     session::{self, SharedSession},
-    Control, Id, Message, Protocol, ProtocolMap, Session,
+    Control, Id, Message, Protocol, ProtocolMap, Session, Shutdown,
 };
 
 type Senders = Vec<mpsc::UnboundedSender<(Message, Context)>>;
@@ -129,7 +129,7 @@ impl Protocol for SubWrap {
     /// Calls [`start`](Protocol::start) on the inner protocol.
     fn start(
         self: Arc<Self>,
-        shutdown: mpsc::Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
