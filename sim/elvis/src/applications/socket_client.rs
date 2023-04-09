@@ -17,8 +17,8 @@ use tokio::sync::Barrier;
 pub struct SocketClient {
     /// The Sockets API
     sockets: Arc<Sockets>,
-    /// The text of the message to send
-    text: &'static str,
+    /// Numerical ID
+    client_id: u16,
     /// The IP address to send to
     remote_ip: Ipv4Address,
     /// The port to send to
@@ -28,13 +28,13 @@ pub struct SocketClient {
 impl SocketClient {
     pub fn new(
         sockets: Arc<Sockets>,
-        text: &'static str,
+        client_id: u16,
         remote_ip: Ipv4Address,
         remote_port: u16,
     ) -> Self {
         Self {
             sockets,
-            text,
+            client_id,
             remote_ip,
             remote_port,
         }
@@ -54,45 +54,51 @@ impl Application for SocketClient {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        // Create a new IPv4 Datagram Socket
+        // Take ownership of struct fields so they can be accessed within the
+        // tokio thread
         let sockets = self.sockets.clone();
         let remote_ip = self.remote_ip;
         let remote_port = self.remote_port;
-        let text = self.text;
-        // "Connect" the socket to a remote address
-        let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
+        let client_id = self.client_id;
 
         tokio::spawn(async move {
-            // Wait on initialization before sending any message across the network
-            initialized.wait().await;
+            // Create a new IPv4 Datagram Socket
             let socket = sockets
                 .clone()
-                .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
+                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .unwrap();
+
+            // Wait on initialization before sending any message across the network
+            initialized.wait().await;
+
+            // "Connect" the socket to a remote address
+            let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
             socket.clone().connect(remote_sock_addr).unwrap();
 
             // Send a connection request
-            println!("CLIENT: Sending connection request");
+            println!("CLIENT {}: Sending connection request", client_id);
             socket.clone().send("SYN").unwrap();
 
             // Receive a connection response
             let _ack = socket.clone().recv(32).await.unwrap();
-            println!("CLIENT: Connection response received");
+            println!("CLIENT {}: Connection response received", client_id);
 
             // Send a message
-            println!("CLIENT: Sending Request: {:?}", text);
-            socket.clone().send(text).unwrap();
+            let req = "Ground Control to Major Tom";
+            println!("CLIENT {}: Sending Request: {:?}", client_id, req);
+            socket.clone().send(req).unwrap();
 
             // Receive a message
-            let msg = socket.clone().recv(32).await.unwrap();
+            let resp = socket.clone().recv(32).await.unwrap();
             println!(
-                "CLIENT: Response Received: {:?}",
-                String::from_utf8(msg).unwrap()
+                "CLIENT {}: Response Received: {:?}",
+                client_id,
+                String::from_utf8(resp).unwrap()
             );
 
-            // Send another message
-            println!("CLIENT: Sending Request: \"Shutdown\"");
-            socket.clone().send("Shutdown").unwrap();
+            // Send a message
+            println!("CLIENT {}: Sending Ackowledgement", client_id);
+            socket.clone().send("Ackowledged").unwrap();
         });
         Ok(())
     }
