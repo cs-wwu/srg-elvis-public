@@ -125,7 +125,7 @@ impl Protocol for SubWrap {
     fn id(self: Arc<Self>) -> Id {
         self.inner.clone().id()
     }
-    
+
     /// Calls [`start`](Protocol::start) on the inner protocol.
     fn start(
         self: Arc<Self>,
