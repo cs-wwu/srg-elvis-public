@@ -24,8 +24,16 @@ pub use latency::latency;
 mod throughput;
 pub use throughput::throughput;
 
+mod router_single;
+pub use router_single::router_single;
+
+mod router_multi;
+pub use router_multi::router_multi;
+
 mod tcp_with_reliable;
 pub use tcp_with_reliable::tcp_with_reliable;
 
 mod tcp_with_unreliable;
 pub use tcp_with_unreliable::tcp_with_unreliable;
+
+pub mod subscribing;
