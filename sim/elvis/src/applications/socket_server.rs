@@ -51,7 +51,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
     println!("SERVER: Sending Response: {:?}", resp);
     socket.clone().send(resp).unwrap();
 
-    // Receive an ackowledgement (Example usage of recv_msg)
+    // Receive a message (Also example usage of recv_msg)
     let _ack = socket.clone().recv_msg().await.unwrap();
     println!("SERVER: Ackowledgement Received");
 }
@@ -65,29 +65,32 @@ impl Application for SocketServer {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        // Create a new IPv4 Datagram Socket
+        // Take ownership of struct fields so they can be accessed within the
+        // tokio thread
         let sockets = self.sockets.clone();
         let local_port = self.local_port;
-        // let text = self.text;
-        // let message = self.message.clone();
 
         tokio::spawn(async move {
-            // Wait on ititialization before receiving any message from the network
-            initialized.wait().await;
+            // Create a new IPv4 Datagram Socket
             let listen_socket = sockets
                 .clone()
-                .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
+                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .unwrap();
 
             // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
             let local_sock_addr = SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, local_port);
             listen_socket.clone().bind(local_sock_addr).unwrap();
 
-            // Listen for incoming connections
-            listen_socket.clone().listen(0).unwrap();
+            // Listen for incoming connections, with a maximum backlog of 10
+            listen_socket.clone().listen(10).unwrap();
             println!("SERVER: Listening for incoming connections");
 
+            // Wait on ititialization before sending or receiving any message from the network
+            initialized.wait().await;
+
             let mut tasks = Vec::new();
+            // Continuously accept incoming connections in a loop, spawning a
+            // new tokio task to handle each accepted connection
             loop {
                 // Accept an incoming connection
                 let socket = listen_socket.clone().accept().await.unwrap();
@@ -110,6 +113,8 @@ impl Application for SocketServer {
                     break;
                 }
             }
+
+            // Shut down the simulation
             println!("SERVER: Shutting down");
             shutdown.shut_down();
         });

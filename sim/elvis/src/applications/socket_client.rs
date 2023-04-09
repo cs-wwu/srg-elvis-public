@@ -54,6 +54,8 @@ impl Application for SocketClient {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
+        // Take ownership of struct fields so they can be accessed within the
+        // tokio thread
         let sockets = self.sockets.clone();
         let remote_ip = self.remote_ip;
         let remote_port = self.remote_port;
@@ -63,7 +65,7 @@ impl Application for SocketClient {
             // Create a new IPv4 Datagram Socket
             let socket = sockets
                 .clone()
-                .new_socket(ProtocolFamily::INET, SocketType::SocketDatagram, protocols)
+                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .unwrap();
 
             // Wait on initialization before sending any message across the network
@@ -94,6 +96,7 @@ impl Application for SocketClient {
                 String::from_utf8(resp).unwrap()
             );
 
+            // Send a message
             println!("CLIENT {}: Sending Ackowledgement", client_id);
             socket.clone().send("Ackowledged").unwrap();
         });

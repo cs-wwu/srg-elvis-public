@@ -143,10 +143,10 @@ impl Socket {
                 }
             }
             match self.sock_type {
-                SocketType::SocketDatagram => {
+                SocketType::Datagram => {
                     Udp::set_local_port(local_addr.port, &mut participants);
                 }
-                SocketType::SocketStream => {
+                SocketType::Stream => {
                     Tcp::set_local_port(local_addr.port, &mut participants);
                 }
             }
@@ -161,10 +161,10 @@ impl Socket {
                 }
             }
             match self.sock_type {
-                SocketType::SocketDatagram => {
+                SocketType::Datagram => {
                     Udp::set_remote_port(remote_addr.port, &mut participants);
                 }
-                SocketType::SocketStream => {
+                SocketType::Stream => {
                     Tcp::set_local_port(remote_addr.port, &mut participants);
                 }
             }
@@ -224,10 +224,10 @@ impl Socket {
                 }
             }
             match self.sock_type {
-                SocketType::SocketDatagram => {
+                SocketType::Datagram => {
                     Udp::set_local_port(local_addr.port, &mut participants);
                 }
-                SocketType::SocketStream => {
+                SocketType::Stream => {
                     Tcp::set_local_port(local_addr.port, &mut participants);
                 }
             }
@@ -396,6 +396,14 @@ pub enum SocketError {
     Other,
 }
 
+/// ProtocolFamily::LOCAL - Indicates that the socket is to be used to
+/// communicate with other applications on the same machine
+/// (Not yet implemented)
+///
+/// ProtocolFamily::INET - Indicates that the socket utilizes IPv4
+///
+/// ProtocolFamily::INET6 - Indicates that the socket utilizes IPv6
+/// (Not yet implemented)
 #[derive(Clone, Copy)]
 pub enum ProtocolFamily {
     LOCAL,
@@ -403,10 +411,14 @@ pub enum ProtocolFamily {
     INET6,
 }
 
+/// SocketType::Stream - Indicates that the socket utilizes TCP
+/// (Not yet implemented)
+///
+/// SocketType::Datagram - Indicates that the socket utilizes UDP
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum SocketType {
-    SocketStream,
-    SocketDatagram,
+    Stream,
+    Datagram,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
