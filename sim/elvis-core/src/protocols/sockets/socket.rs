@@ -6,7 +6,7 @@ use std::{
 use crate::{
     message::Chunk,
     protocol::{Context, DemuxError},
-    protocols::{ipv4::Ipv4Address, Ipv4, Udp, Tcp},
+    protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
     Control, Id, Message, ProtocolMap, Shutdown,
 };
@@ -95,7 +95,6 @@ impl Socket {
     async fn wait_for_notify(&self, notify_type: NotifyType) -> NotifyResult {
         if *self.is_blocking.read().unwrap() {
             let mut shutdown_receiver = self.shutdown.receiver();
-            println!("Waiting for notify");
             match notify_type {
                 NotifyType::Listening => select! {
                     _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
@@ -260,7 +259,6 @@ impl Socket {
         if self.wait_for_notify(NotifyType::Listening).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
-        println!("Notify received");
         let new_sock = self.socket_api.clone().new_socket(
             self.family,
             self.sock_type,
@@ -272,6 +270,9 @@ impl Socket {
         };
         new_sock.clone().bind(local_addr)?;
         *new_sock.remote_addr.write().unwrap() = self.listen_addresses.write().unwrap().pop_front();
+        if !self.listen_addresses.read().unwrap().is_empty() {
+            self.notify_listen.notify_one();
+        }
         let session = self.socket_api.clone().get_socket_session(
             new_sock.local_addr.read().unwrap().unwrap(),
             new_sock.remote_addr.read().unwrap().unwrap(),

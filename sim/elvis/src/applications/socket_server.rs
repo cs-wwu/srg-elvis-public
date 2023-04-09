@@ -4,33 +4,27 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         sockets::{
-            socket::{ProtocolFamily, SocketAddress, SocketType},
+            socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
             Sockets,
         },
         user_process::{Application, ApplicationError, UserProcess},
     },
     Id, ProtocolMap, Shutdown,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 pub struct SocketServer {
     /// The Sockets API
     sockets: Arc<Sockets>,
-    /// The message that was received, if any
-    message: Arc<RwLock<Vec<u8>>>,
-    /// The text of the response to send
-    text: &'static str,
     /// The port to capture a message on
     local_port: u16,
 }
 
 impl SocketServer {
-    pub fn new(sockets: Arc<Sockets>, text: &'static str, local_port: u16) -> Self {
+    pub fn new(sockets: Arc<Sockets>, local_port: u16) -> Self {
         Self {
             sockets,
-            message: Default::default(),
-            text,
             local_port,
         }
     }
@@ -38,10 +32,28 @@ impl SocketServer {
     pub fn shared(self) -> Arc<UserProcess<Self>> {
         UserProcess::new(self).shared()
     }
+}
 
-    pub fn message(&self) -> Vec<u8> {
-        self.message.read().unwrap().clone()
-    }
+async fn communicate_with_client(socket: Arc<Socket>) {
+    // Send a connection response
+    println!("SERVER: Sending connection response");
+    socket.clone().send("ACK").unwrap();
+
+    // Receive a message
+    let req = socket.clone().recv(32).await.unwrap();
+    println!(
+        "SERVER: Request Received: {:?}",
+        String::from_utf8(req).unwrap()
+    );
+
+    // Send a message
+    let resp = "Major Tom to Ground Control";
+    println!("SERVER: Sending Response: {:?}", resp);
+    socket.clone().send(resp).unwrap();
+
+    // Receive an ackowledgement (Example usage of recv_msg)
+    let _ack = socket.clone().recv_msg().await.unwrap();
+    println!("SERVER: Ackowledgement Received");
 }
 
 impl Application for SocketServer {
@@ -56,8 +68,8 @@ impl Application for SocketServer {
         // Create a new IPv4 Datagram Socket
         let sockets = self.sockets.clone();
         let local_port = self.local_port;
-        let text = self.text;
-        let message = self.message.clone();
+        // let text = self.text;
+        // let message = self.message.clone();
 
         tokio::spawn(async move {
             // Wait on ititialization before receiving any message from the network
@@ -75,33 +87,30 @@ impl Application for SocketServer {
             listen_socket.clone().listen(0).unwrap();
             println!("SERVER: Listening for incoming connections");
 
-            // Accept an incoming connection
-            let socket = listen_socket.clone().accept().await.unwrap();
-            println!("SERVER: Connection accepted");
+            let mut tasks = Vec::new();
+            loop {
+                // Accept an incoming connection
+                let socket = listen_socket.clone().accept().await.unwrap();
+                println!("SERVER: Connection accepted");
 
-            // Send a connection response
-            println!("SERVER: Sending connection response");
-            socket.clone().send("ACK").unwrap();
+                // Spawn a new tokio task for handling communication
+                // with the new client
+                tasks.push(tokio::spawn(async move {
+                    communicate_with_client(socket).await;
+                }));
 
-            // Receive a message
-            *message.write().unwrap() = socket.clone().recv(32).await.unwrap();
-            println!(
-                "SERVER: Request Received: {:?}",
-                String::from_utf8(message.read().unwrap().clone()).unwrap()
-            );
-
-            // Send a message
-            println!("SERVER: Sending Response: {:?}", text);
-            socket.clone().send(text).unwrap();
-
-            // Receive another message
-            let msg = socket.clone().recv(32).await.unwrap();
-            println!(
-                "SERVER: Captured Request: {:?}",
-                String::from_utf8(msg).unwrap()
-            );
-
-            // shutdown.send(()).await.unwrap();
+                // This particular example server tracks the number of clients
+                // served, stops accepting new connections after the third,
+                // and shuts down the simulation once communication with
+                // the third has ended
+                if tasks.len() >= 3 {
+                    while !tasks.is_empty() {
+                        tasks.pop().unwrap().await.unwrap()
+                    }
+                    break;
+                }
+            }
+            println!("SERVER: Shutting down");
             shutdown.shut_down();
         });
         Ok(())
