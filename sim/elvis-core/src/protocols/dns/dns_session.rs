@@ -1,6 +1,6 @@
 
 
-pub struct DnsSesion {
+pub struct DnsSession {
     /// The protocol that we demux incoming messages to
     upstream: Id,
     /// The session we mux outgoing messages to
