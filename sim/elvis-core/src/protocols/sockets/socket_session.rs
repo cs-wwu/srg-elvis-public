@@ -13,6 +13,8 @@ pub(super) struct SocketSession {
     pub upstream: RwLock<Option<Id>>,
     pub downstream: SharedSession,
     pub socket_api: Arc<Sockets>,
+    pub stored_msg: RwLock<Option<Message>>,
+    pub stored_cxt: RwLock<Option<Context>>,
 }
 
 impl SocketSession {
@@ -22,7 +24,22 @@ impl SocketSession {
                 .socket_api
                 .clone()
                 .forward_to_socket(sock, message, context),
-            None => Ok(()),
+            None => {
+                *self.stored_msg.write().unwrap() = Some(message);
+                *self.stored_cxt.write().unwrap() = Some(context);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn receive_stored_msg(self: Arc<Self>) -> Result<(), DemuxError> {
+        match *self.upstream.read().unwrap() {
+            Some(sock) => self.socket_api.clone().forward_to_socket(
+                sock,
+                self.stored_msg.read().unwrap().clone().unwrap(),
+                self.stored_cxt.read().unwrap().clone().unwrap(),
+            ),
+            None => Err(DemuxError::MissingSession),
         }
     }
 }

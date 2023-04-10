@@ -35,10 +35,6 @@ impl SocketServer {
 }
 
 async fn communicate_with_client(socket: Arc<Socket>) {
-    // Send a connection response
-    println!("SERVER: Sending connection response");
-    socket.clone().send("ACK").unwrap();
-
     // Receive a message
     let req = socket.clone().recv(32).await.unwrap();
     println!(

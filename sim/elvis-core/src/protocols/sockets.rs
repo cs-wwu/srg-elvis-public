@@ -199,6 +199,8 @@ impl Protocol for Sockets {
                     upstream: RwLock::new(Some(upstream)),
                     downstream,
                     socket_api: self.clone(),
+                    stored_msg: RwLock::new(None),
+                    stored_cxt: RwLock::new(None),
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -285,6 +287,8 @@ impl Protocol for Sockets {
                     upstream: RwLock::new(None),
                     downstream: caller,
                     socket_api: self.clone(),
+                    stored_msg: RwLock::new(None),
+                    stored_cxt: RwLock::new(None),
                 });
                 socket.add_listen_address(identifier.remote_address);
                 entry.insert(session.clone());

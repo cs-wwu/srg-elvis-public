@@ -278,7 +278,8 @@ impl Socket {
             new_sock.remote_addr.read().unwrap().unwrap(),
         )?;
         *session.upstream.write().unwrap() = Some(new_sock.fd);
-        *new_sock.session.write().unwrap() = Some(session);
+        *new_sock.session.write().unwrap() = Some(session.clone());
+        session.receive_stored_msg().unwrap();
         *new_sock.is_active.write().unwrap() = true;
         Ok(new_sock)
     }
