@@ -7,6 +7,8 @@ pub struct Dns {
 impl Dns {
     /// A unique identifier for the protocol.
     pub const ID: Id = Id::from_string("DNS");
+    /// Mapping of names to IDs unique to each machine. When a machine connects
+    /// to a host
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {

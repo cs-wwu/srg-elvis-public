@@ -130,6 +130,11 @@ impl Sockets {
             Entry::Vacant(_) => Err(DemuxError::MissingSession),
         }
     }
+
+    /// Given a domain (machine name), finds the IP address associated with the domain.
+    fn get_host_by_name() /* -> Ipv4Address */ {
+        // 
+    }
 }
 
 impl Protocol for Sockets {
