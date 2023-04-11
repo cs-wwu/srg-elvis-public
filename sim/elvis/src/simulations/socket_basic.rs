@@ -9,45 +9,60 @@ use elvis_core::{
     run_internet, Machine, Network,
 };
 
-/// Runs a two-way communication simulation using sockets.
+/// Runs a basic server-client simulation using sockets.
 ///
-/// In this simulation, a machine sends a "request" message to another machine.
-/// The second machine receives the message, and sends back a "response" message.
-/// The first machine receives that message, and sends back a "shutdown" message.
-/// Finally, the second machine receives the "shutdown" message, and shuts down the simulation.
+/// In this simulation, three client machines send "request" messages to a
+/// server machine. The server receives the requests, and sends back
+/// "response" messages to each client. The clients receive those
+/// responses, and each send back an "ackowledgement" message. The server
+/// receives the "ackowledgement" messages, and shuts down the simulation.
 pub async fn socket_basic() {
     let network = Network::basic();
-    let client_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     let server_ip_address: Ipv4Address = [123, 45, 67, 89].into();
+    let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
+    let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
+    let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
     let ip_table: Recipients = [
-        (server_ip_address, Recipient::with_mac(0, 1)),
-        (client_ip_address, Recipient::with_mac(0, 0)),
+        (server_ip_address, Recipient::with_mac(0, 0)),
+        (client1_ip_address, Recipient::with_mac(0, 1)),
+        (client2_ip_address, Recipient::with_mac(0, 2)),
+        (client3_ip_address, Recipient::with_mac(0, 3)),
     ]
     .into_iter()
     .collect();
 
-    let client_socket_api = Sockets::new(Some(client_ip_address)).shared();
     let server_socket_api = Sockets::new(Some(server_ip_address)).shared();
+    let client1_socket_api = Sockets::new(Some(client1_ip_address)).shared();
+    let client2_socket_api = Sockets::new(Some(client2_ip_address)).shared();
+    let client3_socket_api = Sockets::new(Some(client3_ip_address)).shared();
     let machines = vec![
-        Machine::new([
-            client_socket_api.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
-            SocketClient::new(
-                client_socket_api,
-                "Ground Control to Major Tom",
-                server_ip_address,
-                0xbeef,
-            )
-            .shared(),
-        ]),
         Machine::new([
             server_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table).shared(),
+            Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SocketServer::new(server_socket_api, "Major Tom to Ground Control", 0xbeef).shared(),
+            SocketServer::new(server_socket_api, 0xbeef).shared(),
+        ]),
+        Machine::new([
+            client1_socket_api.clone(),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
+            SocketClient::new(client1_socket_api, 1, server_ip_address, 0xbeef).shared(),
+        ]),
+        Machine::new([
+            client2_socket_api.clone(),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
+            SocketClient::new(client2_socket_api, 2, server_ip_address, 0xbeef).shared(),
+        ]),
+        Machine::new([
+            client3_socket_api.clone(),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
+            SocketClient::new(client3_socket_api, 3, server_ip_address, 0xbeef).shared(),
         ]),
     ];
 
