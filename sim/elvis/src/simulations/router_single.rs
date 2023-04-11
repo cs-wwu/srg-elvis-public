@@ -18,21 +18,21 @@ const DESTINATION: Ipv4Address = IP_ADDRESS_2;
 // simulates a staticly configured router routing a single packet to one of three destinations
 pub async fn router_single() {
     let ip_table: Recipients = [
-        (IP_ADDRESS_1, Recipient::new(0, 0)),
-        (IP_ADDRESS_2, Recipient::new(1, 1)),
-        (IP_ADDRESS_3, Recipient::new(2, 1)),
-        (IP_ADDRESS_4, Recipient::new(3, 1)),
+        (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
+        (IP_ADDRESS_2, Recipient::with_mac(1, 1)),
+        (IP_ADDRESS_3, Recipient::with_mac(2, 1)),
+        (IP_ADDRESS_4, Recipient::with_mac(3, 1)),
     ]
     .into_iter()
     .collect();
 
-    let dt1: Recipients = [(IP_ADDRESS_2, Recipient::new(0, 666))]
+    let dt1: Recipients = [(IP_ADDRESS_2, Recipient::with_mac(0, 666))]
         .into_iter()
         .collect();
-    let dt2: Recipients = [(IP_ADDRESS_3, Recipient::new(0, 666))]
+    let dt2: Recipients = [(IP_ADDRESS_3, Recipient::with_mac(0, 666))]
         .into_iter()
         .collect();
-    let dt3: Recipients = [(IP_ADDRESS_4, Recipient::new(0, 666))]
+    let dt3: Recipients = [(IP_ADDRESS_4, Recipient::with_mac(0, 666))]
         .into_iter()
         .collect();
 
@@ -46,7 +46,12 @@ pub async fn router_single() {
         // send message
         Machine::new([
             Udp::new().shared() as SharedProtocol,
-            Ipv4::new([(DESTINATION, Recipient::new(0, 1))].into_iter().collect()).shared(),
+            Ipv4::new(
+                [(DESTINATION, Recipient::with_mac(0, 1))]
+                    .into_iter()
+                    .collect(),
+            )
+            .shared(),
             Pci::new([networks[0].tap()]).shared(),
             SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef).shared(),
         ]),

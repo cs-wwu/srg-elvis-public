@@ -67,7 +67,9 @@ impl Session for Ipv4Session {
         };
         Pci::set_pci_slot(self.destination.slot, &mut context.control);
         Network::set_protocol(Ipv4::ID, &mut context.control);
-        Network::set_destination(self.destination.mac, &mut context.control);
+        if let Some(mac) = self.destination.mac {
+            Network::set_destination(mac, &mut context.control);
+        }
         message.header(header);
         self.downstream.clone().send(message, context)?;
         Ok(())

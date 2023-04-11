@@ -17,7 +17,7 @@ use elvis_core::{
 pub async fn basic() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: Recipients = [(capture_ip_address, Recipient::new(0, 1))]
+    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 

@@ -94,7 +94,9 @@ impl Application for Router {
             None => return Ok(()),
         };
         Network::set_protocol(Ipv4::ID, &mut context.control);
-        Network::set_destination(recipient.mac, &mut context.control);
+        if let Some(mac) = recipient.mac {
+            Network::set_destination(mac, &mut context.control);
+        }
 
         self.outgoing
             .read()

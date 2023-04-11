@@ -221,7 +221,7 @@ impl Protocol for Ipv4 {
                     tracing::error!("Missing sender MAC on context");
                     DemuxError::MissingContext
                 })?;
-                let destination = Recipient::new(slot, mac);
+                let destination = Recipient::with_mac(slot, mac);
                 let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, destination));
                 entry.insert(session.clone());
                 session
@@ -241,11 +241,19 @@ pub type Recipients = HashMap<Ipv4Address, Recipient>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Recipient {
     pub slot: PciSlot,
-    pub mac: Mac,
+    pub mac: Option<Mac>,
 }
 
 impl Recipient {
-    pub fn new(slot: PciSlot, mac: Mac) -> Self {
+    pub fn new(slot: PciSlot, mac: Option<Mac>) -> Self {
         Self { slot, mac }
+    }
+
+    pub fn with_mac(slot: PciSlot, mac: Mac) -> Self {
+        Self::new(slot, Some(mac))
+    }
+
+    pub fn broadcast(slot: PciSlot) -> Self {
+        Self::new(slot, None)
     }
 }

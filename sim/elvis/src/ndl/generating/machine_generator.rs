@@ -135,8 +135,8 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                         )
                     });
                 for ip in ips {
-                    let mac = ip_to_mac.get(ip).unwrap();
-                    ip_table.insert(*ip, Recipient::new(net_num, *mac));
+                    let mac = ip_to_mac.get(ip).cloned();
+                    ip_table.insert(*ip, Recipient::new(net_num, mac));
                 }
             }
             protocols_to_be_added.push(Pci::new(networks_to_be_added).shared());
