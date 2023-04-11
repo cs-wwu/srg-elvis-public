@@ -11,6 +11,7 @@ use elvis_core::{
     protocols::{ipv4::Ipv4, udp::Udp},
 };
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 
 use super::generator_data::NetworkInfo;
 
@@ -108,7 +109,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
         for _count in 0..machine_count {
             let mut networks_to_be_added = Vec::new();
             let mut protocols_to_be_added = Vec::new();
-            let mut ip_table = HashMap::new();
+            let mut ip_table = FxHashMap::default();
 
             for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
                 // TODO: maybe still need an error test

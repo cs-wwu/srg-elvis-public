@@ -13,6 +13,9 @@ tracing-subscriber = { version = "0.3.16", features = ["json"] }
 chrono = "0.4"
 clap = { version = "4.0.18", features = ["derive"] }
 console-subscriber = "*"
+itertools = "0.8"
+rustc-hash = "1.1.0"
+nom = "7"
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = [ "async_tokio", "html_reports" ] }

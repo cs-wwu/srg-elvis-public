@@ -55,8 +55,11 @@ pub struct Tcb {
     mtu: Mtu,
     /// How the connection was initiated locally
     initiation: Initiation,
-    /// Variables for the connection state
-    connection: RwLock<Connection>,
+    state: State,
+    /// The send sequence space
+    snd: SendSequenceSpace,
+    /// The receive sequence space
+    rcv: ReceiveSequenceSpace,
     /// Data and segments to be delivered to the remote TCP
     outgoing: Outgoing,
     /// Segments and segment text received from the remote TCP
@@ -79,7 +82,9 @@ impl Tcb {
             id,
             mtu,
             initiation,
-            connection: RwLock::new(Connection::new(state, snd, rcv)),
+            state,
+            snd,
+            rcv,
             outgoing: Default::default(),
             incoming: Default::default(),
             timeouts: Default::default(),
@@ -93,7 +98,7 @@ impl Tcb {
     /// the case of an active open. Handling for packets in a passive open
     /// LISTEN state is provided by [`handle_listen`].
     pub fn open(id: ConnectionId, iss: u32, mtu: Mtu) -> Self {
-        let tcb = Self::new(
+        let mut tcb = Self::new(
             id,
             mtu,
             Initiation::Open,
@@ -118,24 +123,21 @@ impl Tcb {
     ///
     /// Timeout handling is described in [section
     /// 3.10.8](https://www.rfc-editor.org/rfc/rfc9293.html#name-timeouts).
-    pub fn advance_time(&self, delta_time: Duration) -> AdvanceTimeResult {
-        let mut retransmission = self.timeouts.retransmission.write().unwrap();
-        if delta_time > *retransmission {
-            *retransmission = RETRANSMISSION_TIMEOUT;
-            for mut transmit in self.outgoing.retransmit.write().unwrap().iter_mut() {
+    pub fn advance_time(&mut self, delta_time: Duration) -> AdvanceTimeResult {
+        if delta_time > self.timeouts.retransmission {
+            self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
+            for mut transmit in self.outgoing.retransmit.iter_mut() {
                 transmit.needs_transmit = true;
             }
         } else {
-            *retransmission -= delta_time;
+            self.timeouts.retransmission -= delta_time;
         }
-        drop(retransmission);
 
-        let mut time_wait_lock = self.timeouts.time_wait.write().unwrap();
-        if let Some(time_wait) = *time_wait_lock {
+        if let Some(time_wait) = self.timeouts.time_wait {
             if delta_time > time_wait {
                 return AdvanceTimeResult::CloseConnection;
             }
-            *time_wait_lock = Some(time_wait - delta_time);
+            self.timeouts.time_wait = Some(time_wait - delta_time);
         }
 
         AdvanceTimeResult::Ignore
@@ -145,13 +147,12 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.2](https://www.rfc-editor.org/rfc/rfc9293.html#name-send-call).
-    pub fn send(&self, message: Message) {
+    pub fn send(&mut self, message: Message) {
         // 3.10.2 (Not compliant, doing things differently. We don't have a
         // retransmission queue.)
-        let state = self.connection.write().unwrap().state;
-        match state {
+        match self.state {
             State::SynSent | State::SynReceived | State::Established => {
-                self.outgoing.text.write().unwrap().concatenate(message);
+                self.outgoing.text.concatenate(message);
             }
 
             State::FinWait1
@@ -170,13 +171,12 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.3](https://www.rfc-editor.org/rfc/rfc9293.html#name-receive-call).
-    pub fn receive(&self) -> Message {
+    pub fn receive(&mut self) -> Message {
         // TODO(hardint): This currently requires copying bytes from the
         // received messages because we cannot yet concatenate two messages.
         // Revisit this when the message type has been updated to support
         // concatenation.
-        let state = self.connection.write().unwrap().state;
-        match state {
+        match self.state {
             State::SynSent
             | State::SynReceived
             | State::Established
@@ -185,7 +185,7 @@ impl Tcb {
             | State::CloseWait => {
                 // TODO(hardint): Use receive buffer size instead of just taking
                 // everything
-                mem::take(&mut *self.incoming.text.write().unwrap())
+                mem::take(&mut self.incoming.text)
             }
             State::Closing | State::LastAck | State::TimeWait => {
                 // TODO(hardint): Return a connection closing error
@@ -199,30 +199,29 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.4](https://www.rfc-editor.org/rfc/rfc9293.html#name-close-call).
-    pub fn close(&self) -> CloseResult {
-        let mut connection = self.connection.write().unwrap();
-        match connection.state {
+    pub fn close(&mut self) -> CloseResult {
+        match self.state {
             State::SynReceived | State::Established => {
                 self.enqueue(
-                    self.header_builder(connection.snd.nxt)
+                    self.header_builder(self.snd.nxt)
                         .fin()
-                        .ack(connection.rcv.nxt)
-                        .wnd(connection.rcv.wnd),
+                        .ack(self.rcv.nxt)
+                        .wnd(self.rcv.wnd),
                 );
-                connection.snd.nxt += 1;
-                connection.state = State::FinWait1;
+                self.snd.nxt += 1;
+                self.state = State::FinWait1;
                 CloseResult::Ok
             }
 
             State::CloseWait => {
                 self.enqueue(
-                    self.header_builder(connection.snd.nxt)
+                    self.header_builder(self.snd.nxt)
                         .fin()
-                        .ack(connection.rcv.nxt)
-                        .wnd(connection.rcv.wnd),
+                        .ack(self.rcv.nxt)
+                        .wnd(self.rcv.wnd),
                 );
-                connection.snd.nxt += 1;
-                connection.state = State::LastAck;
+                self.snd.nxt += 1;
+                self.state = State::LastAck;
                 CloseResult::Ok
             }
 
@@ -236,21 +235,16 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.5](https://www.rfc-editor.org/rfc/rfc9293.html#section-3.10.5).
-    pub fn abort(&self) {
+    pub fn abort(&mut self) {
         // 3.10.5
-        let connection = self.connection.read().unwrap();
-        match connection.state {
+        match self.state {
             State::SynReceived
             | State::Established
             | State::FinWait1
             | State::FinWait2
             | State::CloseWait => {
                 self.outgoing.reset();
-                self.enqueue(
-                    self.header_builder(connection.snd.nxt)
-                        .rst()
-                        .wnd(connection.rcv.wnd),
-                );
+                self.enqueue(self.header_builder(self.snd.nxt).rst().wnd(self.rcv.wnd));
             }
 
             _ => {}
@@ -263,22 +257,21 @@ impl Tcb {
     /// 3.10.6](https://www.rfc-editor.org/rfc/rfc9293.html#name-status-call).
     pub fn status(&self) -> State {
         // 3.10.6
-        self.connection.read().unwrap().state
+        self.state
     }
 
     /// Gets the list of segments that are ready to be delivered to the remote
     /// TCP. Queued outgoing text is segmentized as needed and segments on the
     /// retransmission queue will not be resent until the next retransmission
     /// timeout.
-    pub fn segments(&self) -> Vec<Segment> {
-        let mut out: Vec<_> = mem::take(&mut *self.outgoing.oneshot.write().unwrap())
+    pub fn segments(&mut self) -> Vec<Segment> {
+        let mut out: Vec<_> = mem::take(&mut self.outgoing.oneshot)
             .into_iter()
             .map(|header| Segment::new(header, Default::default()))
             .collect();
 
         // TODO(hardint): Would love to make this locking more fine-grained
-        let state = self.connection.read().unwrap().state;
-        match state {
+        match self.state {
             State::SynSent | State::SynReceived | State::Established | State::CloseWait => {
                 // TODO(hardint): This could be incorrect for when optional
                 // headers are used. It also is not as efficient as possible.
@@ -286,10 +279,10 @@ impl Tcb {
                 let max_segment_length = (self.mtu - SPACE_FOR_HEADERS) as usize;
                 let mut queued_bytes = self.outgoing.queued_bytes();
                 loop {
-                    let connection = self.connection.read().unwrap();
-                    let max_bytes = connection.snd.wnd as usize - queued_bytes;
-                    let mut text = self.outgoing.text.write().unwrap();
-                    let bytes = max_segment_length.min(max_bytes).min(text.len());
+                    let max_bytes = self.snd.wnd as usize - queued_bytes;
+                    let bytes = max_segment_length
+                        .min(max_bytes)
+                        .min(self.outgoing.text.len());
                     if bytes == 0 {
                         break;
                     }
@@ -306,22 +299,17 @@ impl Tcb {
                             text.len(),
                         )
                         .expect("Unexpectedly large MTU and message");
-                    drop(connection);
-                    let mut connection = self.connection.write().unwrap();
-                    connection.snd.nxt = connection.snd.nxt.wrapping_add(new_text.len() as u32);
-                    drop(connection);
+                    self.snd.nxt = self.snd.nxt.wrapping_add(text.len() as u32);
                     self.outgoing
                         .retransmit
-                        .write()
-                        .unwrap()
-                        .push_back(Transmit::new(Segment::new(header, new_text)));
+                        .push_back(Transmit::new(Segment::new(header, text)));
                 }
             }
 
             _ => {}
         }
 
-        for transmit in self.outgoing.retransmit.write().unwrap().iter_mut() {
+        for transmit in self.outgoing.retransmit.iter_mut() {
             if transmit.needs_transmit {
                 out.push(transmit.segment.clone());
             }
@@ -329,7 +317,7 @@ impl Tcb {
         }
 
         if !out.is_empty() {
-            *self.timeouts.retransmission.write().unwrap() = RETRANSMISSION_TIMEOUT;
+            self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
         }
 
         out
@@ -341,20 +329,16 @@ impl Tcb {
     /// Along with [`Tcb::process_segment`], this implements [section
     /// 3.10.7](https://www.rfc-editor.org/rfc/rfc9293.html#name-segment-arrives)
     /// for all states other that CLOSED and LISTEN.
-    pub fn segment_arrives(&self, segment: Segment) -> SegmentArrivesResult {
-        let mut segments = self.incoming.segments.write().unwrap();
-        segments.push(segment);
-        while let Some(segment) = segments.peek() {
-            let connection = self.connection.read().unwrap();
-            if connection.state != State::SynSent && mod_gt(segment.header.seq, connection.rcv.nxt)
-            {
+    pub fn segment_arrives(&mut self, segment: Segment) -> SegmentArrivesResult {
+        self.incoming.segments.push(segment);
+        while let Some(segment) = self.incoming.segments.peek() {
+            if self.state != State::SynSent && mod_gt(segment.header.seq, self.rcv.nxt) {
                 // If this segment is past the next byte we want to receive, it
                 // arrived out of order and we haven't received the earlier
                 // bytes we need to proceed.
                 break;
             }
-            drop(connection);
-            let segment = segments.pop().unwrap();
+            let segment = self.incoming.segments.pop().unwrap();
             let receive_result = self.process_segment(segment);
             if receive_result != ProcessSegmentResult::Success {
                 println!("{:?}", receive_result);
@@ -370,21 +354,20 @@ impl Tcb {
     /// Processes a segment.
     ///
     /// See 3.10.7.3 for handling in SYN-SENT state. See 3.10.7.4 for handling of the rest of the states.
-    fn process_segment(&self, segment: Segment) -> ProcessSegmentResult {
+    fn process_segment(&mut self, segment: Segment) -> ProcessSegmentResult {
         let (seg, mut text) = segment.into_inner();
         let text_len = text.len() as u32;
-        let mut connection = self.connection.write().unwrap();
 
         // Check that the sequence number is valid
-        match connection.state {
+        match self.state {
             // Sequence number checks don't apply for LISTEN, SYN-SENT, or CLOSING
             State::SynSent | State::Closing => {}
             _ => {
-                if !self.is_seq_ok(&connection, text_len, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
+                if !self.is_seq_ok(text_len, seg.seq, seg.ctl.syn(), seg.ctl.fin()) {
                     self.enqueue(
-                        self.header_builder(connection.snd.nxt)
-                            .ack(connection.rcv.nxt)
-                            .wnd(connection.rcv.wnd),
+                        self.header_builder(self.snd.nxt)
+                            .ack(self.rcv.nxt)
+                            .wnd(self.rcv.wnd),
                     );
                     return ProcessSegmentResult::DiscardSegment;
                 }
@@ -392,27 +375,25 @@ impl Tcb {
         }
 
         if seg.ctl.ack() {
-            match connection.state {
+            match self.state {
                 State::SynSent => {
-                    if mod_bounded(connection.snd.nxt, Lt, seg.ack, Leq, connection.snd.iss) {
+                    if mod_bounded(self.snd.nxt, Lt, seg.ack, Leq, self.snd.iss) {
                         if seg.ctl.rst() {
                             return ProcessSegmentResult::DiscardSegment;
                         } else {
-                            self.enqueue(
-                                self.header_builder(seg.ack).rst().wnd(connection.rcv.wnd),
-                            );
+                            self.enqueue(self.header_builder(seg.ack).rst().wnd(self.rcv.wnd));
                             return ProcessSegmentResult::InvalidAck;
                         }
                     }
 
-                    if mod_bounded(connection.snd.una, Lt, seg.ack, Leq, connection.snd.nxt) {
+                    if mod_bounded(self.snd.una, Lt, seg.ack, Leq, self.snd.nxt) {
                         // Valid acknowledgment
                         if seg.ctl.syn() {
                             // The spec doesn't specifically describe what to do
                             // for on okay ACK in SYN-SENT, but this seems to
                             // work
-                            connection.snd.una = seg.ack;
-                            self.remove_acked_from_retransmission(connection.snd.una);
+                            self.snd.una = seg.ack;
+                            self.remove_acked_from_retransmission(self.snd.una);
                         } else {
                             // What has been happening is that the listen side
                             // of the connection will generate a challenge ACK
@@ -427,7 +408,7 @@ impl Tcb {
                     } else {
                         // Same ACK twice causes this reset to trigger. See the
                         // comment above.
-                        self.enqueue(self.header_builder(seg.ack).rst().wnd(connection.rcv.wnd));
+                        self.enqueue(self.header_builder(seg.ack).rst().wnd(self.rcv.wnd));
                         return ProcessSegmentResult::InvalidAck;
                     }
                 }
@@ -443,21 +424,21 @@ impl Tcb {
                             other => return other,
                         }
                     } else {
-                        self.enqueue(self.header_builder(seg.ack).rst().wnd(connection.rcv.wnd));
+                        self.enqueue(self.header_builder(seg.ack).rst().wnd(self.rcv.wnd));
                     }
                 }
 
                 State::Established | State::FinWait2 | State::CloseWait => {
-                    match self.ack_established_processing(&mut connection, &seg) {
+                    match self.ack_established_processing(&seg) {
                         ProcessSegmentResult::Success => {}
                         other => return other,
                     }
                 }
 
                 State::FinWait1 => {
-                    let result = self.ack_established_processing(&mut connection, &seg);
-                    if self.is_fin_acked(&mut connection) {
-                        connection.state = State::FinWait2;
+                    let result = self.ack_established_processing(&seg);
+                    if self.is_fin_acked() {
+                        self.state = State::FinWait2;
                     }
                     if result != ProcessSegmentResult::Success {
                         return result;
@@ -465,10 +446,10 @@ impl Tcb {
                 }
 
                 State::Closing => {
-                    let result = self.ack_established_processing(&mut connection, &seg);
-                    if self.is_fin_acked(&mut connection) {
-                        connection.state = State::TimeWait;
-                        *self.timeouts.time_wait.write().unwrap() = Some(MSL * 2);
+                    let result = self.ack_established_processing(&seg);
+                    if self.is_fin_acked() {
+                        self.state = State::TimeWait;
+                        self.timeouts.time_wait = Some(MSL * 2);
                     }
                     if result != ProcessSegmentResult::Success {
                         return result;
@@ -476,8 +457,8 @@ impl Tcb {
                 }
 
                 State::LastAck => {
-                    connection.snd.una = seg.ack;
-                    if self.is_fin_acked(&mut connection) {
+                    self.snd.una = seg.ack;
+                    if self.is_fin_acked() {
                         return ProcessSegmentResult::FinalizeClose;
                     }
                 }
@@ -486,19 +467,19 @@ impl Tcb {
                     // The only thing that can arrive is a retransmission of the
                     // remote FIN. Acknowledge it and restart the 2 MSL timeout.
                     self.enqueue(
-                        self.header_builder(connection.snd.nxt)
+                        self.header_builder(self.snd.nxt)
                             .ack(seg.seq + 1)
-                            .wnd(connection.rcv.wnd),
+                            .wnd(self.rcv.wnd),
                     );
-                    *self.timeouts.time_wait.write().unwrap() = Some(MSL * 2);
+                    self.timeouts.time_wait = Some(MSL * 2);
                 }
             }
         }
 
         if seg.ctl.rst() {
-            match connection.state {
+            match self.state {
                 State::SynSent => {
-                    if seg.seq == connection.rcv.nxt {
+                    if seg.seq == self.rcv.nxt {
                         return ProcessSegmentResult::ConnectionReset;
                     } else {
                         return ProcessSegmentResult::BlindReset;
@@ -525,7 +506,7 @@ impl Tcb {
         }
 
         if seg.ctl.syn() {
-            match connection.state {
+            match self.state {
                 State::SynSent => {
                     self.rcv.irs = seg.seq;
                     self.rcv.nxt = seg.seq + 1;
@@ -536,12 +517,12 @@ impl Tcb {
                         self.state = State::Established;
                         self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
                     } else {
-                        connection.state = State::SynReceived;
+                        self.state = State::SynReceived;
                         self.enqueue(
-                            self.header_builder(connection.snd.iss)
+                            self.header_builder(self.snd.iss)
                                 .syn()
-                                .ack(connection.rcv.nxt)
-                                .wnd(connection.rcv.wnd),
+                                .ack(self.rcv.nxt)
+                                .wnd(self.rcv.wnd),
                         );
                         return ProcessSegmentResult::Success;
                     }
@@ -558,9 +539,9 @@ impl Tcb {
                     // transmission. The challenge ACK regenerates the lost ACK
                     // segment.
                     self.enqueue(
-                        self.header_builder(connection.snd.nxt)
-                            .ack(connection.rcv.nxt)
-                            .wnd(connection.rcv.wnd),
+                        self.header_builder(self.snd.nxt)
+                            .ack(self.rcv.nxt)
+                            .wnd(self.rcv.wnd),
                     );
                     return ProcessSegmentResult::DiscardSegment;
                 }
@@ -569,7 +550,7 @@ impl Tcb {
 
         // Queue the segment text for processing
         if !text.is_empty() {
-            match connection.state {
+            match self.state {
                 State::Established
                 | State::SynSent
                 | State::SynReceived
@@ -578,27 +559,25 @@ impl Tcb {
                     // If we got here, we already know that SEQ > RCV.NXT.
                     // Text should also be in the window, but let's check:
                     assert!(
-                        self.is_in_rcv_window(&connection, seg.seq)
-                            || self.is_in_rcv_window(&connection, seg.seq + text_len)
+                        self.is_in_rcv_window(seg.seq) || self.is_in_rcv_window(seg.seq + text_len)
                     );
-                    let already_received = connection
+                    let already_received = self
                         .rcv
                         .nxt
                         .wrapping_sub(seg.seq)
                         // SYN occupies the first byte of data
                         .wrapping_add(seg.ctl.syn() as u32);
                     let unreceived = text_len - already_received;
-                    let mut incoming_text = self.incoming.text.write().unwrap();
-                    let space_available = connection.rcv.wnd as u32 - incoming_text.len() as u32;
+                    let space_available = self.rcv.wnd as u32 - self.incoming.text.len() as u32;
                     let accept = unreceived.min(space_available);
-                    connection.rcv.nxt += accept;
+                    self.rcv.nxt += accept;
                     text.slice(already_received as usize..(already_received + accept) as usize);
                     self.incoming.text.concatenate(text);
                     // TODO(hardint): Aggregate and piggyback ACK segments
                     self.enqueue(
-                        self.header_builder(connection.snd.nxt)
-                            .ack(connection.rcv.nxt)
-                            .wnd(connection.rcv.wnd),
+                        self.header_builder(self.snd.nxt)
+                            .ack(self.rcv.nxt)
+                            .wnd(self.rcv.wnd),
                     );
                 }
 
@@ -607,44 +586,43 @@ impl Tcb {
         }
 
         if seg.ctl.fin() {
-            if connection.state != State::SynSent {
+            if self.state != State::SynSent {
                 let last_text_byte = seg.seq + text_len;
-                if connection.rcv.nxt == last_text_byte || connection.rcv.nxt == last_text_byte + 1
-                {
+                if self.rcv.nxt == last_text_byte || self.rcv.nxt == last_text_byte + 1 {
                     // We acknowledged all the non-control bytes in the segment or we
                     // have already acknowledged the FIN. Advance over the FIN and
                     // acknowledge it.
-                    connection.rcv.nxt = last_text_byte + 1;
+                    self.rcv.nxt = last_text_byte + 1;
                     self.enqueue(
-                        self.header_builder(connection.snd.nxt)
-                            .ack(connection.rcv.nxt)
-                            .wnd(connection.rcv.wnd),
+                        self.header_builder(self.snd.nxt)
+                            .ack(self.rcv.nxt)
+                            .wnd(self.rcv.wnd),
                     );
                 }
             }
 
-            match connection.state {
+            match self.state {
                 State::SynReceived | State::Established => {
-                    connection.state = State::CloseWait;
+                    self.state = State::CloseWait;
                 }
 
                 State::FinWait1 => {
-                    if self.is_fin_acked(&connection) {
-                        connection.state = State::TimeWait;
-                        *self.timeouts.time_wait.write().unwrap() = Some(2 * MSL);
+                    if self.is_fin_acked() {
+                        self.state = State::TimeWait;
+                        self.timeouts.time_wait = Some(2 * MSL);
                     } else {
-                        connection.state = State::Closing;
+                        self.state = State::Closing;
                     }
                 }
 
                 State::FinWait2 => {
-                    connection.state = State::TimeWait;
-                    *self.timeouts.time_wait.write().unwrap() = Some(2 * MSL);
-                    *self.timeouts.retransmission.write().unwrap() = RETRANSMISSION_TIMEOUT;
+                    self.state = State::TimeWait;
+                    self.timeouts.time_wait = Some(2 * MSL);
+                    self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
                 }
 
                 State::TimeWait => {
-                    *self.timeouts.time_wait.write().unwrap() = Some(2 * MSL);
+                    self.timeouts.time_wait = Some(2 * MSL);
                 }
 
                 _ => {}
@@ -655,23 +633,22 @@ impl Tcb {
     }
 
     /// Remove any acknowledged segments from the retransmission queue.
-    fn remove_acked_from_retransmission(&self, snd_una: u32) {
-        let mut retransmit = self.outgoing.retransmit.write().unwrap();
+    fn remove_acked_from_retransmission(&mut self, snd_una: u32) {
         let mut i = 0;
-        while let Some(transmit) = retransmit.get(i) {
+        while let Some(transmit) = self.outgoing.retransmit.get(i) {
             let seq = transmit.segment.header.seq;
             let seg_len = transmit.segment.seg_len() as u32;
             if mod_lt(snd_una, seq + seg_len) {
                 i += 1;
             } else {
-                retransmit.remove(i);
+                self.outgoing.retransmit.remove(i);
             }
         }
     }
 
     /// Whether our FIN has been acknowledged by the remote TCP
-    fn is_fin_acked(&self, connection: &RwLockWriteGuard<Connection>) -> bool {
-        connection.snd.nxt == connection.snd.una
+    fn is_fin_acked(&self) -> bool {
+        self.snd.nxt == self.snd.una
     }
 
     /// Processing for ACK segments in the ESTABLISHED state, as described in
@@ -679,33 +656,29 @@ impl Tcb {
     ///
     /// This is factored out from the mainline segment processing code because
     /// it is used by several different states.
-    fn ack_established_processing(
-        &self,
-        connection: &mut RwLockWriteGuard<Connection>,
-        seg: &TcpHeader,
-    ) -> ProcessSegmentResult {
-        if mod_leq(seg.ack, connection.snd.una) {
+    fn ack_established_processing(&mut self, seg: &TcpHeader) -> ProcessSegmentResult {
+        if mod_leq(seg.ack, self.snd.una) {
             // Ignore duplicate ACK
             return ProcessSegmentResult::Success;
-        } else if mod_gt(seg.ack, connection.snd.nxt) {
+        } else if mod_gt(seg.ack, self.snd.nxt) {
             // ACKs something not yet sent
             self.enqueue(
-                self.header_builder(connection.snd.nxt)
-                    .ack(connection.rcv.nxt)
-                    .wnd(connection.rcv.wnd),
+                self.header_builder(self.snd.nxt)
+                    .ack(self.rcv.nxt)
+                    .wnd(self.rcv.wnd),
             );
             return ProcessSegmentResult::InvalidAck;
         } else {
             // Valid ACK
-            connection.snd.una = seg.ack;
-            self.remove_acked_from_retransmission(connection.snd.una);
-            if mod_lt(connection.snd.wl1, seg.seq)
-                || (connection.snd.wl1 == seg.seq && mod_leq(connection.snd.wl2, seg.ack))
+            self.snd.una = seg.ack;
+            self.remove_acked_from_retransmission(self.snd.una);
+            if mod_lt(self.snd.wl1, seg.seq)
+                || (self.snd.wl1 == seg.seq && mod_leq(self.snd.wl2, seg.ack))
             {
                 // Update the send window
-                connection.snd.wnd = seg.wnd;
-                connection.snd.wl1 = seg.seq;
-                connection.snd.wl2 = seg.ack;
+                self.snd.wnd = seg.wnd;
+                self.snd.wl1 = seg.seq;
+                self.snd.wl2 = seg.ack;
             }
         }
         ProcessSegmentResult::Success
@@ -718,7 +691,7 @@ impl Tcb {
 
     /// Queue a segment without segment text for transmission. SYN and FIN
     /// segments may be retransmitted.
-    fn enqueue(&self, header_builder: TcpHeaderBuilder) {
+    fn enqueue(&mut self, header_builder: TcpHeaderBuilder) {
         let header = header_builder
             .build(
                 self.id.local.address,
@@ -733,7 +706,7 @@ impl Tcb {
                 .retransmit
                 .push_back(Transmit::new(Segment::new(header, Default::default())));
         } else {
-            self.outgoing.oneshot.write().unwrap().push(header);
+            self.outgoing.oneshot.push(header);
         }
     }
 
@@ -746,40 +719,32 @@ impl Tcb {
     /// [revision](https://datatracker.ietf.org/doc/html/draft-gont-tcpm-tcp-seq-validation-04)
     /// to sequence number validation that we employ. See page 10 for the
     /// updated procedure.
-    fn is_seq_ok(
-        &self,
-        connection: &RwLockWriteGuard<Connection>,
-        data_len: u32,
-        seq: u32,
-        syn: bool,
-        fin: bool,
-    ) -> bool {
+    fn is_seq_ok(&self, data_len: u32, seq: u32, syn: bool, fin: bool) -> bool {
         let seg_len = data_len + fin as u32 + syn as u32;
         // Test segment acceptability. See Table 6.
         if seg_len == 0 {
-            if connection.rcv.wnd == 0 {
-                mod_bounded(connection.rcv.nxt - 1, Leq, seq, Leq, connection.rcv.nxt)
+            if self.rcv.wnd == 0 {
+                mod_bounded(self.rcv.nxt - 1, Leq, seq, Leq, self.rcv.nxt)
             } else {
-                self.is_in_rcv_window(connection, seq)
+                self.is_in_rcv_window(seq)
             }
-        } else if connection.rcv.wnd == 0 {
+        } else if self.rcv.wnd == 0 {
             // When the receive window is zero, only ACKs are acceptible.
             false
         } else {
-            self.is_in_rcv_window(connection, seq)
-                || self.is_in_rcv_window(connection, seq + seg_len - 1)
+            self.is_in_rcv_window(seq) || self.is_in_rcv_window(seq + seg_len - 1)
         }
     }
 
     /// Whether a sequence number is in the receive window, as described in the
     /// revision to sequence number validation linked above.
-    fn is_in_rcv_window(&self, connection: &RwLockWriteGuard<Connection>, n: u32) -> bool {
+    fn is_in_rcv_window(&self, n: u32) -> bool {
         mod_bounded(
-            connection.rcv.nxt - 1,
+            self.rcv.nxt - 1,
             Leq,
             n,
             Lt,
-            connection.rcv.nxt + connection.rcv.wnd as u32,
+            self.rcv.nxt + self.rcv.wnd as u32,
         )
     }
 }
@@ -841,7 +806,7 @@ pub fn segment_arrives_listen(
     } else if seg.ctl.syn() {
         // Third:
         let rcv_nxt = seg.seq + 1;
-        let tcb = Tcb::new(
+        let mut tcb = Tcb::new(
             ConnectionId {
                 local: Socket {
                     address: local,
@@ -879,11 +844,7 @@ pub fn segment_arrives_listen(
         // Processing of SYN and ACK should not be repeated.
         seg.ctl.set_syn(false);
         seg.ctl.set_ack(false);
-        tcb.incoming
-            .segments
-            .write()
-            .unwrap()
-            .push(Segment::new(seg, message));
+        tcb.incoming.segments.push(Segment::new(seg, message));
 
         Some(ListenResult::Tcb(tcb))
     } else {
@@ -897,15 +858,15 @@ pub fn segment_arrives_listen(
 #[derive(Debug)]
 struct Timeouts {
     /// The retransmission timeout
-    retransmission: RwLock<Duration>,
+    retransmission: Duration,
     /// The time wait timeout
-    time_wait: RwLock<Option<Duration>>,
+    time_wait: Option<Duration>,
 }
 
 impl Default for Timeouts {
     fn default() -> Self {
         Self {
-            retransmission: RwLock::new(RETRANSMISSION_TIMEOUT),
+            retransmission: RETRANSMISSION_TIMEOUT,
             time_wait: Default::default(),
         }
     }
@@ -916,10 +877,10 @@ impl Default for Timeouts {
 struct Incoming {
     /// Segments due for processing. Due to the comparison implementations on
     /// [`Segment`], elements will be removed in sequence number order.
-    segments: RwLock<BinaryHeap<Segment>>,
+    segments: BinaryHeap<Segment>,
     /// Segment text that has been aggregated from processed segments and is
     /// ready to be delivered to the user.
-    text: RwLock<Message>,
+    text: Message,
 }
 
 /// How the TCP connection was opened locally

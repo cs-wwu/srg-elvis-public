@@ -14,7 +14,8 @@ use crate::{
     Control, FxDashMap, Network, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::{collections::HashMap, sync::Arc};
+use rustc_hash::FxHashMap;
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
