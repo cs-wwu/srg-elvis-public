@@ -14,10 +14,10 @@ use crate::{
     Control, FxDashMap, Network, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Barrier;
 
-mod ipv4_parsing;
+pub mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
 
 mod ipv4_address;
@@ -192,33 +192,40 @@ impl Protocol for Ipv4 {
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
 
-            Entry::Vacant(entry) => match self.listen_bindings.get(&identifier.local) {
-                Some(binding) => {
-                    // If the session does not exist but we have a listen
-                    // binding for it, create the session
-                    let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
-                        tracing::error!("Missing network ID on context");
-                        DemuxError::MissingContext
-                    })?;
-                    let mac = Network::get_sender(&context.control).map_err(|_| {
-                        tracing::error!("Missing sender MAC on context");
-                        DemuxError::MissingContext
-                    })?;
-                    let destination = Recipient::new(slot, mac);
-                    let session =
-                        Arc::new(Ipv4Session::new(caller, *binding, identifier, destination));
-                    entry.insert(session.clone());
-                    session
-                }
-
-                None => {
-                    tracing::error!(
-                        "Could not find a listen binding for the local address {}",
-                        identifier.local
-                    );
-                    Err(DemuxError::MissingSession)?
-                }
-            },
+            Entry::Vacant(entry) => {
+                // If the session does not exist, see if we have a listen
+                // binding for it
+                let binding = match self.listen_bindings.get(&identifier.local) {
+                    Some(binding) => binding,
+                    None => {
+                        // If we don't have a normal listen binding, check for
+                        // a 0.0.0.0 binding
+                        let any_listen_id = Ipv4Address::CURRENT_NETWORK;
+                        match self.listen_bindings.get(&any_listen_id) {
+                            Some(any_binding) => any_binding,
+                            None => {
+                                tracing::error!(
+                                    "Could not find a listen binding for the local address {}",
+                                    identifier.local
+                                );
+                                Err(DemuxError::MissingSession)?
+                            }
+                        }
+                    }
+                };
+                let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
+                    tracing::error!("Missing network ID on context");
+                    DemuxError::MissingContext
+                })?;
+                let mac = Network::get_sender(&context.control).map_err(|_| {
+                    tracing::error!("Missing sender MAC on context");
+                    DemuxError::MissingContext
+                })?;
+                let destination = Recipient::with_mac(slot, mac);
+                let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, destination));
+                entry.insert(session.clone());
+                session
+            }
         };
         session.receive(message, context)?;
         Ok(())
@@ -229,16 +236,24 @@ impl Protocol for Ipv4 {
     }
 }
 
-pub type Recipients = FxDashMap<Ipv4Address, Recipient>;
+pub type Recipients = FxHashMap<Ipv4Address, Recipient>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Recipient {
     pub slot: PciSlot,
-    pub mac: Mac,
+    pub mac: Option<Mac>,
 }
 
 impl Recipient {
-    pub fn new(slot: PciSlot, mac: Mac) -> Self {
+    pub fn new(slot: PciSlot, mac: Option<Mac>) -> Self {
         Self { slot, mac }
+    }
+
+    pub fn with_mac(slot: PciSlot, mac: Mac) -> Self {
+        Self::new(slot, Some(mac))
+    }
+
+    pub fn broadcast(slot: PciSlot) -> Self {
+        Self::new(slot, None)
     }
 }

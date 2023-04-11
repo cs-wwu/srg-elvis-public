@@ -16,13 +16,13 @@ use elvis_core::{
 pub async fn tcp_with_reliable() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: Recipients = [(capture_ip_address, Recipient::new(0, 1))]
+    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
     let message: Vec<_> = (0..20).map(|i| i as u8).collect();
     let message = Message::new(message);
-    let capture = Capture::new(capture_ip_address, 0xbeef)
+    let capture = Capture::new(capture_ip_address, 0xbeef, 1)
         .transport(Transport::Tcp)
         .shared();
     let machines = vec![

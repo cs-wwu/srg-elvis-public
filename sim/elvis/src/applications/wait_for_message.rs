@@ -68,7 +68,7 @@ impl WaitForMessage {
 }
 
 impl Application for WaitForMessage {
-    const ID: Id = Id::from_string("Capture");
+    const ID: Id = Id::from_string("Wait for message");
 
     fn start(
         &self,
@@ -106,9 +106,7 @@ impl Application for WaitForMessage {
         }
 
         if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-            tokio::spawn(async move {
-                shutdown.shut_down();
-            });
+            shutdown.shut_down();
         }
         Ok(())
     }
