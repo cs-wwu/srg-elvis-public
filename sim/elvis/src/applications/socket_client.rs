@@ -72,7 +72,7 @@ impl Application for SocketClient {
 
             // "Connect" the socket to a remote address
             let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
-            socket.clone().connect(remote_sock_addr).unwrap();
+            socket.connect(remote_sock_addr).unwrap();
 
             // Send a connection request
             println!("CLIENT {}: Sending connection request", client_id);

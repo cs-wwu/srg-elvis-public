@@ -117,7 +117,7 @@ impl Socket {
 
     /// Assigns a remote ip address and port to a socket and connects the socket
     /// to that endpoint
-    pub fn connect(self: Arc<Self>, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub fn connect(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected. Also, a listening
         // socket cannot connect to a remote endpoint
