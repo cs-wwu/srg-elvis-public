@@ -182,8 +182,7 @@ impl Protocol for Tcp {
         let segment = Segment::new(header, message);
         match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
-                let session = entry.get().clone();
-                session.receive(segment, context);
+                entry.get().receive(segment, context);
             }
 
             Entry::Vacant(session_entry) => {

@@ -114,9 +114,10 @@ impl TcpSession {
     }
 
     /// Receive an incoming message from the TCP as part of the demux flow
-    pub fn receive(self: Arc<Self>, segment: Segment, _context: Context) {
+    pub fn receive(&self, segment: Segment, _context: Context) {
+        let send = self.send.clone();
         tokio::spawn(async move {
-            match self.send.send(Instruction::Incoming(segment)).await {
+            match send.send(Instruction::Incoming(segment)).await {
                 Ok(_) => {}
                 Err(e) => eprintln!("TCP receive error: {}", e),
             }
