@@ -109,7 +109,7 @@ impl Sockets {
     }
 
     fn get_socket_session(
-        self: Arc<Self>,
+        &self,
         local: SocketAddress,
         remote: SocketAddress,
     ) -> Result<Arc<SocketSession>, SocketError> {

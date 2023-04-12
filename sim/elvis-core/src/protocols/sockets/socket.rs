@@ -271,7 +271,7 @@ impl Socket {
         if !self.listen_addresses.read().unwrap().is_empty() {
             self.notify_listen.notify_one();
         }
-        let session = self.socket_api.clone().get_socket_session(
+        let session = self.socket_api.get_socket_session(
             new_sock.local_addr.read().unwrap().unwrap(),
             new_sock.remote_addr.read().unwrap().unwrap(),
         )?;
