@@ -32,7 +32,6 @@ impl Checksum {
     /// Repeatedly gets the next two bytes at a `u16` from a byte iterator. If the `payload`
     /// contains an odd number of bytes, the last `u8` will be appended with the
     /// value zero.
-    #[allow(unused)]
     pub fn accumulate_remainder(&mut self, mut payload: impl Iterator<Item = u8>) {
         while let Some(a) = payload.next() {
             self.add_u8(a, payload.next().unwrap_or(0));
