@@ -69,7 +69,7 @@ impl Pci {
 }
 
 impl Protocol for Pci {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 

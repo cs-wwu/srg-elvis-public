@@ -73,7 +73,7 @@ impl Ipv4 {
 // messages can be sent to the correct network
 
 impl Protocol for Ipv4 {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 

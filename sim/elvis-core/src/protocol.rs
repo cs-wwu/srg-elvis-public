@@ -27,7 +27,7 @@ pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
 /// demultiplexing requests to the correct session.
 pub trait Protocol {
     /// Returns a unique identifier for the protocol.
-    fn id(self: Arc<Self>) -> Id;
+    fn id(&self) -> Id;
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.

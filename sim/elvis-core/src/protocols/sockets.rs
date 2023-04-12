@@ -142,7 +142,7 @@ impl Sockets {
 }
 
 impl Protocol for Sockets {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 

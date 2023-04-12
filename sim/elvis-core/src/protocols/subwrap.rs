@@ -122,7 +122,7 @@ impl SubWrap {
 }
 
 impl Protocol for SubWrap {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         self.inner.clone().id()
     }
 

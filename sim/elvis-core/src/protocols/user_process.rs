@@ -82,7 +82,7 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 }
 
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         A::ID
     }
 

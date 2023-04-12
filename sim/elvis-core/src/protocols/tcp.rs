@@ -73,7 +73,7 @@ impl Tcp {
 }
 
 impl Protocol for Tcp {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 

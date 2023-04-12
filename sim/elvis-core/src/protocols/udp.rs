@@ -62,7 +62,7 @@ impl Udp {
 }
 
 impl Protocol for Udp {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
