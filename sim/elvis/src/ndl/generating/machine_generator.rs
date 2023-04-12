@@ -162,21 +162,17 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 );
                 let app_name = app.options.get("name").unwrap().as_str();
                 match app_name {
-                    "send_message" => protocols_to_be_added.push(send_message_builder(
-                        app,
-                        &name_to_ip,
-                        &ip_to_mac,
-                    )),
+                    "send_message" => {
+                        protocols_to_be_added.push(send_message_builder(app, &name_to_ip))
+                    }
 
                     "capture" => {
                         protocols_to_be_added.push(capture_builder(app));
                     }
 
-                    "forward" => protocols_to_be_added.push(forward_message_builder(
-                        app,
-                        &name_to_ip,
-                        &ip_to_mac,
-                    )),
+                    "forward" => {
+                        protocols_to_be_added.push(forward_message_builder(app, &name_to_ip))
+                    }
 
                     "ping_pong" => protocols_to_be_added.push(ping_pong_builder(
                         app,
