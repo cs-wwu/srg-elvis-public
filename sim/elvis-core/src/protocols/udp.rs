@@ -7,13 +7,13 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::ipv4::{Ipv4, Ipv4Address},
+    protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, Protocol,
+    Control, Protocol, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::Arc;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 mod udp_session;
 use udp_session::{SessionId, UdpSession};
@@ -21,7 +21,7 @@ use udp_session::{SessionId, UdpSession};
 mod udp_parsing;
 use self::udp_parsing::UdpHeader;
 
-use super::utility::Socket;
+use super::{ipv4::Ipv4Address, utility::Socket};
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
@@ -187,6 +187,7 @@ impl Protocol for Udp {
         Self::set_remote_port(session_id.remote.port, &mut context.control);
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
+
             Entry::Vacant(session_entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
@@ -205,6 +206,7 @@ impl Protocol for Udp {
                         };
                         match self.listen_bindings.get(&any_listen_id) {
                             Some(any_listen_entry) => any_listen_entry,
+
                             None => {
                                 tracing::error!(
                                     "Tried to demux with a missing session and no listen bindings"
@@ -229,7 +231,7 @@ impl Protocol for Udp {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {

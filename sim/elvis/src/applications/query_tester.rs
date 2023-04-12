@@ -6,9 +6,9 @@ use elvis_core::{
         user_process::{Application, ApplicationError},
         Ipv4, Pci, Udp, UserProcess,
     },
-    Control, Id, Message, ProtocolMap,
+    Control, Id, Message, ProtocolMap, Shutdown,
 };
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct QueryTester;
@@ -28,7 +28,7 @@ impl Application for QueryTester {
 
     fn start(
         &self,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
@@ -59,7 +59,7 @@ impl Application for QueryTester {
 
         tokio::spawn(async move {
             initialize.wait().await;
-            let _ = shutdown.send(()).await;
+            shutdown.shut_down();
         });
         Ok(())
     }

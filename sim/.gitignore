@@ -13,3 +13,10 @@ Cargo.lock
 .vscode
 
 *.log
+
+# Ignore perf files
+*.data
+*.old
+
+# Ignore flamegraph files
+*.svg
