@@ -126,7 +126,7 @@ impl Socket {
         }
         if self.local_addr.read().unwrap().is_none() {
             *self.local_addr.write().unwrap() =
-                Some(self.socket_api.clone().get_ephemeral_endpoint().unwrap());
+                Some(self.socket_api.get_ephemeral_endpoint().unwrap());
         }
         // Assign the given remote socket address to the socket
         *self.remote_addr.write().unwrap() = Some(sock_addr);

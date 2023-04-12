@@ -101,7 +101,7 @@ impl Sockets {
         Ok(port)
     }
 
-    fn get_ephemeral_endpoint(self: Arc<Self>) -> Result<SocketAddress, SocketError> {
+    fn get_ephemeral_endpoint(&self) -> Result<SocketAddress, SocketError> {
         Ok(SocketAddress {
             address: self.get_local_ipv4()?,
             port: self.get_ephemeral_port()?,
