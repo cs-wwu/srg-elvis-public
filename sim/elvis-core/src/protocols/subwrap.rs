@@ -188,7 +188,7 @@ pub struct SubWrapSession {
 impl Session for SubWrapSession {
     /// Sends the message to all receivers created by [`subscribe_send`](SubWrap::subscribe_send),
     /// then calls [`send`](Session::send) on the inner session.
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), session::SendError> {
+    fn send(&self, message: Message, context: Context) -> Result<(), session::SendError> {
         let send_senders = self.send_senders.read().unwrap();
         send_on_all(send_senders.as_slice(), &message, &context);
         self.inner.clone().send(message, context)

@@ -146,9 +146,10 @@ enum InstructionResult {
 }
 
 impl Session for TcpSession {
-    fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), SendError> {
+    fn send(&self, message: Message, _context: Context) -> Result<(), SendError> {
+        let send = self.send.clone();
         tokio::spawn(async move {
-            match self.send.send(Instruction::Outgoing(message)).await {
+            match send.send(Instruction::Outgoing(message)).await {
                 Ok(_) => {}
                 Err(e) => eprintln!("TCP send error: {}", e),
             }

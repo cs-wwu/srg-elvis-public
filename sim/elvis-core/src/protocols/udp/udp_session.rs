@@ -36,7 +36,7 @@ impl UdpSession {
 
 impl Session for UdpSession {
     #[tracing::instrument(name = "UdpSession::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, context: Context) -> Result<(), SendError> {
         let id = self.id;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?

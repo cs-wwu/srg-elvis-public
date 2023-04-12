@@ -65,7 +65,7 @@ impl PciSession {
 
 impl Session for PciSession {
     #[tracing::instrument(name = "PciSession::send", skip_all)]
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
+    fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
         let protocol = match Network::get_protocol(&context.control) {
             Ok(protocol) => protocol,
             Err(_) => {
@@ -87,8 +87,9 @@ impl Session for PciSession {
             protocol,
         };
 
+        let network = self.network.clone();
         tokio::spawn(async move {
-            self.network.send(delivery).await;
+            network.send(delivery).await;
         });
         Ok(())
     }
