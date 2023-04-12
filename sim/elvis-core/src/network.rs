@@ -137,9 +137,11 @@ impl Network {
                 let throughput = throughput.next();
                 if throughput.0 > 0 {
                     let ms = delivery.message.len() as u64 * 1000 / throughput.0;
-                    match timeout(Duration::from_millis(ms), shutdown_receiver.recv()).await {
-                        Ok(_) => break,
-                        Err(_) => {}
+                    if timeout(Duration::from_millis(ms), shutdown_receiver.recv())
+                        .await
+                        .is_ok()
+                    {
+                        break;
                     }
                 }
 
@@ -150,9 +152,8 @@ impl Network {
                     let shutdown = shutdown.clone();
                     let mut shutdown_receiver = shutdown.receiver();
                     tokio::spawn(async move {
-                        match timeout(latency, shutdown_receiver.recv()).await {
-                            Ok(_) => return,
-                            Err(_) => {}
+                        if timeout(latency, shutdown_receiver.recv()).await.is_ok() {
+                            return;
                         }
                         complete_delivery(delivery, taps, broadcast).await;
                     });
