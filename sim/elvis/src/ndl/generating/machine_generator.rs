@@ -72,7 +72,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                         // Can be removed when ELVIS allows for this.
                         assert!(
                             machine_count == 1,
-                            "Machine contains count and {app_name} application"
+                            "Machine {cur_name} contains count and {app_name} application"
                         );
 
                         let ip = ip_string_to_ip(
