@@ -23,8 +23,9 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
     let mut cur_mac: u64 = 0;
     for machine in machines.iter() {
         let mut cur_name: String = String::new();
+        let mut machine_count: u64 = 1;
         if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("count") {
-            let machine_count = machine
+            machine_count = machine
                 .options
                 .as_ref()
                 .unwrap()
@@ -38,49 +39,56 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     )
                 });
             assert!(machine_count > 0, "Machine count less than 1.");
-            cur_mac += machine_count - 1;
         }
+        for temp_machine_count in 0..machine_count {
+            if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("name") {
+                cur_name = machine
+                    .options
+                    .as_ref()
+                    .unwrap()
+                    .get("name")
+                    .unwrap()
+                    .to_string();
+                if machine_count > 1 {
+                    cur_name = cur_name + "-" + &temp_machine_count.to_string();
+                }
+                name_to_mac.insert(cur_name.clone(), cur_mac);
+            }
 
-        if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("name") {
-            cur_name = machine
-                .options
-                .as_ref()
-                .unwrap()
-                .get("name")
-                .unwrap()
-                .to_string();
-            name_to_mac.insert(cur_name.clone(), cur_mac);
-        }
-
-        if !cur_name.is_empty() {
-            for app in &machine.interfaces.applications {
-                assert!(
-                    app.options.contains_key("name"),
-                    "Machine application does not contain a name"
-                );
-                let app_name = app.options.get("name").unwrap().as_str();
-                if app_name == "capture" || app_name == "forward" || app_name == "ping_pong" {
+            if !cur_name.is_empty() {
+                for app in &machine.interfaces.applications {
                     assert!(
-                        app.options.contains_key("ip"),
-                        "{app_name} application doesn't contain ip."
+                        app.options.contains_key("name"),
+                        "Machine application does not contain a name"
                     );
+                    let app_name = app.options.get("name").unwrap().as_str();
+                    if app_name == "capture" || app_name == "forward" || app_name == "ping_pong" {
+                        assert!(
+                            app.options.contains_key("ip"),
+                            "{app_name} application doesn't contain ip."
+                        );
 
-                    let ip = ip_string_to_ip(
-                        app.options.get("ip").unwrap().to_string(),
-                        format!("{app_name} declaration").as_str(),
-                    );
+                        // This check makes sure counts do not appear on recieving machines.
+                        // Can be removed when ELVIS allows for this.
+                        assert!(
+                            machine_count == 1,
+                            "Machine {cur_name} contains count and {app_name} application"
+                        );
 
-                    name_to_ip.insert(cur_name.clone(), ip.into());
-                    ip_to_mac.insert(ip.into(), cur_mac);
+                        let ip = ip_string_to_ip(
+                            app.options.get("ip").unwrap().to_string(),
+                            format!("{app_name} declaration").as_str(),
+                        );
+
+                        name_to_ip.insert(cur_name.clone(), ip.into());
+                        ip_to_mac.insert(ip.into(), cur_mac);
+                    }
                 }
             }
+            cur_mac += 1;
         }
-
-        cur_mac += 1;
     }
-
     let mut machine_list = Vec::new();
-
     for machine in &machines {
         let mut machine_count = 1;
         let mut _cur_machine_name: String;

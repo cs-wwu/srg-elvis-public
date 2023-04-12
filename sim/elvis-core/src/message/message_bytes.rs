@@ -17,7 +17,7 @@ impl<'a> MessageBytes<'a> {
             current: chunks
                 .next()
                 .map(|chunk| chunk.as_slice().iter())
-                .unwrap_or([].iter()),
+                .unwrap_or_else(|| [].iter()),
             chunks,
         }
     }
@@ -34,7 +34,7 @@ impl<'a> Iterator for MessageBytes<'a> {
                     .chunks
                     .next()
                     .map(|chunk| chunk.as_slice().iter())
-                    .unwrap_or([].iter());
+                    .unwrap_or_else(|| [].iter());
                 self.current.next()
             })
             .cloned()
