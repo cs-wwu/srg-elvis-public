@@ -96,7 +96,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,

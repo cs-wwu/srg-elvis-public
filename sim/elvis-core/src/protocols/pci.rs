@@ -95,7 +95,7 @@ impl Protocol for Pci {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,

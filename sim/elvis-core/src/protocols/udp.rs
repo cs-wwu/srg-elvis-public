@@ -123,7 +123,7 @@ impl Protocol for Udp {
 
     #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,

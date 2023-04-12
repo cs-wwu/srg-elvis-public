@@ -129,7 +129,7 @@ impl Protocol for Tcp {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,

@@ -193,7 +193,7 @@ impl Protocol for Sockets {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,

@@ -153,7 +153,7 @@ impl Protocol for SubWrap {
 
     /// Calls [`listen`](Protocol::listen) on the inner protocol.
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,

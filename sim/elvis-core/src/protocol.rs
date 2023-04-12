@@ -83,7 +83,7 @@ pub trait Protocol {
     /// demultiplexing the message. Similarly, a UDP or TCP protocol would want
     /// its participant set to include {local_address, local_port}.
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,

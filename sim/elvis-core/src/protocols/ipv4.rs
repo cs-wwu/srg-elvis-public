@@ -140,7 +140,7 @@ impl Protocol for Ipv4 {
 
     #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
