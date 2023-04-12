@@ -81,7 +81,6 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
             cur_mac += 1;
         }
     }
-    println!("{:?}", name_to_mac);
     let mut machine_list = Vec::new();
     for machine in &machines {
         let mut machine_count = 1;
