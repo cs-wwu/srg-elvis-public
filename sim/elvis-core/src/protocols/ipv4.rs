@@ -78,7 +78,7 @@ impl Protocol for Ipv4 {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,

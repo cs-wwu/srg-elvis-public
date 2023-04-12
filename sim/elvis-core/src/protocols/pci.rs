@@ -113,7 +113,7 @@ impl Protocol for Pci {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,

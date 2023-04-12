@@ -40,7 +40,7 @@ pub trait Protocol {
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,

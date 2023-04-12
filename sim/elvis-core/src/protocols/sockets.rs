@@ -147,7 +147,7 @@ impl Protocol for Sockets {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,

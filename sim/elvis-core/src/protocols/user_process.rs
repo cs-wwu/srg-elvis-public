@@ -115,7 +115,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,

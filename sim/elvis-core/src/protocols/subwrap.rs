@@ -128,7 +128,7 @@ impl Protocol for SubWrap {
 
     /// Calls [`start`](Protocol::start) on the inner protocol.
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
