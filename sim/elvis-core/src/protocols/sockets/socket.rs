@@ -185,7 +185,7 @@ impl Socket {
     }
 
     /// Assigns a local ip address and port to a socket
-    pub fn bind(self: Arc<Self>, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub fn bind(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
         match self.family {
             ProtocolFamily::LOCAL => {
                 return Err(SocketError::BindError);
@@ -266,7 +266,7 @@ impl Socket {
             address: self.socket_api.get_local_ipv4()?,
             port: self.local_addr.read().unwrap().unwrap().port,
         };
-        new_sock.clone().bind(local_addr)?;
+        new_sock.bind(local_addr)?;
         *new_sock.remote_addr.write().unwrap() = self.listen_addresses.write().unwrap().pop_front();
         if !self.listen_addresses.read().unwrap().is_empty() {
             self.notify_listen.notify_one();
