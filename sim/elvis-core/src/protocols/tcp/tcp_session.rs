@@ -95,7 +95,7 @@ impl TcpSession {
 
                 for mut segment in tcb.segments() {
                     segment.text.header(segment.header.serialize());
-                    match downstream.clone().send(segment.text, context.clone()) {
+                    match downstream.send(segment.text, context.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Send error: {}", e),
                     }
@@ -103,10 +103,7 @@ impl TcpSession {
 
                 let received = tcb.receive();
                 if !received.is_empty() {
-                    match upstream
-                        .clone()
-                        .demux(received, me.clone(), context.clone())
-                    {
+                    match upstream.demux(received, me.clone(), context.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Demux error: {}", e),
                     }
@@ -159,7 +156,7 @@ impl Session for TcpSession {
 
     fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add queries
-        self.downstream.clone().query(key)
+        self.downstream.query(key)
     }
 }
 

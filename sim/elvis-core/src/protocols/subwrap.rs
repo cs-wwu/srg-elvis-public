@@ -122,7 +122,7 @@ impl SubWrap {
 
 impl Protocol for SubWrap {
     fn id(&self) -> Id {
-        self.inner.clone().id()
+        self.inner.id()
     }
 
     /// Calls [`start`](Protocol::start) on the inner protocol.
@@ -132,7 +132,7 @@ impl Protocol for SubWrap {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        self.inner.clone().start(shutdown, initialized, protocols)
+        self.inner.start(shutdown, initialized, protocols)
     }
 
     /// Calls [`open`](Protocol::open) on the inner protocol.
@@ -143,7 +143,7 @@ impl Protocol for SubWrap {
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
-        let sesh = self.inner.clone().open(upstream, participants, protocols)?;
+        let sesh = self.inner.open(upstream, participants, protocols)?;
         let result = SubWrapSession {
             send_senders: self.send_senders.clone(),
             inner: sesh,
@@ -158,7 +158,7 @@ impl Protocol for SubWrap {
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
-        self.inner.clone().listen(upstream, participants, protocols)
+        self.inner.listen(upstream, participants, protocols)
     }
 
     /// Sends the message to all receivers obtained with [`subscribe_demux`](Self::subscribe_demux), then calls `demux` on the inner protocol.
@@ -169,12 +169,12 @@ impl Protocol for SubWrap {
         context: Context,
     ) -> Result<(), DemuxError> {
         send_on_all(&self.demux_senders, &message, &context);
-        self.inner.clone().demux(message, caller, context)
+        self.inner.demux(message, caller, context)
     }
 
     /// Calls [`query`](Protocol::query) on the inner protocol and returns the result.
     fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.inner.clone().query(key)
+        self.inner.query(key)
     }
 }
 
@@ -191,12 +191,12 @@ impl Session for SubWrapSession {
     fn send(&self, message: Message, context: Context) -> Result<(), session::SendError> {
         let send_senders = self.send_senders.read().unwrap();
         send_on_all(send_senders.as_slice(), &message, &context);
-        self.inner.clone().send(message, context)
+        self.inner.send(message, context)
     }
 
     /// Calls [`query`](Session::query) on the inner Session, then returns the result.
     fn query(&self, key: Key) -> Result<Primitive, session::QueryError> {
-        self.inner.clone().query(key)
+        self.inner.query(key)
     }
 }
 

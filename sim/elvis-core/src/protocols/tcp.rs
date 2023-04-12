@@ -109,7 +109,6 @@ impl Protocol for Tcp {
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols.clone())?;
                 let mtu = downstream
-                    .clone()
                     .query(Pci::MTU_QUERY_KEY)
                     .map_err(|_| OpenError::Other)?
                     .ok_u32()
@@ -198,7 +197,6 @@ impl Protocol for Tcp {
                         // If we have a listen binding, create the session and
                         // save it
                         let mtu = caller
-                            .clone()
                             .query(Pci::MTU_QUERY_KEY)
                             .map_err(|_| DemuxError::Other)?
                             .ok_u32()

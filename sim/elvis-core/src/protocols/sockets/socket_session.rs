@@ -29,10 +29,10 @@ impl SocketSession {
 
 impl Session for SocketSession {
     fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
-        self.downstream.clone().send(message, context)
+        self.downstream.send(message, context)
     }
 
     fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.clone().query(key)
+        self.downstream.query(key)
     }
 }

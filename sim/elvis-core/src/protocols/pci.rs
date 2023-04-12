@@ -119,7 +119,7 @@ impl Protocol for Pci {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         for session in self.sessions.iter() {
-            session.clone().start(protocols.clone());
+            session.start(protocols.clone());
         }
         tokio::spawn(async move {
             // Wait until all the taps have started before starting the sim

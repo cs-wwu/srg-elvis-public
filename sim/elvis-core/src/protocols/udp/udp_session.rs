@@ -62,12 +62,12 @@ impl Session for UdpSession {
             message.clone(),
         );
         message.header(header);
-        self.downstream.clone().send(message, context)?;
+        self.downstream.send(message, context)?;
         Ok(())
     }
 
     fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.clone().query(key)
+        self.downstream.query(key)
     }
 }
 

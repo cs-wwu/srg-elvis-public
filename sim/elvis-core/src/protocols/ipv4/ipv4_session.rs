@@ -71,12 +71,12 @@ impl Session for Ipv4Session {
             Network::set_destination(mac, &mut context.control);
         }
         message.header(header);
-        self.downstream.clone().send(message, context)?;
+        self.downstream.send(message, context)?;
         Ok(())
     }
 
     fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.clone().query(key)
+        self.downstream.query(key)
     }
 }
 
