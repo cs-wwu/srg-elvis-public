@@ -263,7 +263,7 @@ impl Socket {
             self.socket_api
                 .new_socket(self.family, self.sock_type, self.protocols.clone())?;
         let local_addr = SocketAddress {
-            address: self.socket_api.clone().get_local_ipv4()?,
+            address: self.socket_api.get_local_ipv4()?,
             port: self.local_addr.read().unwrap().unwrap().port,
         };
         new_sock.clone().bind(local_addr)?;

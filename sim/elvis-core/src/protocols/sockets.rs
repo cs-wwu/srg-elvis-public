@@ -88,7 +88,7 @@ impl Sockets {
         Ok(socket)
     }
 
-    fn get_local_ipv4(self: Arc<Self>) -> Result<IpAddress, SocketError> {
+    fn get_local_ipv4(&self) -> Result<IpAddress, SocketError> {
         match self.local_ipv4_address {
             Some(v) => Ok(IpAddress::IPv4(v)),
             None => Err(SocketError::Other),
@@ -103,7 +103,7 @@ impl Sockets {
 
     fn get_ephemeral_endpoint(self: Arc<Self>) -> Result<SocketAddress, SocketError> {
         Ok(SocketAddress {
-            address: self.clone().get_local_ipv4()?,
+            address: self.get_local_ipv4()?,
             port: self.get_ephemeral_port()?,
         })
     }
