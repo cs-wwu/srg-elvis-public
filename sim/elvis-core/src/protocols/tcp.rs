@@ -43,7 +43,7 @@ impl Tcp {
 
     /// Creates a new TCP protocol
     pub fn new() -> Self {
-        Default::default()
+        Self::default()
     }
 
     /// Converts the TCP into a shared protocol.

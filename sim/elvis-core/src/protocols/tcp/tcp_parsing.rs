@@ -83,6 +83,8 @@ impl TcpHeader {
         let urg = u16::from_be_bytes([next()?, next()?]);
         checksum.add_u16(urg);
 
+        checksum.accumulate_remainder(&mut packet);
+
         // Pseudo header stuff
         checksum.add_u32(src_address.into());
         checksum.add_u32(dst_address.into());
@@ -224,13 +226,14 @@ impl TcpHeaderBuilder {
         self,
         src_address: Ipv4Address,
         dst_address: Ipv4Address,
-        _text: impl Iterator<Item = u8>,
+        mut text: impl Iterator<Item = u8>,
         text_len: usize,
     ) -> Result<TcpHeader, BuildHeaderError> {
         let mut checksum = Checksum::new();
         let length: u16 = (text_len + BASE_HEADER_OCTETS as usize)
             .try_into()
             .map_err(|_| BuildHeaderError::OverlyLongPayload)?;
+        checksum.accumulate_remainder(&mut text);
 
         // TODO(hardint): Should change when header options are supported
         let data_offset = BASE_HEADER_WORDS;
@@ -415,56 +418,67 @@ mod tests {
     use super::*;
     use crate::protocols::{tcp::ConnectionId, utility::Socket};
 
-    #[test]
-    fn parses_packet() -> anyhow::Result<()> {
-        let payload = b"Hello, world!";
-        let ttl = 30;
-        let src_address = Ipv4Address::LOCALHOST;
-        let dst_address = Ipv4Address::SUBNET;
-        let src_port = 0xcafe;
-        let dst_port = 0xbabe;
-        let sequence = 123456789;
-        let window = 1024;
-        let acknowledgement = 10;
-        let control = Control::new(false, true, true, false, false, false);
+    const PAYLOAD: &[u8] = b"Hello, world!";
+    const SRC_ADDRESS: Ipv4Address = Ipv4Address::LOCALHOST;
+    const DST_ADDRESS: Ipv4Address = Ipv4Address::SUBNET;
+    const SRC_PORT: u16 = 0xcafe;
+    const DST_PORT: u16 = 0xbabe;
+    const SEQUENCE: u32 = 123456789;
+    const WINDOW: u16 = 1024;
+    const ACKNOWLEDGEMENT: u32 = 10;
+    const TTL: u8 = 30;
 
+    fn build_expected() -> (etherparse::TcpHeader, Vec<u8>) {
         let expected = {
-            let mut expected = etherparse::TcpHeader::new(src_port, dst_port, sequence, window);
-            expected.acknowledgment_number = acknowledgement;
+            let mut expected = etherparse::TcpHeader::new(SRC_PORT, DST_PORT, SEQUENCE, WINDOW);
+            expected.acknowledgment_number = ACKNOWLEDGEMENT;
             expected.ack = true;
             expected.psh = true;
-            let ip_header = etherparse::Ipv4Header::new(
-                payload.len().try_into()?,
-                ttl,
-                etherparse::IpNumber::Tcp,
-                src_address.into(),
-                dst_address.into(),
-            );
-            expected.checksum = expected.calc_checksum_ipv4(&ip_header, payload)?;
+            #[cfg(feature = "compute_checksum")]
+            {
+                let ip_header = etherparse::Ipv4Header::new(
+                    PAYLOAD.len().try_into().unwrap(),
+                    TTL,
+                    etherparse::IpNumber::Tcp,
+                    SRC_ADDRESS.into(),
+                    DST_ADDRESS.into(),
+                );
+                expected.checksum = expected.calc_checksum_ipv4(&ip_header, PAYLOAD).unwrap();
+            }
             expected
         };
 
         let serial = {
             let mut serial = vec![];
-            expected.write(&mut serial)?;
+            expected.write(&mut serial).unwrap();
             serial
         };
 
-        let len = serial.len() + payload.len();
-        let actual = TcpHeader::from_bytes(
-            serial.into_iter().chain(payload.iter().cloned()),
-            len,
-            src_address,
-            dst_address,
-        )?;
+        (expected, serial)
+    }
 
-        assert_eq!(actual.src_port, src_port);
-        assert_eq!(actual.src_port, src_port);
-        assert_eq!(actual.dst_port, dst_port);
-        assert_eq!(actual.seq, sequence);
-        assert_eq!(actual.ack, acknowledgement);
+    #[test]
+    fn parses_packet() {
+        let control = Control::new(false, true, true, false, false, false);
+
+        let (expected, serial) = build_expected();
+
+        let len = serial.len() + PAYLOAD.len();
+        let actual = TcpHeader::from_bytes(
+            serial.into_iter().chain(PAYLOAD.iter().cloned()),
+            len,
+            SRC_ADDRESS,
+            DST_ADDRESS,
+        )
+        .unwrap();
+
+        assert_eq!(actual.src_port, SRC_PORT);
+        assert_eq!(actual.src_port, SRC_PORT);
+        assert_eq!(actual.dst_port, DST_PORT);
+        assert_eq!(actual.seq, SEQUENCE);
+        assert_eq!(actual.ack, ACKNOWLEDGEMENT);
         assert_eq!(actual.ctl, control);
-        assert_eq!(actual.wnd, window);
+        assert_eq!(actual.wnd, WINDOW);
         assert_eq!(actual.checksum, expected.checksum);
         assert_eq!(actual.urg, 0);
         assert!(!actual.ctl.urg());
@@ -473,17 +487,10 @@ mod tests {
         assert!(!actual.ctl.rst());
         assert!(!actual.ctl.syn());
         assert!(!actual.ctl.fin());
-        Ok(())
     }
 
     #[test]
-    fn builds_packet() -> anyhow::Result<()> {
-        let payload = b"Hello, world!";
-        let ttl = 30;
-        let sequence = 123456789;
-        let window = 1024;
-        let acknowledgement = 10;
-
+    fn builds_packet() {
         let id = ConnectionId {
             local: Socket {
                 address: Ipv4Address::LOCALHOST,
@@ -495,43 +502,22 @@ mod tests {
             },
         };
 
-        let expected = {
-            let mut expected =
-                etherparse::TcpHeader::new(id.local.port, id.remote.port, sequence, window);
-            expected.acknowledgment_number = acknowledgement;
-            expected.ack = true;
-            expected.psh = true;
-            let ip_header = etherparse::Ipv4Header::new(
-                payload.len().try_into()?,
-                ttl,
-                etherparse::IpNumber::Tcp,
-                id.local.address.into(),
-                id.remote.address.into(),
-            );
-            expected.checksum = expected.calc_checksum_ipv4(&ip_header, payload)?;
-            expected
-        };
+        let (_, expected) = build_expected();
 
-        let expected = {
-            let mut serial = vec![];
-            expected.write(&mut serial)?;
-            serial
-        };
-
-        let actual = TcpHeaderBuilder::new(id.local.port, id.remote.port, sequence)
-            .wnd(window)
+        let actual = TcpHeaderBuilder::new(id.local.port, id.remote.port, SEQUENCE)
+            .wnd(WINDOW)
             .psh()
-            .ack(acknowledgement)
+            .ack(ACKNOWLEDGEMENT)
             .build(
                 id.local.address,
                 id.remote.address,
-                payload.iter().cloned(),
-                payload.len(),
-            )?
+                PAYLOAD.iter().cloned(),
+                PAYLOAD.len(),
+            )
+            .unwrap()
             .serialize();
 
         assert_eq!(expected, actual);
-        Ok(())
     }
 
     #[test]

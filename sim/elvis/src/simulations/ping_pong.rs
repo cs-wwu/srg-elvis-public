@@ -19,8 +19,8 @@ const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);
 pub async fn ping_pong() {
     let network = Network::basic();
     let ip_table: Recipients = [
-        (IP_ADDRESS_1, Recipient::new(0, 0)),
-        (IP_ADDRESS_2, Recipient::new(0, 1)),
+        (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
+        (IP_ADDRESS_2, Recipient::with_mac(0, 1)),
     ]
     .into_iter()
     .collect();
