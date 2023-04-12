@@ -68,6 +68,13 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             "{app_name} application doesn't contain ip."
                         );
 
+                        // This check makes sure counts do not appear on recieving machines. 
+                        // Can be removed when ELVIS allows for this.
+                        assert!(
+                            machine_count == 1,
+                            "Machine contains count and {app_name} application"
+                        );
+
                         let ip = ip_string_to_ip(
                             app.options.get("ip").unwrap().to_string(),
                             format!("{app_name} declaration").as_str(),

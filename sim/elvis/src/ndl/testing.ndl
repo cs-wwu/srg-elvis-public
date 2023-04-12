@@ -15,7 +15,7 @@
 			[Protocol name='UDP']
 		[Applications]
 			[Application name='send_message' message='Hello this is an awesome test message!' to='recv1' port='0xbeef']
-	[Machine name='recv1']
+	[Machine name='recv1' count='2']
 		[Networks]
 			[Network id='5']
 		[Protocols]
