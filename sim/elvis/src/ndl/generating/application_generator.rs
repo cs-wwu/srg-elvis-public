@@ -19,7 +19,6 @@ use elvis_core::Message;
 pub fn send_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-    ip_to_mac: &HashMap<Ipv4Address, Mac>,
 ) -> Arc<UserProcess<SendMessage>> {
     assert!(
         app.options.contains_key("port"),
@@ -45,13 +44,7 @@ pub fn send_message_builder(
         let to = ip_string_to_ip(to, "Send_Message declaration");
 
         // case where ip to mac doesn't have a mac
-        if !ip_to_mac.contains_key(&to.into()) {
-            SendMessage::new(messages.clone(), to.into(), port).shared()
-        }
-        // case where ip to mac does have a mac
-        else {
-            return SendMessage::new(messages.clone(), to.into(), port).shared();
-        }
+        SendMessage::new(messages, to.into(), port).shared()
     } else {
         return SendMessage::new(
             messages,
@@ -97,7 +90,6 @@ pub fn capture_builder(app: &Application) -> Arc<UserProcess<Capture>> {
 pub fn forward_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-    ip_to_mac: &HashMap<Ipv4Address, Mac>,
 ) -> Arc<UserProcess<Forward>> {
     assert!(
         app.options.contains_key("local_port"),
@@ -125,15 +117,7 @@ pub fn forward_message_builder(
     let remote_port = string_to_port(app.options.get("remote_port").unwrap().to_string());
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Forward declaration");
-
-        // case where ip to mac doesn't have a mac
-        if !ip_to_mac.contains_key(&to.into()) {
-            Forward::new(ip.into(), to.into(), local_port, remote_port).shared()
-        }
-        // case where ip to mac does have a mac
-        else {
-            return Forward::new(ip.into(), to.into(), local_port, remote_port).shared();
-        }
+        Forward::new(ip.into(), to.into(), local_port, remote_port).shared()
     } else {
         Forward::new(
             ip.into(),

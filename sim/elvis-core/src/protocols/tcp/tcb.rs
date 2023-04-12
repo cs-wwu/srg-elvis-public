@@ -463,7 +463,7 @@ impl Tcb {
 
                 State::FinWait1 => {
                     let result = self.ack_established_processing(&mut connection, &seg);
-                    if self.is_fin_acked(&mut connection) {
+                    if self.is_fin_acked(&connection) {
                         connection.state = State::FinWait2;
                     }
                     if result != ProcessSegmentResult::Success {
@@ -473,7 +473,7 @@ impl Tcb {
 
                 State::Closing => {
                     let result = self.ack_established_processing(&mut connection, &seg);
-                    if self.is_fin_acked(&mut connection) {
+                    if self.is_fin_acked(&connection) {
                         connection.state = State::TimeWait;
                         *self.timeouts.time_wait.write().unwrap() = Some(MSL * 2);
                     }
@@ -484,7 +484,7 @@ impl Tcb {
 
                 State::LastAck => {
                     connection.snd.una = seg.ack;
-                    if self.is_fin_acked(&mut connection) {
+                    if self.is_fin_acked(&connection) {
                         return ProcessSegmentResult::FinalizeClose;
                     }
                 }
