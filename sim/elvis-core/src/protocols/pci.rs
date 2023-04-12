@@ -74,7 +74,7 @@ impl Protocol for Pci {
     }
 
     fn open(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         participants: Control,
         _protocols: ProtocolMap,

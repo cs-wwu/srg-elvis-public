@@ -78,7 +78,7 @@ impl Protocol for Tcp {
     }
 
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,

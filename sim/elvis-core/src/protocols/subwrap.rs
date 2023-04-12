@@ -138,7 +138,7 @@ impl Protocol for SubWrap {
     /// Calls [`open`](Protocol::open) on the inner protocol.
     /// Wraps the resulting session with a [`SubWrapSession`].
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,

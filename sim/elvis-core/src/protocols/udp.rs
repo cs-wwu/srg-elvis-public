@@ -68,7 +68,7 @@ impl Protocol for Udp {
 
     #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,

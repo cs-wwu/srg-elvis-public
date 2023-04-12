@@ -91,7 +91,7 @@ impl Protocol for Ipv4 {
 
     #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         mut participants: Control,
         protocols: ProtocolMap,
