@@ -104,7 +104,7 @@ impl Protocol for Pci {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         _message: Message,
         _caller: SharedSession,
         _context: Context,

@@ -105,7 +105,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         _caller: SharedSession,
         context: Context,

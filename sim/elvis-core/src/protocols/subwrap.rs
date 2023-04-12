@@ -163,7 +163,7 @@ impl Protocol for SubWrap {
 
     /// Sends the message to all receivers obtained with [`subscribe_demux`](Self::subscribe_demux), then calls `demux` on the inner protocol.
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         caller: SharedSession,
         context: Context,

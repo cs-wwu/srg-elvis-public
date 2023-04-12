@@ -151,7 +151,7 @@ impl Protocol for Udp {
 
     #[tracing::instrument(name = "Udp::demux", skip_all)]
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,

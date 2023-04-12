@@ -219,7 +219,7 @@ impl Protocol for Sockets {
     /// demux'd to the correct socket_session based on IP address and port, the
     /// socket_session will then pass it on to its respective socket
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         caller: SharedSession,
         context: Context,

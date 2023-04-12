@@ -170,7 +170,7 @@ impl Protocol for Ipv4 {
 
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,

@@ -150,7 +150,7 @@ impl Protocol for Tcp {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,

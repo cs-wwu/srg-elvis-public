@@ -108,7 +108,7 @@ pub trait Protocol {
     ///   at an earlier time. If so, a new session should be created.
     /// - Call `receive` on the selected session.
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         caller: SharedSession,
         context: Context,
