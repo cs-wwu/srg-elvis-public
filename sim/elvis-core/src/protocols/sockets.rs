@@ -95,7 +95,7 @@ impl Sockets {
         }
     }
 
-    fn get_ephemeral_port(self: Arc<Self>) -> Result<u16, SocketError> {
+    fn get_ephemeral_port(&self) -> Result<u16, SocketError> {
         let port = *self.local_ports.read().unwrap();
         *self.local_ports.write().unwrap() += 1;
         Ok(port)
