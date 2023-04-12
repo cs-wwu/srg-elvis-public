@@ -64,7 +64,7 @@ pub async fn router_single() {
                 networks[3].clone(),
             ])
             .shared(),
-            Router::new(ip_table).shared(),
+            Router::new(ip_table).shared() as SharedProtocol,
         ]),
         // capture for destination 1
         Machine::new([

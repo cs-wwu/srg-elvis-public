@@ -9,9 +9,7 @@ use self::{
 use super::{utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
-    protocol::{
-        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
-    },
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
@@ -47,7 +45,7 @@ impl Tcp {
     }
 
     /// Converts the TCP into a shared protocol.
-    pub fn shared(self) -> SharedProtocol {
+    pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
 

@@ -5,9 +5,7 @@ use crate::{
     id::Id,
     machine::PciSlot,
     message::Message,
-    protocol::{
-        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
-    },
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::SharedSession,
     Control, Network, Protocol, ProtocolMap, Shutdown,
 };
@@ -51,7 +49,7 @@ impl Pci {
     }
 
     /// Creates a new network tap.
-    pub fn shared(self) -> SharedProtocol {
+    pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
 
