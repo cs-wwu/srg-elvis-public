@@ -52,7 +52,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
     socket.send(resp).unwrap();
 
     // Receive a message (Also example usage of recv_msg)
-    let _ack = socket.clone().recv_msg().await.unwrap();
+    let _ack = socket.recv_msg().await.unwrap();
     println!("SERVER: Ackowledgement Received");
 }
 

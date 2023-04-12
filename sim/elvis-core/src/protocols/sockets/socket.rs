@@ -342,7 +342,7 @@ impl Socket {
     ///
     /// This function will block if the queue of incoming messages is empty
     /// until a new message is received
-    pub async fn recv_msg(self: Arc<Self>) -> Result<Message, SocketError> {
+    pub async fn recv_msg(&self) -> Result<Message, SocketError> {
         // If the socket doesn't have a session yet, data cannot be received and
         // calls to recv will return an error, a call to connect() must be made
         // first
