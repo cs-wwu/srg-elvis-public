@@ -16,7 +16,7 @@ pub(super) struct SocketSession {
 }
 
 impl SocketSession {
-    pub fn receive(self: Arc<Self>, message: Message) -> Result<(), DemuxError> {
+    pub fn receive(&self, message: Message) -> Result<(), DemuxError> {
         match *self.upstream.read().unwrap() {
             Some(sock) => match self.sockets.entry(sock) {
                 Entry::Occupied(entry) => entry.get().receive(message),
