@@ -308,7 +308,7 @@ impl Socket {
     ///
     /// This function will block if the queue of incoming messages is empty
     /// until a new message is received
-    pub async fn recv(self: Arc<Self>, bytes: usize) -> Result<Vec<u8>, SocketError> {
+    pub async fn recv(&self, bytes: usize) -> Result<Vec<u8>, SocketError> {
         // If the socket doesn't have a session yet, data cannot be received and
         // calls to recv will return an error, a call to connect() must be made
         // first

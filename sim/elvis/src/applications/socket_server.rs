@@ -40,7 +40,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
     socket.send("ACK").unwrap();
 
     // Receive a message
-    let req = socket.clone().recv(32).await.unwrap();
+    let req = socket.recv(32).await.unwrap();
     println!(
         "SERVER: Request Received: {:?}",
         String::from_utf8(req).unwrap()

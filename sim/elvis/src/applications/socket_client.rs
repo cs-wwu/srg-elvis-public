@@ -79,7 +79,7 @@ impl Application for SocketClient {
             socket.send("SYN").unwrap();
 
             // Receive a connection response
-            let _ack = socket.clone().recv(32).await.unwrap();
+            let _ack = socket.recv(32).await.unwrap();
             println!("CLIENT {}: Connection response received", client_id);
 
             // Send a message
@@ -88,7 +88,7 @@ impl Application for SocketClient {
             socket.send(req).unwrap();
 
             // Receive a message
-            let resp = socket.clone().recv(32).await.unwrap();
+            let resp = socket.recv(32).await.unwrap();
             println!(
                 "CLIENT {}: Response Received: {:?}",
                 client_id,
