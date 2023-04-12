@@ -260,7 +260,7 @@ impl Protocol for Tcp {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         tracing::error!("No such key on TCP");
         Err(QueryError::NonexistentKey)
     }

@@ -115,7 +115,7 @@ pub trait Protocol {
     ) -> Result<(), DemuxError>;
 
     /// Gets a piece of information from the protocol
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
+    fn query(&self, key: Key) -> Result<Primitive, QueryError>;
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]

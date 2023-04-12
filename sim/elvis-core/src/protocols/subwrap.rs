@@ -173,7 +173,7 @@ impl Protocol for SubWrap {
     }
 
     /// Calls [`query`](Protocol::query) on the inner protocol and returns the result.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         self.inner.clone().query(key)
     }
 }

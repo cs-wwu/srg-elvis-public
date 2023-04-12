@@ -232,7 +232,7 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
     }
 }

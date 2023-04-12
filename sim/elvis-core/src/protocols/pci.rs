@@ -128,7 +128,7 @@ impl Protocol for Pci {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         match key {
             Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.len() as u64).into()),
             _ => Err(QueryError::NonexistentKey),
