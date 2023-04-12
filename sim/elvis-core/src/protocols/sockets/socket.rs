@@ -1,8 +1,4 @@
-use std::{
-    collections::VecDeque,
-    sync::{Arc, RwLock},
-};
-
+use super::Sockets;
 use crate::{
     message::Chunk,
     protocol::{Context, DemuxError},
@@ -10,10 +6,12 @@ use crate::{
     session::SharedSession,
     Control, Id, Message, ProtocolMap, Shutdown,
 };
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 use thiserror::Error as ThisError;
 use tokio::{select, sync::Notify};
-
-use super::Sockets;
 
 /// An implementation of an individual Socket
 /// Created by the [`Sockets`] API
