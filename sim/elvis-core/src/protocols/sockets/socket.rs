@@ -283,7 +283,7 @@ impl Socket {
 
     /// Sends data to the socket's remote endpoint
     pub fn send(
-        self: Arc<Self>,
+        &self,
         message: impl Into<Chunk> + std::marker::Send + 'static,
     ) -> Result<(), SocketError> {
         if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {

@@ -37,7 +37,7 @@ impl SocketServer {
 async fn communicate_with_client(socket: Arc<Socket>) {
     // Send a connection response
     println!("SERVER: Sending connection response");
-    socket.clone().send("ACK").unwrap();
+    socket.send("ACK").unwrap();
 
     // Receive a message
     let req = socket.clone().recv(32).await.unwrap();
@@ -49,7 +49,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
     // Send a message
     let resp = "Major Tom to Ground Control";
     println!("SERVER: Sending Response: {:?}", resp);
-    socket.clone().send(resp).unwrap();
+    socket.send(resp).unwrap();
 
     // Receive a message (Also example usage of recv_msg)
     let _ack = socket.clone().recv_msg().await.unwrap();

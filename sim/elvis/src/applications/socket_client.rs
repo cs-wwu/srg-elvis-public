@@ -76,7 +76,7 @@ impl Application for SocketClient {
 
             // Send a connection request
             println!("CLIENT {}: Sending connection request", client_id);
-            socket.clone().send("SYN").unwrap();
+            socket.send("SYN").unwrap();
 
             // Receive a connection response
             let _ack = socket.clone().recv(32).await.unwrap();
@@ -85,7 +85,7 @@ impl Application for SocketClient {
             // Send a message
             let req = "Ground Control to Major Tom";
             println!("CLIENT {}: Sending Request: {:?}", client_id, req);
-            socket.clone().send(req).unwrap();
+            socket.send(req).unwrap();
 
             // Receive a message
             let resp = socket.clone().recv(32).await.unwrap();
@@ -97,7 +97,7 @@ impl Application for SocketClient {
 
             // Send a message
             println!("CLIENT {}: Sending Ackowledgement", client_id);
-            socket.clone().send("Ackowledged").unwrap();
+            socket.send("Ackowledged").unwrap();
         });
         Ok(())
     }
