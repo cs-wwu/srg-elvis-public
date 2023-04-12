@@ -295,7 +295,6 @@ impl Socket {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .clone()
                 .send(Message::new(message), context)
                 .unwrap();
         });
