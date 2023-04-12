@@ -92,7 +92,7 @@ impl Application for SocketServer {
             // new tokio task to handle each accepted connection
             loop {
                 // Accept an incoming connection
-                let socket = listen_socket.clone().accept().await.unwrap();
+                let socket = listen_socket.accept().await.unwrap();
                 println!("SERVER: Connection accepted");
 
                 // Spawn a new tokio task for handling communication

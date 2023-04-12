@@ -250,7 +250,7 @@ impl Socket {
     ///
     /// This function will block if the queue of pending connections is empty
     /// until a new connection arrives
-    pub async fn accept(self: Arc<Self>) -> Result<Arc<Socket>, SocketError> {
+    pub async fn accept(&self) -> Result<Arc<Socket>, SocketError> {
         if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
