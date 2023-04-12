@@ -73,7 +73,6 @@ impl Application for SocketServer {
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
             let listen_socket = sockets
-                .clone()
                 .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .unwrap();
 

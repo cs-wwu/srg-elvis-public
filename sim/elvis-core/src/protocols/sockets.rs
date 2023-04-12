@@ -62,7 +62,7 @@ impl Sockets {
 
     /// Creates a new socket and adds it to its listing of sockets
     pub fn new_socket(
-        self: Arc<Self>,
+        self: &Arc<Self>,
         domain: ProtocolFamily,
         sock_type: SocketType,
         protocols: ProtocolMap,
