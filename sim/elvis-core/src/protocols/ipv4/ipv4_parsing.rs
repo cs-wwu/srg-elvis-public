@@ -504,11 +504,19 @@ mod tests {
             source,
             destination,
         );
-        let serial_header = {
+        #[allow(unused_mut)]
+        let mut serial_header = {
             let mut serial_header = vec![];
             header.write(&mut serial_header).unwrap();
             serial_header
         };
+
+        #[cfg(not(feature = "compute_checksum"))]
+        {
+            serial_header[10] = 0;
+            serial_header[11] = 0;
+        }
+
         (header, serial_header, payload.len().try_into().unwrap())
     }
 
@@ -534,6 +542,7 @@ mod tests {
         assert_eq!(parsed.fragment_offset, 0);
         assert_eq!(parsed.time_to_live, valid_header.time_to_live);
         assert_eq!(parsed.protocol, valid_header.protocol);
+        #[cfg(feature = "compute_checksum")]
         assert_eq!(parsed.checksum, valid_header.calc_header_checksum()?);
         assert_eq!(parsed.source.to_bytes(), valid_header.source);
         assert_eq!(parsed.destination.to_bytes(), valid_header.destination);
