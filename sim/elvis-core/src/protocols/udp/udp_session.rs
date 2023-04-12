@@ -66,7 +66,7 @@ impl Session for UdpSession {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         self.downstream.clone().query(key)
     }
 }

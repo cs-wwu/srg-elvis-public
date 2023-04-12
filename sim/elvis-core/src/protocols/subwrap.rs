@@ -195,7 +195,7 @@ impl Session for SubWrapSession {
     }
 
     /// Calls [`query`](Session::query) on the inner Session, then returns the result.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, session::QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, session::QueryError> {
         self.inner.clone().query(key)
     }
 }

@@ -157,7 +157,7 @@ impl Session for TcpSession {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add queries
         self.downstream.clone().query(key)
     }

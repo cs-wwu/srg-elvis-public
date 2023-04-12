@@ -94,7 +94,7 @@ impl Session for PciSession {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         match key {
             Pci::MTU_QUERY_KEY => Ok(self.network.mtu.into()),
             _ => Err(QueryError::MissingKey),
