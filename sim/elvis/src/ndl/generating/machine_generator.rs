@@ -68,7 +68,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             "{app_name} application doesn't contain ip."
                         );
 
-                        // This check makes sure counts do not appear on recieving machines. 
+                        // This check makes sure counts do not appear on recieving machines.
                         // Can be removed when ELVIS allows for this.
                         assert!(
                             machine_count == 1,
