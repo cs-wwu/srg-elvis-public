@@ -1,21 +1,19 @@
-use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
-
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
+use dashmap::mapref::entry::Entry;
+use std::sync::{Arc, RwLock};
+use tokio::sync::Barrier;
 
 pub mod socket;
-use socket::{IpAddress, ProtocolFamily, Socket, SocketError, SocketId, SocketType};
+use socket::{IpAddress, ProtocolFamily, Socket, SocketAddress, SocketError, SocketId, SocketType};
+
 mod socket_session;
 use socket_session::SocketSession;
-
-use self::socket::SocketAddress;
 
 /// An implementation of the Sockets API
 ///
@@ -34,9 +32,9 @@ pub struct Sockets {
     // TODO(giddinl2): This will be added once IPv6 is implemented
     // local_ipv6_address: Option<Ipv6Address>,
     fds: RwLock<u64>,
-    sockets: DashMap<Id, Arc<Socket>>,
-    socket_sessions: DashMap<SocketId, Arc<SocketSession>>,
-    listen_bindings: DashMap<SocketAddress, Id>,
+    sockets: Arc<FxDashMap<Id, Arc<Socket>>>,
+    socket_sessions: FxDashMap<SocketId, Arc<SocketSession>>,
+    listen_bindings: FxDashMap<SocketAddress, Id>,
     shutdown: RwLock<Option<Shutdown>>,
 }
 
@@ -127,18 +125,6 @@ impl Sockets {
         self.socket_sessions.insert(identifier, session.clone());
         Ok(session)
     }
-
-    pub(crate) fn forward_to_socket(
-        self: Arc<Self>,
-        fd: Id,
-        message: Message,
-        _context: Context,
-    ) -> Result<(), DemuxError> {
-        match self.sockets.entry(fd) {
-            Entry::Occupied(entry) => entry.get().receive(message),
-            Entry::Vacant(_) => Err(DemuxError::MissingSession),
-        }
-    }
 }
 
 impl Protocol for Sockets {
@@ -198,7 +184,7 @@ impl Protocol for Sockets {
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(Some(upstream)),
                     downstream,
-                    socket_api: self.clone(),
+                    sockets: self.sockets.clone(),
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -284,14 +270,14 @@ impl Protocol for Sockets {
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(None),
                     downstream: caller,
-                    socket_api: self.clone(),
+                    sockets: self.sockets.clone(),
                 });
                 socket.add_listen_address(identifier.remote_address);
                 entry.insert(session.clone());
                 session
             }
         };
-        session.receive(message, context)?;
+        session.receive(message)?;
         Ok(())
     }
 
