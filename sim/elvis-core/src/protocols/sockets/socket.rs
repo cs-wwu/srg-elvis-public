@@ -111,7 +111,7 @@ impl Socket {
     }
 
     /// Used to specify whether or not certain socket functions should block
-    pub fn set_blocking(self: Arc<Self>, is_blocking: bool) {
+    pub fn set_blocking(&self, is_blocking: bool) {
         *self.is_blocking.write().unwrap() = is_blocking;
     }
 
