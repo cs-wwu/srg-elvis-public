@@ -81,7 +81,7 @@ impl Socket {
         }
     }
 
-    pub(super) fn add_listen_address(self: Arc<Self>, remote_address: SocketAddress) {
+    pub(super) fn add_listen_address(&self, remote_address: SocketAddress) {
         let backlog = *self.listen_backlog.read().unwrap();
         if backlog == 0 || self.listen_addresses.read().unwrap().len() <= backlog {
             self.listen_addresses
