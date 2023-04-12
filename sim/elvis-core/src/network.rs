@@ -156,7 +156,6 @@ impl Network {
                         }
                         complete_delivery(delivery, taps, broadcast).await;
                     });
-                    unreachable!();
                 } else {
                     complete_delivery(delivery, taps, broadcast).await;
                 }
