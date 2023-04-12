@@ -34,7 +34,7 @@ impl PciSession {
         let mut direct_receiver = self.tap.unicast_receiver.write().unwrap().take().unwrap();
         let mut broadcast_receiver = self.tap.broadcast.write().unwrap().take().unwrap();
         let context = Context::new(protocols);
-        let me = self.clone();
+        let me = self;
         tokio::spawn(async move {
             barrier.wait().await;
             let mut shutdown_receiver = shutdown.receiver();
