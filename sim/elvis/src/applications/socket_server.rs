@@ -81,7 +81,7 @@ impl Application for SocketServer {
             listen_socket.bind(local_sock_addr).unwrap();
 
             // Listen for incoming connections, with a maximum backlog of 10
-            listen_socket.clone().listen(10).unwrap();
+            listen_socket.listen(10).unwrap();
             println!("SERVER: Listening for incoming connections");
 
             // Wait on ititialization before sending or receiving any message from the network

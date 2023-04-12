@@ -204,7 +204,7 @@ impl Socket {
     /// Makes this socket a listening socket, meaning that it can no longer be
     /// used to send or receive messages, but can instead be used to accept
     /// incoming connections on the specified port via accept()
-    pub fn listen(self: Arc<Self>, backlog: usize) -> Result<(), SocketError> {
+    pub fn listen(&self, backlog: usize) -> Result<(), SocketError> {
         if !*self.is_bound.read().unwrap()
             || *self.is_active.read().unwrap()
             || *self.is_listening.read().unwrap()
