@@ -124,7 +124,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     networks.nets.keys().sorted().join(" , ")
                 );
                 let network_adding = networks.nets.get(net.options.get("id").unwrap()).unwrap();
-                networks_to_be_added.push(network_adding.tap());
+                networks_to_be_added.push(network_adding.clone());
 
                 let ips = networks
                     .ip_hash

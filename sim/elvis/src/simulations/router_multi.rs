@@ -67,41 +67,51 @@ pub async fn router_multi() {
                     .collect(),
             )
             .shared(),
-            Pci::new([networks[0].tap()]).shared(),
+            Pci::new([networks[0].clone()]).shared(),
             SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef).shared(),
         ]),
         // machine representing our router
         Machine::new([
-            Pci::new([networks[0].tap(), networks[1].tap(), networks[2].tap()]).shared(),
+            Pci::new([
+                networks[0].clone(),
+                networks[1].clone(),
+                networks[2].clone(),
+            ])
+            .shared(),
             Router::new(ip_table1).shared(),
         ]),
         Machine::new([
-            Pci::new([networks[1].tap(), networks[3].tap(), networks[4].tap()]).shared(),
+            Pci::new([
+                networks[1].clone(),
+                networks[3].clone(),
+                networks[4].clone(),
+            ])
+            .shared(),
             Router::new(ip_table2).shared(),
         ]),
         // capture for destination 1
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt1).shared(),
-            Pci::new([networks[3].tap()]).shared(),
+            Pci::new([networks[3].clone()]).shared(),
         ]),
         // capture for destination 2
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt2).shared(),
-            Pci::new([networks[4].tap()]).shared(),
+            Pci::new([networks[4].clone()]).shared(),
         ]),
         // capture for destination 3
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt3).shared(),
-            Pci::new([networks[2].tap()]).shared(),
+            Pci::new([networks[2].clone()]).shared(),
         ]),
         // capture for destination 4
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt4).shared(),
-            Pci::new([networks[2].tap()]).shared(),
+            Pci::new([networks[2].clone()]).shared(),
             Capture::new(IP_ADDRESS_5, 0xbeef, 1).shared(),
         ]),
     ];

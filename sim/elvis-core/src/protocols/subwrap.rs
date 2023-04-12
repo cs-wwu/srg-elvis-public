@@ -37,7 +37,7 @@ type Senders = Vec<mpsc::UnboundedSender<(Message, Context)>>;
 /// async fn main() {
 ///     let network = Network::basic();
 ///
-///     let mut wrapper = SubWrap::new(Pci::new([network.tap()]));
+///     let mut wrapper = SubWrap::new(Pci::new([network.clone()]));
 ///
 ///     let mut message_recv = wrapper.subscribe_demux();
 ///
@@ -220,7 +220,7 @@ mod tests {
     async fn doctest_1() {
         let network = Network::basic();
 
-        let mut wrapper = SubWrap::new(Pci::new([network.tap()]));
+        let mut wrapper = SubWrap::new(Pci::new([network.clone()]));
 
         let mut message_recv = wrapper.subscribe_demux();
 
