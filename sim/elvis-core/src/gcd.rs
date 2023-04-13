@@ -58,8 +58,8 @@ impl Gcd {
 }
 
 fn main_loop(rx: Receiver<Task>, networks: Arc<Vec<Network>>, machines: Arc<Vec<Machine>>) {
-    while let Ok(instruction) = rx.recv() {
-        match instruction {
+    while let Ok(task) = rx.recv() {
+        match task {
             Task::Shutdown => break,
             Task::Once(func) => func(),
             Task::Delivery(delivery) => {
@@ -89,7 +89,7 @@ enum Task {
 /// A [`Message`] in flight over a network. A delivery includes the information
 /// usually included in a data-link frame and thus abstracts over different
 /// network technologies.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Delivery {
     /// The network to send on
     pub network: NetworkHandle,

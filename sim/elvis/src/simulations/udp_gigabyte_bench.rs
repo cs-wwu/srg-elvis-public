@@ -38,7 +38,7 @@ pub async fn udp_gigabyte_bench() {
     ]));
     internet.connect(machine, network);
 
-    internet.add_machine(Machine::new([
+    let machine = internet.add_machine(Machine::new([
         Udp::new().shared() as SharedProtocol,
         Ipv4::new(ip_table).shared(),
         WaitForMessage::new(capture_ip_address, 0xbeef, message)
