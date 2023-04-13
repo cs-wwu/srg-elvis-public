@@ -69,10 +69,13 @@ impl Application for Capture {
         *self.gcd.write().unwrap() = Some(gcd);
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
+
+        Udp::set_local_port(self.port, &mut participants);
         // match self.transport {
         //     Transport::Udp => Udp::set_local_port(self.port, &mut participants),
         //     Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
         // }
+
         protocols
             // .protocol(self.transport.id())
             .protocol(Udp::ID)
