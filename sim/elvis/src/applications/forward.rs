@@ -1,4 +1,5 @@
 use elvis_core::{
+    gcd::GcdHandle,
     message::Message,
     protocol::Context,
     protocols::{
@@ -8,10 +9,10 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
+
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 pub struct Forward {
     /// The session on which we send any messages we receive
@@ -52,12 +53,7 @@ impl Forward {
 impl Application for Forward {
     const ID: Id = Id::from_string("Forward");
 
-    fn start(
-        &self,
-        _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn start(&self, _gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip, &mut participants);
         Ipv4::set_remote_address(self.remote_ip, &mut participants);
@@ -72,10 +68,6 @@ impl Application for Forward {
             protocols.clone(),
         )?);
         udp.listen(Self::ID, participants, protocols)?;
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
-
         Ok(())
     }
 

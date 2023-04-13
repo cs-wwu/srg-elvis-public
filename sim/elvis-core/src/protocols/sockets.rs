@@ -1,13 +1,13 @@
 use crate::{
     control::{Key, Primitive},
+    gcd::GcdHandle,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, ProtocolMap,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
 
 pub mod socket;
 use socket::{IpAddress, ProtocolFamily, Socket, SocketAddress, SocketError, SocketId, SocketType};
@@ -35,7 +35,7 @@ pub struct Sockets {
     sockets: Arc<FxDashMap<Id, Arc<Socket>>>,
     socket_sessions: FxDashMap<SocketId, Arc<SocketSession>>,
     listen_bindings: FxDashMap<SocketAddress, Id>,
-    shutdown: RwLock<Option<Shutdown>>,
+    gcd: RwLock<Option<GcdHandle>>,
 }
 
 impl Sockets {
@@ -51,7 +51,7 @@ impl Sockets {
             sockets: Default::default(),
             socket_sessions: Default::default(),
             listen_bindings: Default::default(),
-            shutdown: Default::default(),
+            gcd: Default::default(),
         }
     }
 
@@ -74,7 +74,7 @@ impl Sockets {
             fd,
             protocols,
             self.clone(),
-            self.shutdown.read().unwrap().as_ref().unwrap().clone(),
+            self.gcd.read().unwrap().as_ref().unwrap().clone(),
         ));
         match self.sockets.entry(fd) {
             Entry::Occupied(_) => {
@@ -132,16 +132,8 @@ impl Protocol for Sockets {
         Self::ID
     }
 
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        *self.shutdown.write().unwrap() = Some(shutdown);
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+    fn start(&self, gcd: GcdHandle, _protocols: ProtocolMap) -> Result<(), StartError> {
+        *self.gcd.write().unwrap() = Some(gcd);
         Ok(())
     }
 
@@ -155,25 +147,25 @@ impl Protocol for Sockets {
     ) -> Result<SharedSession, OpenError> {
         let identifier = SocketId::new(
             IpAddress::IPv4(Ipv4::get_local_address(&participants).map_err(|_| {
-                tracing::error!("Missing local address on context");
+                eprintln!("Missing local address on context");
                 OpenError::MissingContext
             })?),
             Udp::get_local_port(&participants).map_err(|_| {
-                tracing::error!("Missing local port on context");
+                eprintln!("Missing local port on context");
                 OpenError::MissingContext
             })?,
             IpAddress::IPv4(Ipv4::get_remote_address(&participants).map_err(|_| {
-                tracing::error!("Missing remote address on context");
+                eprintln!("Missing remote address on context");
                 OpenError::MissingContext
             })?),
             Udp::get_remote_port(&participants).map_err(|_| {
-                tracing::error!("Missing remote port on context");
+                eprintln!("Missing remote port on context");
                 OpenError::MissingContext
             })?,
         );
         match self.socket_sessions.entry(identifier) {
             Entry::Occupied(_) => {
-                tracing::error!("Tried to create an existing session");
+                eprintln!("Tried to create an existing session");
                 Err(OpenError::Existing)?
             }
             Entry::Vacant(entry) => {
@@ -200,11 +192,11 @@ impl Protocol for Sockets {
     ) -> Result<(), ListenError> {
         let identifier = SocketAddress::new_v4(
             Ipv4::get_local_address(&participants).map_err(|_| {
-                tracing::error!("Missing local address on context");
+                eprintln!("Missing local address on context");
                 ListenError::MissingContext
             })?,
             Udp::get_local_port(&participants).map_err(|_| {
-                tracing::error!("Missing local port on context");
+                eprintln!("Missing local port on context");
                 ListenError::MissingContext
             })?,
         );
@@ -226,19 +218,19 @@ impl Protocol for Sockets {
     ) -> Result<(), DemuxError> {
         let identifier = SocketId::new(
             IpAddress::IPv4(Ipv4::get_local_address(&context.control).map_err(|_| {
-                tracing::error!("Missing local address on context");
+                eprintln!("Missing local address on context");
                 DemuxError::MissingContext
             })?),
             Udp::get_local_port(&context.control).map_err(|_| {
-                tracing::error!("Missing local port on context");
+                eprintln!("Missing local port on context");
                 DemuxError::MissingContext
             })?,
             IpAddress::IPv4(Ipv4::get_remote_address(&context.control).map_err(|_| {
-                tracing::error!("Missing remote address on context");
+                eprintln!("Missing remote address on context");
                 DemuxError::MissingContext
             })?),
             Udp::get_remote_port(&context.control).map_err(|_| {
-                tracing::error!("Missing remote port on context");
+                eprintln!("Missing remote port on context");
                 DemuxError::MissingContext
             })?,
         );
@@ -256,7 +248,7 @@ impl Protocol for Sockets {
                     None => match self.listen_bindings.get(&any_identifier) {
                         Some(any_listen_entry) => any_listen_entry,
                         None => {
-                            tracing::error!(
+                            eprintln!(
                                 "Tried to demux with a missing session and no listen bindings"
                             );
                             Err(DemuxError::MissingSession)?

@@ -4,14 +4,13 @@ use crate::{
     protocol::{Context, DemuxError},
     protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
-    Control, Id, Message, ProtocolMap, Shutdown,
+    Control, Id, Message, ProtocolMap,
 };
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
 };
 use thiserror::Error as ThisError;
-use tokio::{select, sync::Notify};
 
 /// An implementation of an individual Socket
 /// Created by the [`Sockets`] API

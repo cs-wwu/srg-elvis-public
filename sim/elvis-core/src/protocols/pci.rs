@@ -2,15 +2,17 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    gcd::{Delivery, GcdHandle},
     id::Id,
+    internet::NetworkHandle,
     machine::PciSlot,
     message::Message,
+    network::{Mac, Mtu},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::SharedSession,
-    Control, Network, Protocol, ProtocolMap, Shutdown,
+    Control, Protocol, ProtocolMap,
 };
-use std::sync::Arc;
-use tokio::sync::Barrier;
+use std::sync::{Arc, RwLock};
 
 mod pci_session;
 pub(crate) use pci_session::PciSession;
@@ -23,8 +25,10 @@ pub(crate) use pci_session::PciSession;
 /// network, for example IPv4 or IPv6. The header is very simple, adding only a
 /// u32 that specifies the `ProtocolId` of the protocol that should receive the
 /// message.
+#[derive(Default)]
 pub struct Pci {
-    sessions: Vec<Arc<PciSession>>,
+    sessions: RwLock<Vec<Arc<PciSession>>>,
+    protocols: RwLock<Option<ProtocolMap>>,
 }
 
 impl Pci {
@@ -38,19 +42,40 @@ impl Pci {
     pub const MTU_QUERY_KEY: Key = (Self::ID, 1);
 
     /// Creates a new network tap.
-    pub fn new(networks: impl IntoIterator<Item = Arc<Network>>) -> Self {
-        Self {
-            sessions: networks
-                .into_iter()
-                .enumerate()
-                .map(|(i, network)| PciSession::new(network, i as u32))
-                .collect(),
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
 
     /// Creates a new network tap.
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
+    }
+
+    pub fn receive(&self, delivery: Delivery) {
+        let protocols = self.protocols.read().unwrap().as_ref().unwrap().clone();
+        match self
+            .sessions
+            .read()
+            .unwrap()
+            .iter()
+            .find(|session| session.network == delivery.network)
+            .expect("This PCI is not connected to the given network")
+            .receive(delivery, protocols)
+        {
+            Ok(_) => {}
+            Err(e) => eprintln!("{}", e),
+        }
+    }
+
+    pub fn connect(&self, network_handle: NetworkHandle, mac: Mac, mtu: Mtu) {
+        let mut lock = self.sessions.write().unwrap();
+        let slot = lock.len();
+        lock.push(Arc::new(PciSession::new(
+            network_handle,
+            mac,
+            mtu,
+            slot.try_into().unwrap(),
+        )));
     }
 
     /// Sets the index of the tap that a message should be sent over or that a
@@ -78,14 +103,16 @@ impl Protocol for Pci {
         _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let pci_slot = Pci::get_pci_slot(&participants).map_err(|_| {
-            tracing::error!("Missing PCI slot on context");
+            eprintln!("Missing PCI slot on context");
             OpenError::MissingContext
         })?;
         let session = self
             .sessions
+            .read()
+            .unwrap()
             .get(pci_slot as usize)
             .ok_or_else(|| {
-                tracing::error!("PCI slot is out of bounds");
+                eprintln!("PCI slot is out of bounds");
                 OpenError::Other
             })?
             .clone();
@@ -110,25 +137,17 @@ impl Protocol for Pci {
         panic!("Cannot demux on a Pci")
     }
 
-    fn start(
-        &self,
-        _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        for session in self.sessions.iter() {
-            session.start(protocols.clone());
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), StartError> {
+        *self.protocols.write().unwrap() = Some(protocols);
+        for session in self.sessions.read().unwrap().iter() {
+            session.start(gcd.clone());
         }
-        tokio::spawn(async move {
-            // Wait until all the taps have started before starting the sim
-            initialized.wait().await;
-        });
         Ok(())
     }
 
     fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         match key {
-            Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.len() as u64).into()),
+            Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.read().unwrap().len() as u64).into()),
             _ => Err(QueryError::NonexistentKey),
         }
     }

@@ -1,4 +1,5 @@
 use elvis_core::{
+    gcd::GcdHandle,
     message::Message,
     protocol::Context,
     protocols::{
@@ -6,21 +7,20 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Udp,
     },
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Id, ProtocolMap,
 };
 use std::{
     ops::Range,
     sync::{Arc, RwLock},
     time::{Duration, SystemTime},
 };
-use tokio::sync::Barrier;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
 #[derive(Debug)]
 pub struct ThroughputTester {
     /// The channel we send on to shut down the simulation
-    shutdown: RwLock<Option<Shutdown>>,
+    gcd: RwLock<Option<GcdHandle>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
@@ -40,7 +40,7 @@ impl ThroughputTester {
         expected_delay: Range<Duration>,
     ) -> Self {
         Self {
-            shutdown: Default::default(),
+            gcd: Default::default(),
             ip_address,
             port,
             message_count,
@@ -59,13 +59,8 @@ impl ThroughputTester {
 impl Application for ThroughputTester {
     const ID: Id = Id::from_string("Capture");
 
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
-        *self.shutdown.write().unwrap() = Some(shutdown);
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+        *self.gcd.write().unwrap() = Some(gcd);
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
         Udp::set_local_port(self.port, &mut participants);
@@ -73,9 +68,6 @@ impl Application for ThroughputTester {
             .protocol(Udp::ID)
             .expect("No such protocol")
             .listen(Self::ID, participants, protocols)?;
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
         Ok(())
     }
 
@@ -93,8 +85,8 @@ impl Application for ThroughputTester {
         };
 
         if received >= self.message_count {
-            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-                shutdown.shut_down();
+            if let Some(gcd) = self.gcd.write().unwrap().take() {
+                gcd.shut_down();
             }
         }
         Ok(())

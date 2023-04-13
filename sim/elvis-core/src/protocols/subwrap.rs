@@ -2,17 +2,17 @@
 
 use crate::{
     control::{Key, Primitive},
+    gcd::GcdHandle,
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
     session::{self, SharedSession},
-    Control, Id, Message, Protocol, ProtocolMap, Session, Shutdown,
+    Control, Id, Message, Protocol, ProtocolMap, Session,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc, Barrier};
 
-type Sender = mpsc::UnboundedSender<(Message, Context)>;
-type Receiver = mpsc::UnboundedReceiver<(Message, Context)>;
+type Sender = flume::Sender<(Message, Context)>;
+type Receiver = flume::Receiver<(Message, Context)>;
 
 /// "SubWrap" is short for "Subscribeable wrapper." A special Protocol that can be used to listen to messages received by another protocol.
 ///
@@ -94,7 +94,7 @@ impl SubWrap {
     /// * [`close()`](mpsc::UnboundedReceiver::close) the receiver, or
     /// * drop the Receiver.
     pub fn subscribe_demux(&mut self) -> Receiver {
-        let (send, recv) = mpsc::unbounded_channel();
+        let (send, recv) = flume::unbounded();
         self.demux_senders.push(send);
         recv
     }
@@ -114,7 +114,7 @@ impl SubWrap {
     /// * [`close()`](mpsc::UnboundedReceiver::close) the receiver, or
     /// * drop the Receiver.
     pub fn subscribe_send(&mut self) -> Receiver {
-        let (send, recv) = mpsc::unbounded_channel();
+        let (send, recv) = flume::unbounded();
         self.send_senders.write().unwrap().push(send);
         recv
     }
@@ -126,13 +126,8 @@ impl Protocol for SubWrap {
     }
 
     /// Calls [`start`](Protocol::start) on the inner protocol.
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        self.inner.start(shutdown, initialized, protocols)
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), StartError> {
+        self.inner.start(gcd, protocols)
     }
 
     /// Calls [`open`](Protocol::open) on the inner protocol.
@@ -202,9 +197,7 @@ impl Session for SubWrapSession {
 
 fn send_on_all(senders: &[Sender], message: &Message, context: &Context) {
     for sender in senders {
-        if !sender.is_closed() {
-            let _ = sender.send((message.clone(), context.clone()));
-        }
+        let _ = sender.send((message.clone(), context.clone()));
     }
 }
 
@@ -213,25 +206,17 @@ mod tests {
     use crate::{
         protocol::SharedProtocol,
         protocols::{Ipv4, Pci, SubWrap},
-        run_internet, Machine, Network,
+        run_internet, Machine,
     };
 
-    #[tokio::test]
-    async fn doctest_1() {
-        let network = Network::basic();
-
-        let mut wrapper = SubWrap::new(Pci::new([network.clone()]));
-
+    #[test]
+    fn doctest_1() {
+        let mut wrapper = SubWrap::new(Pci::new([0]));
         let mut message_recv = wrapper.subscribe_demux();
-
         let machine = Machine::new([
             Ipv4::new([].into_iter().collect()).shared() as SharedProtocol,
             wrapper.shared(),
         ]);
-
-        tokio::spawn(run_internet(vec![machine], vec![network]));
-
-        // Receive messages from demux:
-        tokio::spawn(async move { message_recv.recv().await });
+        run_internet(vec![machine]);
     }
 }

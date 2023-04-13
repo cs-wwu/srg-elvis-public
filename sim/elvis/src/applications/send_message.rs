@@ -1,16 +1,16 @@
 use elvis_core::{
+    gcd::GcdHandle,
     message::Message,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp,
+        Ipv4,
     },
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
 
 use super::Transport;
 
@@ -52,33 +52,31 @@ impl SendMessage {
 impl Application for SendMessage {
     const ID: Id = Id::from_string("Send Message");
 
-    fn start(
-        &self,
-        _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
         Ipv4::set_remote_address(self.remote_ip, &mut participants);
-        match self.transport {
-            Transport::Udp => {
-                Udp::set_local_port(0, &mut participants);
-                Udp::set_remote_port(self.remote_port, &mut participants);
-            }
-            Transport::Tcp => {
-                Tcp::set_local_port(0, &mut participants);
-                Tcp::set_remote_port(self.remote_port, &mut participants);
-            }
-        }
+
+        Udp::set_local_port(0, &mut participants);
+        Udp::set_remote_port(self.remote_port, &mut participants);
+        // match self.transport {
+        //     Transport::Udp => {
+        //         Udp::set_local_port(0, &mut participants);
+        //         Udp::set_remote_port(self.remote_port, &mut participants);
+        //     }
+        //     Transport::Tcp => {
+        //         Tcp::set_local_port(0, &mut participants);
+        //         Tcp::set_remote_port(self.remote_port, &mut participants);
+        //     }
+        // }
+
         let protocol = protocols
             .protocol(self.transport.id())
             .expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
         let context = Context::new(protocols);
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
-        tokio::spawn(async move {
-            initialized.wait().await;
+        gcd.job(move || {
             for message in messages {
                 session
                     .send(message, context.clone())

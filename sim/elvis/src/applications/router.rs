@@ -1,16 +1,18 @@
 use elvis_core::{
+    gcd::GcdHandle,
     message::Message,
+    network::Network,
     protocol::Context,
     protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
     protocols::{
+        pci::Pci,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Pci,
+        Ipv4,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap, Shutdown,
+    Control, Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
 
 pub struct Router {
     outgoing: RwLock<Vec<SharedSession>>,
@@ -36,12 +38,7 @@ impl Application for Router {
 
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(
-        &self,
-        _shutdown: Shutdown,
-        initialize: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn start(&self, _gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         // get the pci protocol
         let pci = protocols.protocol(Pci::ID).expect("No such protocol");
 
@@ -68,9 +65,6 @@ impl Application for Router {
             .write()
             .expect("could not put array in outgoing") = sessions;
 
-        tokio::spawn(async move {
-            initialize.wait().await;
-        });
         Ok(())
     }
 

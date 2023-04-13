@@ -3,10 +3,11 @@ use crate::{
     control::{Key, Primitive},
     id::Id,
     message::Message,
+    network::Network,
     protocol::{Context, DemuxError},
     protocols::pci::Pci,
     session::{QueryError, SendError, SharedSession},
-    Network, Session,
+    Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -48,7 +49,6 @@ impl Ipv4Session {
 }
 
 impl Session for Ipv4Session {
-    #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
     fn send(&self, mut message: Message, mut context: Context) -> Result<(), SendError> {
         let length = message.iter().count();
         let header = match Ipv4HeaderBuilder::new(
@@ -61,7 +61,7 @@ impl Session for Ipv4Session {
         {
             Ok(header) => header,
             Err(e) => {
-                tracing::error!("{}", e);
+                eprintln!("{}", e);
                 Err(SendError::Header)?
             }
         };

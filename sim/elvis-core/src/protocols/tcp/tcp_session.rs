@@ -7,10 +7,6 @@ use crate::{
     Id, Message, ProtocolMap, Session,
 };
 use std::{sync::Arc, time::Duration};
-use tokio::{
-    sync::mpsc::{channel, error::TryRecvError, Sender},
-    time::timeout,
-};
 
 // TODO(hardint): The unwraps used on channels should be removed and cleaned up
 // along with proper simulation teardown.

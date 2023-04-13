@@ -3,16 +3,15 @@
 
 use crate::{
     control::{Key, Primitive},
+    gcd::GcdHandle,
     id::Id,
     machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::{SendError, SharedSession},
-    Control, Protocol, Shutdown,
+    Control, Protocol,
 };
 use std::sync::Arc;
-use tokio::sync::Barrier;
-use tracing::error;
 
 /// A program being run in a [`UserProcess`].
 ///
@@ -26,12 +25,7 @@ pub trait Application {
 
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialize: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError>;
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
@@ -114,13 +108,8 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         Ok(())
     }
 
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        self.application.start(shutdown, initialized, protocols)?;
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), StartError> {
+        self.application.start(gcd, protocols)?;
         Ok(())
     }
 

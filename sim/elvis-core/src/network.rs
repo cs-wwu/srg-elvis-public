@@ -1,144 +1,76 @@
-//! Provides facilities for [`Machine`](super::Machine)s to communicate.
-//!
-//! The [`Network`] type is the way for [`Machine`](super::Machine)s to exchange
-//! [`Message`]s. When multiple machines are connected to the same network, they
-//! can directly send messages to one another by using the
-//! [`Pci`](crate::protocols::Pci) protocol. Machines can be added to a network
-//! in the following way:
-//!
-//! - Create the network with the desired properties using the
-//!   [`NetworkBuilder`]
-//! - Call [`Network::tap`] on the the network to get a [`Tap`]. A tap is a an
-//!   access point to the network that can be used to send and receive messages.
-//!   Each tap also acts as an identifier so that peers on the network can
-//!   exchange messages directly.
-//! - Add a [`Pci`](crate::protocols::Pci) protocol to the machine that wants to
-//!   access the network and include the new tap in its constructor. This is
-//!   similar to adding a networking card to computer. This way, a machine can
-//!   add multiple taps to attach to different networks.
-
-use crate::{
-    control::ControlError, id::Id, protocols::pci::PciSession, Control, FxDashMap, Message,
-};
+use crate::{control::ControlError, internet::MachineHandle, Control, Id};
 use rand::{distributions::Uniform, prelude::Distribution};
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
-use tokio::{sync::Notify, time::sleep};
+use std::time::Duration;
 
-type Taps = Arc<FxDashMap<Mac, Arc<PciSession>>>;
-
-/// A network that allows the exchange of [`Message`]s between
-/// [`Machine`](crate::Machine)s.
-///
-/// See the module-level documentation for usage directions. The network
-/// included with Elvis aims to be general-purpose. It supports direct
-/// exchanges, broadcasting, and customizable latency, throughput, and
-/// reliability. It should provide a reasonable approximation of many kinds of
-/// networks, including Ethernet and WiFi.
+#[derive(Clone, PartialEq)]
 pub struct Network {
-    pub(crate) mtu: Mtu,
-    latency: Latency,
-    throughput: Throughput,
-    loss_rate: f32,
-    throughput_permit: Arc<Notify>,
-    taps: Taps,
-    next_mac: Mutex<Mac>,
-}
-
-impl Default for Network {
-    fn default() -> Self {
-        Self::new(None, Default::default(), Default::default(), 0.0)
-    }
+    pub mtu: Mtu,
+    pub latency: Latency,
+    pub throughput: Throughput,
+    pub loss_rate: f32,
+    pub machines: Vec<MachineHandle>,
 }
 
 impl Network {
-    /// An identifier for the network type
-    pub const ID: Id = Id::from_string("Network");
+    const ID: Id = Id::from_string("Network");
 
-    /// Create a new network with the given properties
-    fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
-        let throughput_permit = Arc::new(Notify::new());
-        throughput_permit.notify_one();
+    /// Create a new network builder
+    pub fn new() -> Self {
         Self {
-            mtu: mtu.unwrap_or(Mtu::MAX),
-            latency,
-            throughput,
-            loss_rate,
-            throughput_permit,
-            taps: Default::default(),
-            next_mac: Default::default(),
+            mtu: Mtu::MAX,
+            latency: Default::default(),
+            throughput: Default::default(),
+            loss_rate: Default::default(),
+            machines: Default::default(),
         }
     }
 
-    /// Create a default network with unlimited MTU and throughput and no
-    /// latency
-    pub fn basic() -> Arc<Self> {
-        Arc::new(Default::default())
+    /// Set the maximum transmission unit
+    pub fn mtu(mut self, mtu: Mtu) -> Self {
+        self.mtu = mtu;
+        self
     }
 
-    pub(crate) fn next_mac(self: &Arc<Self>) -> Mac {
-        let mut lock = self.next_mac.lock().unwrap();
-        let mac = *lock;
-        *lock += 1;
+    /// Set the latency of the network, the amount of time it takes for a
+    /// message to reach its destination without contention. Unlike throughput,
+    /// latency does not affect the delivery time of other messages on the
+    /// network. It only refers to the time an isolated message will spend on
+    /// the wire before it is delivered.
+    pub fn latency(mut self, latency: Latency) -> Self {
+        self.latency = latency;
+        self
+    }
+
+    /// Set the throughput of the network, the amount of data that the network
+    /// can transfer in a given time. A low throughput means that if many
+    /// messages are sent on the network at the same time, later messages will
+    /// be queued for delivery until prior messages have been fully transferred.
+    /// Larger messages take longer to transfer than shorter ones.
+    pub fn throughput(mut self, throughput: Throughput) -> Self {
+        self.throughput = throughput;
+        self
+    }
+
+    /// The percentage of packets that are lost in transmission. Should be given
+    /// in the range \[0,1\].
+    pub fn loss_rate(mut self, loss_rate: f32) -> Self {
+        self.loss_rate = loss_rate;
+        self
+    }
+
+    pub fn mac_for_machine(&self, machine: MachineHandle) -> Mac {
+        self.machines
+            .iter()
+            .enumerate()
+            .find(|(_, candidate)| **candidate == machine)
+            .expect("This network is not connected to the given machine")
+            .0 as Mac
+    }
+
+    pub fn connect(&mut self, machine: MachineHandle) -> Mac {
+        let mac = self.machines.len() as u64;
+        self.machines.push(machine);
         mac
-    }
-
-    pub(crate) fn register_tap(self: &Arc<Self>, mac: Mac, session: Arc<PciSession>) {
-        self.taps.insert(mac, session);
-    }
-
-    /// Called at the beginning of the simulation to start the network running
-    pub(crate) async fn send(self: &Arc<Self>, delivery: Delivery) {
-        if self.loss_rate > 0.0 && rand::random::<f32>() < self.loss_rate {
-            // Drop the message
-            return;
-        }
-
-        let throughput = self.throughput.next();
-        if throughput.0 > 0 {
-            self.throughput_permit.notified().await;
-            let ms = delivery.message.len() as u64 * 1000 / throughput.0;
-            sleep(Duration::from_millis(ms)).await;
-            self.throughput_permit.notify_one();
-        }
-
-        let latency = self.latency.next();
-        if latency > Duration::ZERO {
-            sleep(latency).await;
-        }
-        match delivery.destination {
-            Some(destination) => {
-                let tap = {
-                    match self.taps.get(&destination) {
-                        Some(tap) => tap,
-                        None => {
-                            tracing::error!("Trying to deliver to an invalid MAC address");
-                            return;
-                        }
-                    }
-                    .clone()
-                };
-                match tap.receive(delivery) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        tracing::error!("Failed to deliver a message: {}", e)
-                    }
-                }
-            }
-
-            None => {
-                for tap in self.taps.iter() {
-                    match tap.receive(delivery.clone()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!("Failed to deliver a message: {}", e)
-                        }
-                    }
-                }
-            }
-        }
     }
 
     /// Set the destination MAC address on a [`Control`]
@@ -170,82 +102,6 @@ impl Network {
     pub fn get_protocol(control: &Control) -> Result<Id, ControlError> {
         Ok(control.get((Self::ID, 2))?.ok_u64()?.into())
     }
-}
-
-/// A builder for network customization. If a simple network is desired,
-/// consider using [`Network::basic()`].
-#[derive(Default, Clone, Copy, PartialEq)]
-pub struct NetworkBuilder {
-    mtu: Option<Mtu>,
-    latency: Latency,
-    throughput: Throughput,
-    loss_rate: f32,
-}
-
-impl NetworkBuilder {
-    /// Create a new network builder
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    /// Set the maximum transmission unit
-    pub fn mtu(mut self, mtu: Mtu) -> Self {
-        self.mtu = Some(mtu);
-        self
-    }
-
-    /// Set the latency of the network, the amount of time it takes for a
-    /// message to reach its destination without contention. Unlike throughput,
-    /// latency does not affect the delivery time of other messages on the
-    /// network. It only refers to the time an isolated message will spend on
-    /// the wire before it is delivered.
-    pub fn latency(mut self, latency: Latency) -> Self {
-        self.latency = latency;
-        self
-    }
-
-    /// Set the throughput of the network, the amount of data that the network
-    /// can transfer in a given time. A low throughput means that if many
-    /// messages are sent on the network at the same time, later messages will
-    /// be queued for delivery until prior messages have been fully transferred.
-    /// Larger messages take longer to transfer than shorter ones.
-    pub fn throughput(mut self, throughput: Throughput) -> Self {
-        self.throughput = throughput;
-        self
-    }
-
-    /// The percentage of packets that are lost in transmission. Should be given
-    /// in the range \[0,1\].
-    pub fn loss_rate(mut self, loss_rate: f32) -> Self {
-        self.loss_rate = loss_rate;
-        self
-    }
-
-    /// Create the network with the given settings
-    pub fn build(self) -> Arc<Network> {
-        Arc::new(Network::new(
-            self.mtu,
-            self.latency,
-            self.throughput,
-            self.loss_rate,
-        ))
-    }
-}
-
-/// A [`Message`] in flight over a network. A delivery includes the information
-/// usually included in a data-link frame and thus abstracts over different
-/// network technologies.
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct Delivery {
-    /// The message being sent
-    pub message: Message,
-    /// Identifies the [`Tap`] that sent the message
-    pub sender: Mac,
-    /// Identifies the [`Tap`] that should receive the message. If the
-    /// destination is `None`, the message should be broadcast.
-    pub destination: Option<Mac>,
-    /// The protocol that should respond to the packet, usually an IP protocol
-    pub protocol: Id,
 }
 
 /// A network maximum transmission unit.

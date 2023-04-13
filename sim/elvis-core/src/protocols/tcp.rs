@@ -9,14 +9,14 @@ use self::{
 use super::{utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
+    gcd::GcdHandle,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, ProtocolMap,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::Arc;
-use tokio::sync::Barrier;
 
 mod tcb;
 mod tcp_parsing;
@@ -243,20 +243,12 @@ impl Protocol for Tcp {
         Ok(())
     }
 
-    fn start(
-        &self,
-        _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+    fn start(&self, gcd: GcdHandle, _protocols: ProtocolMap) -> Result<(), StartError> {
         Ok(())
     }
 
     fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        tracing::error!("No such key on TCP");
+        eprintln!("No such key on TCP");
         Err(QueryError::NonexistentKey)
     }
 }

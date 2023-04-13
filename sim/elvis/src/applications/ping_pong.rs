@@ -1,4 +1,6 @@
+use super::Transport;
 use elvis_core::{
+    gcd::GcdHandle,
     message::Message,
     network::Mac,
     protocol::Context,
@@ -8,12 +10,9 @@ use elvis_core::{
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Id, ProtocolMap,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
-
-use super::Transport;
 
 /// An application that sends a Time To Live (TTL) to
 /// another machine from the first machine.
@@ -21,7 +20,7 @@ use super::Transport;
 /// Once the TTL reaches 0 the program ends.
 pub struct PingPong {
     /// The channel we send on to shut down the simulation
-    shutdown: RwLock<Option<Shutdown>>,
+    gcd: RwLock<Option<GcdHandle>>,
     /// The session we send messages on
     session: RwLock<Option<SharedSession>>,
     is_initiator: bool,
@@ -48,7 +47,7 @@ impl PingPong {
     ) -> Self {
         Self {
             is_initiator,
-            shutdown: Default::default(),
+            gcd: Default::default(),
             session: Default::default(),
             local_ip_address,
             remote_ip_address,
@@ -78,14 +77,8 @@ impl PingPong {
 impl Application for PingPong {
     const ID: Id = Id::from_string("PingPong");
 
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
-        *self.shutdown.write().unwrap() = Some(shutdown);
-
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+        *self.gcd.write().unwrap() = Some(gcd.clone());
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip_address, &mut participants);
         Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
@@ -97,8 +90,7 @@ impl Application for PingPong {
 
         let context = Context::new(protocols);
         let is_initiator = self.is_initiator;
-        tokio::spawn(async move {
-            initialized.wait().await;
+        gcd.job(move || {
             if is_initiator {
                 session
                     //Send the first "Ping" message with TTL of 255
@@ -113,17 +105,17 @@ impl Application for PingPong {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
-            tracing::info!("Pong {}", ttl);
+            eprintln!("Pong {}", ttl);
         } else {
-            tracing::info!("Ping {}", ttl);
+            eprintln!("Ping {}", ttl);
         }
 
         let ttl = ttl - 1;
 
         if ttl == 0 {
-            tracing::info!("TTL has reach 0, PingPong has successfully completed");
-            if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-                shutdown.shut_down();
+            eprintln!("TTL has reach 0, PingPong has successfully completed");
+            if let Some(gcd) = self.gcd.write().unwrap().take() {
+                gcd.shut_down();
             }
         } else {
             self.session

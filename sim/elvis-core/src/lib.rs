@@ -36,7 +36,6 @@
 //!
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
-mod logging;
 pub mod protocols;
 
 pub mod control;
@@ -54,20 +53,18 @@ pub use protocol::Protocol;
 pub mod session;
 pub use session::Session;
 
-pub mod network;
-pub use network::Network;
-
 mod machine;
 pub use machine::Machine;
 pub use machine::ProtocolMap;
 
-mod internet;
-pub use internet::run_internet;
+pub mod internet;
+pub use internet::Internet;
 
 mod id;
 pub use id::Id;
 
-mod shutdown;
-pub use shutdown::Shutdown;
-
 type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<rustc_hash::FxHasher>>;
+
+pub mod gcd;
+
+pub mod network;

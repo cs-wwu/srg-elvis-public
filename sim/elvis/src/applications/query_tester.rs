@@ -1,14 +1,14 @@
-use std::sync::Arc;
-
 use elvis_core::{
+    gcd::GcdHandle,
     protocol::Context,
     protocols::{
+        pci::Pci,
         user_process::{Application, ApplicationError},
-        Ipv4, Pci, Udp, UserProcess,
+        Ipv4, Udp, UserProcess,
     },
-    Control, Id, Message, ProtocolMap, Shutdown,
+    Control, Id, Message, ProtocolMap,
 };
-use tokio::sync::Barrier;
+use std::sync::Arc;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct QueryTester;
@@ -26,12 +26,7 @@ impl QueryTester {
 impl Application for QueryTester {
     const ID: Id = Id::from_string("Query tester");
 
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialize: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let slot_count = protocols
             .protocol(Pci::ID)
             .expect("Missing PCI protocol")
@@ -56,11 +51,7 @@ impl Application for QueryTester {
             .ok_u32()
             .unwrap();
         assert_eq!(mtu, 1500);
-
-        tokio::spawn(async move {
-            initialize.wait().await;
-            shutdown.shut_down();
-        });
+        gcd.shut_down();
         Ok(())
     }
 

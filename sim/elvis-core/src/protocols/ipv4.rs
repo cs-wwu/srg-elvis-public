@@ -3,20 +3,20 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    gcd::GcdHandle,
     id::Id,
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
-    network::Mac,
+    network::{Mac, Network},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, FxDashMap, Network, Protocol, Shutdown,
+    Control, FxDashMap, Protocol,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
-use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
@@ -77,19 +77,10 @@ impl Protocol for Ipv4 {
         Self::ID
     }
 
-    fn start(
-        &self,
-        _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+    fn start(&self, _gcd: GcdHandle, _protocols: ProtocolMap) -> Result<(), StartError> {
         Ok(())
     }
 
-    #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
         &self,
         upstream: Id,
@@ -98,21 +89,20 @@ impl Protocol for Ipv4 {
     ) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(
             Self::get_local_address(&participants).map_err(|_| {
-                tracing::error!("Missing local address on context");
+                eprintln!("Missing local address on context");
                 OpenError::MissingContext
             })?,
             Self::get_remote_address(&participants).map_err(|_| {
-                tracing::error!("Missing remote address on context");
+                eprintln!("Missing remote address on context");
                 OpenError::MissingContext
             })?,
         );
 
         match self.sessions.entry(key) {
             Entry::Occupied(_) => {
-                tracing::error!(
+                eprintln!(
                     "A session already exists for {} -> {}",
-                    key.local,
-                    key.remote
+                    key.local, key.remote
                 );
                 Err(OpenError::Existing)
             }
@@ -122,7 +112,7 @@ impl Protocol for Ipv4 {
                 let recipient = match self.recipients.get(&key.remote) {
                     Some(tap_slot) => *tap_slot,
                     None => {
-                        tracing::error!("No tap slot found for the IP {}", key.remote);
+                        eprintln!("No tap slot found for the IP {}", key.remote);
                         return Err(OpenError::Other);
                     }
                 };
@@ -138,7 +128,6 @@ impl Protocol for Ipv4 {
         }
     }
 
-    #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
         &self,
         upstream: Id,
@@ -146,13 +135,13 @@ impl Protocol for Ipv4 {
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         let local = Self::get_local_address(&participants).map_err(|_| {
-            tracing::error!("Missing local address on context");
+            eprintln!("Missing local address on context");
             ListenError::MissingContext
         })?;
 
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => {
-                tracing::error!("A binding already exists for local address {}", local);
+                eprintln!("A binding already exists for local address {}", local);
                 Err(ListenError::Existing)?
             }
 
@@ -168,7 +157,6 @@ impl Protocol for Ipv4 {
             .listen(Self::ID, participants, protocols)
     }
 
-    #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
         &self,
         mut message: Message,
@@ -180,7 +168,7 @@ impl Protocol for Ipv4 {
         let header = match Ipv4Header::from_bytes(message.iter()) {
             Ok(header) => header,
             Err(e) => {
-                tracing::error!("{}", e);
+                eprintln!("{}", e);
                 Err(DemuxError::Header)?
             }
         };
@@ -205,7 +193,7 @@ impl Protocol for Ipv4 {
                         match self.listen_bindings.get(&any_listen_id) {
                             Some(any_binding) => any_binding,
                             None => {
-                                tracing::error!(
+                                eprintln!(
                                     "Could not find a listen binding for the local address {}",
                                     identifier.local
                                 );
@@ -215,11 +203,11 @@ impl Protocol for Ipv4 {
                     }
                 };
                 let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
-                    tracing::error!("Missing network ID on context");
+                    eprintln!("Missing network ID on context");
                     DemuxError::MissingContext
                 })?;
                 let mac = Network::get_sender(&context.control).map_err(|_| {
-                    tracing::error!("Missing sender MAC on context");
+                    eprintln!("Missing sender MAC on context");
                     DemuxError::MissingContext
                 })?;
                 let destination = Recipient::with_mac(slot, mac);

@@ -3,14 +3,13 @@
 use super::{message::Message, session::SharedSession, Control};
 use crate::{
     control::{Key, Primitive},
+    gcd::GcdHandle,
     id::Id,
     machine::ProtocolMap,
     protocols::user_process::ApplicationError,
     session::SendError,
-    Shutdown,
 };
 use std::sync::Arc;
-use tokio::sync::Barrier;
 
 mod context;
 pub use context::Context;
@@ -39,12 +38,7 @@ pub trait Protocol {
     /// are ready to receive the message. Implementors may also store the
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), StartError>;
+    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), StartError>;
 
     /// Actively open a new network connection.
     ///

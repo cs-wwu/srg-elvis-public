@@ -1,7 +1,13 @@
-use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id, Shutdown};
+use crate::{
+    gcd::{Delivery, GcdHandle},
+    internet::NetworkHandle,
+    network::{Mac, Mtu},
+    protocol::SharedProtocol,
+    protocols::pci::Pci,
+    Id,
+};
 use rustc_hash::FxHashMap;
 use std::{collections::hash_map::Entry, sync::Arc};
-use tokio::sync::Barrier;
 
 /// A tap's PCI slot index
 pub type PciSlot = u32;
@@ -40,6 +46,7 @@ impl ProtocolMap {
 /// networking protocols or user programs.
 pub struct Machine {
     protocols: ProtocolMap,
+    pci: Arc<Pci>,
 }
 
 impl Machine {
@@ -48,7 +55,11 @@ impl Machine {
     pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>) -> Machine {
         let mut protocols_map = FxHashMap::default();
         let mut protocol_ids = Vec::new();
-        for protocol in protocols.into_iter() {
+        let pci = Pci::new().shared();
+        for protocol in protocols
+            .into_iter()
+            .chain(std::iter::once(pci.clone() as SharedProtocol))
+        {
             match protocols_map.entry(protocol.id()) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
@@ -57,22 +68,26 @@ impl Machine {
                 }
             }
         }
-        machine_creation_event(protocol_ids);
         Self {
             protocols: ProtocolMap::new(protocols_map),
+            pci,
         }
+    }
+
+    pub fn connect(&mut self, network: NetworkHandle, mac: Mac, mtu: Mtu) {
+        self.pci.connect(network, mac, mtu);
+    }
+
+    pub fn receive(&self, delivery: Delivery) {
+        self.pci.receive(delivery);
     }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub(crate) fn start(self, shutdown: Shutdown, initialized: Arc<Barrier>) {
+    pub(crate) fn start(&self, gcd: GcdHandle) {
         for protocol in self.protocols.iter() {
             protocol
-                .start(
-                    shutdown.clone(),
-                    initialized.clone(),
-                    self.protocols.clone(),
-                )
+                .start(gcd.clone(), self.protocols.clone())
                 .expect("A protocol failed to start")
         }
     }
