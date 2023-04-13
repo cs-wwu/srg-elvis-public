@@ -1,8 +1,5 @@
 //! Address resolution protocol (ARP) is used by computers to associate IP
 //! addresses with MAC addresses.
-//! In ELVIS, the Ipv4Sessions connect with ARP.
-//! Arp will fetch MAC addresses when query'd.
-
 pub mod arp_parsing;
 pub mod arp_session;
 
@@ -25,12 +22,28 @@ use tokio::sync::{mpsc::Sender, Barrier};
 
 pub struct Arp {
     /// Maps destination IP addresses to sessions.
-    /// MAC addresses are stored in each session. In a sense, this is the ARP cache.
+    /// destination MAC addresses are stored in each session. In a sense, this is the ARP cache.
     sessions: DashMap<Ipv4Address, Arc<ArpSession>>,
     /// A set of all this machine's local IPs. Filled by open and listen.
     local_ips: DashSet<Ipv4Address>,
 }
 
+/// Arp in ELVIS sits (optionally) between the Ipv4 and Pci protocols.
+/// Using Arp is rather simple. Just add it to your machine.
+/// 
+/// ```compile_fail
+/// Machine::new([
+///     Udp::new().shared() as SharedProtocol,
+///     Ipv4::new(std::iter::empty().collect()).shared(),
+///     Arp::new().shared(),
+///     Pci::new([]).shared(),
+/// ])
+/// ```
+/// 
+/// ARP will attach destination MAC addresses to a message's Context, if it is not set.
+/// 
+/// The machine you are sending messages to MUST also have an Arp protocol, and a local IP address
+/// (set by [`Ipv4::open`] or [`Ipv4::listen`]).
 impl Arp {
     /// A unique identifier for the protocol.
     pub const ID: Id = Id::new(0x0806);
@@ -39,7 +52,7 @@ impl Arp {
     pub const RESEND_DELAY: Duration = Duration::from_millis(200);
 
     /// The number of times we should send ARP requests before giving up.
-    pub const RESEND_TRIES: i32 = 10;
+    pub const RESEND_TRIES: u32 = 10;
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
@@ -72,6 +85,22 @@ impl Protocol for Arp {
         Ok(())
     }
 
+    /// Opens an ARP session.
+    /// The participants set must contain:
+    /// - A local IP address ([`Ipv4::set_local_address`])
+    /// - A remote IP address ([`Ipv4::set_remote_address`])
+    /// - A pci slot ([`Pci::set_pci_slot`])
+    /// 
+    /// When an ARP session is opened, it will attempt to associate a MAC address with the remote IP address,
+    /// by sending ARP requests.
+    /// 
+    /// The other machine MUST also have Arp, and a local IP address set by [`Arp::open`] or [`Arp::listen`].
+    /// 
+    /// # MAC address resolution (complicated technical details)
+    /// 
+    /// The ARP requests will be repeatedly sent until an ARP reply is received, 
+    /// or until [`RESEND_TRIES`] is reached. There is a delay of [`RESEND_DELAY`]
+    /// between each time a packet is sent.
     fn open(
         self: Arc<Self>,
         _upstream: Id,
@@ -119,6 +148,11 @@ impl Protocol for Arp {
         Ok(result)
     }
 
+    /// If the context contains a local IP address (set by [`Ipv4::set_local_address`]),
+    /// then it will be added to the list of this machine's local IP addresses.
+    /// 
+    /// (This is important, because other machines with Arp can't resolve this machine's MAC address
+    /// unless it has an IP address.)
     fn listen(
         self: Arc<Self>,
         _upstream: Id,
@@ -138,7 +172,14 @@ impl Protocol for Arp {
             .listen(Self::ID, participants, protocols)
     }
 
-    /// In general, this will be called by the Pci layer when an ARP packet is recieved
+    /// In general, this will be called by the Pci layer when an ARP packet is recieved.
+    /// 
+    /// The demux method follows these steps when it receives a message:
+    /// 
+    /// 1. Attempt to parse the ArpPacket. Return [`DemuxError::Header`] if the ArpPacket could not be parsed.
+    /// 2. Check if we are the target for this ARP packet. If not, return Ok(()).
+    /// 3. Add an IP address to MAC address mapping, based on the sender IP and sender MAC.
+    /// 4. If the message was an ARP request, send back an ARP reply to the other machine.
     fn demux(
         self: Arc<Self>,
         message: Message,

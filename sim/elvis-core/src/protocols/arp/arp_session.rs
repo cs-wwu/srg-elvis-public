@@ -41,7 +41,7 @@ impl ArpSession {
 
     /// Gets the status of this ARP session's destination MAC address.
     /// Will return error if could not acquire a read lock immediately.
-    pub fn try_get_status(self: Arc<Self>) -> Result<MacStatus, TryLockError> {
+    pub(super) fn try_get_status(self: Arc<Self>) -> Result<MacStatus, TryLockError> {
         match self.dest_mac.try_read() {
             Ok(guard) => Ok(*guard),
             Err(e) => Err(e),
@@ -174,14 +174,24 @@ impl ArpSession {
 }
 
 impl Session for ArpSession {
-    /// Sends a message from the upstream session (Ipv4Session) down to the PCI session,
+    /// Sends a message from the upstream session down to the PCI session,
     /// attaching a destination MAC address if one is not already attached.
-    /// If this session's destination MAC is not Set, then wait for it to be set.
+    /// 
+    /// This will return SendError::Other if the ARP session could not resolve the destination MAC address.
+    /// This will occur if there is no destination machine with the local IP address.
+    /// 
+    /// This method may return Ok(()) even if a message failed to send!
     fn send(self: Arc<Self>, message: Message, mut context: Context) -> Result<(), SendError> {
         // If we can get the status right away and it was set, just use that
-        if let Ok(MacStatus::Set(mac)) = self.clone().try_get_status() {
-            Network::set_destination(mac, &mut context.control);
-            return self.downstream.clone().send(message, context);
+        match self.clone().try_get_status() {
+            Ok(MacStatus::Set(mac)) => {
+                Network::set_destination(mac, &mut context.control);
+                return self.downstream.clone().send(message, context);
+            },
+            Ok(MacStatus::FailedToGet) => {
+                return Err(SendError::Other);
+            }
+            _ => {}
         }
 
         // Otherwise, we'll have some waiting to do
@@ -223,7 +233,7 @@ impl Session for ArpSession {
 /// Used for an ArpSession's dest_mac.
 /// Indicates whether the session's MAC has been set, or is waiting to be set.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum MacStatus {
+pub(super) enum MacStatus {
     /// Contains the MAC address.
     Set(Mac),
     /// Indicates this session is waiting for a MAC address.
