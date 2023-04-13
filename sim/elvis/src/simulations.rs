@@ -6,8 +6,8 @@ pub use basic::basic;
 // mod telephone_multi;
 // pub use telephone_multi::telephone_multi;
 
-// mod telephone_single;
-// pub use telephone_single::telephone_single;
+mod telephone_single;
+pub use telephone_single::telephone_single;
 
 // mod ping_pong;
 // pub use ping_pong::ping_pong;
