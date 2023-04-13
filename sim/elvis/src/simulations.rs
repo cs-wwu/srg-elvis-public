@@ -15,8 +15,8 @@ pub use ping_pong::ping_pong;
 mod query;
 pub use query::query;
 
-// mod udp_gigabyte_bench;
-// pub use udp_gigabyte_bench::udp_gigabyte_bench;
+mod udp_gigabyte_bench;
+pub use udp_gigabyte_bench::udp_gigabyte_bench;
 
 // --------------------------------------------------
 

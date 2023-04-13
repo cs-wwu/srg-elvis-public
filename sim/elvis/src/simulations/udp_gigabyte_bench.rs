@@ -1,13 +1,13 @@
 use crate::applications::{SendMessage, WaitForMessage};
 use elvis_core::{
     message::Message,
-    network::NetworkBuilder,
+    network::Network,
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
-        Pci, Udp,
+        Udp,
     },
-    run_internet, Machine,
+    Internet, Machine,
 };
 
 /// Runs a basic simulation.
@@ -15,7 +15,8 @@ use elvis_core::{
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
 pub async fn udp_gigabyte_bench() {
-    let network = NetworkBuilder::new().mtu(1500).build();
+    let mut internet = Internet::new();
+    let network = internet.add_network(Network::new().mtu(1500));
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
         .into_iter()
@@ -30,22 +31,21 @@ pub async fn udp_gigabyte_bench() {
         messages.push(part);
     }
     messages.push(remainder);
-    let machines = vec![
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SendMessage::new(messages, capture_ip_address, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table).shared(),
-            Pci::new([network.clone()]).shared(),
-            WaitForMessage::new(capture_ip_address, 0xbeef, message)
-                .disable_checking()
-                .shared(),
-        ]),
-    ];
+    let machine = internet.add_machine(Machine::new([
+        Udp::new().shared() as SharedProtocol,
+        Ipv4::new(ip_table.clone()).shared(),
+        SendMessage::new(messages, capture_ip_address, 0xbeef).shared(),
+    ]));
+    internet.connect(machine, network);
 
-    run_internet(machines, vec![network]).await;
+    internet.add_machine(Machine::new([
+        Udp::new().shared() as SharedProtocol,
+        Ipv4::new(ip_table).shared(),
+        WaitForMessage::new(capture_ip_address, 0xbeef, message)
+            .disable_checking()
+            .shared(),
+    ]));
+    internet.connect(machine, network);
+
+    internet.run();
 }
