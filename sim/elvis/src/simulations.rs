@@ -3,8 +3,8 @@
 mod basic;
 pub use basic::basic;
 
-// mod telephone_multi;
-// pub use telephone_multi::telephone_multi;
+mod telephone_multi;
+pub use telephone_multi::telephone_multi;
 
 mod telephone_single;
 pub use telephone_single::telephone_single;
