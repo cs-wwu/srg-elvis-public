@@ -18,13 +18,11 @@ pub use query::query;
 mod udp_gigabyte_bench;
 pub use udp_gigabyte_bench::udp_gigabyte_bench;
 
-// --------------------------------------------------
-
 mod router_single;
 pub use router_single::router_single;
 
-// mod router_multi;
-// pub use router_multi::router_multi;
+mod router_multi;
+pub use router_multi::router_multi;
 
 // mod socket_basic;
 // pub use socket_basic::socket_basic;
