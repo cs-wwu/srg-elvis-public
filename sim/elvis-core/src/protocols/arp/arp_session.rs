@@ -14,6 +14,8 @@ use super::{arp_parsing::ArpPacket, Arp};
 use tokio::sync::{broadcast, RwLock, TryLockError};
 
 pub struct ArpSession {
+    /// This session's local MAC address
+    local_mac: Mac,
     /// This session's destination IP address
     dest_ip: Ipv4Address,
     /// This session's destination MAC address
@@ -25,13 +27,21 @@ pub struct ArpSession {
 }
 
 impl ArpSession {
+    /// Creates a new ArpSession.
+    /// Panics if the downstream session is not a Pci session.
     pub fn new(dest_ip: Ipv4Address, dest_mac: Option<Mac>, downstream: SharedSession) -> Self {
         let (sender, _) = broadcast::channel(1);
         let dest_mac = match dest_mac {
             Some(mac) => RwLock::new(MacStatus::Set(mac)),
             None => RwLock::new(MacStatus::Waiting),
         };
+        let local_mac = downstream.clone().query(Pci::MAC_QUERY_KEY)
+            .expect("unable to get MAC from Pci")
+            .to_u64()
+            .unwrap();
+
         ArpSession {
+            local_mac,
             dest_ip,
             dest_mac,
             sender,
@@ -51,14 +61,6 @@ impl ArpSession {
     /// Gets the status of this ARP session's destination MAC address.
     pub(super) async fn get_status(self: Arc<Self>) -> MacStatus {
         *self.dest_mac.read().await
-    }
-
-    /// Gets this session's local MAC address.
-    pub fn get_local_mac(self: Arc<Self>) -> Mac {
-        self.query(Pci::MAC_QUERY_KEY)
-            .expect("unable to get MAC from Pci")
-            .to_u64()
-            .unwrap()
     }
 
     /// Sets the destination MAC address status of this ARP session,
@@ -90,11 +92,10 @@ impl ArpSession {
             MacStatus::Waiting => (),
         };
 
-        let local_mac = self.clone().get_local_mac();
         let arp_request = ArpPacket {
             is_request: true,
             sender_ip,
-            sender_mac: local_mac,
+            sender_mac: self.local_mac,
             target_ip: self.dest_ip,
             target_mac: Network::BROADCAST_MAC, // target mac is ignored for ARP requests
         };
@@ -105,7 +106,7 @@ impl ArpSession {
         // Needed to make sure that another ARP layer receives this message
         Network::set_protocol(Arp::ID, &mut context.control);
 
-        Network::set_sender(local_mac, &mut context.control);
+        Network::set_sender(self.local_mac, &mut context.control);
         Network::set_destination(Network::BROADCAST_MAC, &mut context.control);
         Ipv4::set_local_address(sender_ip, &mut context.control);
         Ipv4::set_remote_address(self.dest_ip, &mut context.control);
@@ -148,12 +149,10 @@ impl ArpSession {
         remote_mac: Mac,
         protocols: ProtocolMap,
     ) -> Result<(), SendError> {
-        let local_mac = self.clone().get_local_mac();
-
         let arp_reply = ArpPacket {
             is_request: false,
             sender_ip: local_ip,
-            sender_mac: local_mac,
+            sender_mac: self.local_mac,
             target_mac: remote_mac,
             target_ip: self.dest_ip,
         };
@@ -164,7 +163,7 @@ impl ArpSession {
         // Needed to make sure that another ARP layer receives this message
         Network::set_protocol(Arp::ID, &mut context.control);
 
-        Network::set_sender(local_mac, &mut context.control);
+        Network::set_sender(self.local_mac, &mut context.control);
         Network::set_destination(remote_mac, &mut context.control);
         Ipv4::set_local_address(local_ip, &mut context.control);
         Ipv4::set_remote_address(self.dest_ip, &mut context.control);
