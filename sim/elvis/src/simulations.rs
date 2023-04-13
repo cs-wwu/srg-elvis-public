@@ -12,8 +12,8 @@ pub use basic::basic;
 // mod ping_pong;
 // pub use ping_pong::ping_pong;
 
-// mod query;
-// pub use query::query;
+mod query;
+pub use query::query;
 
 // mod router_single;
 // pub use router_single::router_single;
