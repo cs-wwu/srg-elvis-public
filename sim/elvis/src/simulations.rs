@@ -9,22 +9,22 @@ pub use telephone_multi::telephone_multi;
 mod telephone_single;
 pub use telephone_single::telephone_single;
 
-// mod ping_pong;
-// pub use ping_pong::ping_pong;
+mod ping_pong;
+pub use ping_pong::ping_pong;
 
 mod query;
 pub use query::query;
+
+// mod udp_gigabyte_bench;
+// pub use udp_gigabyte_bench::udp_gigabyte_bench;
+
+// --------------------------------------------------
 
 // mod router_single;
 // pub use router_single::router_single;
 
 // mod router_multi;
 // pub use router_multi::router_multi;
-
-// mod udp_gigabyte_bench;
-// pub use udp_gigabyte_bench::udp_gigabyte_bench;
-
-// --------------------------------------------------
 
 // mod socket_basic;
 // pub use socket_basic::socket_basic;
