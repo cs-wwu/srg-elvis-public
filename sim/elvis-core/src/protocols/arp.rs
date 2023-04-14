@@ -219,6 +219,8 @@ impl Protocol for Arp {
             let _ = session.send_arp_reply(packet.target_ip, packet.sender_mac, context.protocols);
         }
 
+        tracing::info!("ARP: Resolved IP {} -> {} for machine with IP {}", packet.sender_ip, packet.sender_mac, packet.target_ip);
+
         Ok(())
     }
 
