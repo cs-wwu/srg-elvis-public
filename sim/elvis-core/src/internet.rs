@@ -28,6 +28,11 @@ impl Internet {
         self
     }
 
+    pub fn all_threads(mut self) -> Self {
+        self.threads = num_cpus::get();
+        self
+    }
+
     pub fn connect(&mut self, machine: MachineHandle, network: NetworkHandle) {
         let network_handle = network;
         let network = &mut self.networks[network.0];
