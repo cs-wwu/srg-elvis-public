@@ -6,6 +6,9 @@ pub use basic::basic;
 mod socket_basic;
 pub use socket_basic::socket_basic;
 
+mod socket_ping_pong;
+pub use socket_ping_pong::socket_ping_pong;
+
 mod telephone_multi;
 pub use telephone_multi::telephone_multi;
 

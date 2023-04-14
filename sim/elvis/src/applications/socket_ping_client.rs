@@ -14,7 +14,7 @@ use elvis_core::{
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
-pub struct SocketClient {
+pub struct SocketPingClient {
     /// The Sockets API
     sockets: Arc<Sockets>,
     /// Numerical ID
@@ -25,7 +25,7 @@ pub struct SocketClient {
     remote_port: u16,
 }
 
-impl SocketClient {
+impl SocketPingClient {
     pub fn new(
         sockets: Arc<Sockets>,
         client_id: u16,
@@ -45,8 +45,8 @@ impl SocketClient {
     }
 }
 
-impl Application for SocketClient {
-    const ID: Id = Id::from_string("Socket Client");
+impl Application for SocketPingClient {
+    const ID: Id = Id::from_string("Socket Ping Client");
 
     fn start(
         &self,
@@ -77,21 +77,20 @@ impl Application for SocketClient {
             socket.clone().connect(remote_sock_addr).unwrap();
 
             // Send a message
-            let req = "Ground Control to Major Tom";
-            println!("CLIENT {}: Sending Request: {:?}", client_id, req);
-            socket.clone().send(req).unwrap();
+            socket.clone().send(vec![255]).unwrap();
 
-            // Receive a message
-            let resp = socket.clone().recv(32).await.unwrap();
-            println!(
-                "CLIENT {}: Response Received: {:?}",
-                client_id,
-                String::from_utf8(resp).unwrap()
-            );
+            loop {
+                // Receive a message
+                let mut ttl: u8 = *socket.clone().recv(8).await.unwrap().first().unwrap();
+        
+                // Send a message
+                ttl -= 1;
 
-            // Send a message
-            println!("CLIENT {}: Sending Ackowledgement", client_id);
-            socket.clone().send("Ackowledged").unwrap();
+                socket.clone().send(vec![ttl]).unwrap();
+                if ttl <= 1 {
+                    break;
+                }
+            }
         });
         Ok(())
     }

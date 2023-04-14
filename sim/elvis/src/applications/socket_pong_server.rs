@@ -14,14 +14,14 @@ use elvis_core::{
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
-pub struct SocketServer {
+pub struct SocketPongServer {
     /// The Sockets API
     sockets: Arc<Sockets>,
     /// The port to capture a message on
     local_port: u16,
 }
 
-impl SocketServer {
+impl SocketPongServer {
     pub fn new(sockets: Arc<Sockets>, local_port: u16) -> Self {
         Self {
             sockets,
@@ -35,25 +35,23 @@ impl SocketServer {
 }
 
 async fn communicate_with_client(socket: Arc<Socket>) {
-    // Receive a message
-    let req = socket.clone().recv(32).await.unwrap();
-    println!(
-        "SERVER: Request Received: {:?}",
-        String::from_utf8(req).unwrap()
-    );
+    loop {
+        // Receive a message
+        let mut ttl: u8 = *socket.clone().recv(8).await.unwrap().first().unwrap();
 
-    // Send a message
-    let resp = "Major Tom to Ground Control";
-    println!("SERVER: Sending Response: {:?}", resp);
-    socket.clone().send(resp).unwrap();
+        // Send a message
+        ttl -= 1;
 
-    // Receive a message (Also example usage of recv_msg)
-    let _ack = socket.clone().recv_msg().await.unwrap();
-    println!("SERVER: Ackowledgement Received");
+        if ttl == 0 {
+            break;
+        } else {
+            socket.clone().send(vec![ttl]).unwrap();
+        }
+    }
 }
 
-impl Application for SocketServer {
-    const ID: Id = Id::from_string("Socket Server");
+impl Application for SocketPongServer {
+    const ID: Id = Id::from_string("Socket Pong Server");
 
     fn start(
         &self,
@@ -80,39 +78,18 @@ impl Application for SocketServer {
 
             // Listen for incoming connections, with a maximum backlog of 10
             listen_socket.clone().listen(10).unwrap();
-            println!("SERVER: Listening for incoming connections");
 
             // Wait on ititialization before sending or receiving any message from the network
             initialized.wait().await;
+            
+            // Accept an incoming connection
+            let socket = listen_socket.clone().accept().await.unwrap();
 
-            let mut tasks = Vec::new();
-            // Continuously accept incoming connections in a loop, spawning a
-            // new tokio task to handle each accepted connection
-            loop {
-                // Accept an incoming connection
-                let socket = listen_socket.clone().accept().await.unwrap();
-                println!("SERVER: Connection accepted");
-
-                // Spawn a new tokio task for handling communication
-                // with the new client
-                tasks.push(tokio::spawn(async move {
-                    communicate_with_client(socket).await;
-                }));
-
-                // This particular example server tracks the number of clients
-                // served, stops accepting new connections after the third,
-                // and shuts down the simulation once communication with
-                // the third has ended
-                if tasks.len() >= 3 {
-                    while !tasks.is_empty() {
-                        tasks.pop().unwrap().await.unwrap()
-                    }
-                    break;
-                }
-            }
+            // Spawn a new tokio task for handling communication
+            // with the new client
+            communicate_with_client(socket).await;
 
             // Shut down the simulation
-            println!("SERVER: Shutting down");
             shutdown.shut_down();
         });
         Ok(())

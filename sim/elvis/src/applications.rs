@@ -14,6 +14,12 @@ pub use socket_client::SocketClient;
 mod socket_server;
 pub use socket_server::SocketServer;
 
+mod socket_ping_client;
+pub use socket_ping_client::SocketPingClient;
+
+mod socket_pong_server;
+pub use socket_pong_server::SocketPongServer;
+
 mod forward;
 pub use forward::Forward;
 

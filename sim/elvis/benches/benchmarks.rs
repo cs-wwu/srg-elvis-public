@@ -18,9 +18,35 @@ fn telephone_single(c: &mut Criterion) {
     });
 }
 
+fn ping_pong(c: &mut Criterion) {
+    c.bench_function("Ping Pong", |b| {
+        b.to_async(runtime()).iter(simulations::ping_pong)
+    });
+}
+
+fn socket_basic(c: &mut Criterion) {
+    c.bench_function("Socket Basic", |b| {
+        b.to_async(runtime()).iter(simulations::socket_basic)
+    });
+}
+
+fn socket_ping_pong(c: &mut Criterion) {
+    c.bench_function("Socket Basic", |b| {
+        b.to_async(runtime()).iter(simulations::socket_ping_pong)
+    });
+}
+
 fn runtime() -> Runtime {
     Runtime::new().unwrap()
 }
 
-criterion_group!(benches, basic, telephone_multi, telephone_single,);
+criterion_group!(
+    benches,
+    basic,
+    //telephone_multi,
+    //telephone_single,
+    //socket_basic,
+    ping_pong,
+    socket_ping_pong
+);
 criterion_main!(benches);
