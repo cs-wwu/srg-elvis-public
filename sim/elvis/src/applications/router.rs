@@ -1,5 +1,4 @@
 use elvis_core::{
-    gcd::GcdHandle,
     message::Message,
     network::Network,
     protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
@@ -37,7 +36,7 @@ impl Application for Router {
 
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(&self, _gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         // get the pci protocol
         let pci = protocols.protocol(Pci::ID).expect("No such protocol");
 

@@ -3,7 +3,6 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
-    gcd::GcdHandle,
     id::Id,
     machine::PciSlot,
     machine::ProtocolMap,
@@ -77,7 +76,7 @@ impl Protocol for Ipv4 {
         Self::ID
     }
 
-    fn start(&self, _gcd: GcdHandle, _protocols: ProtocolMap) -> Result<(), StartError> {
+    fn start(&self, _protocols: ProtocolMap) -> Result<(), StartError> {
         Ok(())
     }
 

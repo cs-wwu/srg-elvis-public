@@ -62,12 +62,12 @@ impl Internet {
             networks,
             threads,
         } = self;
-        let (gcd, gcd_handle) = Gcd::new(threads);
         for machine in machines.iter() {
-            machine.start(gcd_handle.clone());
+            machine.start();
         }
         let machines = Arc::new(machines);
         let networks = Arc::new(networks);
+        let gcd = Gcd::new(threads);
         gcd.start(machines, networks);
     }
 }

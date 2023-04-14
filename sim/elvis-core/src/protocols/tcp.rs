@@ -9,14 +9,13 @@ use self::{
 use super::{pci::Pci, utility::Socket, Ipv4};
 use crate::{
     control::{ControlError, Key, Primitive},
-    gcd::GcdHandle,
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 mod tcb;
 mod tcp_parsing;
@@ -33,7 +32,6 @@ pub struct Tcp {
     listen_bindings: FxDashMap<Socket, Id>,
     /// A lookup table for sessions based on their endpoints.
     sessions: FxDashMap<ConnectionId, Arc<TcpSession>>,
-    gcd: RwLock<Option<GcdHandle>>,
 }
 
 impl Tcp {
@@ -118,7 +116,6 @@ impl Protocol for Tcp {
                         .protocol(upstream)
                         .ok_or(OpenError::MissingProtocol(upstream))?,
                     downstream,
-                    self.gcd.read().unwrap().as_ref().unwrap().clone(),
                     protocols,
                 );
                 entry.insert(session.clone());
@@ -226,7 +223,6 @@ impl Protocol for Tcp {
                                             .protocol(upstream)
                                             .ok_or(OpenError::MissingProtocol(upstream))?,
                                         caller,
-                                        self.gcd.read().unwrap().as_ref().unwrap().clone(),
                                         protocols,
                                     );
                                     session_entry.insert(session);
@@ -252,8 +248,7 @@ impl Protocol for Tcp {
         Ok(())
     }
 
-    fn start(&self, gcd: GcdHandle, _protocols: ProtocolMap) -> Result<(), StartError> {
-        *self.gcd.write().unwrap() = Some(gcd);
+    fn start(&self, _protocols: ProtocolMap) -> Result<(), StartError> {
         Ok(())
     }
 

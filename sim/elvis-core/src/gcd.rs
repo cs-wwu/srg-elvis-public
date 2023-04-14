@@ -4,83 +4,52 @@ use crate::{
     Id, Machine, Message,
 };
 use flume::{Receiver, Sender};
-use std::{sync::Arc, thread, time::Instant};
+use std::{cell::RefCell, sync::Arc, thread, time::Instant};
+
+thread_local! {
+    static GCD_HANDLE: RefCell<Option<GcdHandle>> = Default::default();
+}
 
 #[derive(Debug, Clone)]
-pub struct GcdHandle {
-    tx: Sender<Task>,
-    threads: usize,
-}
-
-impl GcdHandle {
-    pub fn delivery(&self, delivery: Delivery) {
-        self.queue(Task::Delivery(delivery));
-    }
-
-    pub fn job(&self, job: impl FnOnce() + Send + 'static) {
-        self.queue(Task::Once(Box::new(job)));
-    }
-
-    pub fn job_at(&self, job: impl FnOnce() + Send + 'static, when: Instant) {
-        self.queue(Task::At(Box::new(job), when))
-    }
-
-    fn queue(&self, task: Task) {
-        self.tx.send(task).unwrap();
-    }
-
-    pub fn shut_down(&self) {
-        for _ in 0..self.threads {
-            self.queue(Task::Shutdown);
-        }
-    }
-}
-
-pub struct Gcd {
+pub(crate) struct Gcd {
     tx: Sender<Task>,
     rx: Receiver<Task>,
     threads: usize,
 }
 
 impl Gcd {
-    pub fn new(threads: usize) -> (Self, GcdHandle) {
+    pub fn new(threads: usize) -> Self {
         let (tx, rx) = flume::unbounded::<Task>();
-        (
-            Self {
-                tx: tx.clone(),
-                rx,
-                threads,
-            },
-            GcdHandle { tx, threads },
-        )
+        Self { tx, rx, threads }
     }
 
     pub fn start(self, machines: Arc<Vec<Machine>>, networks: Arc<Vec<Network>>) {
         if self.threads > 1 {
             let mut threads = Vec::with_capacity(self.threads);
             for _ in 0..self.threads {
-                let tx = self.tx.clone();
-                let rx = self.rx.clone();
                 let networks = networks.clone();
                 let machines = machines.clone();
-                let handle = thread::spawn(move || main_loop(tx, rx, networks, machines));
-                threads.push(handle);
+                let me = self.clone();
+                let thread = thread::spawn(move || main_loop(me, networks, machines));
+                threads.push(thread);
             }
             for thread in threads {
                 thread.join().unwrap();
             }
         } else {
-            main_loop(self.tx, self.rx, networks, machines);
+            main_loop(self, networks, machines);
         }
     }
 }
 
-fn main_loop(
-    tx: Sender<Task>,
-    rx: Receiver<Task>,
-    networks: Arc<Vec<Network>>,
-    machines: Arc<Vec<Machine>>,
-) {
+fn main_loop(gcd: Gcd, networks: Arc<Vec<Network>>, machines: Arc<Vec<Machine>>) {
+    let Gcd { tx, rx, threads } = gcd;
+    {
+        let tx = tx.clone();
+        GCD_HANDLE.with(move |handle| {
+            *handle.borrow_mut() = Some(GcdHandle { tx, threads });
+        });
+    }
     while let Ok(task) = rx.recv() {
         match task {
             Task::Shutdown => break,
@@ -109,6 +78,38 @@ fn main_loop(
             }
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct GcdHandle {
+    pub tx: Sender<Task>,
+    pub threads: usize,
+}
+
+fn queue(task: Task) {
+    GCD_HANDLE.with(|handle| handle.borrow().as_ref().unwrap().tx.send(task).unwrap())
+}
+
+pub fn delivery(delivery: Delivery) {
+    queue(Task::Delivery(delivery));
+}
+
+pub fn job(job: impl FnOnce() + Send + 'static) {
+    queue(Task::Once(Box::new(job)));
+}
+
+pub fn job_at(job: impl FnOnce() + Send + 'static, when: Instant) {
+    queue(Task::At(Box::new(job), when))
+}
+
+pub fn shut_down() {
+    GCD_HANDLE.with(|handle| {
+        let handle = handle.borrow();
+        let handle = handle.as_ref().unwrap();
+        for _ in 0..handle.threads {
+            handle.tx.send(Task::Shutdown).unwrap();
+        }
+    })
 }
 
 enum Task {

@@ -2,7 +2,7 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
-    gcd::{Delivery, GcdHandle},
+    gcd::Delivery,
     id::Id,
     internet::NetworkHandle,
     machine::PciSlot,
@@ -138,11 +138,8 @@ impl Protocol for Pci {
         panic!("Cannot demux on a Pci")
     }
 
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), StartError> {
+    fn start(&self, protocols: ProtocolMap) -> Result<(), StartError> {
         *self.protocols.write().unwrap() = Some(protocols);
-        for session in self.sessions.read().unwrap().iter() {
-            session.start(gcd.clone());
-        }
         Ok(())
     }
 

@@ -1,5 +1,5 @@
 use elvis_core::{
-    gcd::GcdHandle,
+    gcd,
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
@@ -51,7 +51,7 @@ impl SendMessage {
 impl Application for SendMessage {
     const ID: Id = Id::from_string("Send Message");
 
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
         Ipv4::set_remote_address(self.remote_ip, &mut participants);
@@ -71,7 +71,7 @@ impl Application for SendMessage {
             .protocol(self.transport.id())
             .expect("No such protocol");
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
-        gcd.job(move || {
+        gcd::job(move || {
             let session = protocol
                 .open(Self::ID, participants, protocols.clone())
                 .unwrap();

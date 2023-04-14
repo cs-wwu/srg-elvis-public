@@ -1,7 +1,7 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
-    gcd::GcdHandle,
+    gcd::{self},
     protocol::{DemuxError, SharedProtocol},
     session::{QueryError, SendError, SharedSession},
     Control, Id, Message, ProtocolMap, Session,
@@ -36,7 +36,6 @@ impl TcpSession {
         tcb: Tcb,
         upstream: SharedProtocol,
         downstream: SharedSession,
-        gcd: GcdHandle,
         protocols: ProtocolMap,
     ) -> Arc<Self> {
         let me = Arc::new(Self {
@@ -53,7 +52,7 @@ impl TcpSession {
             let me = me.clone();
             const TIMEOUT: Duration = Duration::from_millis(10);
             // TODO(hardint): This job needs to repeat
-            gcd.job_at(
+            gcd::job_at(
                 move || {
                     let mut lock = me.tcb.write().unwrap();
                     // TODO(hardint): Do something with this result

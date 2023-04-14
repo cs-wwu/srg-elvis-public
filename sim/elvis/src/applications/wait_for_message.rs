@@ -1,10 +1,10 @@
 use elvis_core::{
-    gcd::GcdHandle,
+    gcd,
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp,
+        Ipv4, Tcp, Udp,
     },
     Control, Id, ProtocolMap,
 };
@@ -16,8 +16,6 @@ use super::Transport;
 /// simulation.
 #[derive(Debug)]
 pub struct WaitForMessage {
-    /// The channel we send on to shut down the simulation
-    gcd: RwLock<Option<GcdHandle>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
@@ -42,7 +40,6 @@ impl WaitForMessage {
             expected,
             transport: Transport::Udp,
             actual: Default::default(),
-            gcd: Default::default(),
             check_message: true,
         }
     }
@@ -69,16 +66,14 @@ impl WaitForMessage {
 impl Application for WaitForMessage {
     const ID: Id = Id::from_string("Wait for message");
 
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
-        *self.gcd.write().unwrap() = Some(gcd);
+    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
 
-        Udp::set_local_port(self.port, &mut participants);
-        // match self.transport {
-        //     Transport::Udp => Udp::set_local_port(self.port, &mut participants),
-        //     Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
-        // }
+        match self.transport {
+            Transport::Udp => Udp::set_local_port(self.port, &mut participants),
+            Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
+        }
 
         protocols
             .protocol(self.transport.id())
@@ -105,9 +100,7 @@ impl Application for WaitForMessage {
             assert_eq!(self.expected, *actual);
         }
 
-        if let Some(gcd) = self.gcd.write().unwrap().take() {
-            gcd.shut_down();
-        }
+        gcd::shut_down();
         Ok(())
     }
 }

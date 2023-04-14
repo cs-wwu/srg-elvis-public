@@ -3,7 +3,6 @@
 
 use crate::{
     control::{Key, Primitive},
-    gcd::GcdHandle,
     id::Id,
     machine::ProtocolMap,
     message::Message,
@@ -25,7 +24,7 @@ pub trait Application {
 
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError>;
+    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
@@ -114,8 +113,8 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         Ok(())
     }
 
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), StartError> {
-        self.application.start(gcd, protocols)?;
+    fn start(&self, protocols: ProtocolMap) -> Result<(), StartError> {
+        self.application.start(protocols)?;
         Ok(())
     }
 

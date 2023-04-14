@@ -1,7 +1,7 @@
 use super::Pci;
 use crate::{
     control::{Key, Primitive},
-    gcd::{Delivery, GcdHandle},
+    gcd::{self, Delivery},
     internet::NetworkHandle,
     machine::{PciSlot, ProtocolMap},
     message::Message,
@@ -10,7 +10,7 @@ use crate::{
     session::{QueryError, SendError},
     Control, Id, Session,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 /// The session type for a [`Tap`](super::Tap).
 pub struct PciSession {
@@ -18,7 +18,6 @@ pub struct PciSession {
     mtu: Mtu,
     slot: PciSlot,
     pub network: NetworkHandle,
-    gcd: RwLock<Option<GcdHandle>>,
 }
 
 impl PciSession {
@@ -29,14 +28,7 @@ impl PciSession {
             mtu,
             slot,
             network,
-            gcd: Default::default(),
         }
-    }
-
-    /// Called by the owning [`Pci`] protocol at the beginning of the simulation
-    /// to start the contained tap running
-    pub(super) fn start(&self, gcd: GcdHandle) {
-        *self.gcd.write().unwrap() = Some(gcd);
     }
 
     /// Called by the owned [`Tap`] to pass a frame from the network up the
@@ -96,12 +88,7 @@ impl Session for PciSession {
             network: self.network,
         };
 
-        self.gcd
-            .read()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .delivery(delivery);
+        gcd::delivery(delivery);
         Ok(())
     }
 

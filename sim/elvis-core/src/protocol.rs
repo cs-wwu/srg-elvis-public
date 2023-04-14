@@ -3,7 +3,6 @@
 use super::{message::Message, session::SharedSession, Control};
 use crate::{
     control::{Key, Primitive},
-    gcd::GcdHandle,
     id::Id,
     machine::ProtocolMap,
     protocols::user_process::ApplicationError,
@@ -35,7 +34,7 @@ pub trait Protocol {
     /// are ready to receive the message. Implementors may also store the
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), StartError>;
+    fn start(&self, protocols: ProtocolMap) -> Result<(), StartError>;
 
     /// Actively open a new network connection.
     ///

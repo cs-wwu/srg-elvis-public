@@ -1,5 +1,5 @@
 use elvis_core::{
-    gcd::GcdHandle,
+    gcd,
     protocols::{
         pci::Pci,
         user_process::{Application, ApplicationError},
@@ -25,7 +25,7 @@ impl QueryTester {
 impl Application for QueryTester {
     const ID: Id = Id::from_string("Query tester");
 
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let slot_count = protocols
             .protocol(Pci::ID)
             .expect("Missing PCI protocol")
@@ -50,7 +50,7 @@ impl Application for QueryTester {
             .ok_u32()
             .unwrap();
         assert_eq!(mtu, 1500);
-        gcd.shut_down();
+        gcd::shut_down();
         Ok(())
     }
 

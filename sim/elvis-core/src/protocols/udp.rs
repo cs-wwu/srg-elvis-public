@@ -3,7 +3,6 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
-    gcd::GcdHandle,
     id::Id,
     machine::ProtocolMap,
     message::Message,
@@ -231,7 +230,7 @@ impl Protocol for Udp {
         Ok(())
     }
 
-    fn start(&self, _gcd: GcdHandle, _protocols: ProtocolMap) -> Result<(), StartError> {
+    fn start(&self, _protocols: ProtocolMap) -> Result<(), StartError> {
         Ok(())
     }
 

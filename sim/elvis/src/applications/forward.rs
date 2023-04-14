@@ -1,5 +1,4 @@
 use elvis_core::{
-    gcd::GcdHandle,
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
@@ -52,7 +51,7 @@ impl Forward {
 impl Application for Forward {
     const ID: Id = Id::from_string("Forward");
 
-    fn start(&self, _gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip, &mut participants);
         Ipv4::set_remote_address(self.remote_ip, &mut participants);

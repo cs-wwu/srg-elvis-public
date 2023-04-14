@@ -1,6 +1,6 @@
 use super::Transport;
 use elvis_core::{
-    gcd::GcdHandle,
+    gcd,
     message::Message,
     network::Mac,
     protocols::{
@@ -18,8 +18,6 @@ use std::sync::{Arc, RwLock};
 /// The second machine will then send the TTL back minus 1.
 /// Once the TTL reaches 0 the program ends.
 pub struct PingPong {
-    /// The channel we send on to shut down the simulation
-    gcd: RwLock<Option<GcdHandle>>,
     /// The session we send messages on
     session: RwLock<Option<SharedSession>>,
     is_initiator: bool,
@@ -46,7 +44,6 @@ impl PingPong {
     ) -> Self {
         Self {
             is_initiator,
-            gcd: Default::default(),
             session: Default::default(),
             local_ip_address,
             remote_ip_address,
@@ -76,8 +73,7 @@ impl PingPong {
 impl Application for PingPong {
     const ID: Id = Id::from_string("PingPong");
 
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
-        *self.gcd.write().unwrap() = Some(gcd.clone());
+    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip_address, &mut participants);
         Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
@@ -88,7 +84,7 @@ impl Application for PingPong {
         *self.session.write().unwrap() = Some(session.clone());
 
         let is_initiator = self.is_initiator;
-        gcd.job(move || {
+        gcd::job(move || {
             if is_initiator {
                 session
                     //Send the first "Ping" message with TTL of 255
@@ -117,9 +113,7 @@ impl Application for PingPong {
 
         if ttl == 0 {
             eprintln!("TTL has reach 0, PingPong has successfully completed");
-            if let Some(gcd) = self.gcd.write().unwrap().take() {
-                gcd.shut_down();
-            }
+            gcd::shut_down();
         } else {
             self.session.read().unwrap().as_ref().unwrap().send(
                 Message::new(vec![ttl]),

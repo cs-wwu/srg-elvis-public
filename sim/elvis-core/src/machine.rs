@@ -1,5 +1,5 @@
 use crate::{
-    gcd::{Delivery, GcdHandle},
+    gcd::Delivery,
     internet::NetworkHandle,
     network::{Mac, Mtu},
     protocol::SharedProtocol,
@@ -84,10 +84,10 @@ impl Machine {
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub(crate) fn start(&self, gcd: GcdHandle) {
+    pub(crate) fn start(&self) {
         for protocol in self.protocols.iter() {
             protocol
-                .start(gcd.clone(), self.protocols.clone())
+                .start(self.protocols.clone())
                 .expect("A protocol failed to start")
         }
     }

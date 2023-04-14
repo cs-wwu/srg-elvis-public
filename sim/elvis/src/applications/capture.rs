@@ -1,6 +1,6 @@
 use super::Transport;
 use elvis_core::{
-    gcd::GcdHandle,
+    gcd,
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
@@ -17,7 +17,6 @@ use std::sync::{Arc, RwLock};
 pub struct Capture {
     /// The message that was received, if any
     message: RwLock<Option<Message>>,
-    gcd: RwLock<Option<GcdHandle>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
@@ -36,7 +35,6 @@ impl Capture {
     pub fn new(ip_address: Ipv4Address, port: u16, message_count: u32) -> Self {
         Self {
             message: Default::default(),
-            gcd: Default::default(),
             ip_address,
             port,
             message_count,
@@ -65,8 +63,7 @@ impl Capture {
 impl Application for Capture {
     const ID: Id = Id::from_string("Capture");
 
-    fn start(&self, gcd: GcdHandle, protocols: ProtocolMap) -> Result<(), ApplicationError> {
-        *self.gcd.write().unwrap() = Some(gcd);
+    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
 
@@ -91,9 +88,7 @@ impl Application for Capture {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
         if *self.cur_count.read().unwrap() >= self.message_count {
-            if let Some(gcd) = self.gcd.write().unwrap().take() {
-                gcd.shut_down();
-            }
+            gcd::shut_down();
         }
         Ok(())
     }
