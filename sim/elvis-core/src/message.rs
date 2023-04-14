@@ -64,9 +64,9 @@ impl Message {
     }
 
     /// Adds the given message to the end of this one.
-    pub fn concatenate(&mut self, other: Message) {
+    pub fn concatenate(&mut self, mut other: Message) {
         self.len += other.len;
-        self.chunks.extend(other.chunks.into_iter());
+        self.chunks.append(&mut other.chunks);
     }
 
     /// Creates a slice of the message for the given range. All Rust range types

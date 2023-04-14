@@ -65,7 +65,7 @@ impl Application for Forward {
         Udp::set_remote_port(self.remote_port, &mut participants);
 
         let udp = protocols.protocol(Udp::ID).expect("No such protocol");
-        *self.outgoing.write().unwrap() = Some(udp.clone().open(
+        *self.outgoing.write().unwrap() = Some(udp.open(
             Self::ID,
             // TODO(hardint): Can these clones be cheaper?
             participants.clone(),
@@ -85,7 +85,6 @@ impl Application for Forward {
             .unwrap()
             .as_ref()
             .unwrap()
-            .clone()
             .send(message, context)?;
         Ok(())
     }

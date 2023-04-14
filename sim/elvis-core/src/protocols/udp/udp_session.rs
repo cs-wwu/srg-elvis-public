@@ -36,7 +36,7 @@ impl UdpSession {
 
 impl Session for UdpSession {
     #[tracing::instrument(name = "UdpSession::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, context: Context) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, context: Context) -> Result<(), SendError> {
         let id = self.id;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
@@ -62,12 +62,12 @@ impl Session for UdpSession {
             message.clone(),
         );
         message.header(header);
-        self.downstream.clone().send(message, context)?;
+        self.downstream.send(message, context)?;
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.clone().query(key)
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
+        self.downstream.query(key)
     }
 }
 

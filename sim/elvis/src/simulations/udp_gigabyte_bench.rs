@@ -34,13 +34,13 @@ pub async fn udp_gigabyte_bench() {
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             SendMessage::new(messages, capture_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             WaitForMessage::new(capture_ip_address, 0xbeef, message)
                 .disable_checking()
                 .shared(),

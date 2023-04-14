@@ -9,9 +9,7 @@ use self::{
 use super::{utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
-    protocol::{
-        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
-    },
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
@@ -47,7 +45,7 @@ impl Tcp {
     }
 
     /// Converts the TCP into a shared protocol.
-    pub fn shared(self) -> SharedProtocol {
+    pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
 
@@ -73,12 +71,12 @@ impl Tcp {
 }
 
 impl Protocol for Tcp {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -109,7 +107,6 @@ impl Protocol for Tcp {
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols.clone())?;
                 let mtu = downstream
-                    .clone()
                     .query(Pci::MTU_QUERY_KEY)
                     .map_err(|_| OpenError::Other)?
                     .ok_u32()
@@ -129,7 +126,7 @@ impl Protocol for Tcp {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -150,7 +147,7 @@ impl Protocol for Tcp {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
@@ -185,8 +182,7 @@ impl Protocol for Tcp {
         let segment = Segment::new(header, message);
         match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
-                let session = entry.get().clone();
-                session.receive(segment, context);
+                entry.get().receive(segment, context);
             }
 
             Entry::Vacant(session_entry) => {
@@ -198,7 +194,6 @@ impl Protocol for Tcp {
                         // If we have a listen binding, create the session and
                         // save it
                         let mtu = caller
-                            .clone()
                             .query(Pci::MTU_QUERY_KEY)
                             .map_err(|_| DemuxError::Other)?
                             .ok_u32()
@@ -249,7 +244,7 @@ impl Protocol for Tcp {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
@@ -260,7 +255,7 @@ impl Protocol for Tcp {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         tracing::error!("No such key on TCP");
         Err(QueryError::NonexistentKey)
     }

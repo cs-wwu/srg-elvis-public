@@ -81,7 +81,6 @@ impl Application for SendMessage {
             initialized.wait().await;
             for message in messages {
                 session
-                    .clone()
                     .send(message, context.clone())
                     .expect("SendMessage failed to send");
             }

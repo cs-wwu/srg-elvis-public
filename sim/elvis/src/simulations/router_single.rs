@@ -52,39 +52,39 @@ pub async fn router_single() {
                     .collect(),
             )
             .shared(),
-            Pci::new([networks[0].tap()]).shared(),
+            Pci::new([networks[0].clone()]).shared(),
             SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef).shared(),
         ]),
         // machine representing our router
         Machine::new([
             Pci::new([
-                networks[0].tap(),
-                networks[1].tap(),
-                networks[2].tap(),
-                networks[3].tap(),
+                networks[0].clone(),
+                networks[1].clone(),
+                networks[2].clone(),
+                networks[3].clone(),
             ])
             .shared(),
-            Router::new(ip_table).shared(),
+            Router::new(ip_table).shared() as SharedProtocol,
         ]),
         // capture for destination 1
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt1).shared(),
-            Pci::new([networks[1].tap()]).shared(),
+            Pci::new([networks[1].clone()]).shared(),
             d1.clone(),
         ]),
         // capture for destination 2
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt2).shared(),
-            Pci::new([networks[2].tap()]).shared(),
+            Pci::new([networks[2].clone()]).shared(),
             d2.clone(),
         ]),
         // capture for destination 3
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt3).shared(),
-            Pci::new([networks[3].tap()]).shared(),
+            Pci::new([networks[3].clone()]).shared(),
             d3.clone(),
         ]),
     ];

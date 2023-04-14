@@ -344,9 +344,6 @@ impl Tcb {
             }
             let segment = self.incoming.segments.pop().unwrap();
             let receive_result = self.process_segment(segment);
-            if receive_result != ProcessSegmentResult::Success {
-                println!("{:?}", receive_result);
-            }
             if receive_result.should_delete_tcb() {
                 return SegmentArrivesResult::Close;
             }

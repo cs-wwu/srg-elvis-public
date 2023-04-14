@@ -62,13 +62,13 @@ impl Udp {
 }
 
 impl Protocol for Udp {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -123,7 +123,7 @@ impl Protocol for Udp {
 
     #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -151,7 +151,7 @@ impl Protocol for Udp {
 
     #[tracing::instrument(name = "Udp::demux", skip_all)]
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
@@ -234,7 +234,7 @@ impl Protocol for Udp {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
@@ -245,7 +245,7 @@ impl Protocol for Udp {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
     }
 }

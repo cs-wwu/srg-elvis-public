@@ -64,7 +64,6 @@ impl Application for SocketClient {
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
             let socket = sockets
-                .clone()
                 .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .unwrap();
 
@@ -73,23 +72,23 @@ impl Application for SocketClient {
 
             // "Connect" the socket to a remote address
             let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
-            socket.clone().connect(remote_sock_addr).unwrap();
+            socket.connect(remote_sock_addr).unwrap();
 
             // Send a connection request
             println!("CLIENT {}: Sending connection request", client_id);
-            socket.clone().send("SYN").unwrap();
+            socket.send("SYN").unwrap();
 
             // Receive a connection response
-            let _ack = socket.clone().recv(32).await.unwrap();
+            let _ack = socket.recv(32).await.unwrap();
             println!("CLIENT {}: Connection response received", client_id);
 
             // Send a message
             let req = "Ground Control to Major Tom";
             println!("CLIENT {}: Sending Request: {:?}", client_id, req);
-            socket.clone().send(req).unwrap();
+            socket.send(req).unwrap();
 
             // Receive a message
-            let resp = socket.clone().recv(32).await.unwrap();
+            let resp = socket.recv(32).await.unwrap();
             println!(
                 "CLIENT {}: Response Received: {:?}",
                 client_id,
@@ -98,7 +97,7 @@ impl Application for SocketClient {
 
             // Send a message
             println!("CLIENT {}: Sending Ackowledgement", client_id);
-            socket.clone().send("Ackowledged").unwrap();
+            socket.send("Ackowledged").unwrap();
         });
         Ok(())
     }

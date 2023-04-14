@@ -8,7 +8,7 @@ use crate::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::mpsc::{channel, Sender},
+    sync::mpsc::{channel, error::TryRecvError, Sender},
     time::timeout,
 };
 
@@ -44,69 +44,80 @@ impl TcpSession {
         let out = me.clone();
         let context = Context::new(protocols);
         tokio::spawn(async move {
-            loop {
+            'outer: loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
-                match timeout(TIMEOUT, recv.recv()).await {
-                    Ok(instruction) => {
-                        match instruction {
-                            Some(instruction) => {
-                                match instruction {
-                                    Instruction::Incoming(segment) => {
-                                        match tcb.segment_arrives(segment) {
-                                            SegmentArrivesResult::Ok => {}
-                                            // TODO(hardint): Signal close
-                                            SegmentArrivesResult::Close => break,
-                                        }
-                                    }
-                                    Instruction::Outgoing(message) => {
-                                        tcb.send(message);
-                                    }
-                                }
+
+                // This is for optimization. Tokio was spending a lot of time
+                // getting the current time for timeouts, so we first process
+                // any ready instructions without setting up a timeout and then
+                // maybe do the timeout if there were no instructions ready.
+                let mut needs_timeout = true;
+
+                loop {
+                    match recv.try_recv() {
+                        Ok(instruction) => {
+                            match handle_instruction(instruction, &mut tcb) {
+                                InstructionResult::Ok => {}
+                                InstructionResult::Close => break 'outer,
                             }
-                            // TODO(hardint): Signal close
-                            None => break,
+                            needs_timeout = false;
                         }
-                    }
-                    Err(_) => {
-                        match tcb.advance_time(TIMEOUT) {
-                            AdvanceTimeResult::Ignore => {}
-                            // TODO(hardint): Signal close
-                            AdvanceTimeResult::CloseConnection => break,
-                        };
+                        Err(e) => match e {
+                            TryRecvError::Empty => break,
+                            TryRecvError::Disconnected => break 'outer,
+                        },
                     }
                 }
 
-                let segments = tcb.segments();
-                let received = tcb.receive();
-                let downstream = downstream.clone();
-                let context = context.clone();
-                let upstream = upstream.clone();
-                let me = me.clone();
-                tokio::spawn(async move {
-                    for mut segment in segments {
-                        segment.text.header(segment.header.serialize());
-                        match downstream.clone().send(segment.text, context.clone()) {
-                            Ok(_) => {}
-                            Err(e) => eprintln!("Send error: {}", e),
+                if needs_timeout {
+                    match timeout(TIMEOUT, recv.recv()).await {
+                        Ok(instruction) => {
+                            match instruction {
+                                Some(instruction) => {
+                                    match handle_instruction(instruction, &mut tcb) {
+                                        InstructionResult::Ok => {}
+                                        InstructionResult::Close => break,
+                                    }
+                                }
+                                // TODO(hardint): Signal close
+                                None => break,
+                            }
+                        }
+                        Err(_) => {
+                            match tcb.advance_time(TIMEOUT) {
+                                AdvanceTimeResult::Ignore => {}
+                                // TODO(hardint): Signal close
+                                AdvanceTimeResult::CloseConnection => break,
+                            };
                         }
                     }
+                }
 
-                    if !received.is_empty() {
-                        match upstream.demux(received, me, context) {
-                            Ok(_) => {}
-                            Err(e) => eprintln!("Demux error: {}", e),
-                        }
+                for mut segment in tcb.segments() {
+                    segment.text.header(segment.header.serialize());
+                    match downstream.send(segment.text, context.clone()) {
+                        Ok(_) => {}
+                        Err(e) => eprintln!("Send error: {}", e),
                     }
-                });
+                }
+
+                let received = tcb.receive();
+                if !received.is_empty() {
+                    match upstream.demux(received, me.clone(), context.clone()) {
+                        Ok(_) => {}
+                        Err(e) => eprintln!("Demux error: {}", e),
+                    }
+                }
             }
         });
         out
     }
 
     /// Receive an incoming message from the TCP as part of the demux flow
-    pub fn receive(self: Arc<Self>, segment: Segment, _context: Context) {
+    pub fn receive(&self, segment: Segment, _context: Context) {
+        let send = self.send.clone();
         tokio::spawn(async move {
-            match self.send.send(Instruction::Incoming(segment)).await {
+            match send.send(Instruction::Incoming(segment)).await {
                 Ok(_) => {}
                 Err(e) => eprintln!("TCP receive error: {}", e),
             }
@@ -114,10 +125,29 @@ impl TcpSession {
     }
 }
 
+fn handle_instruction(instruction: Instruction, tcb: &mut Tcb) -> InstructionResult {
+    match instruction {
+        Instruction::Incoming(segment) => match tcb.segment_arrives(segment) {
+            SegmentArrivesResult::Ok => InstructionResult::Ok,
+            SegmentArrivesResult::Close => InstructionResult::Close,
+        },
+        Instruction::Outgoing(message) => {
+            tcb.send(message);
+            InstructionResult::Ok
+        }
+    }
+}
+
+enum InstructionResult {
+    Ok,
+    Close,
+}
+
 impl Session for TcpSession {
-    fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), SendError> {
+    fn send(&self, message: Message, _context: Context) -> Result<(), SendError> {
+        let send = self.send.clone();
         tokio::spawn(async move {
-            match self.send.send(Instruction::Outgoing(message)).await {
+            match send.send(Instruction::Outgoing(message)).await {
                 Ok(_) => {}
                 Err(e) => eprintln!("TCP send error: {}", e),
             }
@@ -125,9 +155,9 @@ impl Session for TcpSession {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add queries
-        self.downstream.clone().query(key)
+        self.downstream.query(key)
     }
 }
 
