@@ -4,11 +4,12 @@ use crate::{
     Id, Machine, Message,
 };
 use flume::{Receiver, Sender};
-use std::{sync::Arc, thread};
+use std::{sync::Arc, thread, time::Instant};
 
 #[derive(Debug, Clone)]
 pub struct GcdHandle {
     tx: Sender<Task>,
+    threads: usize,
 }
 
 impl GcdHandle {
@@ -20,35 +21,48 @@ impl GcdHandle {
         self.queue(Task::Once(Box::new(job)));
     }
 
+    pub fn job_at(&self, job: impl FnOnce() + Send + 'static, when: Instant) {
+        self.queue(Task::At(Box::new(job), when))
+    }
+
     fn queue(&self, task: Task) {
         self.tx.send(task).unwrap();
     }
 
     pub fn shut_down(&self) {
-        for _ in 0..num_cpus::get() {
+        for _ in 0..self.threads {
             self.queue(Task::Shutdown);
         }
     }
 }
 
 pub struct Gcd {
+    tx: Sender<Task>,
     rx: Receiver<Task>,
+    threads: usize,
 }
 
 impl Gcd {
-    pub fn new() -> (Self, GcdHandle) {
+    pub fn new(threads: usize) -> (Self, GcdHandle) {
         let (tx, rx) = flume::unbounded::<Task>();
-        (Self { rx }, GcdHandle { tx })
+        (
+            Self {
+                tx: tx.clone(),
+                rx,
+                threads,
+            },
+            GcdHandle { tx, threads },
+        )
     }
 
     pub fn start(self, machines: Arc<Vec<Machine>>, networks: Arc<Vec<Network>>) {
-        let cpus = num_cpus::get();
-        let mut threads = Vec::with_capacity(cpus);
-        for _ in 0..cpus {
+        let mut threads = Vec::with_capacity(self.threads);
+        for _ in 0..self.threads {
+            let tx = self.tx.clone();
             let rx = self.rx.clone();
             let networks = networks.clone();
             let machines = machines.clone();
-            let handle = thread::spawn(move || main_loop(rx, networks, machines));
+            let handle = thread::spawn(move || main_loop(tx, rx, networks, machines));
             threads.push(handle);
         }
         for thread in threads {
@@ -57,11 +71,16 @@ impl Gcd {
     }
 }
 
-fn main_loop(rx: Receiver<Task>, networks: Arc<Vec<Network>>, machines: Arc<Vec<Machine>>) {
+fn main_loop(
+    tx: Sender<Task>,
+    rx: Receiver<Task>,
+    networks: Arc<Vec<Network>>,
+    machines: Arc<Vec<Machine>>,
+) {
     while let Ok(task) = rx.recv() {
         match task {
             Task::Shutdown => break,
-            Task::Once(func) => func(),
+            Task::Once(job) => job(),
             Task::Delivery(delivery) => {
                 let network = &networks[delivery.network.0];
                 match delivery.destination {
@@ -76,6 +95,14 @@ fn main_loop(rx: Receiver<Task>, networks: Arc<Vec<Network>>, machines: Arc<Vec<
                     }
                 }
             }
+            Task::At(job, when) => {
+                if Instant::now() < when {
+                    // Requeue the job
+                    tx.send(Task::At(job, when)).unwrap();
+                } else {
+                    job();
+                }
+            }
         }
     }
 }
@@ -84,6 +111,7 @@ enum Task {
     Shutdown,
     Delivery(Delivery),
     Once(Box<dyn FnOnce() + Send + 'static>),
+    At(Box<dyn FnOnce() + Send + 'static>, Instant),
 }
 
 /// A [`Message`] in flight over a network. A delivery includes the information

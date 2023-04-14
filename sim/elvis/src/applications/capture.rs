@@ -1,3 +1,4 @@
+use super::Transport;
 use elvis_core::{
     gcd::GcdHandle,
     message::Message,
@@ -5,7 +6,7 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp,
+        Ipv4, Tcp, Udp,
     },
     Control, Id, ProtocolMap,
 };
@@ -27,8 +28,8 @@ pub struct Capture {
     message_count: u32,
     /// The number of messages currently recieved
     cur_count: RwLock<u32>,
-    // / The transport protocol to use
-    // transport: Transport,
+    /// The transport protocol to use
+    transport: Transport,
 }
 
 impl Capture {
@@ -41,7 +42,7 @@ impl Capture {
             port,
             message_count,
             cur_count: RwLock::new(0),
-            // transport: Transport::Udp,
+            transport: Transport::Udp,
         }
     }
 
@@ -55,11 +56,11 @@ impl Capture {
         self.message.read().unwrap().clone()
     }
 
-    // / Set the transport protocol to use
-    // pub fn transport(mut self, transport: Transport) -> Self {
-    //     self.transport = transport;
-    //     self
-    // }
+    /// Set the transport protocol to use
+    pub fn transport(mut self, transport: Transport) -> Self {
+        self.transport = transport;
+        self
+    }
 }
 
 impl Application for Capture {
@@ -70,15 +71,13 @@ impl Application for Capture {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
 
-        Udp::set_local_port(self.port, &mut participants);
-        // match self.transport {
-        //     Transport::Udp => Udp::set_local_port(self.port, &mut participants),
-        //     Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
-        // }
+        match self.transport {
+            Transport::Udp => Udp::set_local_port(self.port, &mut participants),
+            Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
+        }
 
         protocols
-            // .protocol(self.transport.id())
-            .protocol(Udp::ID)
+            .protocol(self.transport.id())
             .expect("No such protocol")
             .listen(Self::ID, participants, protocols)?;
         Ok(())

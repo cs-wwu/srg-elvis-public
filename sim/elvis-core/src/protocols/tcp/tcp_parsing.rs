@@ -118,6 +118,7 @@ impl TcpHeader {
     }
 
     /// Size of the header in bytes
+    #[allow(unused)]
     pub fn bytes(&self) -> u8 {
         // Safe to do because data offset is only 4 bits
         self.data_offset * 4
@@ -191,6 +192,7 @@ impl TcpHeaderBuilder {
     }
 
     /// Set the psh bit up
+    #[allow(unused)]
     pub fn psh(mut self) -> Self {
         self.0.ctl.set_psh(true);
         self
@@ -215,6 +217,7 @@ impl TcpHeaderBuilder {
     }
 
     /// Set urgent pointer
+    #[allow(unused)]
     pub fn urg(mut self, urg: u16) -> Self {
         self.0.ctl.set_urg(true);
         self.0.urg = urg;
@@ -426,6 +429,7 @@ mod tests {
     const SEQUENCE: u32 = 123456789;
     const WINDOW: u16 = 1024;
     const ACKNOWLEDGEMENT: u32 = 10;
+    #[allow(unused)]
     const TTL: u8 = 30;
 
     fn build_expected() -> (etherparse::TcpHeader, Vec<u8>) {

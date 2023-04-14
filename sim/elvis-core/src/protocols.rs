@@ -19,7 +19,5 @@ pub use user_process::UserProcess;
 
 mod utility;
 
-// // TODO(hardint): Remove dead code allowance when possible
-// #[allow(dead_code)]
-// pub mod tcp;
-// pub use tcp::Tcp;
+pub mod tcp;
+pub use tcp::Tcp;

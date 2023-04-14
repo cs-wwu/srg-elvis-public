@@ -6,7 +6,7 @@ use elvis_core::{
         ipv4::Ipv4Address,
         udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4,
+        Ipv4, Tcp,
     },
     Control, Id, ProtocolMap,
 };
@@ -57,26 +57,26 @@ impl Application for SendMessage {
         Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
         Ipv4::set_remote_address(self.remote_ip, &mut participants);
 
-        Udp::set_local_port(0, &mut participants);
-        Udp::set_remote_port(self.remote_port, &mut participants);
-        // match self.transport {
-        //     Transport::Udp => {
-        //         Udp::set_local_port(0, &mut participants);
-        //         Udp::set_remote_port(self.remote_port, &mut participants);
-        //     }
-        //     Transport::Tcp => {
-        //         Tcp::set_local_port(0, &mut participants);
-        //         Tcp::set_remote_port(self.remote_port, &mut participants);
-        //     }
-        // }
+        match self.transport {
+            Transport::Udp => {
+                Udp::set_local_port(0, &mut participants);
+                Udp::set_remote_port(self.remote_port, &mut participants);
+            }
+            Transport::Tcp => {
+                Tcp::set_local_port(0, &mut participants);
+                Tcp::set_remote_port(self.remote_port, &mut participants);
+            }
+        }
 
         let protocol = protocols
             .protocol(self.transport.id())
             .expect("No such protocol");
-        let session = protocol.open(Self::ID, participants, protocols.clone())?;
-        let context = Context::new(protocols);
+        let context = Context::new(protocols.clone());
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         gcd.job(move || {
+            let session = protocol
+                .open(Self::ID, participants, protocols.clone())
+                .unwrap();
             for message in messages {
                 session
                     .send(message, context.clone())

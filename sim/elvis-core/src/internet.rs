@@ -8,15 +8,24 @@ pub struct MachineHandle(pub(crate) usize);
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NetworkHandle(pub(crate) usize);
 
-#[derive(Default)]
 pub struct Internet {
     machines: Vec<Machine>,
     networks: Vec<Network>,
+    threads: usize,
 }
 
 impl Internet {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            machines: vec![],
+            networks: vec![],
+            threads: 1,
+        }
+    }
+
+    pub fn threads(mut self, threads: usize) -> Self {
+        self.threads = threads;
+        self
     }
 
     pub fn connect(&mut self, machine: MachineHandle, network: NetworkHandle) {
@@ -43,8 +52,12 @@ impl Internet {
     }
 
     pub fn run(self) {
-        let Self { machines, networks } = self;
-        let (gcd, gcd_handle) = Gcd::new();
+        let Self {
+            machines,
+            networks,
+            threads,
+        } = self;
+        let (gcd, gcd_handle) = Gcd::new(threads);
         for machine in machines.iter() {
             machine.start(gcd_handle.clone());
         }

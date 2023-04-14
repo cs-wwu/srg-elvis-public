@@ -6,7 +6,7 @@ use self::{
     tcp_parsing::TcpHeader,
     tcp_session::TcpSession,
 };
-use super::{utility::Socket, Ipv4, Pci};
+use super::{pci::Pci, utility::Socket, Ipv4};
 use crate::{
     control::{ControlError, Key, Primitive},
     gcd::GcdHandle,
@@ -16,7 +16,7 @@ use crate::{
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 mod tcb;
 mod tcp_parsing;
@@ -33,6 +33,7 @@ pub struct Tcp {
     listen_bindings: FxDashMap<Socket, Id>,
     /// A lookup table for sessions based on their endpoints.
     sessions: FxDashMap<ConnectionId, Arc<TcpSession>>,
+    gcd: RwLock<Option<GcdHandle>>,
 }
 
 impl Tcp {
@@ -117,6 +118,7 @@ impl Protocol for Tcp {
                         .protocol(upstream)
                         .ok_or(OpenError::MissingProtocol(upstream))?,
                     downstream,
+                    self.gcd.read().unwrap().as_ref().unwrap().clone(),
                     protocols,
                 );
                 entry.insert(session.clone());
@@ -182,7 +184,8 @@ impl Protocol for Tcp {
         let segment = Segment::new(header, message);
         match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
-                entry.get().receive(segment, context);
+                // TODO(hardint): Do something with the result
+                let _ = entry.get().receive(segment);
             }
 
             Entry::Vacant(session_entry) => {
@@ -218,6 +221,7 @@ impl Protocol for Tcp {
                                             .protocol(upstream)
                                             .ok_or(OpenError::MissingProtocol(upstream))?,
                                         caller,
+                                        self.gcd.read().unwrap().as_ref().unwrap().clone(),
                                         context.protocols,
                                     );
                                     session_entry.insert(session);
@@ -244,6 +248,7 @@ impl Protocol for Tcp {
     }
 
     fn start(&self, gcd: GcdHandle, _protocols: ProtocolMap) -> Result<(), StartError> {
+        *self.gcd.write().unwrap() = Some(gcd);
         Ok(())
     }
 

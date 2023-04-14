@@ -1,12 +1,15 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
+    gcd::GcdHandle,
     protocol::{Context, DemuxError, SharedProtocol},
-    protocols::tcp::tcb::AdvanceTimeResult,
     session::{QueryError, SendError, SharedSession},
     Id, Message, ProtocolMap, Session,
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, RwLock, Weak},
+    time::{Duration, Instant},
+};
 
 // TODO(hardint): The unwraps used on channels should be removed and cleaned up
 // along with proper simulation teardown.
@@ -20,134 +23,91 @@ use std::{sync::Arc, time::Duration};
 
 /// The session part of the TCP protocol.
 pub struct TcpSession {
-    send: Sender<Instruction>,
+    me: RwLock<Option<Weak<dyn Session + Send + Sync + 'static>>>,
+    tcb: RwLock<Tcb>,
+    upstream: SharedProtocol,
     downstream: SharedSession,
+    protocols: ProtocolMap,
 }
 
 impl TcpSession {
     /// Create a new TCP session
     pub fn new(
-        mut tcb: Tcb,
+        tcb: Tcb,
         upstream: SharedProtocol,
         downstream: SharedSession,
+        gcd: GcdHandle,
         protocols: ProtocolMap,
     ) -> Arc<Self> {
-        let (send, mut recv) = channel(8);
         let me = Arc::new(Self {
-            send,
-            downstream: downstream.clone(),
+            me: Default::default(),
+            tcb: RwLock::new(tcb),
+            upstream,
+            downstream,
+            protocols,
         });
-        let out = me.clone();
-        let context = Context::new(protocols);
-        tokio::spawn(async move {
-            'outer: loop {
-                const TIMEOUT: Duration = Duration::from_millis(5);
-
-                // This is for optimization. Tokio was spending a lot of time
-                // getting the current time for timeouts, so we first process
-                // any ready instructions without setting up a timeout and then
-                // maybe do the timeout if there were no instructions ready.
-                let mut needs_timeout = true;
-
-                loop {
-                    match recv.try_recv() {
-                        Ok(instruction) => {
-                            match handle_instruction(instruction, &mut tcb) {
-                                InstructionResult::Ok => {}
-                                InstructionResult::Close => break 'outer,
-                            }
-                            needs_timeout = false;
-                        }
-                        Err(e) => match e {
-                            TryRecvError::Empty => break,
-                            TryRecvError::Disconnected => break 'outer,
-                        },
-                    }
-                }
-
-                if needs_timeout {
-                    match timeout(TIMEOUT, recv.recv()).await {
-                        Ok(instruction) => {
-                            match instruction {
-                                Some(instruction) => {
-                                    match handle_instruction(instruction, &mut tcb) {
-                                        InstructionResult::Ok => {}
-                                        InstructionResult::Close => break,
-                                    }
-                                }
-                                // TODO(hardint): Signal close
-                                None => break,
-                            }
-                        }
-                        Err(_) => {
-                            match tcb.advance_time(TIMEOUT) {
-                                AdvanceTimeResult::Ignore => {}
-                                // TODO(hardint): Signal close
-                                AdvanceTimeResult::CloseConnection => break,
-                            };
-                        }
-                    }
-                }
-
-                for mut segment in tcb.segments() {
-                    segment.text.header(segment.header.serialize());
-                    match downstream.send(segment.text, context.clone()) {
-                        Ok(_) => {}
-                        Err(e) => eprintln!("Send error: {}", e),
-                    }
-                }
-
-                let received = tcb.receive();
-                if !received.is_empty() {
-                    match upstream.demux(received, me.clone(), context.clone()) {
-                        Ok(_) => {}
-                        Err(e) => eprintln!("Demux error: {}", e),
-                    }
-                }
-            }
-        });
-        out
+        // TODO(hardint): This is disgusting. How can we avoid having to hold a
+        // reference to self?
+        *me.me.write().unwrap() = Some(Arc::downgrade(&(me.clone() as SharedSession)));
+        {
+            let me = me.clone();
+            const TIMEOUT: Duration = Duration::from_millis(10);
+            // TODO(hardint): This job needs to repeat
+            gcd.job_at(
+                move || {
+                    let mut lock = me.tcb.write().unwrap();
+                    // TODO(hardint): Do something with this result
+                    let _ = lock.advance_time(TIMEOUT);
+                    me.follow_up(&mut *lock);
+                },
+                Instant::now() + TIMEOUT,
+            );
+        }
+        me
     }
 
     /// Receive an incoming message from the TCP as part of the demux flow
-    pub fn receive(&self, segment: Segment, _context: Context) {
-        let send = self.send.clone();
-        tokio::spawn(async move {
-            match send.send(Instruction::Incoming(segment)).await {
-                Ok(_) => {}
-                Err(e) => eprintln!("TCP receive error: {}", e),
-            }
-        });
+    pub fn receive(&self, segment: Segment) -> SegmentArrivesResult {
+        let mut tcb = self.tcb.write().unwrap();
+        let result = tcb.segment_arrives(segment);
+        match result {
+            SegmentArrivesResult::Ok => self.follow_up(&mut *tcb),
+            SegmentArrivesResult::Close => {}
+        }
+        result
     }
-}
 
-fn handle_instruction(instruction: Instruction, tcb: &mut Tcb) -> InstructionResult {
-    match instruction {
-        Instruction::Incoming(segment) => match tcb.segment_arrives(segment) {
-            SegmentArrivesResult::Ok => InstructionResult::Ok,
-            SegmentArrivesResult::Close => InstructionResult::Close,
-        },
-        Instruction::Outgoing(message) => {
-            tcb.send(message);
-            InstructionResult::Ok
+    fn me(&self) -> SharedSession {
+        Weak::upgrade(&self.me.read().unwrap().as_ref().unwrap()).unwrap()
+    }
+
+    // TODO(hardint): This context might not be right. The Control should
+    // probably be empty.
+    fn follow_up(&self, tcb: &mut Tcb) {
+        let context = Context::new(self.protocols.clone());
+        for mut segment in tcb.segments() {
+            segment.text.header(segment.header.serialize());
+            match self.downstream.send(segment.text, context.clone()) {
+                Ok(_) => {}
+                Err(e) => eprintln!("Send error: {}", e),
+            }
+        }
+
+        let received = tcb.receive();
+        if !received.is_empty() {
+            match self.upstream.demux(received, self.me(), context.clone()) {
+                Ok(_) => {}
+                Err(e) => eprintln!("Demux error: {}", e),
+            }
         }
     }
 }
 
-enum InstructionResult {
-    Ok,
-    Close,
-}
-
 impl Session for TcpSession {
     fn send(&self, message: Message, _context: Context) -> Result<(), SendError> {
-        let send = self.send.clone();
-        tokio::spawn(async move {
-            match send.send(Instruction::Outgoing(message)).await {
-                Ok(_) => {}
-                Err(e) => eprintln!("TCP send error: {}", e),
-            }
-        });
+        let mut tcb = self.tcb.write().unwrap();
+        tcb.send(message);
+        self.follow_up(&mut *tcb);
         Ok(())
     }
 
@@ -158,6 +118,7 @@ impl Session for TcpSession {
 }
 
 /// An error that occurred during `TcpSession::receive`
+#[allow(unused)]
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveError {
     #[error("Attempted to receive on a closing connection")]
@@ -168,9 +129,4 @@ pub enum ReceiveError {
     Demux(#[from] DemuxError),
     #[error("{0}")]
     Send(#[from] SendError),
-}
-
-enum Instruction {
-    Incoming(Segment),
-    Outgoing(Message),
 }
