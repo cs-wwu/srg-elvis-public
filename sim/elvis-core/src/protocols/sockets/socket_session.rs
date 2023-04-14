@@ -36,8 +36,14 @@ impl SocketSession {
         match *self.upstream.read().unwrap() {
             Some(sock) => self.socket_api.clone().forward_to_socket(
                 sock,
-                self.stored_msg.read().unwrap().clone().unwrap(),
-                self.stored_cxt.read().unwrap().clone().unwrap(),
+                match self.stored_msg.read().unwrap().clone() {
+                    Some(msg) => msg,
+                    None => return Err(DemuxError::MissingContext)
+                },
+                match self.stored_cxt.read().unwrap().clone() {
+                    Some(cxt) => cxt,
+                    None => return Err(DemuxError::MissingContext)
+                },
             ),
             None => Err(DemuxError::MissingSession),
         }
