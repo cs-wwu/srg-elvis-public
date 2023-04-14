@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-
 use crate::applications::{Capture, Router, SendMessage};
 use elvis_core::{
-    network::Mac,
     protocol::SharedProtocol,
     protocols::{
         ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
         udp::Udp,
-        Pci,
+        Pci, Arp,
     },
     run_internet, Machine, Message, Network,
 };
@@ -34,19 +31,6 @@ pub async fn router_multi() {
     .into_iter()
     .collect();
 
-    // the arp table for the first router in path
-    // tells the router which machine on the destination tap slot
-    // to send the message to.
-    let arp_table1: HashMap<Ipv4Address, Mac> = [
-        (IP_ADDRESS_1, 1),
-        (IP_ADDRESS_2, 1),
-        (IP_ADDRESS_3, 1),
-        (IP_ADDRESS_4, 1),
-        (IP_ADDRESS_5, 2),
-    ]
-    .into_iter()
-    .collect();
-
     // the ip table for the second router in the path
     let ip_table2: IpToTapSlot = [
         (IP_ADDRESS_1, 0),
@@ -57,10 +41,6 @@ pub async fn router_multi() {
     ]
     .into_iter()
     .collect();
-
-    // the arp table for the second router in the path
-    let arp_table2: HashMap<Ipv4Address, Mac> =
-        [(IP_ADDRESS_2, 1), (IP_ADDRESS_3, 1)].into_iter().collect();
 
     // needed to configure captures
     let dt1: IpToTapSlot = [(IP_ADDRESS_2, 0)].into_iter().collect();
@@ -87,6 +67,7 @@ pub async fn router_multi() {
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new([(destination, 0)].into_iter().collect()).shared(),
+            Arp::new().shared(),
             Pci::new([networks[0].tap()]).shared(),
             SendMessage::new(Message::new(b"Hello World!"), destination, 0xbeef)
                 .remote_mac(1)
@@ -95,16 +76,19 @@ pub async fn router_multi() {
         // machine representing our router
         Machine::new([
             Pci::new([networks[0].tap(), networks[1].tap(), networks[2].tap()]).shared(),
-            Router::new(ip_table1, arp_table1).shared(),
+            Arp::new().shared(),
+            Router::new(ip_table1).shared(),
         ]),
         Machine::new([
             Pci::new([networks[1].tap(), networks[3].tap(), networks[4].tap()]).shared(),
-            Router::new(ip_table2, arp_table2).shared(),
+            Arp::new().shared(),
+            Router::new(ip_table2).shared(),
         ]),
         // capture for destination 1
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt1).shared(),
+            Arp::new().shared(),
             Pci::new([networks[3].tap()]).shared(),
             d1.clone(),
         ]),
@@ -112,6 +96,7 @@ pub async fn router_multi() {
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt2).shared(),
+            Arp::new().shared(),
             Pci::new([networks[4].tap()]).shared(),
             d2.clone(),
         ]),
@@ -119,6 +104,7 @@ pub async fn router_multi() {
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt3).shared(),
+            Arp::new().shared(),
             Pci::new([networks[2].tap()]).shared(),
             d3.clone(),
         ]),
@@ -126,6 +112,7 @@ pub async fn router_multi() {
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(dt4).shared(),
+            Arp::new().shared(),
             Pci::new([networks[2].tap()]).shared(),
             d4.clone(),
         ]),
@@ -137,6 +124,7 @@ pub async fn router_multi() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    #[tracing_test::traced_test]
     async fn router_multi() {
         super::router_multi().await
     }

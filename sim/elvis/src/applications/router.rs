@@ -1,10 +1,9 @@
 use elvis_core::{
     message::Message,
-    network::Mac,
     protocol::Context,
     protocols::ipv4::ipv4_parsing::Ipv4Header,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4Address},
+        ipv4::{IpToTapSlot},
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Pci,
     },
@@ -12,25 +11,20 @@ use elvis_core::{
     Control, Id, Network, ProtocolMap,
 };
 use std::{
-    collections::HashMap,
     sync::{Arc, RwLock},
 };
 use tokio::sync::{mpsc::Sender, Barrier};
 
-pub type Arp = HashMap<Ipv4Address, Mac>;
-
 pub struct Router {
     outgoing: Arc<RwLock<Option<Vec<SharedSession>>>>,
     ip_table: IpToTapSlot,
-    arp_table: Arp,
 }
 
 impl Router {
-    pub fn new(ip_table: IpToTapSlot, arp_table: Arp) -> Self {
+    pub fn new(ip_table: IpToTapSlot) -> Self {
         Self {
             outgoing: Default::default(),
             ip_table,
-            arp_table,
         }
     }
 
@@ -98,14 +92,6 @@ impl Application for Router {
         let header: Ipv4Header =
             Ipv4Header::from_bytes(message.iter()).expect("Could not parse message header");
         let address = header.destination;
-
-        // println!("{}", address);
-
-        if let Some(destination_mac) = self.arp_table.get(&address) {
-            // println!("{}", destination_mac);
-
-            Network::set_destination(*destination_mac, &mut context.control);
-        }
 
         Network::set_protocol(Ipv4::ID, &mut context.control);
 
