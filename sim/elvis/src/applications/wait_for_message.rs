@@ -82,7 +82,6 @@ impl Application for WaitForMessage {
     }
 
     fn receive(&self, message: Message, _control: Control) -> Result<(), ApplicationError> {
-        println!("Receive");
         let mut actual = self.actual.write().unwrap();
         actual.concatenate(message);
 

@@ -41,5 +41,5 @@ pub use tcp_with_reliable::tcp_with_reliable;
 
 // pub mod subscribing;
 
-// mod tcp_gigabyte_bench;
-// pub use tcp_gigabyte_bench::tcp_gigabyte_bench;
+mod tcp_gigabyte_bench;
+pub use tcp_gigabyte_bench::tcp_gigabyte_bench;
