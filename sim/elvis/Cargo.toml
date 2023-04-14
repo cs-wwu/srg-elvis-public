@@ -14,7 +14,7 @@ rustc-hash = "1.1.0"
 nom = "7"
 
 [dev-dependencies]
-criterion = { version = "0.4.0", features = [ "async_tokio", "html_reports" ] }
+criterion = { version = "0.4.0", features = [ "html_reports" ] }
 anyhow = "1.0.66"
 ntest = "0.9"
 

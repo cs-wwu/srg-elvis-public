@@ -56,17 +56,21 @@ impl Gcd {
     }
 
     pub fn start(self, machines: Arc<Vec<Machine>>, networks: Arc<Vec<Network>>) {
-        let mut threads = Vec::with_capacity(self.threads);
-        for _ in 0..self.threads {
-            let tx = self.tx.clone();
-            let rx = self.rx.clone();
-            let networks = networks.clone();
-            let machines = machines.clone();
-            let handle = thread::spawn(move || main_loop(tx, rx, networks, machines));
-            threads.push(handle);
-        }
-        for thread in threads {
-            thread.join().unwrap();
+        if self.threads > 1 {
+            let mut threads = Vec::with_capacity(self.threads);
+            for _ in 0..self.threads {
+                let tx = self.tx.clone();
+                let rx = self.rx.clone();
+                let networks = networks.clone();
+                let machines = machines.clone();
+                let handle = thread::spawn(move || main_loop(tx, rx, networks, machines));
+                threads.push(handle);
+            }
+            for thread in threads {
+                thread.join().unwrap();
+            }
+        } else {
+            main_loop(self.tx, self.rx, networks, machines);
         }
     }
 }
