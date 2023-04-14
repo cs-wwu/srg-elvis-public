@@ -7,7 +7,7 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     session::{SendError, SharedSession},
     Control, Protocol,
 };
@@ -29,7 +29,12 @@ pub trait Application {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError>;
+    fn receive(
+        &self,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError>;
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
@@ -102,9 +107,10 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         &self,
         message: Message,
         _caller: SharedSession,
-        context: Context,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        self.application.receive(message, context)?;
+        self.application.receive(message, control, protocols)?;
         Ok(())
     }
 

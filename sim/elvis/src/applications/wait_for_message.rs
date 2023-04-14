@@ -1,7 +1,6 @@
 use elvis_core::{
     gcd::GcdHandle,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
@@ -88,7 +87,12 @@ impl Application for WaitForMessage {
         Ok(())
     }
 
-    fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         println!("Receive");
         let mut actual = self.actual.write().unwrap();
         actual.concatenate(message);

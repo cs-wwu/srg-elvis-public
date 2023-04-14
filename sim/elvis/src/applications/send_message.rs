@@ -1,7 +1,6 @@
 use elvis_core::{
     gcd::GcdHandle,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         udp::Udp,
@@ -71,7 +70,6 @@ impl Application for SendMessage {
         let protocol = protocols
             .protocol(self.transport.id())
             .expect("No such protocol");
-        let context = Context::new(protocols.clone());
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         gcd.job(move || {
             let session = protocol
@@ -79,14 +77,19 @@ impl Application for SendMessage {
                 .unwrap();
             for message in messages {
                 session
-                    .send(message, context.clone())
+                    .send(message, Control::new(), protocols.clone())
                     .expect("SendMessage failed to send");
             }
         });
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

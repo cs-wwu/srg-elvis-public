@@ -4,10 +4,10 @@ use crate::{
     id::Id,
     message::Message,
     network::Network,
-    protocol::{Context, DemuxError},
+    protocol::DemuxError,
     protocols::pci::Pci,
     session::{QueryError, SendError, SharedSession},
-    Session,
+    Control, ProtocolMap, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -39,17 +39,27 @@ impl Ipv4Session {
         }
     }
 
-    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
-        context
+    pub fn receive(
+        self: Arc<Self>,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), DemuxError> {
+        protocols
             .protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, context)?;
+            .demux(message, self, control, protocols)?;
         Ok(())
     }
 }
 
 impl Session for Ipv4Session {
-    fn send(&self, mut message: Message, mut context: Context) -> Result<(), SendError> {
+    fn send(
+        &self,
+        mut message: Message,
+        mut control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
         let length = message.iter().count();
         let header = match Ipv4HeaderBuilder::new(
             self.id.local,
@@ -65,13 +75,13 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        Pci::set_pci_slot(self.destination.slot, &mut context.control);
-        Network::set_protocol(Ipv4::ID, &mut context.control);
+        Pci::set_pci_slot(self.destination.slot, &mut control);
+        Network::set_protocol(Ipv4::ID, &mut control);
         if let Some(mac) = self.destination.mac {
-            Network::set_destination(mac, &mut context.control);
+            Network::set_destination(mac, &mut control);
         }
         message.header(header);
-        self.downstream.send(message, context)?;
+        self.downstream.send(message, control, protocols)?;
         Ok(())
     }
 

@@ -7,7 +7,7 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
     Control, FxDashMap, Protocol,
@@ -151,14 +151,15 @@ impl Protocol for Udp {
         &self,
         mut message: Message,
         caller: SharedSession,
-        mut context: Context,
+        mut control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.control).map_err(|_| {
+        let local_address = Ipv4::get_local_address(&control).map_err(|_| {
             eprintln!("Missing local address on context");
             DemuxError::MissingContext
         })?;
-        let remote_address = Ipv4::get_remote_address(&context.control).map_err(|_| {
+        let remote_address = Ipv4::get_remote_address(&control).map_err(|_| {
             eprintln!("Missing remote address on context");
             DemuxError::MissingContext
         })?;
@@ -184,8 +185,8 @@ impl Protocol for Udp {
         );
 
         // Add the header information to the context
-        Self::set_local_port(session_id.local.port, &mut context.control);
-        Self::set_remote_port(session_id.remote.port, &mut context.control);
+        Self::set_local_port(session_id.local.port, &mut control);
+        Self::set_remote_port(session_id.remote.port, &mut control);
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
 
@@ -226,7 +227,7 @@ impl Protocol for Udp {
                 session
             }
         };
-        session.receive(message, context)?;
+        session.receive(message, control, protocols)?;
         Ok(())
     }
 

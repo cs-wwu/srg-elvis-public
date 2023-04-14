@@ -1,6 +1,5 @@
 use elvis_core::{
     gcd::GcdHandle,
-    protocol::Context,
     protocols::{
         pci::Pci,
         user_process::{Application, ApplicationError},
@@ -55,7 +54,12 @@ impl Application for QueryTester {
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         unreachable!()
     }
 }

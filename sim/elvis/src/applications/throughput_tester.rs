@@ -1,7 +1,6 @@
 use elvis_core::{
     gcd::GcdHandle,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
@@ -71,7 +70,12 @@ impl Application for ThroughputTester {
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         let now = SystemTime::now();
         if let Some(previous) = self.previous_receipt.write().unwrap().replace(now) {
             let elapsed = now.duration_since(previous).unwrap();

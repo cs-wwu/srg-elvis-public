@@ -2,9 +2,9 @@ use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
     gcd::GcdHandle,
-    protocol::{Context, DemuxError, SharedProtocol},
+    protocol::{DemuxError, SharedProtocol},
     session::{QueryError, SendError, SharedSession},
-    Id, Message, ProtocolMap, Session,
+    Control, Id, Message, ProtocolMap, Session,
 };
 use std::{
     sync::{Arc, RwLock, Weak},
@@ -84,10 +84,14 @@ impl TcpSession {
     // TODO(hardint): This context might not be right. The Control should
     // probably be empty.
     fn follow_up(&self, tcb: &mut Tcb) {
-        let context = Context::new(self.protocols.clone());
+        let protocols = self.protocols.clone();
+        let control = Control::new();
         for mut segment in tcb.segments() {
             segment.text.header(segment.header.serialize());
-            match self.downstream.send(segment.text, context.clone()) {
+            match self
+                .downstream
+                .send(segment.text, control.clone(), protocols.clone())
+            {
                 Ok(_) => {}
                 Err(e) => eprintln!("Send error: {}", e),
             }
@@ -95,7 +99,7 @@ impl TcpSession {
 
         let received = tcb.receive();
         if !received.is_empty() {
-            match self.upstream.demux(received, self.me(), context.clone()) {
+            match self.upstream.demux(received, self.me(), control, protocols) {
                 Ok(_) => {}
                 Err(e) => eprintln!("Demux error: {}", e),
             }
@@ -104,7 +108,12 @@ impl TcpSession {
 }
 
 impl Session for TcpSession {
-    fn send(&self, message: Message, _context: Context) -> Result<(), SendError> {
+    fn send(
+        &self,
+        message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
         let mut tcb = self.tcb.write().unwrap();
         tcb.send(message);
         self.follow_up(&mut *tcb);

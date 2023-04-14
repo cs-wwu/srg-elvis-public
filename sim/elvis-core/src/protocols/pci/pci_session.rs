@@ -6,9 +6,9 @@ use crate::{
     machine::{PciSlot, ProtocolMap},
     message::Message,
     network::{Mac, Mtu, Network},
-    protocol::{Context, DemuxError},
+    protocol::DemuxError,
     session::{QueryError, SendError},
-    Id, Session,
+    Control, Id, Session,
 };
 use std::sync::{Arc, RwLock};
 
@@ -49,10 +49,10 @@ impl PciSession {
         delivery: Delivery,
         protocols: ProtocolMap,
     ) -> Result<(), ReceiveError> {
-        let mut context = Context::new(protocols);
-        Pci::set_pci_slot(self.slot, &mut context.control);
-        Network::set_sender(delivery.sender, &mut context.control);
-        let protocol = match context.protocol(delivery.protocol) {
+        let mut control = Control::new();
+        Pci::set_pci_slot(self.slot, &mut control);
+        Network::set_sender(delivery.sender, &mut control);
+        let protocol = match protocols.protocol(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
                 eprintln!(
@@ -62,21 +62,26 @@ impl PciSession {
                 Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
-        protocol.demux(delivery.message, self.clone(), context)?;
+        protocol.demux(delivery.message, self.clone(), control, protocols)?;
         Ok(())
     }
 }
 
 impl Session for PciSession {
-    fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
-        let protocol = match Network::get_protocol(&context.control) {
+    fn send(
+        &self,
+        message: Message,
+        control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
+        let protocol = match Network::get_protocol(&control) {
             Ok(protocol) => protocol,
             Err(_) => {
                 eprintln!("Protocol missing from context");
                 Err(SendError::MissingContext)?
             }
         };
-        let destination = Network::get_destination(&context.control).ok();
+        let destination = Network::get_destination(&control).ok();
 
         if message.len() > self.mtu as usize {
             eprintln!("Attempted to send a message larger than the network can handle");

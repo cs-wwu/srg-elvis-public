@@ -9,7 +9,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::{Mac, Network},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
     Control, FxDashMap, Protocol,
@@ -161,7 +161,8 @@ impl Protocol for Ipv4 {
         &self,
         mut message: Message,
         caller: SharedSession,
-        mut context: Context,
+        mut control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         // Extract identifying information from the header and the context and
         // add header information to the context
@@ -175,8 +176,8 @@ impl Protocol for Ipv4 {
         message.remove_front(header.ihl as usize * 4);
         let identifier = SessionId::new(header.destination, header.source);
 
-        Self::set_local_address(identifier.local, &mut context.control);
-        Self::set_remote_address(identifier.remote, &mut context.control);
+        Self::set_local_address(identifier.local, &mut control);
+        Self::set_remote_address(identifier.remote, &mut control);
 
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
@@ -202,11 +203,11 @@ impl Protocol for Ipv4 {
                         }
                     }
                 };
-                let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
+                let slot = Pci::get_pci_slot(&control).map_err(|_| {
                     eprintln!("Missing network ID on context");
                     DemuxError::MissingContext
                 })?;
-                let mac = Network::get_sender(&context.control).map_err(|_| {
+                let mac = Network::get_sender(&control).map_err(|_| {
                     eprintln!("Missing sender MAC on context");
                     DemuxError::MissingContext
                 })?;
@@ -216,7 +217,7 @@ impl Protocol for Ipv4 {
                 session
             }
         };
-        session.receive(message, context)?;
+        session.receive(message, control, protocols)?;
         Ok(())
     }
 

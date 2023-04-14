@@ -1,7 +1,6 @@
 use elvis_core::{
     gcd::GcdHandle,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         udp::Udp,
@@ -71,13 +70,18 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         self.outgoing
             .read()
             .unwrap()
             .as_ref()
             .unwrap()
-            .send(message, context)?;
+            .send(message, control, protocols)?;
         Ok(())
     }
 }

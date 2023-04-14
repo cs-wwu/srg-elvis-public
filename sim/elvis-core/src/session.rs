@@ -1,9 +1,10 @@
 //! The [`Session`] trait and supporting types.
 
-use super::{protocol::Context, Message};
+use super::Message;
 use crate::{
     control::{Key, Primitive},
     network::Mtu,
+    Control, ProtocolMap,
 };
 use std::sync::Arc;
 use thiserror::Error as ThisError;
@@ -24,7 +25,12 @@ pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 pub trait Session {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    fn send(&self, message: Message, context: Context) -> Result<(), SendError>;
+    fn send(
+        &self,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), SendError>;
 
     /// Gets a piece of information from some session in the protocol stack.
     fn query(&self, key: Key) -> Result<Primitive, QueryError>;

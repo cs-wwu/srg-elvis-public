@@ -2,7 +2,6 @@ use elvis_core::{
     gcd::GcdHandle,
     message::Message,
     network::Network,
-    protocol::Context,
     protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
     protocols::{
         pci::Pci,
@@ -70,7 +69,12 @@ impl Application for Router {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(&self, message: Message, mut context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        mut control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         // obtain destination address of the message
         // cant use this as we dont have an ipv4 protocol in the router
         // should probably extract it from the message object somehow
@@ -85,9 +89,9 @@ impl Application for Router {
             Some(recipient) => recipient,
             None => return Ok(()),
         };
-        Network::set_protocol(Ipv4::ID, &mut context.control);
+        Network::set_protocol(Ipv4::ID, &mut control);
         if let Some(mac) = recipient.mac {
-            Network::set_destination(mac, &mut context.control);
+            Network::set_destination(mac, &mut control);
         }
 
         self.outgoing
@@ -95,7 +99,7 @@ impl Application for Router {
             .expect("could not get outgoing as reference")
             .get(recipient.slot as usize)
             .expect("Could not send message")
-            .send(message, context)?;
+            .send(message, control, protocols)?;
 
         Ok(())
     }

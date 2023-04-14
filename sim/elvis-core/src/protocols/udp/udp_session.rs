@@ -3,10 +3,10 @@ use crate::{
     control::{Key, Primitive},
     id::Id,
     message::Message,
-    protocol::{Context, DemuxError},
+    protocol::DemuxError,
     protocols::utility::Socket,
     session::{QueryError, SendError, SharedSession},
-    Session,
+    Control, ProtocolMap, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -17,17 +17,27 @@ pub(super) struct UdpSession {
 }
 
 impl UdpSession {
-    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
-        context
+    pub fn receive(
+        self: Arc<Self>,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), DemuxError> {
+        protocols
             .protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, context)?;
+            .demux(message, self, control, protocols)?;
         Ok(())
     }
 }
 
 impl Session for UdpSession {
-    fn send(&self, mut message: Message, context: Context) -> Result<(), SendError> {
+    fn send(
+        &self,
+        mut message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
         let id = self.id;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
@@ -46,7 +56,7 @@ impl Session for UdpSession {
             }
         };
         message.header(header);
-        self.downstream.send(message, context)?;
+        self.downstream.send(message, control, protocols)?;
         Ok(())
     }
 

@@ -2,7 +2,6 @@ use super::Transport;
 use elvis_core::{
     gcd::GcdHandle,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
@@ -83,7 +82,12 @@ impl Application for Capture {
         Ok(())
     }
 
-    fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
         if *self.cur_count.read().unwrap() >= self.message_count {
