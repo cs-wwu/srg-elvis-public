@@ -175,12 +175,19 @@ impl ArpSession {
 impl Session for ArpSession {
     /// Sends a message from the upstream session down to the PCI session,
     /// attaching a destination MAC address if one is not already attached.
+    /// (This will not attach any other data, so you can send messages with a different
+    /// IP address through this session. Useful for building a router!)
     /// 
     /// This will return SendError::Other if the ARP session could not resolve the destination MAC address.
     /// This will occur if there is no destination machine with the local IP address.
     /// 
     /// This method may return Ok(()) even if a message failed to send!
     fn send(self: Arc<Self>, message: Message, mut context: Context) -> Result<(), SendError> {
+        // If this message already has a destination MAC, do nothing
+        if Network::get_destination(&context.control).is_ok() {
+            return self.downstream.clone().send(message, context);
+        }
+        
         // If we can get the status right away and it was set, just use that
         match self.clone().try_get_status() {
             Ok(MacStatus::Set(mac)) => {
