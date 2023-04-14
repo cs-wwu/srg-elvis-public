@@ -95,7 +95,7 @@ impl TcpSession {
 
                 for mut segment in tcb.segments() {
                     segment.text.header(segment.header.serialize());
-                    match downstream.clone().send(segment.text, context.clone()) {
+                    match downstream.send(segment.text, context.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Send error: {}", e),
                     }
@@ -103,10 +103,7 @@ impl TcpSession {
 
                 let received = tcb.receive();
                 if !received.is_empty() {
-                    match upstream
-                        .clone()
-                        .demux(received, me.clone(), context.clone())
-                    {
+                    match upstream.demux(received, me.clone(), context.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Demux error: {}", e),
                     }
@@ -117,9 +114,10 @@ impl TcpSession {
     }
 
     /// Receive an incoming message from the TCP as part of the demux flow
-    pub fn receive(self: Arc<Self>, segment: Segment, _context: Context) {
+    pub fn receive(&self, segment: Segment, _context: Context) {
+        let send = self.send.clone();
         tokio::spawn(async move {
-            match self.send.send(Instruction::Incoming(segment)).await {
+            match send.send(Instruction::Incoming(segment)).await {
                 Ok(_) => {}
                 Err(e) => eprintln!("TCP receive error: {}", e),
             }
@@ -146,9 +144,10 @@ enum InstructionResult {
 }
 
 impl Session for TcpSession {
-    fn send(self: Arc<Self>, message: Message, _context: Context) -> Result<(), SendError> {
+    fn send(&self, message: Message, _context: Context) -> Result<(), SendError> {
+        let send = self.send.clone();
         tokio::spawn(async move {
-            match self.send.send(Instruction::Outgoing(message)).await {
+            match send.send(Instruction::Outgoing(message)).await {
                 Ok(_) => {}
                 Err(e) => eprintln!("TCP send error: {}", e),
             }
@@ -156,9 +155,9 @@ impl Session for TcpSession {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         // TODO(hardint): Add queries
-        self.downstream.clone().query(key)
+        self.downstream.query(key)
     }
 }
 

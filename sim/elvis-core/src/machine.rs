@@ -49,10 +49,10 @@ impl Machine {
         let mut protocols_map = FxHashMap::default();
         let mut protocol_ids = Vec::new();
         for protocol in protocols.into_iter() {
-            match protocols_map.entry(protocol.clone().id()) {
+            match protocols_map.entry(protocol.id()) {
                 Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
                 Entry::Vacant(entry) => {
-                    protocol_ids.push(protocol.clone().id());
+                    protocol_ids.push(protocol.id());
                     entry.insert(protocol);
                 }
             }
@@ -68,7 +68,6 @@ impl Machine {
     pub(crate) fn start(self, shutdown: Shutdown, initialized: Arc<Barrier>) {
         for protocol in self.protocols.iter() {
             protocol
-                .clone()
                 .start(
                     shutdown.clone(),
                     initialized.clone(),

@@ -5,9 +5,7 @@ use crate::{
     id::Id,
     machine::PciSlot,
     message::Message,
-    protocol::{
-        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
-    },
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::SharedSession,
     Control, Network, Protocol, ProtocolMap, Shutdown,
 };
@@ -51,7 +49,7 @@ impl Pci {
     }
 
     /// Creates a new network tap.
-    pub fn shared(self) -> SharedProtocol {
+    pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
 
@@ -69,12 +67,12 @@ impl Pci {
 }
 
 impl Protocol for Pci {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     fn open(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         participants: Control,
         _protocols: ProtocolMap,
@@ -95,7 +93,7 @@ impl Protocol for Pci {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,
@@ -104,7 +102,7 @@ impl Protocol for Pci {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         _message: Message,
         _caller: SharedSession,
         _context: Context,
@@ -113,13 +111,13 @@ impl Protocol for Pci {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         for session in self.sessions.iter() {
-            session.clone().start(protocols.clone());
+            session.start(protocols.clone());
         }
         tokio::spawn(async move {
             // Wait until all the taps have started before starting the sim
@@ -128,7 +126,7 @@ impl Protocol for Pci {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         match key {
             Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.len() as u64).into()),
             _ => Err(QueryError::NonexistentKey),

@@ -1,9 +1,5 @@
 //! A special Protocol that can be used to listen to messages received by another protocol.
 
-use std::sync::Arc;
-
-use tokio::sync::{mpsc, Barrier};
-
 use crate::{
     control::{Key, Primitive},
     protocol::{
@@ -12,8 +8,11 @@ use crate::{
     session::{self, SharedSession},
     Control, Id, Message, Protocol, ProtocolMap, Session, Shutdown,
 };
+use std::sync::{Arc, RwLock};
+use tokio::sync::{mpsc, Barrier};
 
-type Senders = Vec<mpsc::UnboundedSender<(Message, Context)>>;
+type Sender = mpsc::UnboundedSender<(Message, Context)>;
+type Receiver = mpsc::UnboundedReceiver<(Message, Context)>;
 
 /// "SubWrap" is short for "Subscribeable wrapper." A special Protocol that can be used to listen to messages received by another protocol.
 ///
@@ -63,9 +62,9 @@ pub struct SubWrap {
     /// The protocol wrapped by this one
     inner: SharedProtocol,
     /// send on these when the demux method is called
-    demux_senders: Senders,
+    demux_senders: Vec<Sender>,
     /// send on these when the send method is called on one of this wrapper's sessions
-    send_senders: Senders,
+    send_senders: Arc<RwLock<Vec<Sender>>>,
 }
 
 impl SubWrap {
@@ -94,7 +93,7 @@ impl SubWrap {
     /// * [`recv()`](mpsc::UnboundedReceiver::recv) them, or
     /// * [`close()`](mpsc::UnboundedReceiver::close) the receiver, or
     /// * drop the Receiver.
-    pub fn subscribe_demux(&mut self) -> mpsc::UnboundedReceiver<(Message, Context)> {
+    pub fn subscribe_demux(&mut self) -> Receiver {
         let (send, recv) = mpsc::unbounded_channel();
         self.demux_senders.push(send);
         recv
@@ -114,39 +113,39 @@ impl SubWrap {
     /// * [`recv()`](mpsc::UnboundedReceiver::recv) them, or
     /// * [`close()`](mpsc::UnboundedReceiver::close) the receiver, or
     /// * drop the Receiver.
-    pub fn subscribe_send(&mut self) -> mpsc::UnboundedReceiver<(Message, Context)> {
+    pub fn subscribe_send(&mut self) -> Receiver {
         let (send, recv) = mpsc::unbounded_channel();
-        self.send_senders.push(send);
+        self.send_senders.write().unwrap().push(send);
         recv
     }
 }
 
 impl Protocol for SubWrap {
-    fn id(self: Arc<Self>) -> Id {
-        self.inner.clone().id()
+    fn id(&self) -> Id {
+        self.inner.id()
     }
 
     /// Calls [`start`](Protocol::start) on the inner protocol.
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        self.inner.clone().start(shutdown, initialized, protocols)
+        self.inner.start(shutdown, initialized, protocols)
     }
 
     /// Calls [`open`](Protocol::open) on the inner protocol.
     /// Wraps the resulting session with a [`SubWrapSession`].
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
-        let sesh = self.inner.clone().open(upstream, participants, protocols)?;
+        let sesh = self.inner.open(upstream, participants, protocols)?;
         let result = SubWrapSession {
-            parent: self,
+            send_senders: self.send_senders.clone(),
             inner: sesh,
         };
         Ok(Arc::new(result))
@@ -154,53 +153,54 @@ impl Protocol for SubWrap {
 
     /// Calls [`listen`](Protocol::listen) on the inner protocol.
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
-        self.inner.clone().listen(upstream, participants, protocols)
+        self.inner.listen(upstream, participants, protocols)
     }
 
     /// Sends the message to all receivers obtained with [`subscribe_demux`](Self::subscribe_demux), then calls `demux` on the inner protocol.
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         caller: SharedSession,
         context: Context,
     ) -> Result<(), DemuxError> {
         send_on_all(&self.demux_senders, &message, &context);
-        self.inner.clone().demux(message, caller, context)
+        self.inner.demux(message, caller, context)
     }
 
     /// Calls [`query`](Protocol::query) on the inner protocol and returns the result.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        self.inner.clone().query(key)
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
+        self.inner.query(key)
     }
 }
 
 /// Session for [`SubWrap`].
 pub struct SubWrapSession {
     /// The SubWrap protocol that created this session
-    parent: Arc<SubWrap>,
+    send_senders: Arc<RwLock<Vec<Sender>>>,
     inner: SharedSession,
 }
 
 impl Session for SubWrapSession {
     /// Sends the message to all receivers created by [`subscribe_send`](SubWrap::subscribe_send),
     /// then calls [`send`](Session::send) on the inner session.
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), session::SendError> {
-        send_on_all(&self.parent.send_senders, &message, &context);
-        self.inner.clone().send(message, context)
+    fn send(&self, message: Message, context: Context) -> Result<(), session::SendError> {
+        let send_senders = self.send_senders.read().unwrap();
+        send_on_all(send_senders.as_slice(), &message, &context);
+        self.inner.send(message, context)
     }
 
     /// Calls [`query`](Session::query) on the inner Session, then returns the result.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, session::QueryError> {
-        self.inner.clone().query(key)
+    fn query(&self, key: Key) -> Result<Primitive, session::QueryError> {
+        self.inner.query(key)
     }
 }
 
-fn send_on_all(senders: &Senders, message: &Message, context: &Context) {
+fn send_on_all(senders: &[Sender], message: &Message, context: &Context) {
     for sender in senders {
         if !sender.is_closed() {
             let _ = sender.send((message.clone(), context.clone()));

@@ -130,7 +130,7 @@ impl Network {
 
             None => {
                 for tap in self.taps.iter() {
-                    match tap.clone().receive(delivery.clone()) {
+                    match tap.receive(delivery.clone()) {
                         Ok(_) => {}
                         Err(e) => {
                             tracing::error!("Failed to deliver a message: {}", e)

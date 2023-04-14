@@ -35,7 +35,7 @@ impl PciSession {
 
     /// Called by the owning [`Pci`] protocol at the beginning of the simulation
     /// to start the contained tap running
-    pub(super) fn start(self: Arc<Self>, protocols: ProtocolMap) {
+    pub(super) fn start(&self, protocols: ProtocolMap) {
         *self.protocols.write().unwrap() = Some(protocols);
     }
 
@@ -44,7 +44,7 @@ impl PciSession {
     /// tap holds a reference to this session as a concrete type and having
     /// specialized arguments to pass a full network frame to this session is
     /// useful.
-    pub(crate) fn receive(self: Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
+    pub(crate) fn receive(self: &Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
         let mut context = Context::new(self.protocols.read().unwrap().as_ref().unwrap().clone());
         Pci::set_pci_slot(self.index, &mut context.control);
         Network::set_sender(delivery.sender, &mut context.control);
@@ -58,14 +58,14 @@ impl PciSession {
                 Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
-        protocol.demux(delivery.message, self, context)?;
+        protocol.demux(delivery.message, self.clone(), context)?;
         Ok(())
     }
 }
 
 impl Session for PciSession {
     #[tracing::instrument(name = "PciSession::send", skip_all)]
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
+    fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
         let protocol = match Network::get_protocol(&context.control) {
             Ok(protocol) => protocol,
             Err(_) => {
@@ -87,13 +87,14 @@ impl Session for PciSession {
             protocol,
         };
 
+        let network = self.network.clone();
         tokio::spawn(async move {
-            self.network.send(delivery).await;
+            network.send(delivery).await;
         });
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         match key {
             Pci::MTU_QUERY_KEY => Ok(self.network.mtu.into()),
             _ => Err(QueryError::MissingKey),

@@ -77,7 +77,7 @@ pub async fn router_multi() {
                 networks[1].clone(),
                 networks[2].clone(),
             ])
-            .shared(),
+            .shared() as SharedProtocol,
             Router::new(ip_table1).shared(),
         ]),
         Machine::new([
@@ -86,7 +86,7 @@ pub async fn router_multi() {
                 networks[3].clone(),
                 networks[4].clone(),
             ])
-            .shared(),
+            .shared() as SharedProtocol,
             Router::new(ip_table2).shared(),
         ]),
         // capture for destination 1

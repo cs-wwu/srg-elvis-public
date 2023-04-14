@@ -47,7 +47,6 @@ impl Application for Router {
 
         // query the number of taps in our pci session
         let number_taps = pci
-            .clone()
             .query(Pci::SLOT_COUNT_QUERY_KEY)
             .expect("could not get slot count")
             .to_u64()
@@ -59,7 +58,6 @@ impl Application for Router {
             let mut participants = Control::new();
             Pci::set_pci_slot(i as u32, &mut participants);
             let val = pci
-                .clone()
                 .open(Self::ID, participants.clone(), protocols.clone())
                 .expect("could not open session");
             sessions.push(val);
@@ -103,7 +101,6 @@ impl Application for Router {
             .expect("could not get outgoing as reference")
             .get(recipient.slot as usize)
             .expect("Could not send message")
-            .clone()
             .send(message, context)?;
 
         Ok(())

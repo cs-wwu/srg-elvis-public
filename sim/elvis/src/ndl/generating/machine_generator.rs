@@ -116,7 +116,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
 
         for _count in 0..machine_count {
             let mut networks_to_be_added = Vec::new();
-            let mut protocols_to_be_added = Vec::new();
+            let mut protocols_to_be_added: Vec<SharedProtocol> = Vec::new();
             let mut ip_table = FxHashMap::default();
 
             for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
