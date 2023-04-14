@@ -86,8 +86,9 @@ impl Machine {
     /// protocols and begin participating in the simulation.
     pub(crate) fn start(&self) {
         for protocol in self.protocols.iter() {
+            let protocols = self.protocols.clone();
             protocol
-                .start(self.protocols.clone())
+                .start(protocols)
                 .expect("A protocol failed to start")
         }
     }

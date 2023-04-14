@@ -23,6 +23,14 @@ impl Gcd {
         Self { tx, rx, threads }
     }
 
+    pub fn install(&self) {
+        let tx = self.tx.clone();
+        let threads = self.threads;
+        GCD_HANDLE.with(move |handle| {
+            *handle.borrow_mut() = Some(GcdHandle { tx, threads });
+        });
+    }
+
     pub fn start(self, machines: Arc<Vec<Machine>>, networks: Arc<Vec<Network>>) {
         if self.threads > 1 {
             let mut threads = Vec::with_capacity(self.threads);
@@ -43,13 +51,8 @@ impl Gcd {
 }
 
 fn main_loop(gcd: Gcd, networks: Arc<Vec<Network>>, machines: Arc<Vec<Machine>>) {
-    let Gcd { tx, rx, threads } = gcd;
-    {
-        let tx = tx.clone();
-        GCD_HANDLE.with(move |handle| {
-            *handle.borrow_mut() = Some(GcdHandle { tx, threads });
-        });
-    }
+    gcd.install();
+    let Gcd { tx, rx, threads: _ } = gcd;
     while let Ok(task) = rx.recv() {
         match task {
             Task::Shutdown => break,
