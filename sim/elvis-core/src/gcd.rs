@@ -1,13 +1,16 @@
 use crate::{
     internet::NetworkHandle,
+    machine::ProtocolMap,
     network::{Mac, Network},
+    protocol::SharedProtocol,
     Id, Machine, Message,
 };
 use flume::{Receiver, Sender};
-use std::{cell::RefCell, sync::Arc, thread, time::Instant};
+use std::{cell::RefCell, sync::Arc, thread};
 
 thread_local! {
     static GCD_HANDLE: RefCell<Option<GcdHandle>> = Default::default();
+    static PROTOCOLS: RefCell<ProtocolMap> = Default::default();
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +59,7 @@ fn main_loop(gcd: Gcd, networks: Arc<Vec<Network>>, machines: Arc<Vec<Machine>>)
     while let Ok(task) = rx.recv() {
         match task {
             Task::Shutdown => break,
-            Task::Once(job) => job(),
+
             Task::Delivery(delivery) => {
                 let network = &networks[delivery.network.0];
                 match delivery.destination {
@@ -71,13 +74,16 @@ fn main_loop(gcd: Gcd, networks: Arc<Vec<Network>>, machines: Arc<Vec<Machine>>)
                     }
                 }
             }
-            Task::At(job, when) => {
-                if Instant::now() < when {
-                    // Requeue the job
-                    tx.send(Task::At(job, when)).unwrap();
-                } else {
-                    job();
-                }
+
+            Task::Once(job, protocols) => {
+                set_protocols(protocols);
+                job();
+            }
+
+            Task::Repeat(job, protocols) => {
+                set_protocols(protocols.clone());
+                job();
+                tx.send(Task::Repeat(job, protocols)).unwrap();
             }
         }
     }
@@ -89,37 +95,11 @@ struct GcdHandle {
     pub threads: usize,
 }
 
-fn queue(task: Task) {
-    GCD_HANDLE.with(|handle| handle.borrow().as_ref().unwrap().tx.send(task).unwrap())
-}
-
-pub fn delivery(delivery: Delivery) {
-    queue(Task::Delivery(delivery));
-}
-
-pub fn job(job: impl FnOnce() + Send + 'static) {
-    queue(Task::Once(Box::new(job)));
-}
-
-pub fn job_at(job: impl FnOnce() + Send + 'static, when: Instant) {
-    queue(Task::At(Box::new(job), when))
-}
-
-pub fn shut_down() {
-    GCD_HANDLE.with(|handle| {
-        let handle = handle.borrow();
-        let handle = handle.as_ref().unwrap();
-        for _ in 0..handle.threads {
-            handle.tx.send(Task::Shutdown).unwrap();
-        }
-    })
-}
-
 enum Task {
     Shutdown,
     Delivery(Delivery),
-    Once(Box<dyn FnOnce() + Send + 'static>),
-    At(Box<dyn FnOnce() + Send + 'static>, Instant),
+    Once(Box<dyn FnOnce() + Send + 'static>, ProtocolMap),
+    Repeat(Box<dyn Fn() + Send + 'static>, ProtocolMap),
 }
 
 /// A [`Message`] in flight over a network. A delivery includes the information
@@ -138,4 +118,42 @@ pub struct Delivery {
     pub destination: Option<Mac>,
     /// The protocol that should respond to the packet, usually an IP protocol
     pub protocol: Id,
+}
+
+fn queue(task: Task) {
+    GCD_HANDLE.with(|handle| handle.borrow().as_ref().unwrap().tx.send(task).unwrap())
+}
+
+pub fn delivery(delivery: Delivery) {
+    queue(Task::Delivery(delivery));
+}
+
+pub fn job(job: impl FnOnce() + Send + 'static) {
+    queue(Task::Once(Box::new(job), get_protocols()));
+}
+
+pub fn job_at(job: impl Fn() + Send + 'static) {
+    queue(Task::Repeat(Box::new(job), get_protocols()))
+}
+
+pub fn shut_down() {
+    GCD_HANDLE.with(|handle| {
+        let handle = handle.borrow();
+        let handle = handle.as_ref().unwrap();
+        for _ in 0..handle.threads {
+            handle.tx.send(Task::Shutdown).unwrap();
+        }
+    })
+}
+
+pub(crate) fn set_protocols(protocols: ProtocolMap) {
+    PROTOCOLS.with(|handle| handle.replace(protocols));
+}
+
+fn get_protocols() -> ProtocolMap {
+    PROTOCOLS.with(|handle| handle.borrow().clone())
+}
+
+pub fn get_protocol(id: Id) -> Option<SharedProtocol> {
+    PROTOCOLS.with(|handle| handle.borrow().protocol(id))
 }

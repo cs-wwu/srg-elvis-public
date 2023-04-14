@@ -1,4 +1,5 @@
 use elvis_core::{
+    gcd::get_protocol,
     message::Message,
     network::Network,
     protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
@@ -8,7 +9,7 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap,
+    Control, Id,
 };
 use std::sync::{Arc, RwLock};
 
@@ -36,9 +37,9 @@ impl Application for Router {
 
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self) -> Result<(), ApplicationError> {
         // get the pci protocol
-        let pci = protocols.protocol(Pci::ID).expect("No such protocol");
+        let pci = get_protocol(Pci::ID).expect("No such protocol");
 
         // query the number of taps in our pci session
         let number_taps = pci
@@ -53,7 +54,7 @@ impl Application for Router {
             let mut participants = Control::new();
             Pci::set_pci_slot(i as u32, &mut participants);
             let val = pci
-                .open(Self::ID, participants.clone(), protocols.clone())
+                .open(Self::ID, participants.clone())
                 .expect("could not open session");
             sessions.push(val);
         }
@@ -68,12 +69,7 @@ impl Application for Router {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(
-        &self,
-        message: Message,
-        mut control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, message: Message, mut control: Control) -> Result<(), ApplicationError> {
         // obtain destination address of the message
         // cant use this as we dont have an ipv4 protocol in the router
         // should probably extract it from the message object somehow
@@ -98,7 +94,7 @@ impl Application for Router {
             .expect("could not get outgoing as reference")
             .get(recipient.slot as usize)
             .expect("Could not send message")
-            .send(message, control, protocols)?;
+            .send(message, control)?;
 
         Ok(())
     }

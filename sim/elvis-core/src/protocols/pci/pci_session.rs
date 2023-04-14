@@ -1,9 +1,9 @@
 use super::Pci;
 use crate::{
     control::{Key, Primitive},
-    gcd::{self, Delivery},
+    gcd::{self, get_protocol, Delivery},
     internet::NetworkHandle,
-    machine::{PciSlot, ProtocolMap},
+    machine::PciSlot,
     message::Message,
     network::{Mac, Mtu, Network},
     protocol::DemuxError,
@@ -36,15 +36,11 @@ impl PciSession {
     /// tap holds a reference to this session as a concrete type and having
     /// specialized arguments to pass a full network frame to this session is
     /// useful.
-    pub(crate) fn receive(
-        self: &Arc<Self>,
-        delivery: Delivery,
-        protocols: ProtocolMap,
-    ) -> Result<(), ReceiveError> {
+    pub(crate) fn receive(self: &Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
         let mut control = Control::new();
         Pci::set_pci_slot(self.slot, &mut control);
         Network::set_sender(delivery.sender, &mut control);
-        let protocol = match protocols.protocol(delivery.protocol) {
+        let protocol = match get_protocol(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
                 eprintln!(
@@ -54,18 +50,13 @@ impl PciSession {
                 Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
-        protocol.demux(delivery.message, self.clone(), control, protocols)?;
+        protocol.demux(delivery.message, self.clone(), control)?;
         Ok(())
     }
 }
 
 impl Session for PciSession {
-    fn send(
-        &self,
-        message: Message,
-        control: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), SendError> {
+    fn send(&self, message: Message, control: Control) -> Result<(), SendError> {
         let protocol = match Network::get_protocol(&control) {
             Ok(protocol) => protocol,
             Err(_) => {

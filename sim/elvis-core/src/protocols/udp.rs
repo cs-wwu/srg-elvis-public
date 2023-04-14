@@ -3,8 +3,8 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    gcd::get_protocol,
     id::Id,
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
@@ -65,12 +65,7 @@ impl Protocol for Udp {
         Self::ID
     }
 
-    fn open(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
+    fn open(&self, upstream: Id, participants: Control) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
         // of the higher-up protocols and we should crash. Therefore, unwrapping
@@ -104,10 +99,9 @@ impl Protocol for Udp {
             }
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = protocols
-                    .protocol(Ipv4::ID)
+                let downstream = get_protocol(Ipv4::ID)
                     .expect("No such protocol")
-                    .open(Self::ID, participants, protocols)?;
+                    .open(Self::ID, participants)?;
                 let session = Arc::new(UdpSession {
                     upstream,
                     downstream,
@@ -119,12 +113,7 @@ impl Protocol for Udp {
         }
     }
 
-    fn listen(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
+    fn listen(&self, upstream: Id, participants: Control) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
@@ -140,10 +129,9 @@ impl Protocol for Udp {
         };
         self.listen_bindings.insert(identifier, upstream);
         // Ask lower-level protocols to add the binding as well
-        protocols
-            .protocol(Ipv4::ID)
+        get_protocol(Ipv4::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+            .listen(Self::ID, participants)
     }
 
     fn demux(
@@ -151,7 +139,6 @@ impl Protocol for Udp {
         mut message: Message,
         caller: SharedSession,
         mut control: Control,
-        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
         let local_address = Ipv4::get_local_address(&control).map_err(|_| {
@@ -226,11 +213,11 @@ impl Protocol for Udp {
                 session
             }
         };
-        session.receive(message, control, protocols)?;
+        session.receive(message, control)?;
         Ok(())
     }
 
-    fn start(&self, _protocols: ProtocolMap) -> Result<(), StartError> {
+    fn start(&self) -> Result<(), StartError> {
         Ok(())
     }
 

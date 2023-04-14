@@ -4,7 +4,6 @@ use super::{message::Message, session::SharedSession, Control};
 use crate::{
     control::{Key, Primitive},
     id::Id,
-    machine::ProtocolMap,
     protocols::user_process::ApplicationError,
     session::SendError,
 };
@@ -34,7 +33,7 @@ pub trait Protocol {
     /// are ready to receive the message. Implementors may also store the
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
-    fn start(&self, protocols: ProtocolMap) -> Result<(), StartError>;
+    fn start(&self) -> Result<(), StartError>;
 
     /// Actively open a new network connection.
     ///
@@ -50,12 +49,7 @@ pub trait Protocol {
     /// example, an IP protocol might require the attributes `{local_address,
     /// remote_address}`. A UDP or TCP protocol might require the attributes
     /// `{local_address, local_port, remote_address, remote_port}`.
-    fn open(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError>;
+    fn open(&self, upstream: Id, participants: Control) -> Result<SharedSession, OpenError>;
 
     /// Listen for new connections.
     ///
@@ -72,12 +66,7 @@ pub trait Protocol {
     /// identified by `{local_address, remote_address}` and continue
     /// demultiplexing the message. Similarly, a UDP or TCP protocol would want
     /// its participant set to include {local_address, local_port}.
-    fn listen(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError>;
+    fn listen(&self, upstream: Id, participants: Control) -> Result<(), ListenError>;
 
     /// Identifies the session that a message belongs to and forwards the
     /// message to it.
@@ -102,7 +91,6 @@ pub trait Protocol {
         message: Message,
         caller: SharedSession,
         control: Control,
-        protocols: ProtocolMap,
     ) -> Result<(), DemuxError>;
 
     /// Gets a piece of information from the protocol

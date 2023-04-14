@@ -10,7 +10,7 @@ use crate::{
     network::{Mac, Mtu},
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     session::SharedSession,
-    Control, Protocol, ProtocolMap,
+    Control, Protocol,
 };
 use std::sync::{Arc, RwLock};
 
@@ -28,7 +28,6 @@ pub(crate) use pci_session::PciSession;
 #[derive(Default)]
 pub struct Pci {
     sessions: RwLock<Vec<Arc<PciSession>>>,
-    protocols: RwLock<Option<ProtocolMap>>,
 }
 
 impl Pci {
@@ -52,7 +51,6 @@ impl Pci {
     }
 
     pub fn receive(&self, delivery: Delivery) {
-        let protocols = self.protocols.read().unwrap().as_ref().unwrap().clone();
         match self
             .sessions
             .read()
@@ -60,7 +58,7 @@ impl Pci {
             .iter()
             .find(|session| session.network == delivery.network)
             .expect("This PCI is not connected to the given network")
-            .receive(delivery, protocols)
+            .receive(delivery)
         {
             Ok(_) => {}
             Err(e) => eprintln!("{}", e),
@@ -96,12 +94,7 @@ impl Protocol for Pci {
         Self::ID
     }
 
-    fn open(
-        &self,
-        _upstream: Id,
-        participants: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
+    fn open(&self, _upstream: Id, participants: Control) -> Result<SharedSession, OpenError> {
         let pci_slot = Pci::get_pci_slot(&participants).map_err(|_| {
             eprintln!("Missing PCI slot on context");
             OpenError::MissingContext
@@ -119,12 +112,7 @@ impl Protocol for Pci {
         Ok(session)
     }
 
-    fn listen(
-        &self,
-        _upstream: Id,
-        _participants: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
+    fn listen(&self, _upstream: Id, _participants: Control) -> Result<(), ListenError> {
         Ok(())
     }
 
@@ -133,13 +121,11 @@ impl Protocol for Pci {
         _message: Message,
         _caller: SharedSession,
         _control: Control,
-        _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         panic!("Cannot demux on a Pci")
     }
 
-    fn start(&self, protocols: ProtocolMap) -> Result<(), StartError> {
-        *self.protocols.write().unwrap() = Some(protocols);
+    fn start(&self) -> Result<(), StartError> {
         Ok(())
     }
 

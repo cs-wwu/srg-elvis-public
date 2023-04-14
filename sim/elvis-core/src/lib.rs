@@ -55,7 +55,6 @@ pub use session::Session;
 
 mod machine;
 pub use machine::Machine;
-pub use machine::ProtocolMap;
 
 pub mod internet;
 pub use internet::Internet;

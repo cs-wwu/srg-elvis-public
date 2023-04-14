@@ -1,12 +1,12 @@
 use elvis_core::{
-    gcd,
+    gcd::{self, get_protocol},
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Tcp, Udp,
     },
-    Control, Id, ProtocolMap,
+    Control, Id,
 };
 use std::sync::{Arc, RwLock};
 
@@ -66,7 +66,7 @@ impl WaitForMessage {
 impl Application for WaitForMessage {
     const ID: Id = Id::from_string("Wait for message");
 
-    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
 
@@ -75,19 +75,13 @@ impl Application for WaitForMessage {
             Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
         }
 
-        protocols
-            .protocol(self.transport.id())
+        get_protocol(self.transport.id())
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)?;
+            .listen(Self::ID, participants)?;
         Ok(())
     }
 
-    fn receive(
-        &self,
-        message: Message,
-        _control: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, message: Message, _control: Control) -> Result<(), ApplicationError> {
         println!("Receive");
         let mut actual = self.actual.write().unwrap();
         actual.concatenate(message);

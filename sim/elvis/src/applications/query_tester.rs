@@ -1,11 +1,11 @@
 use elvis_core::{
-    gcd,
+    gcd::{self, get_protocol},
     protocols::{
         pci::Pci,
         user_process::{Application, ApplicationError},
         Ipv4, Udp, UserProcess,
     },
-    Control, Id, Message, ProtocolMap,
+    Control, Id, Message,
 };
 use std::sync::Arc;
 
@@ -25,9 +25,8 @@ impl QueryTester {
 impl Application for QueryTester {
     const ID: Id = Id::from_string("Query tester");
 
-    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
-        let slot_count = protocols
-            .protocol(Pci::ID)
+    fn start(&self) -> Result<(), ApplicationError> {
+        let slot_count = get_protocol(Pci::ID)
             .expect("Missing PCI protocol")
             .query(Pci::SLOT_COUNT_QUERY_KEY)
             .unwrap()
@@ -40,10 +39,9 @@ impl Application for QueryTester {
         Udp::set_remote_port(0, &mut participants);
         Ipv4::set_local_address(0.into(), &mut participants);
         Ipv4::set_remote_address(0.into(), &mut participants);
-        let mtu = protocols
-            .protocol(Udp::ID)
+        let mtu = get_protocol(Udp::ID)
             .expect("Missing UDP protocol")
-            .open(Self::ID, participants, protocols)
+            .open(Self::ID, participants)
             .unwrap()
             .query(Pci::MTU_QUERY_KEY)
             .unwrap()
@@ -54,12 +52,7 @@ impl Application for QueryTester {
         Ok(())
     }
 
-    fn receive(
-        &self,
-        _message: Message,
-        _control: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _control: Control) -> Result<(), ApplicationError> {
         unreachable!()
     }
 }

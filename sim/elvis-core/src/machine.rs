@@ -1,5 +1,5 @@
 use crate::{
-    gcd::Delivery,
+    gcd::{self, set_protocols, Delivery},
     internet::NetworkHandle,
     network::{Mac, Mtu},
     protocol::SharedProtocol,
@@ -13,8 +13,8 @@ use std::{collections::hash_map::Entry, sync::Arc};
 pub type PciSlot = u32;
 
 /// A mapping of protocol IDs to protocols
-#[derive(Clone)]
-pub struct ProtocolMap(Arc<FxHashMap<Id, SharedProtocol>>);
+#[derive(Clone, Default)]
+pub(crate) struct ProtocolMap(Arc<FxHashMap<Id, SharedProtocol>>);
 
 impl ProtocolMap {
     pub fn new(protocols: FxHashMap<Id, SharedProtocol>) -> Self {
@@ -33,6 +33,7 @@ impl ProtocolMap {
         self.0.len()
     }
 
+    #[allow(unused)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -79,17 +80,16 @@ impl Machine {
     }
 
     pub fn receive(&self, delivery: Delivery) {
+        gcd::set_protocols(self.protocols.clone());
         self.pci.receive(delivery);
     }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
     pub(crate) fn start(&self) {
+        set_protocols(self.protocols.clone());
         for protocol in self.protocols.iter() {
-            let protocols = self.protocols.clone();
-            protocol
-                .start(protocols)
-                .expect("A protocol failed to start")
+            protocol.start().expect("A protocol failed to start")
         }
     }
 

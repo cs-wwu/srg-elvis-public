@@ -1,12 +1,12 @@
 use elvis_core::{
-    gcd,
+    gcd::{self, get_protocol},
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Udp,
     },
-    Control, Id, ProtocolMap,
+    Control, Id,
 };
 use std::{
     ops::Range,
@@ -55,23 +55,17 @@ impl ThroughputTester {
 impl Application for ThroughputTester {
     const ID: Id = Id::from_string("Capture");
 
-    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.ip_address, &mut participants);
         Udp::set_local_port(self.port, &mut participants);
-        protocols
-            .protocol(Udp::ID)
+        get_protocol(Udp::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)?;
+            .listen(Self::ID, participants)?;
         Ok(())
     }
 
-    fn receive(
-        &self,
-        _message: Message,
-        _control: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _control: Control) -> Result<(), ApplicationError> {
         let now = SystemTime::now();
         if let Some(previous) = self.previous_receipt.write().unwrap().replace(now) {
             let elapsed = now.duration_since(previous).unwrap();

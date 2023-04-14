@@ -3,9 +3,9 @@
 
 use crate::{
     control::{ControlError, Key, Primitive},
+    gcd::get_protocol,
     id::Id,
     machine::PciSlot,
-    machine::ProtocolMap,
     message::Message,
     network::{Mac, Network},
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
@@ -76,16 +76,11 @@ impl Protocol for Ipv4 {
         Self::ID
     }
 
-    fn start(&self, _protocols: ProtocolMap) -> Result<(), StartError> {
+    fn start(&self) -> Result<(), StartError> {
         Ok(())
     }
 
-    fn open(
-        &self,
-        upstream: Id,
-        mut participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
+    fn open(&self, upstream: Id, mut participants: Control) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(
             Self::get_local_address(&participants).map_err(|_| {
                 eprintln!("Missing local address on context");
@@ -116,10 +111,9 @@ impl Protocol for Ipv4 {
                     }
                 };
                 Pci::set_pci_slot(recipient.slot, &mut participants);
-                let tap_session = protocols
-                    .protocol(Pci::ID)
+                let tap_session = get_protocol(Pci::ID)
                     .expect("No such protocol")
-                    .open(Self::ID, participants, protocols)?;
+                    .open(Self::ID, participants)?;
                 let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, recipient));
                 entry.insert(session.clone());
                 Ok(session)
@@ -127,12 +121,7 @@ impl Protocol for Ipv4 {
         }
     }
 
-    fn listen(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
+    fn listen(&self, upstream: Id, participants: Control) -> Result<(), ListenError> {
         let local = Self::get_local_address(&participants).map_err(|_| {
             eprintln!("Missing local address on context");
             ListenError::MissingContext
@@ -150,10 +139,9 @@ impl Protocol for Ipv4 {
         }
 
         // Essentially a no-op but good for completeness and as an example
-        protocols
-            .protocol(Pci::ID)
+        get_protocol(Pci::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+            .listen(Self::ID, participants)
     }
 
     fn demux(
@@ -161,7 +149,6 @@ impl Protocol for Ipv4 {
         mut message: Message,
         caller: SharedSession,
         mut control: Control,
-        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         // Extract identifying information from the header and the context and
         // add header information to the context
@@ -216,7 +203,7 @@ impl Protocol for Ipv4 {
                 session
             }
         };
-        session.receive(message, control, protocols)?;
+        session.receive(message, control)?;
         Ok(())
     }
 

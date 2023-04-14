@@ -1,13 +1,14 @@
 use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address, Recipient};
 use crate::{
     control::{Key, Primitive},
+    gcd::get_protocol,
     id::Id,
     message::Message,
     network::Network,
     protocol::DemuxError,
     protocols::pci::Pci,
     session::{QueryError, SendError, SharedSession},
-    Control, ProtocolMap, Session,
+    Control, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -39,27 +40,16 @@ impl Ipv4Session {
         }
     }
 
-    pub fn receive(
-        self: Arc<Self>,
-        message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), DemuxError> {
-        protocols
-            .protocol(self.upstream)
+    pub fn receive(self: Arc<Self>, message: Message, control: Control) -> Result<(), DemuxError> {
+        get_protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, control, protocols)?;
+            .demux(message, self, control)?;
         Ok(())
     }
 }
 
 impl Session for Ipv4Session {
-    fn send(
-        &self,
-        mut message: Message,
-        mut control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, mut control: Control) -> Result<(), SendError> {
         let length = message.iter().count();
         let header = match Ipv4HeaderBuilder::new(
             self.id.local,
@@ -81,7 +71,7 @@ impl Session for Ipv4Session {
             Network::set_destination(mac, &mut control);
         }
         message.header(header);
-        self.downstream.send(message, control, protocols)?;
+        self.downstream.send(message, control)?;
         Ok(())
     }
 

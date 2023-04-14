@@ -9,10 +9,11 @@ use self::{
 use super::{pci::Pci, utility::Socket, Ipv4};
 use crate::{
     control::{ControlError, Key, Primitive},
+    gcd::get_protocol,
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, ProtocolMap,
+    Control, FxDashMap, Id, Message, Protocol,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::Arc;
@@ -74,12 +75,7 @@ impl Protocol for Tcp {
         Self::ID
     }
 
-    fn open(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
+    fn open(&self, upstream: Id, participants: Control) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
         // identifying information we need is not provided, that is a bug in one
         // of the higher-up protocols and we should crash. Therefore, unwrapping
@@ -101,10 +97,9 @@ impl Protocol for Tcp {
             Entry::Occupied(_) => Err(OpenError::Existing),
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = protocols
-                    .protocol(Ipv4::ID)
+                let downstream = get_protocol(Ipv4::ID)
                     .expect("No such protocol")
-                    .open(Self::ID, participants, protocols.clone())?;
+                    .open(Self::ID, participants)?;
                 let mtu = downstream
                     .query(Pci::MTU_QUERY_KEY)
                     .map_err(|_| OpenError::Other)?
@@ -112,11 +107,8 @@ impl Protocol for Tcp {
                     .map_err(|_| OpenError::Other)?;
                 let session = TcpSession::new(
                     Tcb::open(session_id, rand::random(), mtu),
-                    protocols
-                        .protocol(upstream)
-                        .ok_or(OpenError::MissingProtocol(upstream))?,
+                    get_protocol(upstream).ok_or(OpenError::MissingProtocol(upstream))?,
                     downstream,
-                    protocols,
                 );
                 entry.insert(session.clone());
                 Ok(session)
@@ -124,12 +116,7 @@ impl Protocol for Tcp {
         }
     }
 
-    fn listen(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
+    fn listen(&self, upstream: Id, participants: Control) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
@@ -139,10 +126,9 @@ impl Protocol for Tcp {
         };
         self.listen_bindings.insert(socket, upstream);
         // Ask lower-level protocols to add the binding as well
-        protocols
-            .protocol(Ipv4::ID)
+        get_protocol(Ipv4::ID)
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+            .listen(Self::ID, participants)
     }
 
     fn demux(
@@ -150,7 +136,6 @@ impl Protocol for Tcp {
         mut message: Message,
         caller: SharedSession,
         mut control: Control,
-        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
         let local_address = Ipv4::get_local_address(&control).unwrap();
@@ -209,21 +194,15 @@ impl Protocol for Tcp {
                         if let Some(listen_result) = listen_result {
                             match listen_result {
                                 ListenResult::Response(response) => {
-                                    caller.send(
-                                        Message::new(response.serialize()),
-                                        control,
-                                        protocols,
-                                    )?;
+                                    caller.send(Message::new(response.serialize()), control)?;
                                 }
                                 ListenResult::Tcb(tcb) => {
                                     let upstream = *listen_entry.get();
                                     let session = TcpSession::new(
                                         tcb,
-                                        protocols
-                                            .protocol(upstream)
+                                        get_protocol(upstream)
                                             .ok_or(OpenError::MissingProtocol(upstream))?,
                                         caller,
-                                        protocols,
                                     );
                                     session_entry.insert(session);
                                 }
@@ -238,7 +217,7 @@ impl Protocol for Tcp {
                             local.address,
                             remote.address,
                         ) {
-                            caller.send(Message::new(response.serialize()), control, protocols)?;
+                            caller.send(Message::new(response.serialize()), control)?;
                         }
                         Err(DemuxError::MissingSession)?
                     }
@@ -248,7 +227,7 @@ impl Protocol for Tcp {
         Ok(())
     }
 
-    fn start(&self, _protocols: ProtocolMap) -> Result<(), StartError> {
+    fn start(&self) -> Result<(), StartError> {
         Ok(())
     }
 

@@ -1,12 +1,13 @@
 use super::udp_parsing::build_udp_header;
 use crate::{
     control::{Key, Primitive},
+    gcd::get_protocol,
     id::Id,
     message::Message,
     protocol::DemuxError,
     protocols::utility::Socket,
     session::{QueryError, SendError, SharedSession},
-    Control, ProtocolMap, Session,
+    Control, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -17,27 +18,16 @@ pub(super) struct UdpSession {
 }
 
 impl UdpSession {
-    pub fn receive(
-        self: Arc<Self>,
-        message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), DemuxError> {
-        protocols
-            .protocol(self.upstream)
+    pub fn receive(self: Arc<Self>, message: Message, control: Control) -> Result<(), DemuxError> {
+        get_protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, control, protocols)?;
+            .demux(message, self, control)?;
         Ok(())
     }
 }
 
 impl Session for UdpSession {
-    fn send(
-        &self,
-        mut message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, control: Control) -> Result<(), SendError> {
         let id = self.id;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
@@ -56,7 +46,7 @@ impl Session for UdpSession {
             }
         };
         message.header(header);
-        self.downstream.send(message, control, protocols)?;
+        self.downstream.send(message, control)?;
         Ok(())
     }
 

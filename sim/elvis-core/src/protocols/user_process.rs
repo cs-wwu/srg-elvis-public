@@ -4,7 +4,6 @@
 use crate::{
     control::{Key, Primitive},
     id::Id,
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     session::{SendError, SharedSession},
@@ -24,16 +23,11 @@ pub trait Application {
 
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError>;
+    fn start(&self) -> Result<(), ApplicationError>;
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(
-        &self,
-        message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError>;
+    fn receive(&self, message: Message, control: Control) -> Result<(), ApplicationError>;
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
@@ -84,21 +78,11 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         A::ID
     }
 
-    fn open(
-        &self,
-        _upstream: Id,
-        _participants: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
+    fn open(&self, _upstream: Id, _participants: Control) -> Result<SharedSession, OpenError> {
         panic!("Cannot active open on a user process")
     }
 
-    fn listen(
-        &self,
-        _upstream: Id,
-        _participants: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
+    fn listen(&self, _upstream: Id, _participants: Control) -> Result<(), ListenError> {
         panic!("Cannot listen on a user process")
     }
 
@@ -107,14 +91,13 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         message: Message,
         _caller: SharedSession,
         control: Control,
-        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        self.application.receive(message, control, protocols)?;
+        self.application.receive(message, control)?;
         Ok(())
     }
 
-    fn start(&self, protocols: ProtocolMap) -> Result<(), StartError> {
-        self.application.start(protocols)?;
+    fn start(&self) -> Result<(), StartError> {
+        self.application.start()?;
         Ok(())
     }
 

@@ -1,4 +1,5 @@
 use elvis_core::{
+    gcd::get_protocol,
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
@@ -7,7 +8,7 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap,
+    Control, Id,
 };
 use std::sync::{Arc, RwLock};
 
@@ -51,36 +52,30 @@ impl Forward {
 impl Application for Forward {
     const ID: Id = Id::from_string("Forward");
 
-    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip, &mut participants);
         Ipv4::set_remote_address(self.remote_ip, &mut participants);
         Udp::set_local_port(self.local_port, &mut participants);
         Udp::set_remote_port(self.remote_port, &mut participants);
 
-        let udp = protocols.protocol(Udp::ID).expect("No such protocol");
+        let udp = get_protocol(Udp::ID).expect("No such protocol");
         *self.outgoing.write().unwrap() = Some(udp.open(
             Self::ID,
             // TODO(hardint): Can these clones be cheaper?
             participants.clone(),
-            protocols.clone(),
         )?);
-        udp.listen(Self::ID, participants, protocols)?;
+        udp.listen(Self::ID, participants)?;
         Ok(())
     }
 
-    fn receive(
-        &self,
-        message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, message: Message, control: Control) -> Result<(), ApplicationError> {
         self.outgoing
             .read()
             .unwrap()
             .as_ref()
             .unwrap()
-            .send(message, control, protocols)?;
+            .send(message, control)?;
         Ok(())
     }
 }

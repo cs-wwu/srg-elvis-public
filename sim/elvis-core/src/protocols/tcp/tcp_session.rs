@@ -4,7 +4,7 @@ use crate::{
     gcd::{self},
     protocol::{DemuxError, SharedProtocol},
     session::{QueryError, SendError, SharedSession},
-    Control, Id, Message, ProtocolMap, Session,
+    Control, Id, Message, Session,
 };
 use std::{
     sync::{Arc, RwLock, Weak},
@@ -25,42 +25,40 @@ use std::{
 pub struct TcpSession {
     me: RwLock<Option<Weak<dyn Session + Send + Sync + 'static>>>,
     tcb: RwLock<Tcb>,
+    last_time_update: RwLock<Instant>,
     upstream: SharedProtocol,
     downstream: SharedSession,
-    protocols: ProtocolMap,
 }
 
 impl TcpSession {
     /// Create a new TCP session
-    pub fn new(
-        tcb: Tcb,
-        upstream: SharedProtocol,
-        downstream: SharedSession,
-        protocols: ProtocolMap,
-    ) -> Arc<Self> {
+    pub fn new(tcb: Tcb, upstream: SharedProtocol, downstream: SharedSession) -> Arc<Self> {
         let me = Arc::new(Self {
             me: Default::default(),
             tcb: RwLock::new(tcb),
+            last_time_update: RwLock::new(Instant::now()),
             upstream,
             downstream,
-            protocols,
         });
         // TODO(hardint): This is disgusting. How can we avoid having to hold a
         // reference to self?
         *me.me.write().unwrap() = Some(Arc::downgrade(&(me.clone() as SharedSession)));
         {
             let me = me.clone();
-            const TIMEOUT: Duration = Duration::from_millis(10);
+            const TIMEOUT: Duration = Duration::from_millis(100);
             // TODO(hardint): This job needs to repeat
-            gcd::job_at(
-                move || {
+            gcd::job_at(move || {
+                let now = Instant::now();
+                let mut lock = me.last_time_update.write().unwrap();
+                if now > *lock + TIMEOUT {
+                    *lock = now;
+                    drop(lock);
                     let mut lock = me.tcb.write().unwrap();
                     // TODO(hardint): Do something with this result
                     let _ = lock.advance_time(TIMEOUT);
                     me.follow_up(&mut *lock);
-                },
-                Instant::now() + TIMEOUT,
-            );
+                }
+            });
         }
         me
     }
@@ -83,14 +81,10 @@ impl TcpSession {
     // TODO(hardint): This context might not be right. The Control should
     // probably be empty.
     fn follow_up(&self, tcb: &mut Tcb) {
-        let protocols = self.protocols.clone();
         let control = Control::new();
         for mut segment in tcb.segments() {
             segment.text.header(segment.header.serialize());
-            match self
-                .downstream
-                .send(segment.text, control.clone(), protocols.clone())
-            {
+            match self.downstream.send(segment.text, control.clone()) {
                 Ok(_) => {}
                 Err(e) => eprintln!("Send error: {}", e),
             }
@@ -98,7 +92,7 @@ impl TcpSession {
 
         let received = tcb.receive();
         if !received.is_empty() {
-            match self.upstream.demux(received, self.me(), control, protocols) {
+            match self.upstream.demux(received, self.me(), control) {
                 Ok(_) => {}
                 Err(e) => eprintln!("Demux error: {}", e),
             }
@@ -107,12 +101,7 @@ impl TcpSession {
 }
 
 impl Session for TcpSession {
-    fn send(
-        &self,
-        message: Message,
-        _control: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), SendError> {
+    fn send(&self, message: Message, _control: Control) -> Result<(), SendError> {
         let mut tcb = self.tcb.write().unwrap();
         tcb.send(message);
         self.follow_up(&mut *tcb);

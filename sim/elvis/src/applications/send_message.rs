@@ -1,5 +1,5 @@
 use elvis_core::{
-    gcd,
+    gcd::{self, get_protocol},
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
@@ -7,7 +7,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Tcp,
     },
-    Control, Id, ProtocolMap,
+    Control, Id,
 };
 use std::sync::{Arc, RwLock};
 
@@ -51,7 +51,7 @@ impl SendMessage {
 impl Application for SendMessage {
     const ID: Id = Id::from_string("Send Message");
 
-    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
         Ipv4::set_remote_address(self.remote_ip, &mut participants);
@@ -67,29 +67,20 @@ impl Application for SendMessage {
             }
         }
 
-        let protocol = protocols
-            .protocol(self.transport.id())
-            .expect("No such protocol");
+        let protocol = get_protocol(self.transport.id()).expect("No such protocol");
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         gcd::job(move || {
-            let session = protocol
-                .open(Self::ID, participants, protocols.clone())
-                .unwrap();
+            let session = protocol.open(Self::ID, participants).unwrap();
             for message in messages {
                 session
-                    .send(message, Control::new(), protocols.clone())
+                    .send(message, Control::new())
                     .expect("SendMessage failed to send");
             }
         });
         Ok(())
     }
 
-    fn receive(
-        &self,
-        _message: Message,
-        _control: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, _message: Message, _control: Control) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use super::Transport;
 use elvis_core::{
-    gcd,
+    gcd::{self, get_protocol},
     message::Message,
     network::Mac,
     protocols::{
@@ -9,7 +9,7 @@ use elvis_core::{
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap,
+    Control, Id,
 };
 use std::sync::{Arc, RwLock};
 
@@ -73,14 +73,14 @@ impl PingPong {
 impl Application for PingPong {
     const ID: Id = Id::from_string("PingPong");
 
-    fn start(&self, protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn start(&self) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
         Ipv4::set_local_address(self.local_ip_address, &mut participants);
         Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
         Udp::set_local_port(self.local_port, &mut participants);
         Udp::set_remote_port(self.remote_port, &mut participants);
-        let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
-        let session = protocol.open(Self::ID, participants, protocols.clone())?;
+        let protocol = get_protocol(Udp::ID).expect("No such protocol");
+        let session = protocol.open(Self::ID, participants)?;
         *self.session.write().unwrap() = Some(session.clone());
 
         let is_initiator = self.is_initiator;
@@ -88,19 +88,14 @@ impl Application for PingPong {
             if is_initiator {
                 session
                     //Send the first "Ping" message with TTL of 255
-                    .send(Message::new(vec![255]), Control::new(), protocols)
+                    .send(Message::new(vec![255]), Control::new())
                     .unwrap();
             }
         });
         Ok(())
     }
 
-    fn receive(
-        &self,
-        message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    fn receive(&self, message: Message, control: Control) -> Result<(), ApplicationError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
@@ -115,11 +110,12 @@ impl Application for PingPong {
             eprintln!("TTL has reach 0, PingPong has successfully completed");
             gcd::shut_down();
         } else {
-            self.session.read().unwrap().as_ref().unwrap().send(
-                Message::new(vec![ttl]),
-                control,
-                protocols,
-            )?;
+            self.session
+                .read()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .send(Message::new(vec![ttl]), control)?;
         }
         Ok(())
     }
