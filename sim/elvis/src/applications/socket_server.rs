@@ -37,19 +37,19 @@ impl SocketServer {
 async fn communicate_with_client(socket: Arc<Socket>) {
     // Receive a message
     let req = socket.clone().recv(32).await.unwrap();
-    println!(
+    /* println!(
         "SERVER: Request Received: {:?}",
         String::from_utf8(req).unwrap()
-    );
+    ); */
 
     // Send a message
     let resp = "Major Tom to Ground Control";
-    println!("SERVER: Sending Response: {:?}", resp);
+    // println!("SERVER: Sending Response: {:?}", resp);
     socket.clone().send(resp).unwrap();
 
     // Receive a message (Also example usage of recv_msg)
     let _ack = socket.clone().recv_msg().await.unwrap();
-    println!("SERVER: Ackowledgement Received");
+    // println!("SERVER: Ackowledgement Received");
 }
 
 impl Application for SocketServer {
@@ -80,7 +80,7 @@ impl Application for SocketServer {
 
             // Listen for incoming connections, with a maximum backlog of 10
             listen_socket.clone().listen(10).unwrap();
-            println!("SERVER: Listening for incoming connections");
+            // println!("SERVER: Listening for incoming connections");
 
             // Wait on ititialization before sending or receiving any message from the network
             initialized.wait().await;
@@ -91,7 +91,7 @@ impl Application for SocketServer {
             loop {
                 // Accept an incoming connection
                 let socket = listen_socket.clone().accept().await.unwrap();
-                println!("SERVER: Connection accepted");
+                // println!("SERVER: Connection accepted");
 
                 // Spawn a new tokio task for handling communication
                 // with the new client
@@ -112,7 +112,7 @@ impl Application for SocketServer {
             }
 
             // Shut down the simulation
-            println!("SERVER: Shutting down");
+            // println!("SERVER: Shutting down");
             shutdown.shut_down();
         });
         Ok(())

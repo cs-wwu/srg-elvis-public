@@ -18,6 +18,9 @@ pub use telephone_single::telephone_single;
 mod ping_pong;
 pub use ping_pong::ping_pong;
 
+mod ping_pong_multi;
+pub use ping_pong_multi::ping_pong_multi;
+
 mod query;
 pub use query::query;
 

@@ -78,19 +78,19 @@ impl Application for SocketClient {
 
             // Send a message
             let req = "Ground Control to Major Tom";
-            println!("CLIENT {}: Sending Request: {:?}", client_id, req);
+            // println!("CLIENT {}: Sending Request: {:?}", client_id, req);
             socket.clone().send(req).unwrap();
 
             // Receive a message
             let resp = socket.clone().recv(32).await.unwrap();
-            println!(
+            /* println!(
                 "CLIENT {}: Response Received: {:?}",
                 client_id,
                 String::from_utf8(resp).unwrap()
-            );
+            ); */
 
             // Send a message
-            println!("CLIENT {}: Sending Ackowledgement", client_id);
+            // println!("CLIENT {}: Sending Ackowledgement", client_id);
             socket.clone().send("Ackowledged").unwrap();
         });
         Ok(())

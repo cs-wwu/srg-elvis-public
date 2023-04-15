@@ -26,6 +26,9 @@ pub use forward::Forward;
 mod ping_pong;
 pub use ping_pong::PingPong;
 
+mod ping_pong_multi;
+pub use ping_pong_multi::PingPongMulti;
+
 mod query_tester;
 pub use query_tester::QueryTester;
 

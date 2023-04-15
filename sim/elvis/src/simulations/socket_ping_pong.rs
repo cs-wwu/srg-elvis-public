@@ -19,30 +19,50 @@ use elvis_core::{
 pub async fn socket_ping_pong() {
     let network = Network::basic();
     let server_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let client_ip_address: Ipv4Address = [123, 45, 67, 90].into();
+    let client_1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
+    let client_2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
+    let client_3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
     let ip_table: IpToTapSlot = [
         (server_ip_address, 0),
-        (client_ip_address, 0),
+        (client_1_ip_address, 0),
+        (client_2_ip_address, 0),
+        (client_3_ip_address, 0),
     ]
     .into_iter()
     .collect();
 
     let server_socket_api = Sockets::new(Some(server_ip_address)).shared();
-    let client_socket_api = Sockets::new(Some(client_ip_address)).shared();
+    let client_1_socket_api = Sockets::new(Some(client_1_ip_address)).shared();
+    let client_2_socket_api = Sockets::new(Some(client_2_ip_address)).shared();
+    let client_3_socket_api = Sockets::new(Some(client_3_ip_address)).shared();
     let machines = vec![
         Machine::new([
             server_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SocketPongServer::new(server_socket_api, 0xbeef).shared(),
+            SocketPongServer::new(server_socket_api, 0xbeef, 3).shared(),
         ]),
         Machine::new([
-            client_socket_api.clone(),
+            client_1_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SocketPingClient::new(client_socket_api, 1, server_ip_address, 0xbeef).shared(),
+            SocketPingClient::new(client_1_socket_api, 1, server_ip_address, 0xbeef).shared(),
+        ]),
+        Machine::new([
+            client_2_socket_api.clone(),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
+            SocketPingClient::new(client_2_socket_api, 2, server_ip_address, 0xbeef).shared(),
+        ]),
+        Machine::new([
+            client_3_socket_api.clone(),
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table.clone()).shared(),
+            Pci::new([network.tap()]).shared(),
+            SocketPingClient::new(client_3_socket_api, 3, server_ip_address, 0xbeef).shared(),
         ]),
     ];
 

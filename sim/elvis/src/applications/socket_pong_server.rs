@@ -19,13 +19,16 @@ pub struct SocketPongServer {
     sockets: Arc<Sockets>,
     /// The port to capture a message on
     local_port: u16,
+    /// The number of clients to serve
+    client_count: usize,
 }
 
 impl SocketPongServer {
-    pub fn new(sockets: Arc<Sockets>, local_port: u16) -> Self {
+    pub fn new(sockets: Arc<Sockets>, local_port: u16, client_count: usize) -> Self {
         Self {
             sockets,
             local_port,
+            client_count,
         }
     }
 
@@ -63,6 +66,7 @@ impl Application for SocketPongServer {
         // tokio thread
         let sockets = self.sockets.clone();
         let local_port = self.local_port;
+        let client_count = self.client_count;
 
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
@@ -82,12 +86,24 @@ impl Application for SocketPongServer {
             // Wait on ititialization before sending or receiving any message from the network
             initialized.wait().await;
             
-            // Accept an incoming connection
-            let socket = listen_socket.clone().accept().await.unwrap();
+            let mut tasks = Vec::new();
+            loop {
+                // Accept an incoming connection
+                let socket = listen_socket.clone().accept().await.unwrap();
 
-            // Spawn a new tokio task for handling communication
-            // with the new client
-            communicate_with_client(socket).await;
+                // Spawn a new tokio task for handling communication
+                // with the new client
+                tasks.push(tokio::spawn(async move {
+                    communicate_with_client(socket).await;
+                }));
+
+                if tasks.len() >= client_count {
+                    while !tasks.is_empty() {
+                        tasks.pop().unwrap().await.unwrap();
+                    }
+                    break;
+                }
+            }
 
             // Shut down the simulation
             shutdown.shut_down();
