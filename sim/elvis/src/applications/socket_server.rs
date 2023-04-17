@@ -69,7 +69,7 @@ impl Application for SocketServer {
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
             let listen_socket = sockets
-                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols).await
                 .unwrap();
 
             // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening

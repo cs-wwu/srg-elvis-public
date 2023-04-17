@@ -5,7 +5,7 @@ use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError},
     session::{QueryError, SendError, SharedSession},
-    FxDashMap, Id, Message, Session, protocols::user_process::Application,
+    FxDashMap, Id, Message, Session,
 };
 use std::sync::{Arc, RwLock};
 
@@ -13,7 +13,6 @@ pub(super) struct SocketSession {
     pub upstream: RwLock<Option<Id>>,
     pub downstream: SharedSession,
     pub stored_msg: RwLock<Option<Message>>,
-    pub stored_cxt: RwLock<Option<Context>>,
     pub sockets: Arc<FxDashMap<Id, Arc<Socket>>>,
 }
 
