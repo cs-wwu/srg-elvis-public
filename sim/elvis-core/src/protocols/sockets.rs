@@ -1,13 +1,13 @@
 use dashmap::{mapref::entry::Entry, DashMap};
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap,
+    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 
 pub mod socket;
@@ -37,6 +37,7 @@ pub struct Sockets {
     sockets: DashMap<Id, Arc<Socket>>,
     socket_sessions: DashMap<SocketId, Arc<SocketSession>>,
     listen_bindings: DashMap<SocketAddress, Id>,
+    shutdown: RwLock<Option<Shutdown>>,
 }
 
 impl Sockets {
@@ -52,6 +53,7 @@ impl Sockets {
             sockets: Default::default(),
             socket_sessions: Default::default(),
             listen_bindings: Default::default(),
+            shutdown: Default::default(),
         }
     }
 
@@ -68,7 +70,14 @@ impl Sockets {
         protocols: ProtocolMap,
     ) -> Result<Arc<Socket>, SocketError> {
         let fd = Id::new(*self.fds.read().unwrap());
-        let socket = Arc::new(Socket::new(domain, sock_type, fd, protocols, self.clone()));
+        let socket = Arc::new(Socket::new(
+            domain,
+            sock_type,
+            fd,
+            protocols,
+            self.clone(),
+            self.shutdown.read().unwrap().as_ref().unwrap().clone(),
+        ));
         match self.sockets.entry(fd) {
             Entry::Occupied(_) => {
                 return Err(SocketError::Other);
@@ -144,10 +153,11 @@ impl Protocol for Sockets {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        *self.shutdown.write().unwrap() = Some(shutdown);
         tokio::spawn(async move {
             initialized.wait().await;
         });

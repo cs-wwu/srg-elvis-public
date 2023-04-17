@@ -14,18 +14,17 @@ use crate::{
     },
     protocols::tcp::tcb::{segment_arrives_listen, AdvanceTimeResult},
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap,
+    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 use dashmap::{mapref::entry::Entry, DashMap};
-use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
-};
-use tokio::sync::{mpsc::Sender, Barrier};
+use std::{sync::Arc, time::Duration};
+use tokio::sync::Barrier;
 
 mod tcb;
 mod tcp_parsing;
 mod tcp_session;
+
+// Problem: TCP packets don't use MAC addresses
 
 /// Implements the Transmission Control Protocol. See the module-level
 /// documentation for more details.
@@ -119,7 +118,7 @@ impl Protocol for Tcp {
                     .ok_u32()
                     .map_err(|_| OpenError::Other)?;
                 let session = Arc::new(TcpSession::new(
-                    RwLock::new(Tcb::open(session_id, rand::random(), mtu)),
+                    Tcb::open(session_id, rand::random(), mtu),
                     upstream,
                     downstream,
                 ));
@@ -231,11 +230,8 @@ impl Protocol for Tcp {
                                     caller.send(Message::new(response.serialize()), context)?;
                                 }
                                 ListenResult::Tcb(tcb) => {
-                                    let session = Arc::new(TcpSession::new(
-                                        RwLock::new(tcb),
-                                        *listen_entry.get(),
-                                        caller,
-                                    ));
+                                    let session =
+                                        Arc::new(TcpSession::new(tcb, *listen_entry.get(), caller));
                                     session_entry.insert(session);
                                 }
                             }
@@ -261,7 +257,7 @@ impl Protocol for Tcp {
 
     fn start(
         self: Arc<Self>,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {

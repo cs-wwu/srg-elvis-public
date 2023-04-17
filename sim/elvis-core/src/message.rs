@@ -312,4 +312,10 @@ mod tests {
         message.concatenate(&Message::new(" world!"));
         assert_eq!(&message.to_vec(), b"Hello world!");
     }
+
+    #[test]
+    fn empty_message() {
+        let message = Message::new("");
+        assert_eq!(&message.to_vec(), b"");
+    }
 }

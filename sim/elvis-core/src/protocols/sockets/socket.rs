@@ -6,20 +6,20 @@ use std::{
 use crate::{
     message::Chunk,
     protocol::{Context, DemuxError},
-    protocols::{ipv4::Ipv4Address, Ipv4, Udp},
+    protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
-    Control, Id, Message, ProtocolMap,
+    Control, Id, Message, ProtocolMap, Shutdown,
 };
 use thiserror::Error as ThisError;
-use tokio::sync::Notify;
+use tokio::{select, sync::Notify};
 
 use super::Sockets;
 
 /// An implementation of an individual Socket
 /// Created by the [`Sockets`] API
 pub struct Socket {
-    family: ProtocolFamily,
-    sock_type: SocketType,
+    pub family: ProtocolFamily,
+    pub sock_type: SocketType,
     fd: Id,
     is_active: RwLock<bool>,
     is_bound: RwLock<bool>,
@@ -35,6 +35,19 @@ pub struct Socket {
     notify_recv: Notify,
     protocols: ProtocolMap,
     socket_api: Arc<Sockets>,
+    shutdown: Shutdown,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum NotifyResult {
+    Notified,
+    Shutdown,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum NotifyType {
+    Listening,
+    Receiving,
 }
 
 impl Socket {
@@ -44,6 +57,7 @@ impl Socket {
         fd: Id,
         protocols: ProtocolMap,
         socket_api: Arc<Sockets>,
+        shutdown: Shutdown,
     ) -> Socket {
         Self {
             family: domain,
@@ -63,6 +77,7 @@ impl Socket {
             session: Default::default(),
             protocols,
             socket_api,
+            shutdown,
         }
     }
 
@@ -74,6 +89,24 @@ impl Socket {
                 .unwrap()
                 .push_back(remote_address);
             self.notify_listen.notify_one();
+        }
+    }
+
+    async fn wait_for_notify(&self, notify_type: NotifyType) -> NotifyResult {
+        if *self.is_blocking.read().unwrap() {
+            let mut shutdown_receiver = self.shutdown.receiver();
+            match notify_type {
+                NotifyType::Listening => select! {
+                    _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
+                    _ = self.notify_listen.notified() => NotifyResult::Notified,
+                },
+                NotifyType::Receiving => select! {
+                    _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
+                    _ = self.notify_recv.notified() => NotifyResult::Notified,
+                },
+            }
+        } else {
+            NotifyResult::Notified
         }
     }
 
@@ -110,11 +143,11 @@ impl Socket {
                 }
             }
             match self.sock_type {
-                SocketType::SocketDatagram => {
+                SocketType::Datagram => {
                     Udp::set_local_port(local_addr.port, &mut participants);
                 }
-                SocketType::SocketStream => {
-                    todo!();
+                SocketType::Stream => {
+                    Tcp::set_local_port(local_addr.port, &mut participants);
                 }
             }
         }
@@ -128,11 +161,11 @@ impl Socket {
                 }
             }
             match self.sock_type {
-                SocketType::SocketDatagram => {
+                SocketType::Datagram => {
                     Udp::set_remote_port(remote_addr.port, &mut participants);
                 }
-                SocketType::SocketStream => {
-                    todo!();
+                SocketType::Stream => {
+                    Tcp::set_local_port(remote_addr.port, &mut participants);
                 }
             }
         }
@@ -191,11 +224,11 @@ impl Socket {
                 }
             }
             match self.sock_type {
-                SocketType::SocketDatagram => {
+                SocketType::Datagram => {
                     Udp::set_local_port(local_addr.port, &mut participants);
                 }
-                SocketType::SocketStream => {
-                    todo!();
+                SocketType::Stream => {
+                    Tcp::set_local_port(local_addr.port, &mut participants);
                 }
             }
         }
@@ -223,8 +256,8 @@ impl Socket {
         if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
-        if *self.is_blocking.read().unwrap() {
-            self.notify_listen.notified().await;
+        if self.wait_for_notify(NotifyType::Listening).await == NotifyResult::Shutdown {
+            return Err(SocketError::Shutdown);
         }
         let new_sock = self.socket_api.clone().new_socket(
             self.family,
@@ -237,6 +270,9 @@ impl Socket {
         };
         new_sock.clone().bind(local_addr)?;
         *new_sock.remote_addr.write().unwrap() = self.listen_addresses.write().unwrap().pop_front();
+        if !self.listen_addresses.read().unwrap().is_empty() {
+            self.notify_listen.notify_one();
+        }
         let session = self.socket_api.clone().get_socket_session(
             new_sock.local_addr.read().unwrap().unwrap(),
             new_sock.remote_addr.read().unwrap().unwrap(),
@@ -283,8 +319,8 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if *self.is_blocking.read().unwrap() {
-            self.notify_recv.notified().await;
+        if self.wait_for_notify(NotifyType::Receiving).await == NotifyResult::Shutdown {
+            return Err(SocketError::Shutdown);
         }
         let mut buf = Vec::new();
         let queue = &mut *self.messages.write().unwrap();
@@ -317,8 +353,8 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if *self.is_blocking.read().unwrap() {
-            self.notify_recv.notified().await;
+        if self.wait_for_notify(NotifyType::Receiving).await == NotifyResult::Shutdown {
+            return Err(SocketError::Shutdown);
         }
         let mut queue = self.messages.write().unwrap().clone();
         let msg = match queue.pop_front() {
@@ -354,10 +390,20 @@ pub enum SocketError {
     SendError,
     #[error("Receive error")]
     ReceiveError,
+    #[error("The simulation requested to shut down")]
+    Shutdown,
     #[error("Unspecified error")]
     Other,
 }
 
+/// ProtocolFamily::LOCAL - Indicates that the socket is to be used to
+/// communicate with other applications on the same machine
+/// (Not yet implemented)
+///
+/// ProtocolFamily::INET - Indicates that the socket utilizes IPv4
+///
+/// ProtocolFamily::INET6 - Indicates that the socket utilizes IPv6
+/// (Not yet implemented)
 #[derive(Clone, Copy)]
 pub enum ProtocolFamily {
     LOCAL,
@@ -365,10 +411,14 @@ pub enum ProtocolFamily {
     INET6,
 }
 
+/// SocketType::Stream - Indicates that the socket utilizes TCP
+/// (Not yet implemented)
+///
+/// SocketType::Datagram - Indicates that the socket utilizes UDP
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum SocketType {
-    SocketStream,
-    SocketDatagram,
+    Stream,
+    Datagram,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

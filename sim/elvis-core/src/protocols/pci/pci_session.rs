@@ -6,7 +6,7 @@ use crate::{
     network::{Delivery, Tap},
     protocol::{Context, DemuxError},
     session::{QueryError, SendError},
-    Id, Network, Session,
+    Id, Network, Session, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::{broadcast::error::RecvError, Barrier};
@@ -25,21 +25,34 @@ impl PciSession {
 
     /// Called by the owning [`Pci`] protocol at the beginning of the simulation
     /// to start the contained tap running
-    pub(super) fn start(self: Arc<Self>, protocols: ProtocolMap, barrier: Arc<Barrier>) {
+    pub(super) fn start(
+        self: Arc<Self>,
+        protocols: ProtocolMap,
+        barrier: Arc<Barrier>,
+        shutdown: Shutdown,
+    ) {
         let mut direct_receiver = self.tap.unicast_receiver.write().unwrap().take().unwrap();
         let mut broadcast_receiver = self.tap.broadcast.write().unwrap().take().unwrap();
         let context = Context::new(protocols);
         tokio::spawn(async move {
             barrier.wait().await;
+            let mut shutdown_receiver = shutdown.receiver();
             loop {
                 let context = context.clone();
                 tokio::select! {
                     message = direct_receiver.recv() => {
-                        self.clone().receive_direct(message, context);
+                        let me = self.clone();
+                        tokio::spawn(async move {
+                            me.receive_direct(message, context);
+                        });
                     }
                     message = broadcast_receiver.recv() => {
-                        self.clone().receive_broadcast(message, context);
+                        let me = self.clone();
+                        tokio::spawn(async move {
+                            me.receive_broadcast(message, context);
+                        });
                     }
+                    _ = shutdown_receiver.recv() => break,
                 }
             }
         });

@@ -17,7 +17,7 @@
 //!   similar to adding a networking card to computer. This way, a machine can
 //!   add multiple taps to attach to different networks.
 
-use crate::{control::ControlError, id::Id, Control, Message};
+use crate::{control::ControlError, id::Id, Control, Message, Shutdown};
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
     sync::{Arc, RwLock},
@@ -68,7 +68,7 @@ impl Network {
 
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
-        let funnel = mpsc::channel(16);
+        let funnel = mpsc::channel(4096);
         Self {
             mtu: mtu.unwrap_or(Mtu::MAX),
             latency,
@@ -77,7 +77,7 @@ impl Network {
             delivery_sender: funnel.0,
             delivery_receiver: RwLock::new(Some(funnel.1)),
             taps: Default::default(),
-            broadcast: broadcast::channel::<Delivery>(16).0,
+            broadcast: broadcast::channel::<Delivery>(4096).0,
         }
     }
 
@@ -104,17 +104,30 @@ impl Network {
     }
 
     /// Called at the beginning of the simulation to start the network running
-    pub(crate) fn start(self: Arc<Self>, barrier: Arc<Barrier>) {
+    pub(crate) fn start(self: Arc<Self>, shutdown: Shutdown, initialized: Arc<Barrier>) {
         let mut receiver = self.delivery_receiver.write().unwrap().take().unwrap();
         let throughput = self.throughput;
         let latency = self.latency;
         let taps = self.taps.clone();
         let broadcast = self.broadcast.clone();
         tokio::spawn(async move {
-            barrier.wait().await;
-            while let Some(delivery) = receiver.recv().await {
-                let rng = rand::random::<f32>();
-                if rng < self.loss_rate {
+            initialized.wait().await;
+            let mut shutdown_receiver = shutdown.receiver();
+            loop {
+                let delivery = tokio::select! {
+                    delivery = receiver.recv() => delivery,
+                    _ = shutdown_receiver.recv() => {
+                        break;
+                    }
+                };
+
+                let delivery = if let Some(delivery) = delivery {
+                    delivery
+                } else {
+                    break;
+                };
+
+                if self.loss_rate > 0.0 && rand::random::<f32>() < self.loss_rate {
                     // Drop the message
                     continue;
                 }
@@ -122,15 +135,23 @@ impl Network {
                 let throughput = throughput.next();
                 if throughput.0 > 0 {
                     let ms = delivery.message.len() as u64 * 1000 / throughput.0;
-                    sleep(Duration::from_millis(ms)).await;
+                    tokio::select! {
+                        _ = sleep(Duration::from_millis(ms)) => {},
+                        _ = shutdown_receiver.recv() => break,
+                    };
                 }
 
                 let taps = taps.clone();
                 let broadcast = broadcast.clone();
+                let shutdown = shutdown.clone();
                 tokio::spawn(async move {
+                    let mut shutdown_receiver = shutdown.receiver();
                     let latency = latency.next();
                     if latency > Duration::ZERO {
-                        sleep(latency).await;
+                        tokio::select! {
+                            _ = sleep(latency) => {},
+                            _ = shutdown_receiver.recv() => return,
+                        }
                     }
                     match delivery.destination {
                         Some(destination) => {
