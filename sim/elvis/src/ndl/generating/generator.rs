@@ -16,7 +16,6 @@ pub async fn core_generator(s: Sim) {
         machines,
         networks
             .nets
-            .clone()
             .into_values()
             .collect::<Vec<Arc<elvis_core::Network>>>(),
     )

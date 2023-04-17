@@ -237,7 +237,9 @@ impl Ipv4HeaderBuilder {
         checksum.add_u32(self.source.into());
         checksum.add_u32(self.destination.into());
 
-        let mut out = vec![version_and_ihl, type_of_service];
+        let mut out = Vec::with_capacity(BASE_OCTETS as usize);
+        out.push(version_and_ihl);
+        out.push(type_of_service);
         out.extend_from_slice(&total_length.to_be_bytes());
         out.extend_from_slice(&self.identification.to_be_bytes());
         out.extend_from_slice(&flags_and_fragment_offset.to_be_bytes());
@@ -502,11 +504,19 @@ mod tests {
             source,
             destination,
         );
-        let serial_header = {
+        #[allow(unused_mut)]
+        let mut serial_header = {
             let mut serial_header = vec![];
             header.write(&mut serial_header).unwrap();
             serial_header
         };
+
+        #[cfg(not(feature = "compute_checksum"))]
+        {
+            serial_header[10] = 0;
+            serial_header[11] = 0;
+        }
+
         (header, serial_header, payload.len().try_into().unwrap())
     }
 
@@ -532,6 +542,7 @@ mod tests {
         assert_eq!(parsed.fragment_offset, 0);
         assert_eq!(parsed.time_to_live, valid_header.time_to_live);
         assert_eq!(parsed.protocol, valid_header.protocol);
+        #[cfg(feature = "compute_checksum")]
         assert_eq!(parsed.checksum, valid_header.calc_header_checksum()?);
         assert_eq!(parsed.source.to_bytes(), valid_header.source);
         assert_eq!(parsed.destination.to_bytes(), valid_header.destination);

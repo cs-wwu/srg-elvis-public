@@ -131,7 +131,6 @@ impl Application for PingPong {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .clone()
                 .send(Message::new(vec![ttl]), context)?;
         }
         Ok(())
