@@ -273,7 +273,7 @@ impl Socket {
             new_sock.local_addr.read().unwrap().unwrap(),
             new_sock.remote_addr.read().unwrap().unwrap(),
         )?;
-        *session.upstream.write().unwrap() = Some(new_sock.fd);
+        *session.upstream.write().unwrap() = Some(new_sock.clone());
         *new_sock.session.write().unwrap() = Some(session.clone());
         session.receive_stored_msg().unwrap();
         *new_sock.is_active.write().unwrap() = true;

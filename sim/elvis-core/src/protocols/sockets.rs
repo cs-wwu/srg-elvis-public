@@ -187,10 +187,14 @@ impl Protocol for Sockets {
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(SocketSession {
-                    upstream: RwLock::new(Some(upstream)),
+                    upstream: RwLock::new(Some(
+                        match self.sockets.entry(upstream) {
+                            Entry::Occupied(sock) => sock.get().clone(),
+                            Entry::Vacant(_) => return Err(OpenError::MissingProtocol(upstream))
+                        }
+                    )),
                     downstream,
                     stored_msg: RwLock::new(None),
-                    sockets: self.sockets.clone(),
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -276,8 +280,7 @@ impl Protocol for Sockets {
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(None),
                     downstream: caller,
-                    stored_msg: RwLock::new(None),
-                    sockets: self.sockets.clone(),
+                    stored_msg: RwLock::new(Some(message.clone())),
                 });
                 socket.add_listen_address(identifier.remote_address);
                 entry.insert(session.clone());
