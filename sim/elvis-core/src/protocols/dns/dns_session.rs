@@ -8,7 +8,6 @@ use crate::{
     protocols::ipv4::Ipv4Address,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
-    protocols::dns::dns_session::{DnsSession, SessionId},
     session::SharedSession,
     Control, Network, Protocol, Shutdown, Session
 };
@@ -22,9 +21,15 @@ pub struct DnsSession {
     id: SessionId,
 }
 
-impl Session for DnsSession {
+// impl Session for DnsSession {
+//     fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
 
-}
+//     }
+
+//     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+
+//     }
+// }
 
 /// A set that uniquely identifies a given session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
