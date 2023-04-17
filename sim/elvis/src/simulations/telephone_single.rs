@@ -3,7 +3,7 @@ use elvis_core::{
     network::Mac,
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Pci,
     },
@@ -22,22 +22,22 @@ pub async fn telephone_single() {
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(remote, 0)].into_iter().collect()).shared(),
+        Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect()).shared(),
         Pci::new([network.tap()]).shared(),
-        SendMessage::new(message.clone(), remote, 0xbeef)
-            .remote_mac(1)
-            .shared(),
+        SendMessage::new(vec![message.clone()], remote, 0xbeef).shared(),
     ])];
 
     for i in 0u32..(END - 1) {
         let local: Ipv4Address = i.to_be_bytes().into();
         let remote: Ipv4Address = (i + 1).to_be_bytes().into();
-        let table = [(local, 0), (remote, 0)].into_iter().collect();
+        let table = [(remote, Recipient::with_mac(0, i as Mac + 2))]
+            .into_iter()
+            .collect();
         machines.push(Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),
             Pci::new([network.tap()]).shared(),
-            Forward::new(local, remote, 0xbeef, 0xbeef, Some(i as Mac + 2)).shared(),
+            Forward::new(local, remote, 0xbeef, 0xbeef).shared(),
         ]));
     }
 
@@ -45,7 +45,7 @@ pub async fn telephone_single() {
     let capture = Capture::new(local, 0xbeef, 1).shared();
     machines.push(Machine::new([
         Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(local, 0)].into_iter().collect()).shared(),
+        Ipv4::new(Default::default()).shared(),
         Pci::new([network.tap()]).shared(),
         capture.clone(),
     ]));

@@ -5,7 +5,7 @@ use elvis_core::{
     network::{Latency, NetworkBuilder},
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Pci,
     },
@@ -21,7 +21,9 @@ pub async fn latency() {
         .latency(Latency::constant(Duration::from_secs(1)))
         .build();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
+        .into_iter()
+        .collect();
 
     let capture = Capture::new(capture_ip_address, 0xbeef, 1).shared();
     let machines = vec![
@@ -29,7 +31,7 @@ pub async fn latency() {
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.tap()]).shared(),
-            SendMessage::new(Message::new("Hello!"), capture_ip_address, 0xbeef).shared(),
+            SendMessage::new(vec![Message::new("Hello!")], capture_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,

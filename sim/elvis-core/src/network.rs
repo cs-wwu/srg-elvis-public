@@ -68,7 +68,7 @@ impl Network {
 
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
-        let funnel = mpsc::channel(16);
+        let funnel = mpsc::channel(4096);
         Self {
             mtu: mtu.unwrap_or(Mtu::MAX),
             latency,
@@ -77,7 +77,7 @@ impl Network {
             delivery_sender: funnel.0,
             delivery_receiver: RwLock::new(Some(funnel.1)),
             taps: Default::default(),
-            broadcast: broadcast::channel::<Delivery>(16).0,
+            broadcast: broadcast::channel::<Delivery>(4096).0,
         }
     }
 
@@ -127,7 +127,7 @@ impl Network {
                     break;
                 };
 
-                if rand::random::<f32>() < self.loss_rate {
+                if self.loss_rate > 0.0 && rand::random::<f32>() < self.loss_rate {
                     // Drop the message
                     continue;
                 }

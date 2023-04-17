@@ -26,8 +26,12 @@ pub struct WaitForMessage {
     /// The transport protocol to use
     transport: Transport,
     /// The message that was received, if any
-    actual: RwLock<Vec<Message>>,
+    actual: RwLock<Message>,
+    /// The message we expect to receive
     expected: Message,
+    /// Whether to check that the bytes of the received message match. Turn on
+    /// for tests and off for benchmarks.
+    check_message: bool,
 }
 
 impl WaitForMessage {
@@ -40,6 +44,7 @@ impl WaitForMessage {
             transport: Transport::Udp,
             actual: Default::default(),
             shutdown: Default::default(),
+            check_message: true,
         }
     }
 
@@ -53,10 +58,17 @@ impl WaitForMessage {
         self.transport = transport;
         self
     }
+
+    /// Causes the received message bytes not to be checked against the expected
+    /// message. Good for benchmarking.
+    pub fn disable_checking(mut self) -> Self {
+        self.check_message = false;
+        self
+    }
 }
 
 impl Application for WaitForMessage {
-    const ID: Id = Id::from_string("Capture");
+    const ID: Id = Id::from_string("Wait for message");
 
     fn start(
         &self,
@@ -83,21 +95,14 @@ impl Application for WaitForMessage {
 
     fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
         let mut actual = self.actual.write().unwrap();
-        actual.push(message);
-        let mut expected = self.expected.iter();
-        for part in actual.iter() {
-            for byte in part.iter() {
-                if let Some(expected) = expected.next() {
-                    assert_eq!(byte, expected);
-                } else {
-                    panic!("Received more bytes than expected");
-                }
-            }
+        actual.concatenate(&message);
+
+        if actual.len() < self.expected.len() {
+            return Ok(());
         }
 
-        if expected.next().is_some() {
-            // We need more bytes
-            return Ok(());
+        if self.check_message {
+            assert_eq!(self.expected, *actual);
         }
 
         if let Some(shutdown) = self.shutdown.write().unwrap().take() {

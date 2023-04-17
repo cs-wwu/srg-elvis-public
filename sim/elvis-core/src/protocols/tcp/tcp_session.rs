@@ -6,7 +6,7 @@ use crate::{
     Id, Message, ProtocolMap, Session,
 };
 use std::{
-    sync::{Arc, RwLock, RwLockWriteGuard},
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
@@ -23,20 +23,22 @@ use std::{
 /// The session part of the TCP protocol.
 pub struct TcpSession {
     /// The transmission control block for the connection
-    tcb: RwLock<Tcb>,
+    tcb: Tcb,
     /// The upstream protocol
     upstream: Id,
     /// The downstream session
     downstream: SharedSession,
+    send_count: RwLock<usize>,
 }
 
 impl TcpSession {
     /// Create a new TCP session
-    pub fn new(tcb: RwLock<Tcb>, upstream: Id, downstream: SharedSession) -> Self {
+    pub fn new(tcb: Tcb, upstream: Id, downstream: SharedSession) -> Self {
         Self {
             tcb,
             upstream,
             downstream,
+            send_count: RwLock::new(0),
         }
     }
 
@@ -46,10 +48,9 @@ impl TcpSession {
         segment: Segment,
         context: Context,
     ) -> Result<SegmentArrivesResult, ReceiveError> {
-        let mut tcb = self.tcb.write().unwrap();
-        let result = tcb.segment_arrives(segment);
-        self.deliver_outgoing(&mut tcb, context.clone())?;
-        let received = tcb.receive();
+        let result = self.tcb.segment_arrives(segment);
+        self.deliver_outgoing(self.tcb.segments(), context.clone())?;
+        let received = self.tcb.receive();
         if !received.is_empty() {
             context
                 .clone()
@@ -66,10 +67,9 @@ impl TcpSession {
         delta_time: Duration,
         protocols: ProtocolMap,
     ) -> AdvanceTimeResult {
-        let mut tcb = self.tcb.write().unwrap();
-        let result = tcb.advance_time(delta_time);
+        let result = self.tcb.advance_time(delta_time);
         let context = Context::new(protocols);
-        match self.deliver_outgoing(&mut tcb, context) {
+        match self.deliver_outgoing(self.tcb.segments(), context) {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Send error while advancing time: {}", e);
@@ -79,12 +79,8 @@ impl TcpSession {
     }
 
     /// Transfer outgoing segments from the TCB to the downstream session
-    fn deliver_outgoing(
-        &self,
-        tcb: &mut RwLockWriteGuard<Tcb>,
-        context: Context,
-    ) -> Result<(), SendError> {
-        for mut segment in tcb.segments() {
+    fn deliver_outgoing(&self, segments: Vec<Segment>, context: Context) -> Result<(), SendError> {
+        for mut segment in segments {
             segment.text.header(segment.header.serialize());
             self.downstream
                 .clone()
@@ -96,9 +92,8 @@ impl TcpSession {
 
 impl Session for TcpSession {
     fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError> {
-        let mut tcb = self.tcb.write().unwrap();
-        tcb.send(&message);
-        self.deliver_outgoing(&mut tcb, context)?;
+        self.tcb.send(&message);
+        self.deliver_outgoing(self.tcb.segments(), context)?;
         Ok(())
     }
 

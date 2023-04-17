@@ -2,7 +2,7 @@ use crate::applications::{SocketClient, SocketServer};
 use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Pci, Sockets,
     },
@@ -22,11 +22,11 @@ pub async fn socket_basic() {
     let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
     let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
-    let ip_table: IpToTapSlot = [
-        (server_ip_address, 0),
-        (client1_ip_address, 0),
-        (client2_ip_address, 0),
-        (client3_ip_address, 0),
+    let ip_table: Recipients = [
+        (server_ip_address, Recipient::with_mac(0, 0)),
+        (client1_ip_address, Recipient::with_mac(0, 1)),
+        (client2_ip_address, Recipient::with_mac(0, 2)),
+        (client3_ip_address, Recipient::with_mac(0, 3)),
     ]
     .into_iter()
     .collect();
