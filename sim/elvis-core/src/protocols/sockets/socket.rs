@@ -1,8 +1,4 @@
-use std::{
-    collections::VecDeque,
-    sync::{Arc, RwLock},
-};
-
+use super::Sockets;
 use crate::{
     message::Chunk,
     protocol::{Context, DemuxError},
@@ -10,10 +6,12 @@ use crate::{
     session::SharedSession,
     Control, Id, Message, ProtocolMap, Shutdown,
 };
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 use thiserror::Error as ThisError;
 use tokio::{select, sync::Notify};
-
-use super::Sockets;
 
 /// An implementation of an individual Socket
 /// Created by the [`Sockets`] API
@@ -81,7 +79,7 @@ impl Socket {
         }
     }
 
-    pub(super) fn add_listen_address(self: Arc<Self>, remote_address: SocketAddress) {
+    pub(super) fn add_listen_address(&self, remote_address: SocketAddress) {
         let backlog = *self.listen_backlog.read().unwrap();
         if backlog == 0 || self.listen_addresses.read().unwrap().len() <= backlog {
             self.listen_addresses
@@ -111,13 +109,13 @@ impl Socket {
     }
 
     /// Used to specify whether or not certain socket functions should block
-    pub fn set_blocking(self: Arc<Self>, is_blocking: bool) {
+    pub fn set_blocking(&self, is_blocking: bool) {
         *self.is_blocking.write().unwrap() = is_blocking;
     }
 
     /// Assigns a remote ip address and port to a socket and connects the socket
     /// to that endpoint
-    pub fn connect(self: Arc<Self>, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub fn connect(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected. Also, a listening
         // socket cannot connect to a remote endpoint
@@ -126,7 +124,7 @@ impl Socket {
         }
         if self.local_addr.read().unwrap().is_none() {
             *self.local_addr.write().unwrap() =
-                Some(self.socket_api.clone().get_ephemeral_endpoint().unwrap());
+                Some(self.socket_api.get_ephemeral_endpoint().unwrap());
         }
         // Assign the given remote socket address to the socket
         *self.remote_addr.write().unwrap() = Some(sock_addr);
@@ -185,7 +183,7 @@ impl Socket {
     }
 
     /// Assigns a local ip address and port to a socket
-    pub fn bind(self: Arc<Self>, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub fn bind(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
         match self.family {
             ProtocolFamily::LOCAL => {
                 return Err(SocketError::BindError);
@@ -206,7 +204,7 @@ impl Socket {
     /// Makes this socket a listening socket, meaning that it can no longer be
     /// used to send or receive messages, but can instead be used to accept
     /// incoming connections on the specified port via accept()
-    pub fn listen(self: Arc<Self>, backlog: usize) -> Result<(), SocketError> {
+    pub fn listen(&self, backlog: usize) -> Result<(), SocketError> {
         if !*self.is_bound.read().unwrap()
             || *self.is_active.read().unwrap()
             || *self.is_listening.read().unwrap()
@@ -252,28 +250,26 @@ impl Socket {
     ///
     /// This function will block if the queue of pending connections is empty
     /// until a new connection arrives
-    pub async fn accept(self: Arc<Self>) -> Result<Arc<Socket>, SocketError> {
+    pub async fn accept(&self) -> Result<Arc<Socket>, SocketError> {
         if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
         if self.wait_for_notify(NotifyType::Listening).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
-        let new_sock = self.socket_api.clone().new_socket(
-            self.family,
-            self.sock_type,
-            self.protocols.clone(),
-        )?;
+        let new_sock =
+            self.socket_api
+                .new_socket(self.family, self.sock_type, self.protocols.clone())?;
         let local_addr = SocketAddress {
-            address: self.socket_api.clone().get_local_ipv4()?,
+            address: self.socket_api.get_local_ipv4()?,
             port: self.local_addr.read().unwrap().unwrap().port,
         };
-        new_sock.clone().bind(local_addr)?;
+        new_sock.bind(local_addr)?;
         *new_sock.remote_addr.write().unwrap() = self.listen_addresses.write().unwrap().pop_front();
         if !self.listen_addresses.read().unwrap().is_empty() {
             self.notify_listen.notify_one();
         }
-        let session = self.socket_api.clone().get_socket_session(
+        let session = self.socket_api.get_socket_session(
             new_sock.local_addr.read().unwrap().unwrap(),
             new_sock.remote_addr.read().unwrap().unwrap(),
         )?;
@@ -286,7 +282,7 @@ impl Socket {
 
     /// Sends data to the socket's remote endpoint
     pub fn send(
-        self: Arc<Self>,
+        &self,
         message: impl Into<Chunk> + std::marker::Send + 'static,
     ) -> Result<(), SocketError> {
         if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {
@@ -300,7 +296,6 @@ impl Socket {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .clone()
                 .send(Message::new(message), context)
                 .unwrap();
         });
@@ -311,7 +306,7 @@ impl Socket {
     ///
     /// This function will block if the queue of incoming messages is empty
     /// until a new message is received
-    pub async fn recv(self: Arc<Self>, bytes: usize) -> Result<Vec<u8>, SocketError> {
+    pub async fn recv(&self, bytes: usize) -> Result<Vec<u8>, SocketError> {
         // If the socket doesn't have a session yet, data cannot be received and
         // calls to recv will return an error, a call to connect() must be made
         // first
@@ -345,7 +340,7 @@ impl Socket {
     ///
     /// This function will block if the queue of incoming messages is empty
     /// until a new message is received
-    pub async fn recv_msg(self: Arc<Self>) -> Result<Message, SocketError> {
+    pub async fn recv_msg(&self) -> Result<Message, SocketError> {
         // If the socket doesn't have a session yet, data cannot be received and
         // calls to recv will return an error, a call to connect() must be made
         // first

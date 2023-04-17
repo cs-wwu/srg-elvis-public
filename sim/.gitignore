@@ -14,9 +14,10 @@ Cargo.lock
 
 *.log
 
-# Ignore perf files
+# Ignore profiling files
+*.perf
 *.data
 *.old
-
-# Ignore flamegraph files
 *.svg
+callgrind.*
+dhat.*

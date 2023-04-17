@@ -24,7 +24,7 @@ pub async fn telephone_multi() {
     let mut machines = vec![Machine::new([
         Udp::new().shared() as SharedProtocol,
         Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect()).shared(),
-        Pci::new([networks[0].tap()]).shared(),
+        Pci::new([networks[0].clone()]).shared(),
         SendMessage::new(vec![message.clone()], remote, 0xbeef).shared(),
     ])];
 
@@ -36,7 +36,11 @@ pub async fn telephone_multi() {
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(table).shared(),
             Forward::new(local, remote, 0xbeef, 0xbeef).shared(),
-            Pci::new([networks[i as usize].tap(), networks[i as usize + 1].tap()]).shared(),
+            Pci::new([
+                networks[i as usize].clone(),
+                networks[i as usize + 1].clone(),
+            ])
+            .shared(),
         ]));
     }
 
@@ -46,7 +50,7 @@ pub async fn telephone_multi() {
     machines.push(Machine::new([
         Udp::new().shared() as SharedProtocol,
         Ipv4::new(Default::default()).shared(),
-        Pci::new([networks[last_network as usize].tap()]).shared(),
+        Pci::new([networks[last_network as usize].clone()]).shared(),
         capture.clone(),
     ]));
 

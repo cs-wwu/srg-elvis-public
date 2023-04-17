@@ -2,22 +2,20 @@
 //! Protocol](https://www.rfc-editor.org/rfc/rfc9293.html).
 
 use self::{
-    tcb::{segment_arrives_closed, ListenResult, Segment, SegmentArrivesResult, Tcb},
+    tcb::{segment_arrives_closed, ListenResult, Segment, Tcb},
     tcp_parsing::TcpHeader,
-    tcp_session::{ReceiveError, TcpSession},
+    tcp_session::TcpSession,
 };
 use super::{utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
-    protocol::{
-        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
-    },
-    protocols::tcp::tcb::{segment_arrives_listen, AdvanceTimeResult},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
-use std::{sync::Arc, time::Duration};
+use dashmap::mapref::entry::Entry;
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 mod tcb;
@@ -32,9 +30,9 @@ mod tcp_session;
 pub struct Tcp {
     /// A record of which protocol requested to listen for connections on
     /// particular sockets.
-    listen_bindings: DashMap<Socket, Id>,
+    listen_bindings: FxDashMap<Socket, Id>,
     /// A lookup table for sessions based on their endpoints.
-    sessions: DashMap<ConnectionId, Arc<TcpSession>>,
+    sessions: FxDashMap<ConnectionId, Arc<TcpSession>>,
 }
 
 impl Tcp {
@@ -43,14 +41,11 @@ impl Tcp {
 
     /// Creates a new TCP protocol
     pub fn new() -> Self {
-        Self {
-            listen_bindings: Default::default(),
-            sessions: Default::default(),
-        }
+        Self::default()
     }
 
     /// Converts the TCP into a shared protocol.
-    pub fn shared(self) -> SharedProtocol {
+    pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
 
@@ -76,12 +71,12 @@ impl Tcp {
 }
 
 impl Protocol for Tcp {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -112,16 +107,18 @@ impl Protocol for Tcp {
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols.clone())?;
                 let mtu = downstream
-                    .clone()
                     .query(Pci::MTU_QUERY_KEY)
                     .map_err(|_| OpenError::Other)?
                     .ok_u32()
                     .map_err(|_| OpenError::Other)?;
-                let session = Arc::new(TcpSession::new(
+                let session = TcpSession::new(
                     Tcb::open(session_id, rand::random(), mtu),
-                    upstream,
+                    protocols
+                        .protocol(upstream)
+                        .ok_or(OpenError::MissingProtocol(upstream))?,
                     downstream,
-                ));
+                    protocols,
+                );
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -129,7 +126,7 @@ impl Protocol for Tcp {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -150,7 +147,7 @@ impl Protocol for Tcp {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
@@ -160,9 +157,10 @@ impl Protocol for Tcp {
         let remote_address = Ipv4::get_remote_address(&context.control).unwrap();
 
         // Parse the header
-        let header = TcpHeader::from_bytes(message.iter(), remote_address, local_address)
-            .map_err(|_| DemuxError::Header)?;
-        message.slice(20..);
+        let header =
+            TcpHeader::from_bytes(message.iter(), message.len(), remote_address, local_address)
+                .map_err(|_| DemuxError::Header)?;
+        message.remove_front(20);
 
         let local = Socket {
             address: local_address,
@@ -184,23 +182,7 @@ impl Protocol for Tcp {
         let segment = Segment::new(header, message);
         match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
-                let session = entry.get().clone();
-                match session.receive(segment, context) {
-                    Ok(receive_result) => {
-                        if receive_result == SegmentArrivesResult::Close {
-                            entry.remove_entry();
-                        }
-                    }
-                    Err(e) => match e {
-                        ReceiveError::Closing => {
-                            tracing::error!("The TCP connection is already closing. Cannot demux.");
-                            return Err(DemuxError::Other);
-                        }
-                        ReceiveError::Protocol(id) => return Err(DemuxError::MissingProtocol(id)),
-                        ReceiveError::Demux(e) => Err(e)?,
-                        ReceiveError::Send(e) => Err(e)?,
-                    },
-                }
+                entry.get().receive(segment, context);
             }
 
             Entry::Vacant(session_entry) => {
@@ -212,7 +194,6 @@ impl Protocol for Tcp {
                         // If we have a listen binding, create the session and
                         // save it
                         let mtu = caller
-                            .clone()
                             .query(Pci::MTU_QUERY_KEY)
                             .map_err(|_| DemuxError::Other)?
                             .ok_u32()
@@ -230,8 +211,15 @@ impl Protocol for Tcp {
                                     caller.send(Message::new(response.serialize()), context)?;
                                 }
                                 ListenResult::Tcb(tcb) => {
-                                    let session =
-                                        Arc::new(TcpSession::new(tcb, *listen_entry.get(), caller));
+                                    let upstream = *listen_entry.get();
+                                    let session = TcpSession::new(
+                                        tcb,
+                                        context
+                                            .protocol(upstream)
+                                            .ok_or(OpenError::MissingProtocol(upstream))?,
+                                        caller,
+                                        context.protocols,
+                                    );
                                     session_entry.insert(session);
                                 }
                             }
@@ -256,37 +244,18 @@ impl Protocol for Tcp {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         tokio::spawn(async move {
             initialized.wait().await;
-            loop {
-                const SLEEP_DURATION: Duration = Duration::from_millis(33);
-                tokio::time::sleep(SLEEP_DURATION).await;
-                let mut to_remove = vec![];
-                for entry in self.sessions.iter_mut() {
-                    match entry
-                        .clone()
-                        .advance_time(SLEEP_DURATION, protocols.clone())
-                    {
-                        AdvanceTimeResult::Ignore => {}
-                        AdvanceTimeResult::CloseConnection => {
-                            to_remove.push(*entry.key());
-                        }
-                    }
-                }
-                for id in to_remove {
-                    self.sessions.remove(&id);
-                }
-            }
         });
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         tracing::error!("No such key on TCP");
         Err(QueryError::NonexistentKey)
     }

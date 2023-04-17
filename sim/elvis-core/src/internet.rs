@@ -4,20 +4,16 @@ use std::sync::Arc;
 use tokio::sync::Barrier;
 
 /// Runs the simulation with the given machines and networks
-pub async fn run_internet(machines: Vec<Machine>, networks: Vec<Arc<Network>>) {
+pub async fn run_internet(machines: Vec<Machine>, _networks: Vec<Arc<Network>>) {
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
         .map(|machine| machine.protocol_count())
         .sum();
-    let initialized = Arc::new(Barrier::new(total_protocols + networks.len()));
+    let initialized = Arc::new(Barrier::new(total_protocols));
 
     for machine in machines {
         machine.start(shutdown.clone(), initialized.clone());
-    }
-
-    for network in networks {
-        network.start(shutdown.clone(), initialized.clone());
     }
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever

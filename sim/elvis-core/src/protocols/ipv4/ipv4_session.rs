@@ -49,7 +49,7 @@ impl Ipv4Session {
 
 impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, mut context: Context) -> Result<(), SendError> {
         let length = message.iter().count();
         let header = match Ipv4HeaderBuilder::new(
             self.id.local,
@@ -71,12 +71,12 @@ impl Session for Ipv4Session {
             Network::set_destination(mac, &mut context.control);
         }
         message.header(header);
-        self.downstream.clone().send(message, context)?;
+        self.downstream.send(message, context)?;
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.clone().query(key)
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
+        self.downstream.query(key)
     }
 }
 
