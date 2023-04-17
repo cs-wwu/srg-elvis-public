@@ -18,6 +18,9 @@ pub use sockets::Sockets;
 pub mod user_process;
 pub use user_process::UserProcess;
 
+pub mod dns;
+pub use dns::Dns;
+
 mod utility;
 
 // TODO(hardint): Remove dead code allowance when possible
