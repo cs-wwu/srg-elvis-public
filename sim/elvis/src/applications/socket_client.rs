@@ -64,7 +64,8 @@ impl Application for SocketClient {
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
             let socket = sockets
-                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols).await
+                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                .await
                 .unwrap();
 
             // Wait on initialization before sending any message across the network
