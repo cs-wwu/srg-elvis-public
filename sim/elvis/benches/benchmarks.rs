@@ -54,17 +54,17 @@ fn tcp_gigabyte(c: &mut Criterion) {
     });
 }
 
-fn runtime() -> Runtime {
+/*fn runtime() -> Runtime {
     Builder::new_current_thread().enable_time().build().unwrap()
-}
+}*/
 
 criterion_group!(
     benches,
     basic,
-    telephone_multi,
-    telephone_single,
-    tcp_gigabyte,
-    socket_basic,
+    //telephone_multi,
+    //telephone_single,
+    //tcp_gigabyte,
+    //socket_basic,
     ping_pong_multi,
     socket_ping_pong,
 );

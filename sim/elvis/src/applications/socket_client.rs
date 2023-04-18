@@ -86,7 +86,7 @@ impl Application for SocketClient {
                 "CLIENT {}: Response Received: {:?}",
                 client_id,
                 String::from_utf8(resp).unwrap()
-            ); */
+            );
 
             // Send a message
             println!("CLIENT {}: Sending Ackowledgement", client_id);

@@ -2,11 +2,11 @@ use crate::applications::PingPongMulti;
 use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Pci,
     },
-    run_internet, Machine, Network,
+    run_internet, Machine, Network
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
@@ -20,31 +20,38 @@ const IP_ADDRESS_4: Ipv4Address = Ipv4Address::new([123, 45, 67, 92]);
 /// back and forth till the TTL reaches 0. TTL will be subtracted by 1 every time a machine reveives it.
 pub async fn ping_pong_multi() {
     let network = Network::basic();
-    let ip_table: IpToTapSlot = [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 0), (IP_ADDRESS_3, 0), (IP_ADDRESS_4, 0)].into_iter().collect();
+    let ip_table: Recipients = [
+        (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
+        (IP_ADDRESS_2, Recipient::with_mac(0, 1)),
+        (IP_ADDRESS_3, Recipient::with_mac(0, 2)),
+        (IP_ADDRESS_4, Recipient::with_mac(0, 3)),
+    ]
+    .into_iter()
+    .collect();
 
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPongMulti::new(false, IP_ADDRESS_1, IP_ADDRESS_2, IP_ADDRESS_3, IP_ADDRESS_4, 0xbeef, 0xface).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPongMulti::new(true, IP_ADDRESS_2, IP_ADDRESS_1, IP_ADDRESS_3, IP_ADDRESS_4, 0xface, 0xbeef).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPongMulti::new(true, IP_ADDRESS_3, IP_ADDRESS_1, IP_ADDRESS_2, IP_ADDRESS_4, 0xface, 0xbeef).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPongMulti::new(true, IP_ADDRESS_4, IP_ADDRESS_1, IP_ADDRESS_2, IP_ADDRESS_3, 0xface, 0xbeef).shared(),
         ]),
     ];

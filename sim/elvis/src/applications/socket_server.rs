@@ -40,7 +40,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
     println!(
         "SERVER: Request Received: {:?}",
         String::from_utf8(req).unwrap()
-    ); */
+    );
 
     // Send a message
     let resp = "Major Tom to Ground Control";
