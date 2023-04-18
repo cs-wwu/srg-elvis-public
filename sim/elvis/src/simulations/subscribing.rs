@@ -6,7 +6,7 @@ use elvis_core::{
     network::{Baud, NetworkBuilder, Throughput},
     protocol::{Context, SharedProtocol},
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4Address},
+        ipv4::{Ipv4Address, Recipient, Recipients},
         Ipv4, Pci, SubWrap, Udp, UserProcess,
     },
     run_internet, Machine, Message, Network, Protocol,
@@ -42,24 +42,26 @@ fn message_contains(message: &Message, str: &str) -> bool {
 pub async fn basic_with_1_subscribe() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
+        .into_iter()
+        .collect();
 
     let message = Message::new(b"Hello!");
 
     // Subscribe to machine #1's Pci protocol
-    let (pci, mut pci_recv) = sub_send(Pci::new([network.tap()]));
+    let (pci, mut pci_recv) = sub_send(Pci::new([network.clone()]));
 
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             pci.shared(),
-            SendMessage::new(message.clone(), capture_ip_address, 0xfefe).shared(),
+            SendMessage::new(vec![message], capture_ip_address, 0xfefe).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             Capture::new(capture_ip_address, 0xfefe, 1).shared(),
         ]),
     ];
@@ -79,13 +81,15 @@ pub async fn basic_with_1_subscribe() {
 pub async fn basic_with_lots_of_subscribe() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
+        .into_iter()
+        .collect();
 
     let message = Message::new(b"Hello!");
 
     // Subscribe to machine #1's Udp and Pci protocols
     let (udp, mut udp_recv) = sub_send(Udp::new());
-    let (pci, mut pci_recv) = sub_send(Pci::new([network.tap()]));
+    let (pci, mut pci_recv) = sub_send(Pci::new([network.clone()]));
 
     // Subscribe to machine #2's Ipv4 and capture protocols
     let (ipv4, mut ipv4_recv) = sub_demux(Ipv4::new(ip_table.clone()));
@@ -97,12 +101,12 @@ pub async fn basic_with_lots_of_subscribe() {
             udp.shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             pci.shared(),
-            SendMessage::new(message.clone(), capture_ip_address, 0xfefe).shared(),
+            SendMessage::new(vec![message], capture_ip_address, 0xfefe).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             ipv4.shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             capture.shared(),
         ]),
     ];
@@ -136,7 +140,12 @@ pub async fn print_ping_pong() {
         .throughput(Throughput::constant(Baud::bytes_per_second(65536)))
         .build();
 
-    let ip_table: IpToTapSlot = [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 0)].into_iter().collect();
+    let ip_table: Recipients = [
+        (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
+        (IP_ADDRESS_2, Recipient::with_mac(0, 1)),
+    ]
+    .into_iter()
+    .collect();
 
     let udp_1 = Udp::new();
     let (udp_1, mut udp_1_recv) = sub_send(udp_1);
@@ -149,14 +158,14 @@ pub async fn print_ping_pong() {
         Machine::new([
             udp_1.shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xfefe, 0xface).shared(),
         ]),
         // Machine 2
         Machine::new([
             udp_2.shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xfefe).shared(),
         ]),
     ];
@@ -193,7 +202,12 @@ async fn subscribe_multiple_times() {
     let network = Network::basic();
     let ip_addr1: Ipv4Address = [123, 45, 67, 89].into();
     let ip_addr2: Ipv4Address = [42, 0, 62, 1].into();
-    let ip_table: IpToTapSlot = [(ip_addr1, 0), (ip_addr2, 0)].into_iter().collect();
+    let ip_table: Recipients = [
+        (ip_addr1, Recipient::with_mac(0, 1)),
+        (ip_addr2, Recipient::with_mac(0, 0)),
+    ]
+    .into_iter()
+    .collect();
 
     // Subscribe to machine #1's Pci protocol
     let mut udp = SubWrap::new(Udp::new());
@@ -202,7 +216,7 @@ async fn subscribe_multiple_times() {
     let mut send_chan1 = udp.subscribe_send();
 
     // make sure the sim still runs if you drop the subscriber
-    let mut pci = SubWrap::new(Pci::new([network.tap()]));
+    let mut pci = SubWrap::new(Pci::new([network.clone()]));
     let dead_stream = pci.subscribe_demux();
     drop(dead_stream);
 
@@ -210,7 +224,7 @@ async fn subscribe_multiple_times() {
         Machine::new([
             udp.shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPong::new(true, ip_addr1, ip_addr2, 0xfefe, 0xfefe).shared(),
         ]),
         Machine::new([

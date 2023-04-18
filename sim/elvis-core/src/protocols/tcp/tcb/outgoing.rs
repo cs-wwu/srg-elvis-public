@@ -3,7 +3,7 @@ use crate::{protocols::tcp::tcp_parsing::TcpHeader, Message};
 use std::collections::VecDeque;
 
 /// A collection of queues used for outgoing segments in TCP
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct Outgoing {
     /// Data bytes queued for transmission but not yet segmentized
     pub text: Message,
@@ -23,6 +23,12 @@ impl Outgoing {
             .iter()
             .map(|transmit| transmit.segment.text.len())
             .sum()
+    }
+
+    pub fn reset(&mut self) {
+        self.text = Default::default();
+        self.retransmit = Default::default();
+        self.oneshot = Default::default();
     }
 }
 

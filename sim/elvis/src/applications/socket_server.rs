@@ -36,20 +36,20 @@ impl SocketServer {
 
 async fn communicate_with_client(socket: Arc<Socket>) {
     // Receive a message
-    let req = socket.clone().recv(32).await.unwrap();
-    /* println!(
+    let req = socket.recv(32).await.unwrap();
+    println!(
         "SERVER: Request Received: {:?}",
         String::from_utf8(req).unwrap()
     ); */
 
     // Send a message
     let resp = "Major Tom to Ground Control";
-    // println!("SERVER: Sending Response: {:?}", resp);
-    socket.clone().send(resp).unwrap();
+    println!("SERVER: Sending Response: {:?}", resp);
+    socket.send(resp).unwrap();
 
     // Receive a message (Also example usage of recv_msg)
-    let _ack = socket.clone().recv_msg().await.unwrap();
-    // println!("SERVER: Ackowledgement Received");
+    let _ack = socket.recv_msg().await.unwrap();
+    println!("SERVER: Ackowledgement Received");
 }
 
 impl Application for SocketServer {
@@ -69,18 +69,17 @@ impl Application for SocketServer {
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
             let listen_socket = sockets
-                .clone()
                 .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .await
                 .unwrap();
 
             // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
             let local_sock_addr = SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, local_port);
-            listen_socket.clone().bind(local_sock_addr).unwrap();
+            listen_socket.bind(local_sock_addr).unwrap();
 
             // Listen for incoming connections, with a maximum backlog of 10
-            listen_socket.clone().listen(10).unwrap();
-            // println!("SERVER: Listening for incoming connections");
+            listen_socket.listen(10).unwrap();
+            println!("SERVER: Listening for incoming connections");
 
             // Wait on ititialization before sending or receiving any message from the network
             initialized.wait().await;
@@ -90,8 +89,8 @@ impl Application for SocketServer {
             // new tokio task to handle each accepted connection
             loop {
                 // Accept an incoming connection
-                let socket = listen_socket.clone().accept().await.unwrap();
-                // println!("SERVER: Connection accepted");
+                let socket = listen_socket.accept().await.unwrap();
+                println!("SERVER: Connection accepted");
 
                 // Spawn a new tokio task for handling communication
                 // with the new client

@@ -9,9 +9,9 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, Protocol, Shutdown,
+    Control, FxDashMap, Protocol, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
+use dashmap::mapref::entry::Entry;
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
@@ -26,8 +26,8 @@ use super::{ipv4::Ipv4Address, utility::Socket};
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: DashMap<Socket, Id>,
-    sessions: DashMap<SessionId, Arc<UdpSession>>,
+    listen_bindings: FxDashMap<Socket, Id>,
+    sessions: FxDashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
@@ -62,13 +62,13 @@ impl Udp {
 }
 
 impl Protocol for Udp {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -123,7 +123,7 @@ impl Protocol for Udp {
 
     #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -151,7 +151,7 @@ impl Protocol for Udp {
 
     #[tracing::instrument(name = "Udp::demux", skip_all)]
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
@@ -166,15 +166,19 @@ impl Protocol for Udp {
             DemuxError::MissingContext
         })?;
         // Parse the header
-        let header = match UdpHeader::from_bytes_ipv4(message.iter(), remote_address, local_address)
-        {
+        let header = match UdpHeader::from_bytes_ipv4(
+            message.iter(),
+            message.len(),
+            remote_address,
+            local_address,
+        ) {
             Ok(header) => header,
             Err(e) => {
                 tracing::error!("{}", e);
                 Err(DemuxError::Header)?
             }
         };
-        message.slice(8..);
+        message.remove_front(8);
 
         // Use the context and the header information to identify the session
         let session_id = SessionId::new(
@@ -206,6 +210,7 @@ impl Protocol for Udp {
                         };
                         match self.listen_bindings.get(&any_listen_id) {
                             Some(any_listen_entry) => any_listen_entry,
+
                             None => {
                                 tracing::error!(
                                     "Tried to demux with a missing session and no listen bindings"
@@ -229,7 +234,7 @@ impl Protocol for Udp {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
@@ -240,7 +245,7 @@ impl Protocol for Udp {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
     }
 }

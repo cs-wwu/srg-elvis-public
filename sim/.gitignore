@@ -13,3 +13,11 @@ Cargo.lock
 .vscode
 
 *.log
+
+# Ignore profiling files
+*.perf
+*.data
+*.old
+*.svg
+callgrind.*
+dhat.*
