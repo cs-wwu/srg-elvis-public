@@ -1,8 +1,7 @@
-use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address};
+use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address, Recipient};
 use crate::{
     control::{Key, Primitive},
     id::Id,
-    machine::PciSlot,
     message::Message,
     protocol::{Context, DemuxError},
     protocols::pci::Pci,
@@ -19,8 +18,8 @@ pub struct Ipv4Session {
     downstream: SharedSession,
     /// The identifying information for this session
     id: SessionId,
-    /// The PCI slot to send on
-    tap_slot: PciSlot,
+    /// Inforamation about how and where to send packets
+    destination: Recipient,
 }
 
 impl Ipv4Session {
@@ -29,13 +28,13 @@ impl Ipv4Session {
         downstream: SharedSession,
         upstream: Id,
         identifier: SessionId,
-        tap_slot: PciSlot,
+        destination: Recipient,
     ) -> Self {
         Self {
             upstream,
             downstream,
             id: identifier,
-            tap_slot,
+            destination,
         }
     }
 
@@ -50,7 +49,7 @@ impl Ipv4Session {
 
 impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
-    fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, mut context: Context) -> Result<(), SendError> {
         let length = message.iter().count();
         let header = match Ipv4HeaderBuilder::new(
             self.id.local,
@@ -66,16 +65,18 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-
-        Pci::set_pci_slot(self.tap_slot, &mut context.control);
+        Pci::set_pci_slot(self.destination.slot, &mut context.control);
         Network::set_protocol(Ipv4::ID, &mut context.control);
+        if let Some(mac) = self.destination.mac {
+            Network::set_destination(mac, &mut context.control);
+        }
         message.header(header);
-        self.downstream.clone().send(message, context)?;
+        self.downstream.send(message, context)?;
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.clone().query(key)
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
+        self.downstream.query(key)
     }
 }
 

@@ -3,6 +3,9 @@
 mod basic;
 pub use basic::basic;
 
+mod socket_basic;
+pub use socket_basic::socket_basic;
+
 mod telephone_multi;
 pub use telephone_multi::telephone_multi;
 
@@ -33,5 +36,12 @@ pub use tcp_with_reliable::tcp_with_reliable;
 mod tcp_with_unreliable;
 pub use tcp_with_unreliable::tcp_with_unreliable;
 
-mod arp_sims;
-pub use arp_sims::simple;
+pub mod arp_sims;
+
+pub mod subscribing;
+
+mod tcp_gigabyte_bench;
+pub use tcp_gigabyte_bench::tcp_gigabyte_bench;
+
+mod udp_gigabyte_bench;
+pub use udp_gigabyte_bench::udp_gigabyte_bench;

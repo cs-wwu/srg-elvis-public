@@ -4,3 +4,7 @@ members = [
     "elvis-core",
     "elvis",
 ]
+
+[profile.release-debug]
+inherits = "release"
+debug = true

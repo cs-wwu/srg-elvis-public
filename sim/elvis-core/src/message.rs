@@ -10,9 +10,6 @@ pub use chunk::Chunk;
 mod slice_range;
 use slice_range::SliceRange;
 
-mod message_bytes;
-pub use message_bytes::MessageBytes;
-
 /// A byte collection with efficient operations for implementing protocols.
 ///
 /// When writing a networking protocol, it is standard to append headers, remove
@@ -67,9 +64,9 @@ impl Message {
     }
 
     /// Adds the given message to the end of this one.
-    pub fn concatenate(&mut self, other: &Message) {
+    pub fn concatenate(&mut self, mut other: Message) {
         self.len += other.len;
-        self.chunks.extend(other.chunks.iter().cloned());
+        self.chunks.append(&mut other.chunks);
     }
 
     /// Creates a slice of the message for the given range. All Rust range types
@@ -127,6 +124,55 @@ impl Message {
         self.chunks.drain(i..);
     }
 
+    /// Removes the first `len` bytes from the message and returns them as a new
+    /// message.
+    pub fn cut(&mut self, len: usize) -> Self {
+        assert!(len <= self.len);
+        self.len -= len;
+
+        let mut chunks = VecDeque::new();
+        let mut to_remove = len;
+
+        // Remove leading chunks that are no longer accessible
+        while let Some(mut head) = self.chunks.pop_front() {
+            let head_len = head.len();
+            if head_len <= to_remove {
+                to_remove -= head_len;
+                chunks.push_back(head);
+            } else {
+                if to_remove > 0 {
+                    let mut head = head.clone();
+                    head.end = head.start + to_remove;
+                    chunks.push_back(head);
+                }
+                head.start += to_remove;
+                self.chunks.push_front(head);
+                break;
+            }
+        }
+
+        Self { chunks, len }
+    }
+
+    pub fn remove_front(&mut self, len: usize) {
+        assert!(len <= self.len);
+        self.len -= len;
+
+        let mut to_remove = len;
+
+        // Remove leading chunks that are no longer accessible
+        while let Some(head) = self.chunks.front_mut() {
+            let head_len = head.len();
+            if head_len <= to_remove {
+                to_remove -= head_len;
+                self.chunks.pop_front();
+            } else {
+                head.start += to_remove;
+                break;
+            }
+        }
+    }
+
     /// The length of the message.
     pub fn len(&self) -> usize {
         self.len
@@ -148,8 +194,10 @@ impl Message {
     /// let expected = b"HeaderBody";
     /// assert!(message.iter().eq(expected.iter().cloned()));
     /// ```
-    pub fn iter(&self) -> MessageBytes {
-        MessageBytes::new(&self.chunks)
+    pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
+        self.chunks
+            .iter()
+            .flat_map(|chunk| chunk.as_slice().iter().cloned())
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -309,7 +357,51 @@ mod tests {
     #[test]
     fn concatenate() {
         let mut message = Message::new("Hello");
-        message.concatenate(&Message::new(" world!"));
+        message.concatenate(Message::new(" world!"));
         assert_eq!(&message.to_vec(), b"Hello world!");
+    }
+
+    #[test]
+    fn empty_message() {
+        let message = Message::new("");
+        assert_eq!(&message.to_vec(), b"");
+    }
+
+    #[test]
+    fn cut() {
+        let mut a = Message::new("Hello, world");
+        let b = a.cut(5);
+        assert_eq!(a, Message::new(", world"));
+        assert_eq!(b, Message::new("Hello"));
+    }
+
+    #[test]
+    fn cut_more_complex() {
+        let mut a = Message::new("stuffa");
+        a.header(" and ");
+        a.header("athings");
+        a.slice(1..);
+        a.slice(..16);
+        let b = a.cut(10);
+        assert_eq!(a, Message::new(" stuff"));
+        assert_eq!(b, Message::new("things and"));
+    }
+
+    #[test]
+    fn remove_front() {
+        let mut a = Message::new("Hello, world");
+        a.remove_front(5);
+        assert_eq!(a, Message::new(", world"));
+    }
+
+    #[test]
+    fn remove_front_more_complex() {
+        let mut a = Message::new("stuffa");
+        a.header(" and ");
+        a.header("athings");
+        a.slice(1..);
+        a.slice(..16);
+        a.remove_front(10);
+        assert_eq!(a, Message::new(" stuff"));
     }
 }

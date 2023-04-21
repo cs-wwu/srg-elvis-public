@@ -4,13 +4,14 @@ use std::collections::HashMap;
 use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::network::Mac;
-use elvis_core::protocols::ipv4::{IpToTapSlot, Ipv4Address};
+use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Pci;
 use elvis_core::{
     protocol::SharedProtocol,
     protocols::{ipv4::Ipv4, udp::Udp},
 };
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 
 use super::generator_data::NetworkInfo;
 
@@ -23,8 +24,9 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
     let mut cur_mac: u64 = 0;
     for machine in machines.iter() {
         let mut cur_name: String = String::new();
+        let mut machine_count: u64 = 1;
         if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("count") {
-            let machine_count = machine
+            machine_count = machine
                 .options
                 .as_ref()
                 .unwrap()
@@ -38,49 +40,56 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     )
                 });
             assert!(machine_count > 0, "Machine count less than 1.");
-            cur_mac += machine_count - 1;
         }
+        for temp_machine_count in 0..machine_count {
+            if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("name") {
+                cur_name = machine
+                    .options
+                    .as_ref()
+                    .unwrap()
+                    .get("name")
+                    .unwrap()
+                    .to_string();
+                if machine_count > 1 {
+                    cur_name = cur_name + "-" + &temp_machine_count.to_string();
+                }
+                name_to_mac.insert(cur_name.clone(), cur_mac);
+            }
 
-        if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("name") {
-            cur_name = machine
-                .options
-                .as_ref()
-                .unwrap()
-                .get("name")
-                .unwrap()
-                .to_string();
-            name_to_mac.insert(cur_name.clone(), cur_mac);
-        }
-
-        if !cur_name.is_empty() {
-            for app in &machine.interfaces.applications {
-                assert!(
-                    app.options.contains_key("name"),
-                    "Machine application does not contain a name"
-                );
-                let app_name = app.options.get("name").unwrap().as_str();
-                if app_name == "capture" || app_name == "forward" || app_name == "ping_pong" {
+            if !cur_name.is_empty() {
+                for app in &machine.interfaces.applications {
                     assert!(
-                        app.options.contains_key("ip"),
-                        "{app_name} application doesn't contain ip."
+                        app.options.contains_key("name"),
+                        "Machine application does not contain a name"
                     );
+                    let app_name = app.options.get("name").unwrap().as_str();
+                    if app_name == "capture" || app_name == "forward" || app_name == "ping_pong" {
+                        assert!(
+                            app.options.contains_key("ip"),
+                            "{app_name} application doesn't contain ip."
+                        );
 
-                    let ip = ip_string_to_ip(
-                        app.options.get("ip").unwrap().to_string(),
-                        format!("{app_name} declaration").as_str(),
-                    );
+                        // This check makes sure counts do not appear on recieving machines.
+                        // Can be removed when ELVIS allows for this.
+                        assert!(
+                            machine_count == 1,
+                            "Machine {cur_name} contains count and {app_name} application"
+                        );
 
-                    name_to_ip.insert(cur_name.clone(), ip.into());
-                    ip_to_mac.insert(ip.into(), cur_mac);
+                        let ip = ip_string_to_ip(
+                            app.options.get("ip").unwrap().to_string(),
+                            format!("{app_name} declaration").as_str(),
+                        );
+
+                        name_to_ip.insert(cur_name.clone(), ip.into());
+                        ip_to_mac.insert(ip.into(), cur_mac);
+                    }
                 }
             }
+            cur_mac += 1;
         }
-
-        cur_mac += 1;
     }
-
     let mut machine_list = Vec::new();
-
     for machine in &machines {
         let mut machine_count = 1;
         let mut _cur_machine_name: String;
@@ -107,8 +116,8 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
 
         for _count in 0..machine_count {
             let mut networks_to_be_added = Vec::new();
-            let mut protocols_to_be_added = Vec::new();
-            let mut ip_table = Vec::new();
+            let mut protocols_to_be_added: Vec<SharedProtocol> = Vec::new();
+            let mut ip_table = FxHashMap::default();
 
             for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
                 // TODO: maybe still need an error test
@@ -123,7 +132,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     networks.nets.keys().sorted().join(" , ")
                 );
                 let network_adding = networks.nets.get(net.options.get("id").unwrap()).unwrap();
-                networks_to_be_added.push(network_adding.tap());
+                networks_to_be_added.push(network_adding.clone());
 
                 let ips = networks
                     .ip_hash
@@ -135,10 +144,10 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                         )
                     });
                 for ip in ips {
-                    ip_table.push((*ip, net_num));
+                    let mac = ip_to_mac.get(ip).cloned();
+                    ip_table.insert(*ip, Recipient::new(net_num, mac));
                 }
             }
-            let ip_table: IpToTapSlot = ip_table.into_iter().collect();
             protocols_to_be_added.push(Pci::new(networks_to_be_added).shared());
             for protocol in &machine.interfaces.protocols {
                 for option in &protocol.options {
@@ -161,23 +170,17 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 );
                 let app_name = app.options.get("name").unwrap().as_str();
                 match app_name {
-                    "send_message" => protocols_to_be_added.push(send_message_builder(
-                        app,
-                        &name_to_ip,
-                        &name_to_mac,
-                        &ip_to_mac,
-                    )),
-
-                    "capture" => {
-                        protocols_to_be_added.push(capture_builder(app, &ip_table));
+                    "send_message" => {
+                        protocols_to_be_added.push(send_message_builder(app, &name_to_ip))
                     }
 
-                    "forward" => protocols_to_be_added.push(forward_message_builder(
-                        app,
-                        &name_to_ip,
-                        &name_to_mac,
-                        &ip_to_mac,
-                    )),
+                    "capture" => {
+                        protocols_to_be_added.push(capture_builder(app));
+                    }
+
+                    "forward" => {
+                        protocols_to_be_added.push(forward_message_builder(app, &name_to_ip))
+                    }
 
                     "ping_pong" => protocols_to_be_added.push(ping_pong_builder(
                         app,

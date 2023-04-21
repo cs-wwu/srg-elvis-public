@@ -1,30 +1,27 @@
 use elvis_core::{
     message::Message,
     protocol::Context,
-    protocols::ipv4::ipv4_parsing::Ipv4Header,
+    protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
     protocols::{
-        ipv4::{IpToTapSlot},
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Pci,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap,
+    Control, Id, Network, ProtocolMap, Shutdown,
 };
-use std::{
-    sync::{Arc, RwLock},
-};
-use tokio::sync::{mpsc::Sender, Barrier};
+use std::sync::{Arc, RwLock};
+use tokio::sync::Barrier;
 
 pub struct Router {
-    outgoing: Arc<RwLock<Option<Vec<SharedSession>>>>,
-    ip_table: IpToTapSlot,
+    outgoing: RwLock<Vec<SharedSession>>,
+    recipients: Recipients,
 }
 
 impl Router {
-    pub fn new(ip_table: IpToTapSlot) -> Self {
+    pub fn new(recipients: Recipients) -> Self {
         Self {
             outgoing: Default::default(),
-            ip_table,
+            recipients,
         }
     }
 
@@ -41,7 +38,7 @@ impl Application for Router {
     /// begins.
     fn start(
         &self,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
@@ -50,7 +47,6 @@ impl Application for Router {
 
         // query the number of taps in our pci session
         let number_taps = pci
-            .clone()
             .query(Pci::SLOT_COUNT_QUERY_KEY)
             .expect("could not get slot count")
             .to_u64()
@@ -58,13 +54,10 @@ impl Application for Router {
 
         let mut sessions = Vec::with_capacity(number_taps as usize);
 
-        // println!("{}", number_taps);
-
         for i in 0..number_taps {
             let mut participants = Control::new();
             Pci::set_pci_slot(i as u32, &mut participants);
             let val = pci
-                .clone()
                 .open(Self::ID, participants.clone(), protocols.clone())
                 .expect("could not open session");
             sessions.push(val);
@@ -73,7 +66,7 @@ impl Application for Router {
         *self
             .outgoing
             .write()
-            .expect("could not put array in outgoing") = Some(sessions);
+            .expect("could not put array in outgoing") = sessions;
 
         tokio::spawn(async move {
             initialize.wait().await;
@@ -84,30 +77,30 @@ impl Application for Router {
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
     fn receive(&self, message: Message, mut context: Context) -> Result<(), ApplicationError> {
-        // println!("yoooooooo");
-
         // obtain destination address of the message
         // cant use this as we dont have an ipv4 protocol in the router
         // should probably extract it from the message object somehow
+
+        // if the header cant parse drop the packet
         let header: Ipv4Header =
-            Ipv4Header::from_bytes(message.iter()).expect("Could not parse message header");
+            Ipv4Header::from_bytes(message.iter()).or(Err(ApplicationError::Other))?;
+
         let address = header.destination;
 
+        let recipient = match self.recipients.get(&address) {
+            Some(recipient) => recipient,
+            None => return Ok(()),
+        };
         Network::set_protocol(Ipv4::ID, &mut context.control);
-
-        // put destination address through ip table
-        let destination = *self.ip_table.get(&address).expect("Could not find key");
-
-        // println!("{}", destination);
+        if let Some(mac) = recipient.mac {
+            Network::set_destination(mac, &mut context.control);
+        }
 
         self.outgoing
             .read()
-            .unwrap()
-            .as_ref()
             .expect("could not get outgoing as reference")
-            .get(destination as usize)
+            .get(recipient.slot as usize)
             .expect("Could not send message")
-            .clone()
             .send(message, context)?;
 
         Ok(())
