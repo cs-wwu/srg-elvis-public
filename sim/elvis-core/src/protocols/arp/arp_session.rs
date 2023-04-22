@@ -11,17 +11,15 @@ use crate::{
 
 use super::{arp_parsing::ArpPacket, Arp};
 
-use tokio::sync::{broadcast, RwLock, TryLockError};
+use tokio::sync::{watch, RwLock};
 
 pub struct ArpSession {
     /// This session's local MAC address
     local_mac: Mac,
     /// This session's destination IP address
     dest_ip: Ipv4Address,
-    /// This session's destination MAC address
-    dest_mac: RwLock<MacStatus>,
-    /// This sender should be sent on after the dest_mac is updated.
-    sender: broadcast::Sender<()>,
+    /// This session's destination MAC address,
+    pub(super) dest_mac: Arc<MacStatusGetter>,
     /// The PCI protocol to send messages through
     downstream: SharedSession,
 }
@@ -30,12 +28,9 @@ impl ArpSession {
     /// Creates a new ArpSession.
     /// Panics if the downstream session is not a Pci session.
     pub fn new(dest_ip: Ipv4Address, dest_mac: Option<Mac>, downstream: SharedSession) -> Self {
-        let (sender, _) = broadcast::channel(1);
-        let dest_mac = match dest_mac {
-            Some(mac) => RwLock::new(MacStatus::Set(mac)),
-            None => RwLock::new(MacStatus::Waiting),
-        };
-        let local_mac = downstream.clone().query(Pci::MAC_QUERY_KEY)
+        let local_mac = downstream
+            .clone()
+            .query(Pci::MAC_QUERY_KEY)
             .expect("unable to get MAC from Pci")
             .to_u64()
             .unwrap();
@@ -43,33 +38,9 @@ impl ArpSession {
         ArpSession {
             local_mac,
             dest_ip,
-            dest_mac,
-            sender,
+            dest_mac: Arc::new(MacStatusGetter::new(dest_mac)),
             downstream,
         }
-    }
-
-    /// Gets the status of this ARP session's destination MAC address.
-    /// Will return error if could not acquire a read lock immediately.
-    pub(super) fn try_get_status(self: Arc<Self>) -> Result<MacStatus, TryLockError> {
-        match self.dest_mac.try_read() {
-            Ok(guard) => Ok(*guard),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Gets the status of this ARP session's destination MAC address.
-    pub(super) async fn get_status(self: Arc<Self>) -> MacStatus {
-        *self.dest_mac.read().await
-    }
-
-    /// Sets the destination MAC address status of this ARP session,
-    /// and notifies any threads waiting for the destination MAC address to be set.
-    pub(super) async fn set_status(self: Arc<Self>, new_status: MacStatus) {
-        let mut guard = self.dest_mac.write().await;
-        *guard = new_status;
-        drop(guard);
-        let _ = self.sender.clone().send(());
     }
 
     /// Repeatedly sends ARP requests.
@@ -84,13 +55,10 @@ impl ArpSession {
         sender_ip: Ipv4Address,
         protocols: ProtocolMap,
     ) {
-        let mut update_receiver = self.sender.subscribe();
-
-        // Return if the MAC is already set or failed to get
-        match self.clone().get_status().await {
-            MacStatus::FailedToGet | MacStatus::Set(_) => return,
-            MacStatus::Waiting => (),
-        };
+        // don't bother sending requests if the status is already set
+        if self.dest_mac.get_status() != MacStatus::Waiting {
+            return;
+        }
 
         let arp_request = ArpPacket {
             is_request: true,
@@ -121,30 +89,31 @@ impl ArpSession {
 
             if let Err(e) = send_result {
                 tracing::error!("failed to send ARP request: {:?}", e);
-                self.set_status(MacStatus::FailedToGet).await;
+                self.dest_mac.set_status(MacStatus::FailedToGet).await;
                 return;
             }
 
             requests += 1;
 
             // Wait RESEND_DELAY seconds, or stop waiting early if receiver.changed() occured
-            let timeout = tokio::time::timeout(Arp::RESEND_DELAY, update_receiver.recv()).await;
+            let timeout =
+                tokio::time::timeout(Arp::RESEND_DELAY, self.dest_mac.wait_for_status()).await;
 
-            // If we've sent 10 requests, set the status to failed, and break out.
-            if requests == 10 {
-                self.set_status(MacStatus::FailedToGet).await;
+            // If the mac status has been set, break out
+            if timeout.is_ok() {
                 return;
             }
 
-            // If receiver.changed(), break out
-            if timeout.is_ok() {
+            // If we've sent enough requests, set the status to failed, and break out.
+            if requests == Arp::RESEND_TRIES {
+                self.dest_mac.set_status(MacStatus::FailedToGet).await;
                 return;
             }
         }
     }
 
     pub(super) fn send_arp_reply(
-        self: Arc<Self>,
+        &self,
         local_ip: Ipv4Address,
         remote_mac: Mac,
         protocols: ProtocolMap,
@@ -177,53 +146,47 @@ impl Session for ArpSession {
     /// attaching a destination MAC address if one is not already attached.
     /// (This will not attach any other data, so you can send messages with a different
     /// IP address through this session. Useful for building a router!)
-    /// 
+    ///
     /// This will return SendError::Other if the ARP session could not resolve the destination MAC address.
     /// This will occur if there is no destination machine with the local IP address.
-    /// 
+    ///
     /// This method may return Ok(()) even if a message failed to send!
-    fn send(self: Arc<Self>, message: Message, mut context: Context) -> Result<(), SendError> {
+    fn send(&self, message: Message, mut context: Context) -> Result<(), SendError> {
         // If this message already has a destination MAC, do nothing
         if Network::get_destination(&context.control).is_ok() {
             return self.downstream.clone().send(message, context);
         }
-        
+
         // If we can get the status right away and it was set, just use that
-        match self.clone().try_get_status() {
-            Ok(MacStatus::Set(mac)) => {
+        match self.dest_mac.get_status() {
+            MacStatus::Set(mac) => {
                 Network::set_destination(mac, &mut context.control);
-                return self.downstream.clone().send(message, context);
-            },
-            Ok(MacStatus::FailedToGet) => {
+                return self.downstream.send(message, context);
+            }
+            MacStatus::FailedToGet => {
                 return Err(SendError::Other);
             }
             _ => {}
         }
 
         // Otherwise, we'll have some waiting to do
+        let dest_mac = self.dest_mac.clone();
+        let downstream = self.downstream.clone();
         tokio::spawn(async move {
-            let mut receiver = self.sender.subscribe();
-            loop {
-                match self.clone().get_status().await {
-                    MacStatus::Set(mac) => {
-                        Network::set_destination(mac, &mut context.control);
-                        let send_result = self.downstream.clone().send(message, context);
-                        if let Err(e) = send_result {
-                            tracing::error!("Failed to send package downstream: {}", e);
-                        };
-                        break;
-                    }
-                    MacStatus::Waiting => {
-                        let _ = receiver.recv().await; // don't care if it's Ok or Err
-                    }
-                    MacStatus::FailedToGet => {
-                        // I can't propogate a SendError from a task unfortunately
-                        tracing::error!(
-                            "Failed to get MAC address. Participants: {:?}",
-                            context.control
-                        );
-                        break;
-                    }
+            match dest_mac.wait_for_status().await {
+                Some(mac) => {
+                    Network::set_destination(mac, &mut context.control);
+                    let send_result = downstream.send(message, context);
+                    if let Err(e) = send_result {
+                        tracing::error!("Failed to send package downstream: {}", e);
+                    };
+                }
+                None => {
+                    // I can't propogate a SendError from a task unfortunately
+                    tracing::error!(
+                        "Failed to get MAC address. Participants: {:?}",
+                        context.control
+                    );
                 }
             }
         });
@@ -231,8 +194,60 @@ impl Session for ArpSession {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         self.downstream.clone().query(key)
+    }
+}
+
+/// Used to set and get this session's MacStatus concurrently
+pub(super) struct MacStatusGetter {
+    /// send on this channel when the mac is updated
+    notifier: watch::Sender<()>,
+    data: RwLock<MacStatus>,
+}
+
+impl MacStatusGetter {
+    pub fn new(mac: Option<Mac>) -> MacStatusGetter {
+        let (notifier, _) = watch::channel(());
+        let data = match mac {
+            Some(mac) => MacStatus::Set(mac),
+            None => MacStatus::Waiting,
+        };
+        let data = RwLock::new(data);
+        MacStatusGetter { notifier, data }
+    }
+
+    pub async fn set_status(&self, status: MacStatus) {
+        *self.data.write().await = status;
+        // ignore error
+        let _result = self.notifier.send(());
+    }
+
+    /// returns the current mac status
+    pub fn get_status(&self) -> MacStatus {
+        match self.data.try_read() {
+            Ok(guard) => *guard,
+            Err(_) => MacStatus::Waiting,
+        }
+    }
+
+    /// Waits until the mac status is either set or failed to get
+    /// returns Some(mac) if the mac resolved successfully
+    /// returns None if the mac could not be resolved (because the other machine did not respond to ARP requests in time)
+    pub async fn wait_for_status(&self) -> Option<Mac> {
+        let mut receiver = self.notifier.subscribe();
+        loop {
+            match *self.data.read().await {
+                MacStatus::Set(mac) => return Some(mac),
+                MacStatus::FailedToGet => return None,
+                MacStatus::Waiting => {
+                    receiver
+                        .changed()
+                        .await
+                        .expect("sender should not be dropped");
+                }
+            }
+        }
     }
 }
 
@@ -246,4 +261,10 @@ pub(super) enum MacStatus {
     Waiting,
     /// Indicates that this session failed to get a MAC address.
     FailedToGet,
+}
+
+impl Default for MacStatus {
+    fn default() -> Self {
+        MacStatus::Waiting
+    }
 }

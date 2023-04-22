@@ -10,7 +10,7 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::Pci,
     session::SharedSession,
-    Id, Message, Network, Protocol, ProtocolMap,
+    Id, Message, Network, Protocol, ProtocolMap, Shutdown,
 };
 
 use self::{arp_parsing::ArpPacket, arp_session::ArpSession, arp_session::MacStatus};
@@ -18,7 +18,7 @@ use self::{arp_parsing::ArpPacket, arp_session::ArpSession, arp_session::MacStat
 use super::{ipv4::Ipv4Address, Ipv4};
 
 use dashmap::{mapref::entry::Entry, DashMap, DashSet};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 pub struct Arp {
     /// Maps destination IP addresses to sessions.
@@ -30,7 +30,7 @@ pub struct Arp {
 
 /// Arp in ELVIS sits (optionally) between the Ipv4 and Pci protocols.
 /// Using Arp is rather simple. Just add it to your machine.
-/// 
+///
 /// ```compile_fail
 /// Machine::new([
 ///     Udp::new().shared() as SharedProtocol,
@@ -39,9 +39,9 @@ pub struct Arp {
 ///     Pci::new([]).shared(),
 /// ])
 /// ```
-/// 
+///
 /// ARP will attach destination MAC addresses to a message's Context, if it is not set.
-/// 
+///
 /// The machine you are sending messages to MUST also have an Arp protocol, and a local IP address
 /// (set by [`Ipv4::open`] or [`Ipv4::listen`]).
 impl Arp {
@@ -69,13 +69,13 @@ impl Arp {
 }
 
 impl Protocol for Arp {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     fn start(
-        self: Arc<Self>,
-        _shutdown: Sender<()>,
+        &self,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -90,19 +90,21 @@ impl Protocol for Arp {
     /// - A local IP address ([`Ipv4::set_local_address`])
     /// - A remote IP address ([`Ipv4::set_remote_address`])
     /// - A pci slot ([`Pci::set_pci_slot`])
-    /// 
+    ///
     /// When an ARP session is opened, it will attempt to associate a MAC address with the remote IP address,
     /// by sending ARP requests.
-    /// 
+    ///
     /// The other machine MUST also have Arp, and a local IP address set by [`Arp::open`] or [`Arp::listen`].
-    /// 
+    ///
+    /// If a destination MAC address is specified, then ARP requests will not be sent out (because the MAC is already resolved).
+    ///
     /// # MAC address resolution (complicated technical details)
-    /// 
-    /// The ARP requests will be repeatedly sent until an ARP reply is received, 
+    ///
+    /// The ARP requests will be repeatedly sent until an ARP reply is received,
     /// or until [`RESEND_TRIES`] is reached. There is a delay of [`RESEND_DELAY`]
     /// between each time a packet is sent.
     fn open(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -150,11 +152,11 @@ impl Protocol for Arp {
 
     /// If the context contains a local IP address (set by [`Ipv4::set_local_address`]),
     /// then it will be added to the list of this machine's local IP addresses.
-    /// 
+    ///
     /// (This is important, because other machines with Arp can't resolve this machine's MAC address
     /// unless it has an IP address.)
     fn listen(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -173,15 +175,15 @@ impl Protocol for Arp {
     }
 
     /// In general, this will be called by the Pci layer when an ARP packet is recieved.
-    /// 
+    ///
     /// The demux method follows these steps when it receives a message:
-    /// 
+    ///
     /// 1. Attempt to parse the ArpPacket. Return [`DemuxError::Header`] if the ArpPacket could not be parsed.
     /// 2. Check if we are the target for this ARP packet. If not, return Ok(()).
     /// 3. Add an IP address to MAC address mapping, based on the sender IP and sender MAC.
     /// 4. If the message was an ARP request, send back an ARP reply to the other machine.
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         caller: SharedSession,
         context: Context,
@@ -201,7 +203,12 @@ impl Protocol for Arp {
                 let session = entry.get().clone();
                 let packet = packet;
                 // spawn a thread to set this session's status
-                tokio::spawn(session.set_status(MacStatus::Set(packet.sender_mac)));
+                tokio::spawn(async move {
+                    session
+                        .dest_mac
+                        .set_status(MacStatus::Set(packet.sender_mac))
+                        .await
+                });
             }
             // If we don't have an entry for this session, make one
             Entry::Vacant(entry) => {
@@ -219,12 +226,17 @@ impl Protocol for Arp {
             let _ = session.send_arp_reply(packet.target_ip, packet.sender_mac, context.protocols);
         }
 
-        tracing::info!("ARP: Resolved IP {} -> {} for machine with IP {}", packet.sender_ip, packet.sender_mac, packet.target_ip);
+        tracing::info!(
+            "ARP: Resolved IP {} -> {} for machine with IP {}",
+            packet.sender_ip,
+            packet.sender_mac,
+            packet.target_ip
+        );
 
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
     }
 }

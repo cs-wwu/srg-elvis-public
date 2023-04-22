@@ -8,8 +8,10 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::{Pci, Arp},
+    protocol::{
+        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
+    },
+    protocols::{Arp, Pci},
     session::SharedSession,
     Control, FxDashMap, Network, Protocol, Shutdown,
 };
@@ -139,9 +141,7 @@ impl Protocol for Ipv4 {
                     }
                 };
                 Pci::set_pci_slot(recipient.slot, &mut participants);
-                let tap_session = protocols
-                    .protocol(Pci::ID)
-                    .expect("No such protocol")
+                let tap_session = Self::get_downstream_protocol(&protocols)
                     .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, recipient));
                 entry.insert(session.clone());
@@ -181,7 +181,7 @@ impl Protocol for Ipv4 {
     fn demux(
         &self,
         mut message: Message,
-        _caller: SharedSession,
+        caller: SharedSession,
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract identifying information from the header and the context and

@@ -7,9 +7,9 @@ use elvis_core::{
         user_process::{Application, ApplicationError},
         Ipv4, Tcp, Udp, UserProcess,
     },
-    Control, Id, Message, ProtocolMap,
+    Control, Id, Message, ProtocolMap, Shutdown,
 };
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 use super::Transport;
 
@@ -73,7 +73,7 @@ impl Application for OnReceive {
 
     fn start(
         &self,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

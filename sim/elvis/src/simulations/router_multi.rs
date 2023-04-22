@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
-        Pci, Arp,
+        Arp, Pci,
     },
     run_internet, Machine, Message, Network,
 };
