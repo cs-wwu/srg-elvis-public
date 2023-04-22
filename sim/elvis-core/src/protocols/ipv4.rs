@@ -141,8 +141,11 @@ impl Protocol for Ipv4 {
                     }
                 };
                 Pci::set_pci_slot(recipient.slot, &mut participants);
-                let tap_session = Self::get_downstream_protocol(&protocols)
-                    .open(Self::ID, participants, protocols)?;
+                let tap_session = Self::get_downstream_protocol(&protocols).open(
+                    Self::ID,
+                    participants,
+                    protocols,
+                )?;
                 let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, recipient));
                 entry.insert(session.clone());
                 Ok(session)

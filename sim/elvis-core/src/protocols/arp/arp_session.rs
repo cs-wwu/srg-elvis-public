@@ -75,7 +75,6 @@ impl ArpSession {
         Network::set_protocol(Arp::ID, &mut context.control);
 
         Network::set_sender(self.local_mac, &mut context.control);
-        Network::set_destination(Network::BROADCAST_MAC, &mut context.control);
         Ipv4::set_local_address(sender_ip, &mut context.control);
         Ipv4::set_remote_address(self.dest_ip, &mut context.control);
 
@@ -237,7 +236,8 @@ impl MacStatusGetter {
     pub async fn wait_for_status(&self) -> Option<Mac> {
         let mut receiver = self.notifier.subscribe();
         loop {
-            match *self.data.read().await {
+            let status = { *self.data.read().await };
+            match status {
                 MacStatus::Set(mac) => return Some(mac),
                 MacStatus::FailedToGet => return None,
                 MacStatus::Waiting => {
@@ -253,7 +253,7 @@ impl MacStatusGetter {
 
 /// Used for an ArpSession's dest_mac.
 /// Indicates whether the session's MAC has been set, or is waiting to be set.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum MacStatus {
     /// Contains the MAC address.
     Set(Mac),
