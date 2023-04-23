@@ -141,6 +141,9 @@ impl Protocol for Ipv4 {
                     }
                 };
                 Pci::set_pci_slot(recipient.slot, &mut participants);
+                if let Some(mac) = recipient.mac {
+                    Network::set_destination(mac, &mut participants);
+                }
                 let tap_session = Self::get_downstream_protocol(&protocols).open(
                     Self::ID,
                     participants,
