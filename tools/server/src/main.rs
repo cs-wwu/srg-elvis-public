@@ -29,7 +29,7 @@ fn handle_connection(mut stream: TcpStream) {
     let status_line = "HTTP/1.1 200 OK";
 
     let contents = if request_line.contains(".jpg") { // image request, send bytes back
-        get_bytes(100)
+        get_bytes(generate_number("image_size_weights.csv").unwrap())
     } else {  // html page request 
         generate_html();
         fs::read_to_string("page.html").unwrap()
