@@ -110,11 +110,12 @@ def get_weights_csv(df, filename, column, num_buckets, low, high):
     result.to_csv(path, index=False, header=True)
 
 def main():
-    df = pd.read_csv('dataframe.csv')
-    #img_df = pd.read_csv('img_dataframe.csv')
-    get_weights_csv(df, 'size_weights', 1, 50, 0, 2500)
-    get_weights_csv(df, 'num_links_weights', 2, 50, 0, 1500)
-    get_weights_csv(df, 'num_images_weights', 3, 50, 0, 400)
+    #df = pd.read_csv('dataframe.csv')
+    img_df = pd.read_csv('img_dataframe.csv')
+    #get_weights_csv(df, 'size_weights', 1, 50, 0, 2500)
+    #get_weights_csv(df, 'num_links_weights', 2, 50, 0, 1500)
+    #get_weights_csv(df, 'num_images_weights', 3, 50, 0, 400)
+    get_weights_csv(img_df, "image_size_weights", 0, 50, 0, 350)
     #get_weights_csv(df, 'image_size_weights', 0, 50, 0, 350)
     
 """
