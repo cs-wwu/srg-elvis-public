@@ -19,29 +19,25 @@ fn main() {
     for stream in listener.incoming() {
         let stream = stream.unwrap();
         handle_connection(stream);
-    }    
+    }
 }
 
 // Send the html page data over the stream
 fn handle_connection(mut stream: TcpStream) {
-    generate_html();
-
     let buf_reader = BufReader::new(&mut stream);
-    let http_request: Vec<_> = buf_reader
-        .lines()
-        .map(|result| result.unwrap())
-        .take_while(|line| !line.is_empty())
-        .collect(); // delete me
-
-    println!("Request: {:#?}", http_request); //delete me
-    // let request_line = buf_reader.lines().next().unwrap().unwrap();
+    let request_line = buf_reader.lines().next().unwrap().unwrap();
     let status_line = "HTTP/1.1 200 OK";
-    let contents = fs::read_to_string("page.html").unwrap();
-    let length = contents.len();
 
+    let contents = if request_line.contains(".jpg") { // image request, send bytes back
+        get_bytes(100)
+    } else {  // html page request 
+        generate_html();
+        fs::read_to_string("page.html").unwrap()
+    };
+
+    let length = contents.len();
     let response =
         format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
-
     stream.write_all(response.as_bytes()).unwrap();
 }
 
@@ -77,8 +73,9 @@ fn generate_html() {
     }
     
     let current_page_size = empty_page_bytes + (link_bytes * num_links) + (image_bytes * num_images);
-    for _byte in current_page_size..size {
-        result += "0";
+
+    if current_page_size < size {
+        result.push_str(get_bytes(size - current_page_size).as_str());
     }
     result += "<body> \n</html>";
     
@@ -101,6 +98,14 @@ fn generate_links(num_links: usize) -> Vec<String> {
 
     }
     links
+}
+
+fn get_bytes(num_bytes: usize) -> String {
+    let mut result = String::new();
+    for _byte in 0..num_bytes {
+        result += "0";
+    }
+    result
 }
 
 // Radomly generate a number based on the distribution in the given .csv file
