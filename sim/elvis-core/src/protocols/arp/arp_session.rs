@@ -25,7 +25,7 @@ pub struct ArpSession {
 }
 
 /// ARP sessions have the sole job of choosing the destination MAC address for a packet.
-/// 
+///
 /// This destination MAC address is figured out by sending ARP replies and requests.
 impl ArpSession {
     /// Creates a new ArpSession.

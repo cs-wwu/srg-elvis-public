@@ -22,7 +22,7 @@ use tokio::sync::Barrier;
 
 /// Arp stands for Address Resolution Protocol. Its job is to figure out another (Ipv4-using) machine's MAC
 /// address, and send messages to that MAC, instead of broadcasting them to the whole network.
-/// 
+///
 /// In ELVIS, Arp sits (optionally) between the Ipv4 and Pci protocols.
 /// Using Arp is rather simple. Just add it to your machine.
 ///
@@ -93,8 +93,8 @@ impl Protocol for Arp {
     /// - A local IP address ([`Ipv4::set_local_address`])
     /// - A remote IP address ([`Ipv4::set_remote_address`])
     /// - A pci slot ([`Pci::set_pci_slot`])
-    /// 
-    /// If a destination MAC address is specified ([`Network::set_destination`]), 
+    ///
+    /// If a destination MAC address is specified ([`Network::set_destination`]),
     /// then ARP requests will not be sent out (because the MAC is already resolved).
     ///
     /// When an ARP session is opened, it will attempt to associate a MAC address with the remote IP address,
