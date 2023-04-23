@@ -20,15 +20,10 @@ use super::{ipv4::Ipv4Address, Ipv4};
 use dashmap::{mapref::entry::Entry, DashMap, DashSet};
 use tokio::sync::Barrier;
 
-pub struct Arp {
-    /// Maps destination IP addresses to sessions.
-    /// destination MAC addresses are stored in each session. In a sense, this is the ARP cache.
-    sessions: DashMap<Ipv4Address, Arc<ArpSession>>,
-    /// A set of all this machine's local IPs. Filled by open and listen.
-    local_ips: DashSet<Ipv4Address>,
-}
-
-/// Arp in ELVIS sits (optionally) between the Ipv4 and Pci protocols.
+/// Arp stands for Address Resolution Protocol. Its job is to figure out another (Ipv4-using) machine's MAC
+/// address, and send messages to that MAC, instead of broadcasting them to the whole network.
+/// 
+/// In ELVIS, Arp sits (optionally) between the Ipv4 and Pci protocols.
 /// Using Arp is rather simple. Just add it to your machine.
 ///
 /// ```compile_fail
@@ -44,6 +39,14 @@ pub struct Arp {
 ///
 /// The machine you are sending messages to MUST also have an Arp protocol, and a local IP address
 /// (set by [`Ipv4::open`] or [`Ipv4::listen`]).
+pub struct Arp {
+    /// Maps destination IP addresses to sessions.
+    /// destination MAC addresses are stored in each session. In a sense, this is the ARP cache.
+    sessions: DashMap<Ipv4Address, Arc<ArpSession>>,
+    /// A set of all this machine's local IPs. Filled by open and listen.
+    local_ips: DashSet<Ipv4Address>,
+}
+
 impl Arp {
     /// A unique identifier for the protocol.
     pub const ID: Id = Id::new(0x0806);
@@ -90,13 +93,14 @@ impl Protocol for Arp {
     /// - A local IP address ([`Ipv4::set_local_address`])
     /// - A remote IP address ([`Ipv4::set_remote_address`])
     /// - A pci slot ([`Pci::set_pci_slot`])
+    /// 
+    /// If a destination MAC address is specified ([`Network::set_destination`]), 
+    /// then ARP requests will not be sent out (because the MAC is already resolved).
     ///
     /// When an ARP session is opened, it will attempt to associate a MAC address with the remote IP address,
     /// by sending ARP requests.
     ///
     /// The other machine MUST also have Arp, and a local IP address set by [`Arp::open`] or [`Arp::listen`].
-    ///
-    /// If a destination MAC address is specified, then ARP requests will not be sent out (because the MAC is already resolved).
     ///
     /// # MAC address resolution (complicated technical details)
     ///

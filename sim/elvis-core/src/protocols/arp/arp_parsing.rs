@@ -3,7 +3,7 @@
 //! Currently, ARP packets in ELVIS are modelled after
 //! IPv4 over Ethernet ARP packets.
 //!
-//! https://en.wikipedia.org/wiki/Address_Resolution_Protocol#Packet_structure
+//! <https://en.wikipedia.org/wiki/Address_Resolution_Protocol#Packet_structure>
 
 use crate::{
     network::Mac,
@@ -22,7 +22,6 @@ const PLEN: u8 = 4;
 /// A struct representing an ARP packet.
 #[derive(Debug, PartialEq, Eq, Copy, Hash, Clone)]
 pub struct ArpPacket {
-    /// Should be 1 for a request, 2 for a reply
     pub is_request: bool,
     pub sender_mac: Mac,
     pub sender_ip: Ipv4Address,
