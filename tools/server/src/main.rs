@@ -27,6 +27,13 @@ fn handle_connection(mut stream: TcpStream) {
     generate_html();
 
     let buf_reader = BufReader::new(&mut stream);
+    let http_request: Vec<_> = buf_reader
+        .lines()
+        .map(|result| result.unwrap())
+        .take_while(|line| !line.is_empty())
+        .collect(); // delete me
+
+    println!("Request: {:#?}", http_request); //delete me
     // let request_line = buf_reader.lines().next().unwrap().unwrap();
     let status_line = "HTTP/1.1 200 OK";
     let contents = fs::read_to_string("page.html").unwrap();
@@ -63,8 +70,10 @@ fn generate_html() {
         result += &link;
         result += "\">a</a>\n";
     }
-    for _img in 0..num_images {
-        result += "<img src=\"/image.jpg\">";
+    for img in generate_links(num_images) {
+        result += "<img src=\"http://127.0.0.1:7878";
+        result += &img;
+        result += ".jpg\">";
     }
     
     let current_page_size = empty_page_bytes + (link_bytes * num_links) + (image_bytes * num_images);
