@@ -1,7 +1,7 @@
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::{ipv4::Ipv4Address, Ipv4, Udp},
+    protocols::{ipv4::Ipv4Address, Ipv4, Udp, Dns},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
@@ -138,9 +138,25 @@ impl Sockets {
         }
     }
     
-    /// Given a domain (machine name), finds the IP address associated with the domain.
-    fn get_host_by_name() /* -> Ipv4Address */ {
-        // 
+    /// Finds the IP associated with the given domain name.
+    fn get_host_by_name(
+        name: String,
+        protocols: ProtocolMap,
+    ) -> Result<Ipv4Address, SocketError> {
+        // Get DNS protocol from this socket protocol's machine
+        let dns_id: Id = Id::from_string("DNS");
+        let dns: Dns = protocols.protocol(dns_id);
+
+        match dns.get_mapping(name) {
+            // Cache hit
+            Ok(ip) => Ok(ip),
+
+            // Cache miss
+            Err(DnsError) => {
+                // TODO(zachd9757): Check authoritative server
+                Err(SocketError::Other)
+            },
+        }
     }
 }
 

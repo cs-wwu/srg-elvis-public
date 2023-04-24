@@ -55,7 +55,7 @@ impl Dns {
     }
 
     /// Checks local name_to_ip cache for ['Ipv4Address'] given a name.
-    pub fn map_lookup(&self, name: String) -> Result<Ipv4Address, DnsError> {
+    pub fn get_mapping(&self, name: String) -> Result<Ipv4Address, DnsError> {
         match self.name_to_ip.entry(name) {
             Entry::Occupied(e) => {
                 Ok(e.get().clone())
@@ -112,7 +112,10 @@ impl Protocol for Dns {
         Err(DemuxError::Other)
     }
 
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
+    fn query(
+        self: Arc<Self>,
+        key: Key
+    ) -> Result<Primitive, QueryError> {
         //TODO
         Err(QueryError::NonexistentKey)
     }
@@ -125,7 +128,6 @@ mod tests {
     #[test]
     /// Checks HashMap functionality
     fn add_and_lookup_mapping() {
-        println!("Running DNS Test 1");
         let dns: Dns = Dns::new(); // Initialize struct
 
         // Create and add mapping
@@ -134,13 +136,8 @@ mod tests {
         dns.add_mapping(name.clone(), ip);
 
         // Verify that lookup matches what was added
-        let check = dns.map_lookup(name);
+        let check = dns.get_mapping(name);
         assert_eq!(Ok(ip), check);
-    }
-
-    #[test]
-    fn random_test() {
-        assert_eq!(1, 1);
     }
 }
 
