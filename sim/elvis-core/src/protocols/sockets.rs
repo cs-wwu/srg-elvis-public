@@ -125,6 +125,7 @@ impl Sockets {
         self.socket_sessions.insert(identifier, session.clone());
         Ok(session)
     }
+
     pub(crate) fn forward_to_socket(
         self: Arc<Self>,
         fd: Id,
@@ -136,6 +137,7 @@ impl Sockets {
             Entry::Vacant(_) => Err(DemuxError::MissingSession),
         }
     }
+    
     /// Given a domain (machine name), finds the IP address associated with the domain.
     fn get_host_by_name() /* -> Ipv4Address */ {
         // 
