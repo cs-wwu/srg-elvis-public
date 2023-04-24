@@ -330,10 +330,13 @@ mod tests {
     #[test]
     /// Test for Sockets:get_host_by_name() checking Dns protocol cache
     fn ghbn_using_machine() {
+        let dns = Dns::new().shared();
+        let sockets = Sockets::new(None).shared();
+
         let machine: Machine = 
             Machine::new([
-                Sockets::new(None).shared(),
-                Dns::new().shared(),
+                dns as SharedProtocol,
+                sockets,
             ]);
 
         let shutdown = Shutdown::new();
@@ -341,9 +344,6 @@ mod tests {
         let initialized = Arc::new(Barrier::new(total_protocols));
 
         machine.start(shutdown.clone(), initialized.clone());
-
-        let dns: Dns = Some(machine.protocols().protocol(Dns::ID));
-        let sock: Sockets = Some(machine.protocols().protocol(Sockets::ID));
 
     }
 }
