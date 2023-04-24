@@ -38,7 +38,7 @@ pub struct Dns {
 
 impl Dns {
     /// A unique identifier for the protocol.
-    pub const ID: Id = Id::from_string("DNS");
+    pub const ID: Id = Id::new(16);  // 16 is the ID for DNS
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
@@ -47,6 +47,11 @@ impl Dns {
             listen_bindings: Default::default(),
             sessions: Default::default(),
         }
+    }
+
+    /// Creates a new shared handle to an instance of the protocol.
+    pub fn shared(self) -> Arc<Self> {
+        Arc::new(self)
     }
 
     /// Adds a new mapping to the name_to_ip cache.
@@ -68,12 +73,12 @@ impl Dns {
 }
 
 impl Protocol for Dns {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -83,7 +88,7 @@ impl Protocol for Dns {
     }
 
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -93,7 +98,7 @@ impl Protocol for Dns {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -103,7 +108,7 @@ impl Protocol for Dns {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         caller: SharedSession,
         context: Context,
@@ -113,7 +118,7 @@ impl Protocol for Dns {
     }
 
     fn query(
-        self: Arc<Self>,
+        &self,
         key: Key
     ) -> Result<Primitive, QueryError> {
         //TODO
@@ -128,7 +133,8 @@ mod tests {
     #[test]
     /// Checks HashMap functionality
     fn add_and_lookup_mapping() {
-        let dns: Dns = Dns::new(); // Initialize struct
+        // Initialize struct
+        let dns: Dns = Dns::new();
 
         // Create and add mapping
         let name: String = String::from("Name");

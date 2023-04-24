@@ -81,4 +81,9 @@ impl Machine {
     pub fn protocol_count(&self) -> usize {
         self.protocols.len()
     }
+
+    /// Returns the machine's ProtocolMap
+    pub fn protocols(&self) -> ProtocolMap {
+        self.protocols
+    }
 }

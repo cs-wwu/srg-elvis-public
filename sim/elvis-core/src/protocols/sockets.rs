@@ -3,7 +3,7 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp, Dns},
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown, Machine
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::{Arc, RwLock};
@@ -144,8 +144,12 @@ impl Sockets {
         protocols: ProtocolMap,
     ) -> Result<Ipv4Address, SocketError> {
         // Get DNS protocol from this socket protocol's machine
-        let dns_id: Id = Id::from_string("DNS");
-        let dns: Dns = protocols.protocol(dns_id);
+        let dns: Dns =  match protocols.protocol(Dns::ID) {
+            Some(p) => p,
+            None => {
+                return Err(SocketError::Other);
+            }
+        };
 
         match dns.get_mapping(name) {
             // Cache hit
@@ -316,5 +320,30 @@ impl Protocol for Sockets {
 
     fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// Test for Sockets:get_host_by_name() checking Dns protocol cache
+    fn ghbn_using_machine() {
+        let machine: Machine = 
+            Machine::new([
+                Sockets::new(None).shared(),
+                Dns::new().shared(),
+            ]);
+
+        let shutdown = Shutdown::new();
+        let total_protocols: usize = machine.protocol_count();
+        let initialized = Arc::new(Barrier::new(total_protocols));
+
+        machine.start(shutdown.clone(), initialized.clone());
+
+        let dns: Dns = Some(machine.protocols().protocol(Dns::ID));
+        let sock: Sockets = Some(machine.protocols().protocol(Sockets::ID));
+
     }
 }
