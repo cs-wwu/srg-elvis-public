@@ -1,18 +1,18 @@
 use super::Segment;
 use crate::{protocols::tcp::tcp_parsing::TcpHeader, Message};
-use std::{collections::VecDeque, sync::RwLock};
+use std::collections::VecDeque;
 
 /// A collection of queues used for outgoing segments in TCP
 #[derive(Debug, Default)]
 pub struct Outgoing {
     /// Data bytes queued for transmission but not yet segmentized
-    pub text: RwLock<Message>,
+    pub text: Message,
     /// The retransmission queue. Contains segments that may need to be
     /// retransmitted.
-    pub retransmit: RwLock<VecDeque<Transmit>>,
+    pub retransmit: VecDeque<Transmit>,
     /// Contains segments that should not be retransmitted, such as pure-ACK
     /// segments.
-    pub oneshot: RwLock<Vec<TcpHeader>>,
+    pub oneshot: Vec<TcpHeader>,
 }
 
 impl Outgoing {
@@ -20,17 +20,15 @@ impl Outgoing {
     /// retransmission queue
     pub fn queued_bytes(&self) -> usize {
         self.retransmit
-            .read()
-            .unwrap()
             .iter()
             .map(|transmit| transmit.segment.text.len())
             .sum()
     }
 
-    pub fn reset(&self) {
-        *self.text.write().unwrap() = Default::default();
-        *self.retransmit.write().unwrap() = Default::default();
-        *self.oneshot.write().unwrap() = Default::default();
+    pub fn reset(&mut self) {
+        self.text = Default::default();
+        self.retransmit = Default::default();
+        self.oneshot = Default::default();
     }
 }
 

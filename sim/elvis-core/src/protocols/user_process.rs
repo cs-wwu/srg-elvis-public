@@ -82,12 +82,12 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 }
 
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         A::ID
     }
 
     fn open(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,
@@ -96,7 +96,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,
@@ -105,7 +105,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         _caller: SharedSession,
         context: Context,
@@ -115,7 +115,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
@@ -124,7 +124,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
     }
 }

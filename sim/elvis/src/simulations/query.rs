@@ -26,7 +26,7 @@ pub async fn query() {
         )
         .shared(),
         QueryTester::new().shared(),
-        Pci::new([network.tap(), network.tap()]).shared(),
+        Pci::new([network.clone(), network.clone()]).shared(),
     ]);
 
     run_internet(vec![machine], vec![network]).await;

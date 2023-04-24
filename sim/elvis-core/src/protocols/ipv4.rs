@@ -11,10 +11,11 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, Network, Protocol, Shutdown,
+    Control, FxDashMap, Network, Protocol, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
-use std::{collections::HashMap, sync::Arc};
+use dashmap::mapref::entry::Entry;
+use rustc_hash::FxHashMap;
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
@@ -28,8 +29,8 @@ use ipv4_session::{Ipv4Session, SessionId};
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
-    listen_bindings: DashMap<Ipv4Address, Id>,
-    sessions: DashMap<SessionId, Arc<Ipv4Session>>,
+    listen_bindings: FxDashMap<Ipv4Address, Id>,
+    sessions: FxDashMap<SessionId, Arc<Ipv4Session>>,
     recipients: Recipients,
 }
 
@@ -72,12 +73,12 @@ impl Ipv4 {
 // messages can be sent to the correct network
 
 impl Protocol for Ipv4 {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
@@ -90,7 +91,7 @@ impl Protocol for Ipv4 {
 
     #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         mut participants: Control,
         protocols: ProtocolMap,
@@ -139,7 +140,7 @@ impl Protocol for Ipv4 {
 
     #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -169,7 +170,7 @@ impl Protocol for Ipv4 {
 
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
@@ -183,7 +184,7 @@ impl Protocol for Ipv4 {
                 Err(DemuxError::Header)?
             }
         };
-        message.slice(header.ihl as usize * 4..);
+        message.remove_front(header.ihl as usize * 4);
         let identifier = SessionId::new(header.destination, header.source);
 
         Self::set_local_address(identifier.local, &mut context.control);
@@ -231,12 +232,12 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
     }
 }
 
-pub type Recipients = HashMap<Ipv4Address, Recipient>;
+pub type Recipients = FxHashMap<Ipv4Address, Recipient>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Recipient {

@@ -1,21 +1,19 @@
-use dashmap::{mapref::entry::Entry, DashMap};
-use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
-
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
-    Control, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
+use dashmap::mapref::entry::Entry;
+use std::sync::{Arc, RwLock};
+use tokio::sync::Barrier;
 
 pub mod socket;
-use socket::{IpAddress, ProtocolFamily, Socket, SocketError, SocketId, SocketType};
+use socket::{IpAddress, ProtocolFamily, Socket, SocketAddress, SocketError, SocketId, SocketType};
+
 mod socket_session;
 use socket_session::SocketSession;
-
-use self::socket::SocketAddress;
 
 /// An implementation of the Sockets API
 ///
@@ -34,9 +32,9 @@ pub struct Sockets {
     // TODO(giddinl2): This will be added once IPv6 is implemented
     // local_ipv6_address: Option<Ipv6Address>,
     fds: RwLock<u64>,
-    sockets: DashMap<Id, Arc<Socket>>,
-    socket_sessions: DashMap<SocketId, Arc<SocketSession>>,
-    listen_bindings: DashMap<SocketAddress, Id>,
+    sockets: Arc<FxDashMap<Id, Arc<Socket>>>,
+    socket_sessions: FxDashMap<SocketId, Arc<SocketSession>>,
+    listen_bindings: FxDashMap<SocketAddress, Id>,
     shutdown: RwLock<Option<Shutdown>>,
 }
 
@@ -64,7 +62,7 @@ impl Sockets {
 
     /// Creates a new socket and adds it to its listing of sockets
     pub fn new_socket(
-        self: Arc<Self>,
+        self: &Arc<Self>,
         domain: ProtocolFamily,
         sock_type: SocketType,
         protocols: ProtocolMap,
@@ -90,28 +88,28 @@ impl Sockets {
         Ok(socket)
     }
 
-    fn get_local_ipv4(self: Arc<Self>) -> Result<IpAddress, SocketError> {
+    fn get_local_ipv4(&self) -> Result<IpAddress, SocketError> {
         match self.local_ipv4_address {
             Some(v) => Ok(IpAddress::IPv4(v)),
             None => Err(SocketError::Other),
         }
     }
 
-    fn get_ephemeral_port(self: Arc<Self>) -> Result<u16, SocketError> {
+    fn get_ephemeral_port(&self) -> Result<u16, SocketError> {
         let port = *self.local_ports.read().unwrap();
         *self.local_ports.write().unwrap() += 1;
         Ok(port)
     }
 
-    fn get_ephemeral_endpoint(self: Arc<Self>) -> Result<SocketAddress, SocketError> {
+    fn get_ephemeral_endpoint(&self) -> Result<SocketAddress, SocketError> {
         Ok(SocketAddress {
-            address: self.clone().get_local_ipv4()?,
+            address: self.get_local_ipv4()?,
             port: self.get_ephemeral_port()?,
         })
     }
 
     fn get_socket_session(
-        self: Arc<Self>,
+        &self,
         local: SocketAddress,
         remote: SocketAddress,
     ) -> Result<Arc<SocketSession>, SocketError> {
@@ -127,7 +125,6 @@ impl Sockets {
         self.socket_sessions.insert(identifier, session.clone());
         Ok(session)
     }
-
     pub(crate) fn forward_to_socket(
         self: Arc<Self>,
         fd: Id,
@@ -139,7 +136,6 @@ impl Sockets {
             Entry::Vacant(_) => Err(DemuxError::MissingSession),
         }
     }
-
     /// Given a domain (machine name), finds the IP address associated with the domain.
     fn get_host_by_name() /* -> Ipv4Address */ {
         // 
@@ -147,12 +143,12 @@ impl Sockets {
 }
 
 impl Protocol for Sockets {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
     }
 
     fn start(
-        self: Arc<Self>,
+        &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
@@ -167,7 +163,7 @@ impl Protocol for Sockets {
     /// Called from Socket::connect() and Socket::accept()
     /// Creates a new socket_session based on IP address and port and returns it
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -203,7 +199,7 @@ impl Protocol for Sockets {
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(Some(upstream)),
                     downstream,
-                    socket_api: self.clone(),
+                    sockets: self.sockets.clone(),
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -212,7 +208,7 @@ impl Protocol for Sockets {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -238,7 +234,7 @@ impl Protocol for Sockets {
     /// demux'd to the correct socket_session based on IP address and port, the
     /// socket_session will then pass it on to its respective socket
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         caller: SharedSession,
         context: Context,
@@ -289,18 +285,18 @@ impl Protocol for Sockets {
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(None),
                     downstream: caller,
-                    socket_api: self.clone(),
+                    sockets: self.sockets.clone(),
                 });
                 socket.add_listen_address(identifier.remote_address);
                 entry.insert(session.clone());
                 session
             }
         };
-        session.receive(message, context)?;
+        session.receive(message)?;
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
     }
 }
