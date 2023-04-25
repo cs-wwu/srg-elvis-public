@@ -35,10 +35,6 @@ impl SocketServer {
 }
 
 async fn communicate_with_client(socket: Arc<Socket>) {
-    // Send a connection response
-    println!("SERVER: Sending connection response");
-    socket.send("ACK").unwrap();
-
     // Receive a message
     let req = socket.recv(32).await.unwrap();
     println!(
@@ -74,6 +70,7 @@ impl Application for SocketServer {
             // Create a new IPv4 Datagram Socket
             let listen_socket = sockets
                 .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                .await
                 .unwrap();
 
             // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
