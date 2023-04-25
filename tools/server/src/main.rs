@@ -87,7 +87,7 @@ fn generate_html() {
     file.write_all(result.as_bytes()).unwrap();
 }
 
-// Generates a vector of links
+/* Generates a vector of randomly generated links */
 fn generate_links(num_links: usize) -> Vec<String> {
     let mut links = Vec::new();
     for _i in 0..num_links {
@@ -97,7 +97,6 @@ fn generate_links(num_links: usize) -> Vec<String> {
         .map(char::from)
         .collect();
 
-        // links.push(["127.0.0.1:7878/", &rand_string].concat());
         links.push(["/", &rand_string].concat());
 
     }
