@@ -6,7 +6,6 @@ import numpy as np
 
 def get_img_size(img_link):
     # get file size *and* image size (None if not known)
-    # print(img_link)
     try: 
         file = request.urlopen(img_link)
     except: 
@@ -112,11 +111,10 @@ def get_weights_csv(df, filename, column, num_buckets, low, high):
 def main():
     #df = pd.read_csv('dataframe.csv')
     img_df = pd.read_csv('img_dataframe.csv')
-    #get_weights_csv(df, 'size_weights', 1, 50, 0, 2500)
-    #get_weights_csv(df, 'num_links_weights', 2, 50, 0, 1500)
-    #get_weights_csv(df, 'num_images_weights', 3, 50, 0, 400)
-    get_weights_csv(img_df, "image_size_weights", 0, 50, 0, 350)
-    #get_weights_csv(df, 'image_size_weights', 0, 50, 0, 350)
+    #get_weights_csv(df, 'page_size', 1, 50, 0, 2500)
+    #get_weights_csv(df, 'num_links', 2, 50, 0, 1500)
+    #get_weights_csv(df, 'num_images', 3, 50, 0, 400)
+    get_weights_csv(img_df, "image_size", 0, 50, 1, 350)
     
 """
 def main():
