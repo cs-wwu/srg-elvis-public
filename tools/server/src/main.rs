@@ -29,7 +29,7 @@ fn handle_connection(mut stream: TcpStream) {
     let status_line = "HTTP/1.1 200 OK";
 
     // Parse request and prepare response
-    let contents = if request_line.contains(".jpg") { // image request, send bytes back
+    let contents = if request_line.contains(".jpg") { // Image request, send bytes back
         get_bytes(generate_number("image_size.csv").unwrap())
     } else {  // html page request, send html page back
         generate_html();
@@ -65,12 +65,12 @@ fn generate_html() {
         <title>page</title>
       </head>
       <body>\n";
-    for link in generate_links(num_links) { // insert links
+    for link in generate_links(num_links) { // Insert links
         result += "<a href=\"";
         result += &link;
         result += "\">a</a>\n";
     }
-    for img in generate_links(num_images) { // insert images
+    for img in generate_links(num_images) { // Insert images
         result += "<img src=\"http://127.0.0.1:7878";
         result += &img;
         result += ".jpg\">";
@@ -113,7 +113,7 @@ fn get_bytes(num_bytes: usize) -> String {
 }
 
 /* Returns a randomly selected number based on the distribution specified in data_file. 
-    data_file is a .csv file where each row is of the format bucket,weight where
+    data_file is a .csv file where each row is of the format "bucket,weight" where
     bucket is a numerical value and weight is the number of data points that have that
     value. The number returned will be one of the bucket values. Buckets with higher
     weights are more likely to be selected. */
@@ -135,4 +135,3 @@ fn generate_number(data_file: &str) -> Result<usize, Box<dyn Error>> {
     
     Ok(buckets[dist.sample(&mut rng)].round() as usize)
 }
-
