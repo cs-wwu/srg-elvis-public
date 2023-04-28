@@ -1,11 +1,11 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from urllib import request
-#import matplotlib
+import matplotlib
 import numpy as np
 
+# Returns the size of the image linked to by img_link
 def get_img_size(img_link):
-    # get file size *and* image size (None if not known)
     try: 
         file = request.urlopen(img_link)
     except: 
@@ -21,6 +21,7 @@ def get_img_size(img_link):
     print(img_link + ", " + str(size))
     file.close()
     return(size)
+
 
 def parse_link_data(link_data, dataset, img_sizes): 
     link_count = 0
