@@ -66,14 +66,10 @@ fn generate_html() {
       </head>
       <body>\n";
     for link in generate_links(num_links) { // Insert links
-        result += "<a href=\"";
-        result += &link;
-        result += "\">a</a>\n";
+        result += format!("<a href=\"{}\">a</a>\n", &link).as_str();
     }
     for img in generate_links(num_images) { // Insert images
-        result += "<img src=\"http://127.0.0.1:7878";
-        result += &img;
-        result += ".jpg\">";
+        result += format!("<img src=\"http://127.0.0.1:7878{}.jpg\">", &img).as_str();
     }
     // Add the appropriate number of bytes of data if the current page size is < size
     let current_page_size = empty_page_bytes + (link_bytes * num_links) + (image_bytes * num_images);
