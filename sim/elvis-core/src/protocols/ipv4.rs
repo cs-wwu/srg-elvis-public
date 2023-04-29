@@ -28,6 +28,7 @@ mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
 mod fragmentation;
+mod reassembly;
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
