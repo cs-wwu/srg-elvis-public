@@ -1,4 +1,5 @@
 use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
+use std::fmt::{self, Debug, Formatter};
 use thiserror::Error as ThisError;
 
 /// The number of 32-bit words in a TCP header without optional header parts
@@ -367,8 +368,8 @@ impl From<Control> for u8 {
     }
 }
 
-impl std::fmt::Debug for Control {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Control {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Control(")?;
         let mut wrote = false;
         if self.urg() {

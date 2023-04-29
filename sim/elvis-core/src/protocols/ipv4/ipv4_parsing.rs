@@ -1,5 +1,6 @@
 use super::Ipv4Address;
 use crate::protocols::utility::Checksum;
+use std::fmt::{self, Debug, Formatter};
 use thiserror::Error as ThisError;
 
 // Note: There are many #[allow(dead_code)] flags in this file. None of this
@@ -260,7 +261,7 @@ pub enum HeaderBuildError {
     OverlyLongFragmentOffset,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ControlFlags(u8);
 
 impl ControlFlags {
@@ -289,6 +290,15 @@ impl ControlFlags {
 
     pub const fn as_u8(self) -> u8 {
         self.0
+    }
+}
+
+impl Debug for ControlFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ControlFlags")
+            .field("MF", &self.may_fragment())
+            .field("LF", &self.is_last_fragment())
+            .finish()
     }
 }
 
@@ -321,7 +331,7 @@ impl From<ControlFlags> for u8 {
 /// high-reliability, and high-throughput.
 ///
 /// See RFC791 p11 s3.1 for more details.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TypeOfService(u8);
 
 impl TypeOfService {
@@ -373,6 +383,17 @@ impl TypeOfService {
 
     pub fn as_u8(self) -> u8 {
         self.into()
+    }
+}
+
+impl Debug for TypeOfService {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TypeOfService")
+            .field("precedence", &self.precedence())
+            .field("delay", &self.delay())
+            .field("throughput", &self.throughput())
+            .field("reliability", &self.reliability())
+            .finish()
     }
 }
 
