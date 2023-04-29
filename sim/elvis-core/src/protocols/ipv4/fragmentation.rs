@@ -17,6 +17,19 @@ pub enum Fragments {
     Discard,
 }
 
+/// Divide the packet into parts that can fit within the MTU of the network
+pub fn fragment(header: Ipv4Header, body: Message, mtu: Mtu) -> Fragments {
+    if header.total_length <= mtu {
+        Fragments::DontFragment((header, body))
+    } else if !header.flags.may_fragment() {
+        Fragments::Discard
+    } else {
+        let fragmentation = Fragmentation::new(mtu);
+        fragmentation.fragment(header, body);
+        Fragments::Fragmented(fragmentation.fragments)
+    }
+}
+
 struct Fragmentation {
     fragments: Vec<Fragment>,
     mtu: Mtu,
@@ -79,14 +92,35 @@ impl Fragmentation {
     }
 }
 
-pub fn fragment(header: Ipv4Header, body: Message, mtu: Mtu) -> Fragments {
-    if header.total_length <= mtu {
-        Fragments::DontFragment((header, body))
-    } else if !header.flags.may_fragment() {
-        Fragments::Discard
-    } else {
-        let fragmentation = Fragmentation::new(mtu);
-        fragmentation.fragment(header, body);
-        Fragments::Fragmented(fragmentation.fragments)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocols::ipv4::{
+        ipv4_parsing::{ControlFlags, TypeOfService},
+        Ipv4Address,
+    };
+
+    const BASIC_HEADER: Ipv4Header = Ipv4Header {
+        total_length: 0,                // Change
+        flags: ControlFlags::default(), // Change
+        fragment_offset: 0,
+        ihl: 5,
+        type_of_service: TypeOfService::default(),
+        identification: 1337,
+        time_to_live: 30,
+        protocol: 17,
+        checksum: 0,
+        source: Ipv4Address::CURRENT_NETWORK,
+        destination: Ipv4Address::CURRENT_NETWORK,
+    };
+
+    #[test]
+    fn dont_fragment() {
+        const LEN: u16 = 2000;
+        let body = Message::new(vec![0u8; LEN as usize]);
+        let mut header = BASIC_HEADER;
+        header.total_length = LEN + 20;
+        header.flags = ControlFlags::new(false, true);
+        assert_eq!(fragment(header, body, 1500), Fragments::Discard);
     }
 }
