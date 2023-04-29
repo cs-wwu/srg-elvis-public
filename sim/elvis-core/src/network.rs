@@ -254,7 +254,7 @@ pub(crate) struct Delivery {
 /// A network maximum transmission unit.
 ///
 /// The largest number of bytes that can be sent over the network at once.
-pub type Mtu = u32;
+pub type Mtu = u16;
 
 /// A MAC address that uniquely identifies a [`Tap`] on a network.
 pub type Mac = u64;

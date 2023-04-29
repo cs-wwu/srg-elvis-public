@@ -269,14 +269,20 @@ impl ControlFlags {
         Self((!is_last_fragment as u8) | ((!may_fragment as u8) << 1))
     }
 
-    #[allow(dead_code)]
     pub fn may_fragment(&self) -> bool {
         self.0 & 0b10 == 0
     }
 
-    #[allow(dead_code)]
+    pub fn set_may_fragment(&mut self, value: bool) {
+        self.0 = (self.0 & 0b01) | ((value as u8) << 1);
+    }
+
     pub fn is_last_fragment(&self) -> bool {
         self.0 & 0b1 == 0
+    }
+
+    pub fn set_is_last_fragment(&mut self, value: bool) {
+        self.0 = (self.0 & 0b1) | value as u8;
     }
 
     pub fn as_u8(self) -> u8 {
