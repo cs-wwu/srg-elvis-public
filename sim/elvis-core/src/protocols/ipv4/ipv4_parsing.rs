@@ -277,7 +277,7 @@ impl ControlFlags {
     }
 
     pub fn set_may_fragment(&mut self, value: bool) {
-        self.0 = (self.0 & 0b01) | ((value as u8) << 1);
+        self.0 = (self.0 & 0b01) | ((!value as u8) << 1);
     }
 
     pub const fn is_last_fragment(&self) -> bool {
@@ -285,7 +285,7 @@ impl ControlFlags {
     }
 
     pub fn set_is_last_fragment(&mut self, value: bool) {
-        self.0 = (self.0 & 0b1) | value as u8;
+        self.0 = (self.0 & 0b1) | !value as u8;
     }
 
     pub const fn as_u8(self) -> u8 {

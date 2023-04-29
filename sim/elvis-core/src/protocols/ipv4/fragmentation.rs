@@ -63,7 +63,7 @@ impl Fragmentation {
             let body = body.cut(nfb as usize * 8);
 
             // (5)
-            header.flags.set_may_fragment(true);
+            header.flags.set_is_last_fragment(false);
             header.total_length = header.ihl as u16 * 4 + nfb * 8;
 
             // (6)
@@ -116,6 +116,8 @@ mod tests {
         destination: Ipv4Address::CURRENT_NETWORK,
     };
 
+    const MTU: Mtu = 1500;
+
     #[test]
     fn discard() {
         const LEN: u16 = 2000;
@@ -123,7 +125,7 @@ mod tests {
         let mut header = BASIC_HEADER;
         header.total_length = LEN + 20;
         header.flags = ControlFlags::new(false, true);
-        assert_eq!(fragment(header, body, 1500), Fragments::Discard);
+        assert_eq!(fragment(header, body, MTU), Fragments::Discard);
     }
 
     #[test]
@@ -133,7 +135,7 @@ mod tests {
         let mut header = BASIC_HEADER;
         header.total_length = LEN + 20;
         assert_eq!(
-            fragment(header.clone(), body.clone(), 1500),
+            fragment(header.clone(), body.clone(), MTU),
             Fragments::DontFragment((header, body))
         )
     }
@@ -147,21 +149,22 @@ mod tests {
         header.flags = ControlFlags::new(true, true);
 
         let mut expected_first = BASIC_HEADER;
-        expected_first.total_length = 1500;
+        expected_first.total_length = MTU;
         expected_first.flags = ControlFlags::new(true, false);
         let mut expected_second = BASIC_HEADER;
-        expected_second.total_length = LEN - 1500;
+        expected_second.total_length = LEN - (MTU - 20) + 20;
+        expected_second.fragment_offset = (MTU - 20) / 8;
         expected_second.flags = ControlFlags::new(true, true);
 
-        let fragmented = match fragment(header, body, 1500) {
+        let fragmented = match fragment(header, body, MTU) {
             Fragments::Fragmented(fragmented) => fragmented,
             _ => panic!("Expected fragmented packet"),
         };
         assert_eq!(fragmented.len(), 2);
         assert_eq!(fragmented[0].0, expected_first);
-        assert_eq!(fragmented[0].1.len(), 1500 - 20);
+        assert_eq!(fragmented[0].1.len(), MTU as usize - 20);
         assert_eq!(fragmented[1].0, expected_second);
-        assert_eq!(fragmented[1].1.len(), LEN as usize - (1500 - 20));
+        assert_eq!(fragmented[1].1.len(), (LEN - (MTU - 20)) as usize);
     }
 
     // TODO: Test repeated fragmentation
