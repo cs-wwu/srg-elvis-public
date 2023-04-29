@@ -137,4 +137,32 @@ mod tests {
             Fragments::DontFragment((header, body))
         )
     }
+
+    #[test]
+    fn fragments_oversize_payload() {
+        const LEN: u16 = 2000;
+        let body = Message::new(vec![0u8; LEN as usize]);
+        let mut header = BASIC_HEADER;
+        header.total_length = LEN + 20;
+        header.flags = ControlFlags::new(true, true);
+
+        let mut expected_first = BASIC_HEADER;
+        expected_first.total_length = 1500;
+        expected_first.flags = ControlFlags::new(true, false);
+        let mut expected_second = BASIC_HEADER;
+        expected_second.total_length = LEN - 1500;
+        expected_second.flags = ControlFlags::new(true, true);
+
+        let fragmented = match fragment(header, body, 1500) {
+            Fragments::Fragmented(fragmented) => fragmented,
+            _ => panic!("Expected fragmented packet"),
+        };
+        assert_eq!(fragmented.len(), 2);
+        assert_eq!(fragmented[0].0, expected_first);
+        assert_eq!(fragmented[0].1.len(), 1500 - 20);
+        assert_eq!(fragmented[1].0, expected_second);
+        assert_eq!(fragmented[1].1.len(), LEN as usize - (1500 - 20));
+    }
+
+    // TODO: Test repeated fragmentation
 }
