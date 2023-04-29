@@ -24,7 +24,7 @@ pub fn fragment(header: Ipv4Header, body: Message, mtu: Mtu) -> Fragments {
     } else if !header.flags.may_fragment() {
         Fragments::Discard
     } else {
-        let fragmentation = Fragmentation::new(mtu);
+        let mut fragmentation = Fragmentation::new(mtu);
         fragmentation.fragment(header, body);
         Fragments::Fragmented(fragmentation.fragments)
     }
@@ -43,14 +43,14 @@ impl Fragmentation {
         }
     }
 
-    fn fragment(&self, mut header: Ipv4Header, mut body: Message) {
+    fn fragment(&mut self, mut header: Ipv4Header, mut body: Message) {
         if header.total_length <= self.mtu {
             self.fragments.push((header, body));
             return;
         }
 
         // (3) Number of fragment blocks
-        let mut nfb = (self.mtu - header.ihl as u16 * 4) / 8;
+        let nfb = (self.mtu - header.ihl as u16 * 4) / 8;
 
         // First fragment
         {
@@ -101,11 +101,11 @@ mod tests {
     };
 
     const BASIC_HEADER: Ipv4Header = Ipv4Header {
-        total_length: 0,                // Change
-        flags: ControlFlags::default(), // Change
+        total_length: 0,              // Change
+        flags: ControlFlags::DEFAULT, // Change
         fragment_offset: 0,
         ihl: 5,
-        type_of_service: TypeOfService::default(),
+        type_of_service: TypeOfService::DEFAULT,
         identification: 1337,
         time_to_live: 30,
         protocol: 17,

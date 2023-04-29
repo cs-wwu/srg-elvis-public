@@ -275,7 +275,7 @@ impl Tcb {
             State::SynSent | State::SynReceived | State::Established | State::CloseWait => {
                 // TODO(hardint): This could be incorrect for when optional
                 // headers are used. It also is not as efficient as possible.
-                const SPACE_FOR_HEADERS: u32 = 50;
+                const SPACE_FOR_HEADERS: u16 = 50;
                 let max_segment_length = (self.mtu - SPACE_FOR_HEADERS) as usize;
                 let mut queued_bytes = self.outgoing.queued_bytes();
                 loop {

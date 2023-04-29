@@ -260,16 +260,18 @@ pub enum HeaderBuildError {
     OverlyLongFragmentOffset,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ControlFlags(u8);
 
 impl ControlFlags {
+    pub const DEFAULT: Self = Self::new(true, true);
+
     #[allow(dead_code)]
-    pub fn new(may_fragment: bool, is_last_fragment: bool) -> Self {
+    pub const fn new(may_fragment: bool, is_last_fragment: bool) -> Self {
         Self((!is_last_fragment as u8) | ((!may_fragment as u8) << 1))
     }
 
-    pub fn may_fragment(&self) -> bool {
+    pub const fn may_fragment(&self) -> bool {
         self.0 & 0b10 == 0
     }
 
@@ -277,7 +279,7 @@ impl ControlFlags {
         self.0 = (self.0 & 0b01) | ((value as u8) << 1);
     }
 
-    pub fn is_last_fragment(&self) -> bool {
+    pub const fn is_last_fragment(&self) -> bool {
         self.0 & 0b1 == 0
     }
 
@@ -285,8 +287,14 @@ impl ControlFlags {
         self.0 = (self.0 & 0b1) | value as u8;
     }
 
-    pub fn as_u8(self) -> u8 {
-        self.into()
+    pub const fn as_u8(self) -> u8 {
+        self.0
+    }
+}
+
+impl Default for ControlFlags {
+    fn default() -> Self {
+        Self::DEFAULT
     }
 }
 
@@ -321,8 +329,15 @@ impl TypeOfService {
     // because the enum variants cover any possible byte value we would be
     // passing in.
 
+    pub const DEFAULT: Self = Self::new(
+        Precedence::Routine,
+        Delay::Normal,
+        Throughput::Normal,
+        Reliability::Normal,
+    );
+
     #[allow(dead_code)]
-    pub fn new(
+    pub const fn new(
         precedence: Precedence,
         delay: Delay,
         throughput: Throughput,
