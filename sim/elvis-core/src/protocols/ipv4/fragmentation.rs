@@ -102,6 +102,8 @@ mod tests {
         Ipv4Address,
     };
 
+    const MTU: Mtu = 1500;
+    const HEADER_OCTETS: u16 = 20;
     const BASIC_HEADER: Ipv4Header = Ipv4Header {
         total_length: 0,              // Change
         flags: ControlFlags::DEFAULT, // Change
@@ -116,14 +118,12 @@ mod tests {
         destination: Ipv4Address::CURRENT_NETWORK,
     };
 
-    const MTU: Mtu = 1500;
-
     #[test]
     fn discard() {
         const LEN: u16 = 2000;
         let body = Message::new(vec![0u8; LEN as usize]);
         let mut header = BASIC_HEADER;
-        header.total_length = LEN + 20;
+        header.total_length = LEN + HEADER_OCTETS;
         header.flags = ControlFlags::new(false, true);
         assert_eq!(fragment(header, body, MTU), Fragments::Discard);
     }
@@ -133,7 +133,7 @@ mod tests {
         const LEN: u16 = 500;
         let body = Message::new(vec![0u8; LEN as usize]);
         let mut header = BASIC_HEADER;
-        header.total_length = LEN + 20;
+        header.total_length = LEN + HEADER_OCTETS;
         assert_eq!(
             fragment(header.clone(), body.clone(), MTU),
             Fragments::DontFragment((header, body))
@@ -145,15 +145,16 @@ mod tests {
         const LEN: u16 = 2000;
         let body = Message::new(vec![0u8; LEN as usize]);
         let mut header = BASIC_HEADER;
-        header.total_length = LEN + 20;
+        header.total_length = LEN + HEADER_OCTETS;
         header.flags = ControlFlags::new(true, true);
 
         let mut expected_first = BASIC_HEADER;
         expected_first.total_length = MTU;
         expected_first.flags = ControlFlags::new(true, false);
+
         let mut expected_second = BASIC_HEADER;
-        expected_second.total_length = LEN - (MTU - 20) + 20;
-        expected_second.fragment_offset = (MTU - 20) / 8;
+        expected_second.total_length = LEN - (MTU - HEADER_OCTETS) + HEADER_OCTETS;
+        expected_second.fragment_offset = (MTU - HEADER_OCTETS) / 8;
         expected_second.flags = ControlFlags::new(true, true);
 
         let fragmented = match fragment(header, body, MTU) {
@@ -162,10 +163,62 @@ mod tests {
         };
         assert_eq!(fragmented.len(), 2);
         assert_eq!(fragmented[0].0, expected_first);
-        assert_eq!(fragmented[0].1.len(), MTU as usize - 20);
+        assert_eq!(fragmented[0].1.len(), (MTU - HEADER_OCTETS) as usize);
         assert_eq!(fragmented[1].0, expected_second);
-        assert_eq!(fragmented[1].1.len(), (LEN - (MTU - 20)) as usize);
+        assert_eq!(
+            fragmented[1].1.len(),
+            (LEN - (MTU - HEADER_OCTETS)) as usize
+        );
     }
 
-    // TODO: Test repeated fragmentation
+    #[test]
+    fn repeated_fragmentation() {
+        const MTU_1: Mtu = 1300;
+        const MTU_2: Mtu = 500;
+
+        const LEN: u16 = 2000;
+        let body = Message::new(vec![0u8; LEN as usize]);
+        let mut header = BASIC_HEADER;
+        header.total_length = LEN + HEADER_OCTETS;
+        header.flags = ControlFlags::new(true, true);
+
+        let mut expected_1 = BASIC_HEADER;
+        expected_1.total_length = MTU_1;
+        expected_1.flags = ControlFlags::new(true, false);
+
+        let mut expected_2 = BASIC_HEADER;
+        expected_2.total_length = MTU_2;
+        expected_2.fragment_offset = (MTU_1 - HEADER_OCTETS) / 8;
+        expected_2.flags = ControlFlags::new(true, false);
+
+        let mut expected_3 = BASIC_HEADER;
+        expected_3.total_length =
+            LEN - (MTU_1 - HEADER_OCTETS) - (MTU_2 - HEADER_OCTETS) + HEADER_OCTETS;
+        expected_3.fragment_offset = ((MTU_1 - HEADER_OCTETS) + (MTU_2 - HEADER_OCTETS)) / 8;
+        expected_3.flags = ControlFlags::new(true, true);
+
+        let fragmented = match fragment(header, body, MTU_1) {
+            Fragments::Fragmented(fragmented) => fragmented,
+            _ => panic!("Expected fragmented packet"),
+        };
+        let [actual_1, actual_2] = fragmented.as_slice() else { panic!("Expected two fragments") };
+
+        let fragmented = match fragment(actual_2.0, actual_2.1.clone(), MTU_2) {
+            Fragments::Fragmented(fragmented) => fragmented,
+            _ => panic!("Expected fragmented packet"),
+        };
+        let [actual_2, actual_3] = fragmented.as_slice() else { panic!("Expected two fragments") };
+
+        assert_eq!(actual_1.0, expected_1);
+        assert_eq!(actual_1.1.len(), (MTU_1 - HEADER_OCTETS) as usize);
+
+        assert_eq!(actual_2.0, expected_2);
+        assert_eq!(actual_2.1.len(), (MTU_2 - HEADER_OCTETS) as usize);
+
+        assert_eq!(actual_3.0, expected_3);
+        assert_eq!(
+            actual_3.1.len(),
+            (LEN - (MTU_1 - HEADER_OCTETS) - (MTU_2 - HEADER_OCTETS)) as usize
+        )
+    }
 }
