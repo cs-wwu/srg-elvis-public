@@ -117,12 +117,24 @@ mod tests {
     };
 
     #[test]
-    fn dont_fragment() {
+    fn discard() {
         const LEN: u16 = 2000;
         let body = Message::new(vec![0u8; LEN as usize]);
         let mut header = BASIC_HEADER;
         header.total_length = LEN + 20;
         header.flags = ControlFlags::new(false, true);
         assert_eq!(fragment(header, body, 1500), Fragments::Discard);
+    }
+
+    #[test]
+    fn dont_fragment() {
+        const LEN: u16 = 500;
+        let body = Message::new(vec![0u8; LEN as usize]);
+        let mut header = BASIC_HEADER;
+        header.total_length = LEN + 20;
+        assert_eq!(
+            fragment(header.clone(), body.clone(), 1500),
+            Fragments::DontFragment((header, body))
+        )
     }
 }
