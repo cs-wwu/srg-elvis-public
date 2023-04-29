@@ -36,12 +36,6 @@ impl Fragmentation {
             return;
         }
 
-        // (2) Copy old values
-        let mut oihl = header.ihl;
-        let mut otl = header.total_length;
-        let mut ofo = header.fragment_offset;
-        let mut omf = header.flags.may_fragment();
-
         // (3) Number of fragment blocks
         let mut nfb = (self.mtu - header.ihl as u16 * 4) / 8;
 
@@ -67,14 +61,18 @@ impl Fragmentation {
         // (8)
         // Use whatever is left in `body`
 
+        // (2) Copy old values
+        // Note: Most of these just carry forward
+        let mut oihl = header.ihl;
+
         // (9) Correct the header
         //
         // TODO(hardint): Recompute IHL after removing the not copied options:
         // IHL <- (((OIHL*4)-(length of options not copied))+3)/4
         //
         // Note: Checksum recomputation happens at serialization time
-        header.total_length = otl - nfb * 8 - (oihl - header.ihl) as u16 * 4;
-        header.fragment_offset = ofo + nfb;
+        header.total_length -= nfb * 8 + (oihl - header.ihl) as u16 * 4;
+        header.fragment_offset += nfb;
 
         // (10)
         self.fragment(header, body);
