@@ -8,6 +8,7 @@ type Fragment = (Ipv4Header, Message);
 
 /// The result of packet fragmentation
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(unused)]
 pub enum Fragments {
     /// The packet was fragmented
     Fragmented(Vec<Fragment>),
@@ -18,6 +19,7 @@ pub enum Fragments {
 }
 
 /// Divide the packet into parts that can fit within the MTU of the network
+#[allow(unused)]
 pub fn fragment(header: Ipv4Header, body: Message, mtu: Mtu) -> Fragments {
     if header.total_length <= mtu {
         Fragments::DontFragment((header, body))
@@ -76,7 +78,7 @@ impl Fragmentation {
 
         // (2) Copy old values
         // Note: Most of these just carry forward
-        let mut oihl = header.ihl;
+        let oihl = header.ihl;
 
         // (9) Correct the header
         //
