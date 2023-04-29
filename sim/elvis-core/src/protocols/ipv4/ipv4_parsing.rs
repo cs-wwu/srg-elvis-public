@@ -16,6 +16,7 @@ const BASE_OCTETS: u16 = BASE_WORDS as u16 * 4;
 const FRAGMENT_OFFSET_MASK: u16 = 0x1fff;
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ipv4Header {
     /// Internet Header Length, the number of `u32` words in the IPv4 header
@@ -26,7 +27,7 @@ pub struct Ipv4Header {
     pub total_length: u16,
     /// Assigned by the sender to aid in assembling fragments
     pub identification: u16,
-    /// Where in the datagram this fragment belongs
+    /// Where in the datagram this fragment belongs in units of 8 bytes
     pub fragment_offset: u16,
     /// Flags describing fragmentation properties
     pub flags: ControlFlags,
@@ -34,8 +35,6 @@ pub struct Ipv4Header {
     pub time_to_live: u8,
     /// Indicates the next level protocol in the data portion of the datagram
     pub protocol: u8,
-    // TODO(hardint): This isn't needed after parsing in main line code, but it is nice
-    // for testing and for completeness. Consider whether it is worth removing.
     /// The IPv4 header checksum
     pub checksum: u16,
     /// The source address
