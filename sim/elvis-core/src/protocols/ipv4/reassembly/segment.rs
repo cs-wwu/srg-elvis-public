@@ -84,6 +84,9 @@ impl Segment {
             // (14)
             let mut header = self.header.unwrap();
             header.total_length = self.total_data_length;
+            println!("{:?}", header.flags);
+            header.flags.set_is_last_fragment(true);
+            println!("{:?}", header.flags);
 
             // (15)
             let mut message = Message::new(vec![]);
