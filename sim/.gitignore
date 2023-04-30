@@ -22,3 +22,4 @@ Cargo.lock
 callgrind.*
 dhat.*
 **/*.profraw
+*.profdata
