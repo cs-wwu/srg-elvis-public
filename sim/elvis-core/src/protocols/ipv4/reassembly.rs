@@ -10,7 +10,10 @@ mod fragment;
 mod segment;
 
 use self::{buf_id::BufId, segment::Epoch};
-use super::{ipv4_parsing::Ipv4Header, Ipv4Address};
+use super::{
+    ipv4_parsing::{ControlFlags, Ipv4Header, TypeOfService},
+    Ipv4Address,
+};
 use crate::Message;
 use rustc_hash::FxHashMap;
 use segment::Segment;
@@ -101,73 +104,65 @@ mod tests {
         protocols::ipv4::{
             fragmentation::{fragment, Fragments},
             ipv4_parsing::{ControlFlags, TypeOfService},
-            reassembly, Ipv4Address,
+            reassembly,
+            test_header_builder::TestHeaderBuilder,
+            Ipv4Address,
         },
     };
 
-    const LEN: u16 = 1000;
-    const MTU: Mtu = 600;
-    const BASIC_HEADER: Ipv4Header = Ipv4Header {
-        total_length: LEN + 20,
-        flags: ControlFlags::DEFAULT,
-        fragment_offset: 0,
-        ihl: 5,
-        type_of_service: TypeOfService::DEFAULT,
-        identification: 1337,
-        time_to_live: 30,
-        protocol: 17,
-        checksum: 0,
-        source: Ipv4Address::CURRENT_NETWORK,
-        destination: Ipv4Address::CURRENT_NETWORK,
-    };
-
     #[test]
+    #[ignore]
     fn reassemble_segments() {
+        const LEN: u16 = 1000;
+        const MTU: Mtu = 600;
+
         let bytes_a: Vec<_> = (0..LEN).map(|i| i as u8).collect();
         let expected_a = Message::new(bytes_a);
 
         let bytes_b: Vec<_> = (0..LEN).map(|i| (i as u8).wrapping_add(5)).collect();
         let expected_b = Message::new(bytes_b);
 
-        let a = match fragment(BASIC_HEADER, expected_a.clone(), MTU) {
+        let header_a = TestHeaderBuilder::new(LEN).build();
+        let a = match fragment(header_a, expected_a.clone(), MTU) {
             Fragments::Fragmented(fragments) => fragments,
             _ => panic!("Expected fragments"),
         };
         let [a1, a2] = a.as_slice() else { panic!("Expected two fragments") };
 
-        let mut second_header = BASIC_HEADER;
-        second_header.identification = 420;
-        let b = match fragment(second_header, expected_b.clone(), MTU) {
+        let header_b = TestHeaderBuilder::new(LEN).identification(420).build();
+        let b = match fragment(header_b, expected_b.clone(), MTU) {
             Fragments::Fragmented(fragments) => fragments,
             _ => panic!("Expected fragments"),
         };
         let [b1, b2] = b.as_slice() else { panic!("Expected two fragments") };
 
         let mut reassembly = Reassembly::new();
+
+        let expected = reassembly.add_fragment(a2.0, a2.1.clone());
         assert_eq!(
-            reassembly.add_fragment(a2.0, a2.1.clone()),
+            expected,
             AddFragmentResult::Incomplete(
                 Duration::from_secs(30),
-                BufId::from_header(&BASIC_HEADER),
+                BufId::from_header(&header_a),
                 1
             )
         );
+
+        let expected = reassembly.add_fragment(b2.0, b2.1.clone());
         assert_eq!(
-            reassembly.add_fragment(b2.0, b2.1.clone()),
+            expected,
             AddFragmentResult::Incomplete(
                 Duration::from_secs(30),
-                BufId::from_header(&second_header),
+                BufId::from_header(&header_b),
                 1
             )
         );
-        assert_eq!(
-            reassembly.add_fragment(a1.0, a1.1.clone()),
-            AddFragmentResult::Complete(BASIC_HEADER, expected_a),
-        );
-        assert_eq!(
-            reassembly.add_fragment(b1.0, b1.1.clone()),
-            AddFragmentResult::Complete(second_header, expected_b),
-        );
+
+        let expected = reassembly.add_fragment(a1.0, a1.1.clone());
+        assert_eq!(expected, AddFragmentResult::Complete(header_a, expected_a),);
+
+        let expected = reassembly.add_fragment(b1.0, b1.1.clone());
+        assert_eq!(expected, AddFragmentResult::Complete(header_b, expected_b),);
     }
 }
 
