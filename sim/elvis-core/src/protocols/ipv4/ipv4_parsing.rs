@@ -280,11 +280,11 @@ impl ControlFlags {
     }
 
     pub const fn is_last_fragment(&self) -> bool {
-        self.0 & 0b1 == 0
+        self.0 & 0b01 == 0
     }
 
     pub fn set_is_last_fragment(&mut self, value: bool) {
-        self.0 = (self.0 & 0b1) | !value as u8;
+        self.0 = (self.0 & 0b10) | !value as u8;
     }
 
     pub const fn as_u8(self) -> u8 {
@@ -295,8 +295,8 @@ impl ControlFlags {
 impl Debug for ControlFlags {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("ControlFlags")
-            .field("MF", &self.may_fragment())
-            .field("LF", &self.is_last_fragment())
+            .field("MayFrag", &self.may_fragment())
+            .field("LastFrag", &self.is_last_fragment())
             .finish()
     }
 }
