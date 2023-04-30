@@ -2,7 +2,7 @@
 
 use super::{bitvec::BitVec, fragment::Fragment};
 use crate::{protocols::ipv4::ipv4_parsing::Ipv4Header, Message};
-use std::{collections::BinaryHeap, time::Duration};
+use std::collections::BinaryHeap;
 
 /// Timer lower bound
 const TLB: u8 = 15;
@@ -37,7 +37,7 @@ pub struct Segment {
 
 impl Segment {
     /// Creates a new set of reassembly resources for the given segment length
-    fn new(fragment_blocks: u16) -> Self {
+    pub fn new() -> Self {
         Self {
             header: None,
             fragment_blocks: BitVec::new(),
@@ -46,14 +46,6 @@ impl Segment {
             total_data_length: 0,
             epoch: 0,
         }
-    }
-
-    pub fn from_total_length(bytes: u16) -> Self {
-        Self::new(bytes_to_fragments(bytes))
-    }
-
-    pub fn from_header(header: &Ipv4Header) -> Self {
-        Self::new(header.fragment_offset + bytes_to_fragments(header.total_length))
     }
 
     pub fn add_fragment(
@@ -127,9 +119,7 @@ mod tests {
         network::Mtu,
         protocols::ipv4::{
             fragmentation::{fragment, Fragments},
-            ipv4_parsing::{ControlFlags, TypeOfService},
             test_header_builder::TestHeaderBuilder,
-            Ipv4Address,
         },
     };
 
@@ -145,7 +135,7 @@ mod tests {
             Fragments::Fragmented(fragments) => fragments,
             _ => panic!("Expected fragments"),
         };
-        let mut segment = Segment::from_total_length(LEN);
+        let mut segment = Segment::new();
         for (header, body) in fragments.into_iter().rev() {
             match segment.add_fragment(header, body) {
                 Some(actual) => {
@@ -175,14 +165,10 @@ mod tests {
         };
         let [a1, a2] = a.as_slice() else { panic!("Expected two fragments") };
 
-        let mut reassembly = Segment::new(LEN);
+        let mut reassembly = Segment::new();
 
         reassembly.add_fragment(a2.0, a2.1.clone());
         let actual = reassembly.add_fragment(a1.0, a1.1.clone());
         assert_eq!(actual, Some((header_a, expected_a)));
     }
-}
-
-fn bytes_to_fragments(bytes: u16) -> u16 {
-    (bytes - 1) / 8 + 1
 }
