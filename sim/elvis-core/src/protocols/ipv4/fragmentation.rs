@@ -55,7 +55,7 @@ impl Fragmentation {
         // First fragment
         {
             // (1)
-            let mut header = header.clone();
+            let mut header = header;
 
             // (4)
             let body = body.cut(nfb as usize * 8);

@@ -41,10 +41,7 @@ impl Reassembly {
 
         // (6) ELSE IF no buffer with BUFID is allocated
         // (7) THEN allocate reassembly resources with BUFID; TIMER <- TLB; TDL <- 0;
-        let segment = self
-            .segments
-            .entry(buf_id)
-            .or_insert_with(|| Segment::new());
+        let segment = self.segments.entry(buf_id).or_insert(Segment::new());
 
         match segment.add_fragment(header, body) {
             Some((header, message)) => {
