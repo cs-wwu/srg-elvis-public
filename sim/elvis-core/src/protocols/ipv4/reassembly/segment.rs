@@ -33,14 +33,22 @@ pub struct Segment {
 
 impl Segment {
     /// Creates a new set of reassembly resources for the given segment length
-    pub fn new(len: u16) -> Self {
+    fn new(fragment_blocks: u16) -> Self {
         Self {
             header: None,
-            fragment_blocks: BitVec::new(len),
+            fragment_blocks: BitVec::new(fragment_blocks),
             fragments: Default::default(),
             timeout_seconds: TLB,
             epoch: 0,
         }
+    }
+
+    pub fn from_total_length(bytes: u16) -> Self {
+        Self::new(bytes_to_fragments(bytes))
+    }
+
+    pub fn from_header(header: &Ipv4Header) -> Self {
+        Self::new(header.fragment_offset + bytes_to_fragments(header.total_length))
     }
 
     /// The length of the final segment to be assembled.
@@ -60,7 +68,7 @@ impl Segment {
         // (9)
         self.fragment_blocks.set_range(
             header.fragment_offset,
-            header.fragment_offset + ((header.total_length - header.ihl as u16 * 4) + 7) / 8,
+            header.fragment_offset + (header.total_length - header.ihl as u16 * 4 + 7) / 8,
         );
 
         // (10) Ignored. We just find this value when initially constructing the
@@ -93,4 +101,58 @@ impl Segment {
             None
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        network::Mtu,
+        protocols::ipv4::{
+            fragmentation::{fragment, Fragments},
+            ipv4_parsing::{ControlFlags, TypeOfService},
+            Ipv4Address,
+        },
+    };
+
+    const LEN: u16 = 3000;
+    const MTU: Mtu = 500;
+    const BASIC_HEADER: Ipv4Header = Ipv4Header {
+        total_length: LEN + 20,
+        flags: ControlFlags::DEFAULT,
+        fragment_offset: 0,
+        ihl: 5,
+        type_of_service: TypeOfService::DEFAULT,
+        identification: 1337,
+        time_to_live: 30,
+        protocol: 17,
+        checksum: 0,
+        source: Ipv4Address::CURRENT_NETWORK,
+        destination: Ipv4Address::CURRENT_NETWORK,
+    };
+
+    #[test]
+    fn reassemble_segment_in_order() {
+        let bytes: Vec<_> = (0..LEN).map(|i| i as u8).collect();
+        let expected = Message::new(bytes);
+        let fragments = match fragment(BASIC_HEADER, expected.clone(), MTU) {
+            Fragments::Fragmented(fragments) => fragments,
+            _ => panic!("Expected fragments"),
+        };
+        let mut segment = Segment::from_total_length(LEN);
+        for (header, body) in fragments {
+            match segment.add_fragment(header, body) {
+                Some(actual) => {
+                    assert_eq!(actual.0, BASIC_HEADER);
+                    assert_eq!(actual.1, expected);
+                }
+                None => {}
+            }
+        }
+        panic!("Didn't get a finished message");
+    }
+}
+
+fn bytes_to_fragments(bytes: u16) -> u16 {
+    (bytes - 1) / 8 + 1
 }

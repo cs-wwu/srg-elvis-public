@@ -42,11 +42,10 @@ impl Reassembly {
         }
 
         // (6), (7)
-        let fragments = header.fragment_offset + (header.total_length - 1) / 8 + 1;
         let segment = self
             .segments
             .entry(buf_id)
-            .or_insert_with(|| Segment::new(fragments));
+            .or_insert_with(|| Segment::from_header(&header));
 
         match segment.add_fragment(header, body) {
             Some((header, message)) => {
