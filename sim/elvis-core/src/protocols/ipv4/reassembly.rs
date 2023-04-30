@@ -138,9 +138,9 @@ mod tests {
 
         let mut reassembly = Reassembly::new();
 
-        let expected = reassembly.add_fragment(a2.0, a2.1.clone());
+        let actual = reassembly.add_fragment(a2.0, a2.1.clone());
         assert_eq!(
-            expected,
+            actual,
             AddFragmentResult::Incomplete(
                 Duration::from_secs(30),
                 BufId::from_header(&header_a),
@@ -148,9 +148,9 @@ mod tests {
             )
         );
 
-        let expected = reassembly.add_fragment(b2.0, b2.1.clone());
+        let actual = reassembly.add_fragment(b2.0, b2.1.clone());
         assert_eq!(
-            expected,
+            actual,
             AddFragmentResult::Incomplete(
                 Duration::from_secs(30),
                 BufId::from_header(&header_b),
@@ -158,11 +158,11 @@ mod tests {
             )
         );
 
-        let expected = reassembly.add_fragment(a1.0, a1.1.clone());
-        assert_eq!(expected, AddFragmentResult::Complete(header_a, expected_a),);
+        let actual = reassembly.add_fragment(a1.0, a1.1.clone());
+        assert_eq!(actual, AddFragmentResult::Complete(header_a, expected_a),);
 
-        let expected = reassembly.add_fragment(b1.0, b1.1.clone());
-        assert_eq!(expected, AddFragmentResult::Complete(header_b, expected_b),);
+        let actual = reassembly.add_fragment(b1.0, b1.1.clone());
+        assert_eq!(actual, AddFragmentResult::Complete(header_b, expected_b),);
     }
 }
 

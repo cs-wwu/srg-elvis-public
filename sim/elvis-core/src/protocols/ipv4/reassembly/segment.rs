@@ -121,7 +121,7 @@ mod tests {
     const BASIC_HEADER: Ipv4Header = TestHeaderBuilder::with_message_len(LEN).build();
 
     #[test]
-    fn reassemble_segments() {
+    fn reassemble_segments_1() {
         let bytes: Vec<_> = (0..LEN).map(|i| i as u8).collect();
         let expected = Message::new(bytes);
         let fragments = match fragment(BASIC_HEADER, expected.clone(), MTU) {
@@ -141,6 +141,28 @@ mod tests {
             }
         }
         panic!("Didn't get a finished message");
+    }
+
+    #[test]
+    fn reassemble_fragments_2() {
+        const LEN: u16 = 1000;
+        const MTU: Mtu = 600;
+
+        let bytes_a: Vec<_> = (0..LEN).map(|i| i as u8).collect();
+        let expected_a = Message::new(bytes_a);
+
+        let header_a = TestHeaderBuilder::new(LEN).build();
+        let a = match fragment(header_a, expected_a.clone(), MTU) {
+            Fragments::Fragmented(fragments) => fragments,
+            _ => panic!("Expected fragments"),
+        };
+        let [a1, a2] = a.as_slice() else { panic!("Expected two fragments") };
+
+        let mut reassembly = Segment::new(LEN);
+
+        reassembly.add_fragment(a2.0, a2.1.clone());
+        let actual = reassembly.add_fragment(a1.0, a1.1.clone());
+        assert_eq!(actual, Some((header_a, expected_a)));
     }
 }
 
