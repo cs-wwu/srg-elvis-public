@@ -31,6 +31,7 @@ use ipv4_session::{Ipv4Session, SessionId};
 
 mod fragmentation;
 mod reassembly;
+mod test_header_builder;
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {

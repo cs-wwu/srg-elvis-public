@@ -111,25 +111,14 @@ mod tests {
         protocols::ipv4::{
             fragmentation::{fragment, Fragments},
             ipv4_parsing::{ControlFlags, TypeOfService},
+            test_header_builder::TestHeaderBuilder,
             Ipv4Address,
         },
     };
 
     const LEN: u16 = 3000;
     const MTU: Mtu = 500;
-    const BASIC_HEADER: Ipv4Header = Ipv4Header {
-        total_length: LEN + 20,
-        flags: ControlFlags::DEFAULT,
-        fragment_offset: 0,
-        ihl: 5,
-        type_of_service: TypeOfService::DEFAULT,
-        identification: 1337,
-        time_to_live: 30,
-        protocol: 17,
-        checksum: 0,
-        source: Ipv4Address::CURRENT_NETWORK,
-        destination: Ipv4Address::CURRENT_NETWORK,
-    };
+    const BASIC_HEADER: Ipv4Header = TestHeaderBuilder::with_message_len(LEN).build();
 
     #[test]
     fn reassemble_segments() {
