@@ -32,12 +32,24 @@ impl Eq for Fragment {}
 
 impl PartialOrd for Fragment {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.offset.partial_cmp(&other.offset)
+        Some(self.cmp(&other))
     }
 }
 
 impl Ord for Fragment {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.offset.cmp(&other.offset)
+        self.offset.cmp(&other.offset).reverse()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fragment_order() {
+        let a = Fragment::new(Message::default(), 0);
+        let b = Fragment::new(Message::default(), 10);
+        assert!(a > b);
     }
 }
