@@ -24,6 +24,8 @@ pub struct Segment {
     /// have received all the fragments for a given message, we can just pop all
     /// the messages out of the heap and put them together end-to-end.
     fragments: BinaryHeap<Fragment>,
+    /// The total length of the reconstructed segment
+    total_data_length: u16,
     /// How long the pending message should be stored before being freed
     pub timeout_seconds: u8,
     /// The current iteration of this data structure. Incremented each time a
@@ -39,6 +41,7 @@ impl Segment {
             fragment_blocks: BitVec::new(fragment_blocks),
             fragments: Default::default(),
             timeout_seconds: TLB,
+            total_data_length: 0,
             epoch: 0,
         }
     }
@@ -49,11 +52,6 @@ impl Segment {
 
     pub fn from_header(header: &Ipv4Header) -> Self {
         Self::new(header.fragment_offset + bytes_to_fragments(header.total_length))
-    }
-
-    /// The length of the final segment to be assembled.
-    pub fn total_data_length(&self) -> u16 {
-        self.fragment_blocks.len()
     }
 
     pub fn add_fragment(
@@ -71,8 +69,10 @@ impl Segment {
             header.fragment_offset + (header.total_length - header.ihl as u16 * 4 + 7) / 8,
         );
 
-        // (10) Ignored. We just find this value when initially constructing the
-        // Fragment.
+        // (10)
+        if header.flags.is_last_fragment() {
+            self.total_data_length = header.total_length + header.fragment_offset * 8;
+        }
 
         // (11)
         if header.fragment_offset == 0 {
@@ -80,10 +80,10 @@ impl Segment {
         }
 
         // (12), (13)
-        if self.total_data_length() != 0 && self.fragment_blocks.complete() {
+        if self.total_data_length != 0 && self.fragment_blocks.complete() {
             // (14)
             let mut header = self.header.unwrap();
-            header.total_length = self.total_data_length() + header.ihl as u16 * 4;
+            header.total_length = self.total_data_length;
 
             // (15)
             let mut message = Message::new(vec![]);
