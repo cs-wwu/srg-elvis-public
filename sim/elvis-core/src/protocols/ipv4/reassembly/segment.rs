@@ -133,7 +133,7 @@ mod tests {
     };
 
     #[test]
-    fn reassemble_segment_in_order() {
+    fn reassemble_segments() {
         let bytes: Vec<_> = (0..LEN).map(|i| i as u8).collect();
         let expected = Message::new(bytes);
         let fragments = match fragment(BASIC_HEADER, expected.clone(), MTU) {
@@ -141,7 +141,7 @@ mod tests {
             _ => panic!("Expected fragments"),
         };
         let mut segment = Segment::from_total_length(LEN);
-        for (header, body) in fragments {
+        for (header, body) in fragments.into_iter().rev() {
             match segment.add_fragment(header, body) {
                 Some(actual) => {
                     assert_eq!(actual.0, BASIC_HEADER);
