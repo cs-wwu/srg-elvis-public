@@ -10,6 +10,7 @@ use rustc_hash::FxHashMap;
 use std::{
     cmp::Ordering,
     collections::{hash_map::Entry, BinaryHeap},
+    ops::Add,
     time::Duration,
 };
 
@@ -26,33 +27,7 @@ const TLB: Duration = Duration::from_secs(15);
 pub struct Reassembly {
     /// Fragmented IP packets that are still waiting on fragments to become
     /// complete.
-    pending: FxHashMap<BufId, Segment>,
-}
-
-/// Uniquely identifies the fragments of a particular datagram. See the
-/// Identification section for more details.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BufId {
-    /// The remote IP address
-    src: Ipv4Address,
-    /// The local IP address
-    dst: Ipv4Address,
-    /// The transmission protocol used upstream from IP
-    protocol: u8,
-    /// The identification field of the IP header
-    identification: u16,
-}
-
-impl BufId {
-    /// Gets the segment identifier to a given IP header
-    pub fn from_header(header: &Ipv4Header) -> Self {
-        Self {
-            src: header.source,
-            dst: header.destination,
-            protocol: header.protocol,
-            identification: header.identification,
-        }
-    }
+    segments: FxHashMap<BufId, Segment>,
 }
 
 impl Reassembly {
@@ -62,69 +37,35 @@ impl Reassembly {
         // (2)
         if header.flags.is_last_fragment() && header.fragment_offset == 0 {
             // (3), (4)
-            self.pending.remove(&buf_id);
+            self.segments.remove(&buf_id);
             // (5)
             return AddFragmentResult::Complete(header, body);
         }
 
         // (6), (7)
         let fragments = header.fragment_offset + (header.total_length - 1) / 8 + 1;
-        let pending = self
-            .pending
+        let segment = self
+            .segments
             .entry(buf_id)
             .or_insert_with(|| Segment::new(fragments));
 
-        // (8)
-        pending
-            .fragments
-            .push(Fragment::new(body, header.fragment_offset));
-
-        // (9)
-        pending.fragment_blocks.set_range(
-            header.fragment_offset,
-            header.fragment_offset + ((header.total_length - header.ihl as u16 * 4) + 7) / 8,
-        );
-
-        // (10) Ignored. We just find this value when initially constructing the
-        // Fragment.
-
-        // (11)
-        if header.fragment_offset == 0 {
-            pending.header = Some(header);
-        }
-
-        // (12), (13)
-        if pending.total_data_length() != 0 && pending.fragment_blocks.complete() {
-            // (14)
-            let mut header = pending.header.unwrap();
-            header.total_length = pending.total_data_length() + header.ihl as u16 * 4;
-
-            // (16)
-            let pending = self.pending.remove(&buf_id).unwrap();
-
-            // (15)
-            let mut message = Message::new(vec![]);
-            for piece in pending.fragments.into_iter() {
-                message.concatenate(piece.message);
+        match segment.add_fragment(header, body) {
+            Some((header, message)) => {
+                // (16)
+                self.segments.remove(&buf_id).unwrap();
+                AddFragmentResult::Complete(header, message)
             }
-            return AddFragmentResult::Complete(header, message);
+            None => {
+                // (18), (19)
+                AddFragmentResult::Incomplete(segment.timer, buf_id, segment.epoch)
+            }
         }
-
-        // (17)
-        let epoch = pending.epoch;
-        pending.epoch += 1;
-        pending.timer = pending
-            .timer
-            .max(Duration::from_secs(header.time_to_live as u64));
-
-        // (18), (19)
-        AddFragmentResult::Incomplete(pending.timer, buf_id, epoch)
     }
 
     /// Removes the resources associated with the given [`BufId`] if no new
     /// fragments have arrived since the given epoch.
     pub fn maybe_cull_segment(&mut self, buf_id: BufId, epoch: Epoch) {
-        match self.pending.entry(buf_id) {
+        match self.segments.entry(buf_id) {
             Entry::Occupied(pending) => {
                 if pending.get().epoch == epoch {
                     pending.remove_entry();
@@ -133,16 +74,6 @@ impl Reassembly {
             Entry::Vacant(_) => {}
         }
     }
-}
-
-pub enum AddFragmentResult {
-    /// The added fragment completed the message
-    Complete(Ipv4Header, Message),
-    /// The added fragment did not complete the message. The caller should set a
-    /// timeout for the given duration and call
-    /// [`Reassembly::maybe_cull_pending`] with the provided [`BufId`] and
-    /// [`Epoch`] after the timeout expires.
-    Incomplete(Duration, BufId, Epoch),
 }
 
 /// Reassembly resources for a given [`BufId`] datagram identifier.
@@ -182,6 +113,54 @@ impl Segment {
     pub fn total_data_length(&self) -> u16 {
         self.fragment_blocks.len
     }
+
+    pub fn add_fragment(
+        &mut self,
+        header: Ipv4Header,
+        body: Message,
+    ) -> Option<(Ipv4Header, Message)> {
+        // (8)
+        self.fragments
+            .push(Fragment::new(body, header.fragment_offset));
+
+        // (9)
+        self.fragment_blocks.set_range(
+            header.fragment_offset,
+            header.fragment_offset + ((header.total_length - header.ihl as u16 * 4) + 7) / 8,
+        );
+
+        // (10) Ignored. We just find this value when initially constructing the
+        // Fragment.
+
+        // (11)
+        if header.fragment_offset == 0 {
+            self.header = Some(header);
+        }
+
+        // (12), (13)
+        if self.total_data_length() != 0 && self.fragment_blocks.complete() {
+            // (14)
+            let mut header = self.header.unwrap();
+            header.total_length = self.total_data_length() + header.ihl as u16 * 4;
+
+            // (15)
+            let mut message = Message::new(vec![]);
+            for piece in self.fragments.drain() {
+                message.concatenate(piece.message);
+            }
+
+            Some((header, message))
+        } else {
+            // (17)
+            let epoch = self.epoch;
+            self.epoch += 1;
+            self.timer = self
+                .timer
+                .max(Duration::from_secs(header.time_to_live as u64));
+
+            None
+        }
+    }
 }
 
 /// A piece of a datagram being assembled. This type is set up to be sorted by
@@ -218,6 +197,42 @@ impl PartialOrd for Fragment {
 impl Ord for Fragment {
     fn cmp(&self, other: &Self) -> Ordering {
         self.offset.cmp(&other.offset)
+    }
+}
+
+pub enum AddFragmentResult {
+    /// The added fragment completed the message
+    Complete(Ipv4Header, Message),
+    /// The added fragment did not complete the message. The caller should set a
+    /// timeout for the given duration and call
+    /// [`Reassembly::maybe_cull_pending`] with the provided [`BufId`] and
+    /// [`Epoch`] after the timeout expires.
+    Incomplete(Duration, BufId, Epoch),
+}
+
+/// Uniquely identifies the fragments of a particular datagram. See the
+/// Identification section for more details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BufId {
+    /// The remote IP address
+    src: Ipv4Address,
+    /// The local IP address
+    dst: Ipv4Address,
+    /// The transmission protocol used upstream from IP
+    protocol: u8,
+    /// The identification field of the IP header
+    identification: u16,
+}
+
+impl BufId {
+    /// Gets the segment identifier to a given IP header
+    pub fn from_header(header: &Ipv4Header) -> Self {
+        Self {
+            src: header.source,
+            dst: header.destination,
+            protocol: header.protocol,
+            identification: header.identification,
+        }
     }
 }
 
