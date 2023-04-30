@@ -2,27 +2,17 @@
 //! Reassembly Procedure
 //! https://www.rfc-editor.org/rfc/rfc791
 
-#![allow(unused)]
-
 mod bitvec;
 mod buf_id;
 mod fragment;
 mod segment;
 
 use self::{buf_id::BufId, segment::Epoch};
-use super::{
-    ipv4_parsing::{ControlFlags, Ipv4Header, TypeOfService},
-    Ipv4Address,
-};
+use super::ipv4_parsing::Ipv4Header;
 use crate::Message;
 use rustc_hash::FxHashMap;
 use segment::Segment;
-use std::{
-    cmp::Ordering,
-    collections::{hash_map::Entry, BinaryHeap},
-    ops::Add,
-    time::Duration,
-};
+use std::{collections::hash_map::Entry, time::Duration};
 
 /// Manages the reassembly of fragmented IP packets.
 #[derive(Debug, Default, Clone)]
@@ -54,7 +44,7 @@ impl Reassembly {
         let segment = self
             .segments
             .entry(buf_id)
-            .or_insert_with(|| Segment::from_header(&header));
+            .or_insert_with(|| Segment::new());
 
         match segment.add_fragment(header, body) {
             Some((header, message)) => {
@@ -106,10 +96,7 @@ mod tests {
         network::Mtu,
         protocols::ipv4::{
             fragmentation::{fragment, Fragments},
-            ipv4_parsing::{ControlFlags, TypeOfService},
-            reassembly,
             test_header_builder::TestHeaderBuilder,
-            Ipv4Address,
         },
     };
 
@@ -167,8 +154,4 @@ mod tests {
         let actual = reassembly.add_fragment(b1.0, b1.1.clone());
         assert_eq!(actual, AddFragmentResult::Complete(header_b, expected_b),);
     }
-}
-
-fn bytes_to_fragments(bytes: u16) -> u16 {
-    (bytes - 1) / 8 + 1
 }

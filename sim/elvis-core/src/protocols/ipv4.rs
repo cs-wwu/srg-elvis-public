@@ -29,8 +29,8 @@ pub use ipv4_address::Ipv4Address;
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
-mod fragmentation;
-mod reassembly;
+pub mod fragmentation;
+pub mod reassembly;
 mod test_header_builder;
 
 /// An implementation of the Internet Protocol.

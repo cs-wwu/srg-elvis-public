@@ -8,7 +8,6 @@ type Fragment = (Ipv4Header, Message);
 
 /// The result of packet fragmentation
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(unused)]
 pub enum Fragments {
     /// The packet was fragmented
     Fragmented(Vec<Fragment>),
@@ -19,7 +18,6 @@ pub enum Fragments {
 }
 
 /// Divide the packet into parts that can fit within the MTU of the network
-#[allow(unused)]
 pub fn fragment(header: Ipv4Header, body: Message, mtu: Mtu) -> Fragments {
     if header.total_length <= mtu {
         Fragments::DontFragment((header, body))
