@@ -38,7 +38,7 @@ impl Segment {
     fn new(fragment_blocks: u16) -> Self {
         Self {
             header: None,
-            fragment_blocks: BitVec::new(fragment_blocks),
+            fragment_blocks: BitVec::new(),
             fragments: Default::default(),
             timeout_seconds: TLB,
             total_data_length: 0,
@@ -80,7 +80,7 @@ impl Segment {
         }
 
         // (12), (13)
-        if self.total_data_length != 0 && self.fragment_blocks.complete() {
+        if self.total_data_length != 0 && self.fragment_blocks.complete(self.total_data_length) {
             // (14)
             let mut header = self.header.unwrap();
             header.total_length = self.total_data_length;
