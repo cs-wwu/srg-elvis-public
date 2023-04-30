@@ -38,17 +38,19 @@ impl Reassembly {
     }
 
     pub fn add_fragment(&mut self, header: Ipv4Header, body: Message) -> AddFragmentResult {
-        // (1)
+        // (1) BUFID <- source|destination|protocol|identification
         let buf_id = BufId::from_header(&header);
-        // (2)
+        // (2) IF FO = 0 AND MF = 0
         if header.flags.is_last_fragment() && header.fragment_offset == 0 {
-            // (3), (4)
+            // (3) THEN IF buffer with BUFID is allocated
+            // (4) THEN flush all reassembly for this BUFID
             self.segments.remove(&buf_id);
-            // (5)
+            // (5) Submit datagram to next step
             return AddFragmentResult::Complete(header, body);
         }
 
-        // (6), (7)
+        // (6) ELSE IF no buffer with BUFID is allocated
+        // (7) THEN allocate reassembly resources with BUFID; TIMER <- TLB; TDL <- 0;
         let segment = self
             .segments
             .entry(buf_id)
@@ -56,12 +58,13 @@ impl Reassembly {
 
         match segment.add_fragment(header, body) {
             Some((header, message)) => {
-                // (16)
+                // (16) free all reassembly resources
                 self.segments.remove(&buf_id).unwrap();
                 AddFragmentResult::Complete(header, message)
             }
             None => {
-                // (18), (19)
+                // (18) give up until next fragment or timer expires
+                // (19) timer expires: flush all reassembly with this BUFID
                 AddFragmentResult::Incomplete(
                     Duration::from_secs(segment.timeout_seconds as u64),
                     buf_id,
