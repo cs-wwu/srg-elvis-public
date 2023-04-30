@@ -2,7 +2,10 @@
 //!
 //! This module primarily implements the [`Message`] collection.
 
-use std::{collections::VecDeque, fmt::Display};
+use std::{
+    collections::VecDeque,
+    fmt::{self, Debug, Display, Formatter},
+};
 
 mod chunk;
 pub use chunk::Chunk;
@@ -17,7 +20,7 @@ use slice_range::SliceRange;
 /// fast as possible. In particular, we want to avoid copying bytes wherever
 /// possible. A message provides these capabilities and serves as a container
 /// for composing, sending, and splitting byte sequences.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct Message {
     chunks: VecDeque<Chunk>,
     len: usize,
@@ -205,10 +208,16 @@ impl Message {
     }
 }
 
+impl Debug for Message {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "Message({self})")
+    }
+}
+
 impl Display for Message {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for byte in self.iter() {
-            write!(f, "{byte:x} ")?;
+            write!(f, "{byte:02x} ")?;
         }
         Ok(())
     }
