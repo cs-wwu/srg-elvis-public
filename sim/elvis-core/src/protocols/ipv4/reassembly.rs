@@ -106,7 +106,7 @@ mod tests {
     };
 
     const LEN: u16 = 1000;
-    const MTU: Mtu = 500;
+    const MTU: Mtu = 600;
     const BASIC_HEADER: Ipv4Header = Ipv4Header {
         total_length: LEN + 20,
         flags: ControlFlags::DEFAULT,
@@ -126,7 +126,7 @@ mod tests {
         let bytes_a: Vec<_> = (0..LEN).map(|i| i as u8).collect();
         let expected_a = Message::new(bytes_a);
 
-        let bytes_b: Vec<_> = (0..LEN).map(|i| i as u8 + 5).collect();
+        let bytes_b: Vec<_> = (0..LEN).map(|i| (i as u8).wrapping_add(5)).collect();
         let expected_b = Message::new(bytes_b);
 
         let a = match fragment(BASIC_HEADER, expected_a.clone(), MTU) {
@@ -147,17 +147,17 @@ mod tests {
         assert_eq!(
             reassembly.add_fragment(a2.0, a2.1.clone()),
             AddFragmentResult::Incomplete(
-                Duration::from_secs(15),
+                Duration::from_secs(30),
                 BufId::from_header(&BASIC_HEADER),
-                0
+                1
             )
         );
         assert_eq!(
             reassembly.add_fragment(b2.0, b2.1.clone()),
             AddFragmentResult::Incomplete(
-                Duration::from_secs(15),
+                Duration::from_secs(30),
                 BufId::from_header(&second_header),
-                0
+                1
             )
         );
         assert_eq!(

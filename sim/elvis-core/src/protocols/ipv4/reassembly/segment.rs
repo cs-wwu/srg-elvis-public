@@ -95,7 +95,6 @@ impl Segment {
             Some((header, message))
         } else {
             // (17)
-            let epoch = self.epoch;
             self.epoch += 1;
             self.timeout_seconds = self.timeout_seconds.max(header.time_to_live);
 
