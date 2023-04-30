@@ -49,45 +49,51 @@ impl Fragmentation {
             return;
         }
 
-        // (3) Number of fragment blocks
-        let nfb = (self.mtu - header.ihl as u16 * 4) / 8;
+        // (3) NFB <- (MTU-IHL*4)/8
+        let fragment_blocks = (self.mtu - header.ihl as u16 * 4) / 8;
 
         // First fragment
         {
-            // (1)
+            // (1) Copy the original internet header
             let mut header = header;
 
-            // (4)
-            let body = body.cut(nfb as usize * 8);
+            // (4) Attach the first NFB*8 data octets
+            let body = body.cut(fragment_blocks as usize * 8);
 
-            // (5)
+            // (5) Correct the header:
+            // MF <- 1;  TL <- (IHL*4)+(NFB*8);
+            // Recompute Checksum;
+            // NOTE(hardint): Checksum is recomputed when the header is serialized
             header.flags.set_is_last_fragment(false);
-            header.total_length = header.ihl as u16 * 4 + nfb * 8;
+            header.total_length = header.ihl as u16 * 4 + fragment_blocks * 8;
 
-            // (6)
+            // (6) Submit this fragment to the next step in datagram processing
             self.fragments.push((header, body))
         }
 
-        // (7)
+        // (7) Selectively copy the internet header (some options are not
+        // copied, see option definitions)
+        //
         // TODO(hardint): Remove options that should not be copied
 
-        // (8)
-        // Use whatever is left in `body`
+        // (8) Append the remaining data
+        // NOTE(hardint): Use whatever is left in body after (4)
 
-        // (2) Copy old values
-        // Note: Most of these just carry forward
+        // (2) OIHL <- IHL; OTL <- TL; OFO <- FO; OMF <- MF;
+        // NOTE(hardint): Most of these just carry forward
         let oihl = header.ihl;
 
-        // (9) Correct the header
+        // (9) Correct the header:
+        // IHL <- (((OIHL*4)-(length of options not copied))+3)/4;
+        // TL <- OTL - NFB*8 - (OIHL-IHL)*4);
+        // FO <- OFO + NFB;  MF <- OMF;  Recompute Checksum;
         //
-        // TODO(hardint): Recompute IHL after removing the not copied options:
-        // IHL <- (((OIHL*4)-(length of options not copied))+3)/4
-        //
-        // Note: Checksum recomputation happens at serialization time
-        header.total_length -= nfb * 8 + (oihl - header.ihl) as u16 * 4;
-        header.fragment_offset += nfb;
+        // TODO(hardint): Recompute IHL after removing the not copied options.
+        // NOTE(hardint): Checksum is recomputed when the header is serialized.
+        header.total_length -= fragment_blocks * 8 + (oihl - header.ihl) as u16 * 4;
+        header.fragment_offset += fragment_blocks;
 
-        // (10)
+        // (10) Submit this fragment to the fragmentation test
         self.fragment(header, body);
     }
 }
