@@ -40,6 +40,10 @@ impl BitVec {
         // instead of individual bits
         (0..len).all(|i| self.get(i))
     }
+
+    pub fn count(&self) -> u16 {
+        (0u16..).find(|i| !self.get(*i)).unwrap()
+    }
 }
 
 #[cfg(test)]
