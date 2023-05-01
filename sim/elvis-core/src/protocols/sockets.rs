@@ -37,6 +37,9 @@ pub struct Sockets {
     listen_bindings: FxDashMap<SocketAddress, Id>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
+    // Sockets use Dns as a tool for looking up IPs and need direct access
+    // to the Dns cache.
+    dns: Dns,
 }
 
 impl Sockets {
@@ -54,6 +57,7 @@ impl Sockets {
             listen_bindings: Default::default(),
             notify_init: Notify::new(),
             shutdown: Default::default(),
+            dns: Dns::new(),
         }
     }
 
@@ -141,19 +145,27 @@ impl Sockets {
             Entry::Vacant(_) => Err(DemuxError::MissingSession),
         }
     }
+
+    // Get this machine's Dns object
+    fn dns() -> Dns {
+        self.dns
+    }
     
     /// Finds the IP associated with the given domain name.
     fn get_host_by_name(
+        &self,
         name: String,
         protocols: ProtocolMap,
     ) -> Result<Ipv4Address, SocketError> {
         // Get DNS protocol from this socket protocol's machine
-        let dns: Dns =  match protocols.protocol(Dns::ID) {
-            Some(p) => p,
-            None => {
-                return Err(SocketError::Other);
-            }
-        };
+        // let dns: Dns =  match protocols.protocol(Dns::ID) {
+        //     Some(p) => p,
+        //     None => {
+        //         return Err(SocketError::Other);
+        //     }
+        // };
+
+        let dns: Dns = self.dns();
 
         match dns.get_mapping(name) {
             // Cache hit
@@ -336,15 +348,13 @@ mod tests {
     use super::*;
 
     #[test]
-    /// Test for Sockets:get_host_by_name() checking Dns protocol cache
-    fn ghbn_using_machine() {
-        let dns = Dns::new().shared();
+    /// Test for Sockets:get_host_by_name() when Dns cache is empty
+    fn ghbn_cache_miss() {
         let sockets = Sockets::new(None).shared();
 
         let machine: Machine = 
             Machine::new([
-                dns as SharedProtocol,
-                sockets,
+                sockets as SharedProtocol,
             ]);
 
         let shutdown = Shutdown::new();
@@ -352,6 +362,10 @@ mod tests {
         let initialized = Arc::new(Barrier::new(total_protocols));
 
         machine.start(shutdown.clone(), initialized.clone());
+
+        let ip: Ipv4Address = machine.get_host_by_name();
+
+        assert_eq!(ip, Err(SocketError::Other));
 
     }
 }
