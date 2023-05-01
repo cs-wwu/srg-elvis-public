@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use elvis_core::{
     protocol::Context,
     protocols::{
@@ -8,6 +6,7 @@ use elvis_core::{
     },
     Control, Id, Message, ProtocolMap, Shutdown,
 };
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +52,7 @@ impl Application for QueryTester {
             .unwrap()
             .query(Pci::MTU_QUERY_KEY)
             .unwrap()
-            .ok_u32()
+            .ok_u16()
             .unwrap();
         assert_eq!(mtu, 1500);
 
