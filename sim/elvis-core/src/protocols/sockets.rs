@@ -342,8 +342,7 @@ mod tests {
 
     #[tokio::test]
     /// Test for Sockets:get_host_by_name() when Dns cache is empty
-    async fn ghbn_test() {
-        // cache miss
+    async fn ghbn_cache_miss() {
         let sockets = Sockets::new(None).shared();
 
         let machine: Machine = 
@@ -352,8 +351,8 @@ mod tests {
             ]);
 
         let shutdown = Shutdown::new();
-        let total_protocols: usize = machine.protocol_count();
-        // let initialized = Arc::new(Barrier::new(total_protocols));
+        // let total_protocols: usize = machine.protocol_count();
+        let initialized = Arc::new(Barrier::new(total_protocols));
         let protocols: ProtocolMap = machine.protocols.clone();
         
         machine.start(shutdown.clone(), initialized.clone());
@@ -364,7 +363,8 @@ mod tests {
 
         assert_eq!(ip, Err(SocketError::Other));
 
-        // cache hit
+        // TODO(zachd9757) potentially expand this test to establish a
+        // machine-to-machine connection and check if the cache is auto-updated
 
 
         
