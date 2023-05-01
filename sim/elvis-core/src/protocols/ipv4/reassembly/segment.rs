@@ -48,7 +48,7 @@ impl Segment {
         }
     }
 
-    pub fn add_fragment(
+    pub fn receive_packet(
         &mut self,
         header: Ipv4Header,
         body: Message,
@@ -77,12 +77,6 @@ impl Segment {
         if header.fragment_offset == 0 {
             self.header = Some(header);
         }
-
-        println!(
-            "{}, {}",
-            self.fragment_blocks.count(),
-            (self.total_data_length + 7) / 8
-        );
 
         // (12) IF TDL # 0
         // (13) AND all RCVBT bits from 0 to (TDL+7)/8 are set
@@ -125,7 +119,7 @@ mod tests {
 
     const LEN: u16 = 3000;
     const MTU: Mtu = 500;
-    const BASIC_HEADER: Ipv4Header = TestHeaderBuilder::with_message_len(LEN).build();
+    const BASIC_HEADER: Ipv4Header = TestHeaderBuilder::new(LEN).ihl().build();
 
     #[test]
     fn reassemble_segments_1() {
@@ -137,7 +131,7 @@ mod tests {
         };
         let mut segment = Segment::new();
         for (header, body) in fragments.into_iter().rev() {
-            match segment.add_fragment(header, body) {
+            match segment.receive_packet(header, body) {
                 Some(actual) => {
                     assert_eq!(actual.0, BASIC_HEADER);
                     assert_eq!(actual.1.len(), expected.len());
@@ -158,7 +152,7 @@ mod tests {
         let bytes_a: Vec<_> = (0..LEN).map(|i| i as u8).collect();
         let expected_a = Message::new(bytes_a);
 
-        let header_a = TestHeaderBuilder::with_message_len(LEN).build();
+        let header_a = TestHeaderBuilder::new(LEN).ihl().build();
         let a = match fragment(header_a, expected_a.clone(), MTU) {
             Fragments::Fragmented(fragments) => fragments,
             _ => panic!("Expected fragments"),
@@ -167,8 +161,8 @@ mod tests {
 
         let mut reassembly = Segment::new();
 
-        reassembly.add_fragment(a2.0, a2.1.clone());
-        let actual = reassembly.add_fragment(a1.0, a1.1.clone());
+        reassembly.receive_packet(a2.0, a2.1.clone());
+        let actual = reassembly.receive_packet(a1.0, a1.1.clone());
         assert_eq!(actual, Some((header_a, expected_a)));
     }
 }

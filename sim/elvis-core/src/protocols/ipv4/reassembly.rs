@@ -23,11 +23,19 @@ pub struct Reassembly {
 }
 
 impl Reassembly {
+    /// Creates a new reassembly manager.
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn add_fragment(&mut self, header: Ipv4Header, body: Message) -> AddFragmentResult {
+    /// Submit a received IP packet for reassembly. Either of the following may
+    /// result:
+    /// - The fragment completes a datagram and the complete datagram is
+    /// returned
+    /// - The fragment is part of an incomplete datagram and is buffered while
+    ///   waiting for the rest of the datagram. See [`AddFragmentResult`] for
+    ///   more details on the caller's responsibility in this event.
+    pub fn receive_packet(&mut self, header: Ipv4Header, body: Message) -> ReceivePacketResult {
         // (1) BUFID <- source|destination|protocol|identification
         let buf_id = BufId::from_header(&header);
         // (2) IF FO = 0 AND MF = 0
@@ -36,23 +44,23 @@ impl Reassembly {
             // (4) THEN flush all reassembly for this BUFID
             self.segments.remove(&buf_id);
             // (5) Submit datagram to next step
-            return AddFragmentResult::Complete(header, body);
+            return ReceivePacketResult::Complete(header, body);
         }
 
         // (6) ELSE IF no buffer with BUFID is allocated
         // (7) THEN allocate reassembly resources with BUFID; TIMER <- TLB; TDL <- 0;
         let segment = self.segments.entry(buf_id).or_insert(Segment::new());
 
-        match segment.add_fragment(header, body) {
+        match segment.receive_packet(header, body) {
             Some((header, message)) => {
                 // (16) free all reassembly resources
                 self.segments.remove(&buf_id).unwrap();
-                AddFragmentResult::Complete(header, message)
+                ReceivePacketResult::Complete(header, message)
             }
             None => {
                 // (18) give up until next fragment or timer expires
                 // (19) timer expires: flush all reassembly with this BUFID
-                AddFragmentResult::Incomplete(
+                ReceivePacketResult::Incomplete(
                     Duration::from_secs(segment.timeout_seconds as u64),
                     buf_id,
                     segment.epoch,
@@ -75,11 +83,12 @@ impl Reassembly {
     }
 }
 
+/// The result of receiving an IP packet.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum AddFragmentResult {
-    /// The added fragment completed the message
+pub enum ReceivePacketResult {
+    /// The added fragment completed a datagram.
     Complete(Ipv4Header, Message),
-    /// The added fragment did not complete the message. The caller should set a
+    /// The added fragment did not complete a datagram. The caller should set a
     /// timeout for the given duration and call
     /// [`Reassembly::maybe_cull_pending`] with the provided [`BufId`] and
     /// [`Epoch`] after the timeout expires.
@@ -125,30 +134,30 @@ mod tests {
 
         let mut reassembly = Reassembly::new();
 
-        let actual = reassembly.add_fragment(a2.0, a2.1.clone());
+        let actual = reassembly.receive_packet(a2.0, a2.1.clone());
         assert_eq!(
             actual,
-            AddFragmentResult::Incomplete(
+            ReceivePacketResult::Incomplete(
                 Duration::from_secs(30),
                 BufId::from_header(&header_a),
                 1
             )
         );
 
-        let actual = reassembly.add_fragment(b2.0, b2.1.clone());
+        let actual = reassembly.receive_packet(b2.0, b2.1.clone());
         assert_eq!(
             actual,
-            AddFragmentResult::Incomplete(
+            ReceivePacketResult::Incomplete(
                 Duration::from_secs(30),
                 BufId::from_header(&header_b),
                 1
             )
         );
 
-        let actual = reassembly.add_fragment(a1.0, a1.1.clone());
-        assert_eq!(actual, AddFragmentResult::Complete(header_a, expected_a),);
+        let actual = reassembly.receive_packet(a1.0, a1.1.clone());
+        assert_eq!(actual, ReceivePacketResult::Complete(header_a, expected_a),);
 
-        let actual = reassembly.add_fragment(b1.0, b1.1.clone());
-        assert_eq!(actual, AddFragmentResult::Complete(header_b, expected_b),);
+        let actual = reassembly.receive_packet(b1.0, b1.1.clone());
+        assert_eq!(actual, ReceivePacketResult::Complete(header_b, expected_b),);
     }
 }

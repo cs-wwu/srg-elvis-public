@@ -17,6 +17,7 @@ impl Fragment {
         Self { message, offset }
     }
 
+    /// Consumes the fragment and yields the corresponding message
     pub fn into_message(self) -> Message {
         self.message
     }

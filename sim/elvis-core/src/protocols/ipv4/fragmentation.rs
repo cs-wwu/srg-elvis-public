@@ -4,6 +4,7 @@
 use super::ipv4_parsing::Ipv4Header;
 use crate::{network::Mtu, Message};
 
+/// A piece of a datagram
 type Fragment = (Ipv4Header, Message);
 
 /// The result of packet fragmentation
@@ -30,12 +31,16 @@ pub fn fragment(header: Ipv4Header, body: Message, mtu: Mtu) -> Fragments {
     }
 }
 
+/// Implements packet fragmentation. Struct introduced for convenience of implementation.
 struct Fragmentation {
+    /// The fragments of the packet.
     fragments: Vec<Fragment>,
+    /// The network maximum transmission unit
     mtu: Mtu,
 }
 
 impl Fragmentation {
+    /// Creates a new instance
     fn new(mtu: Mtu) -> Self {
         Self {
             fragments: vec![],
@@ -43,6 +48,8 @@ impl Fragmentation {
         }
     }
 
+    /// Splits a datagram into fragments recursively. One or two fragments are added
+    /// to the fragments list for each call.
     fn fragment(&mut self, mut header: Ipv4Header, mut body: Message) {
         if header.total_length <= self.mtu {
             self.fragments.push((header, body));
@@ -110,9 +117,7 @@ mod tests {
     fn discard() {
         const LEN: u16 = 2000;
         let body = Message::new(vec![0u8; LEN as usize]);
-        let header = TestHeaderBuilder::with_message_len(LEN)
-            .dont_fragment()
-            .build();
+        let header = TestHeaderBuilder::new(LEN).ihl().dont_fragment().build();
         assert_eq!(fragment(header, body, MTU), Fragments::Discard);
     }
 
@@ -120,7 +125,7 @@ mod tests {
     fn dont_fragment() {
         const LEN: u16 = 500;
         let body = Message::new(vec![0u8; LEN as usize]);
-        let header = TestHeaderBuilder::with_message_len(LEN).build();
+        let header = TestHeaderBuilder::new(LEN).ihl().build();
         assert_eq!(
             fragment(header.clone(), body.clone(), MTU),
             Fragments::DontFragment((header, body))
@@ -131,11 +136,12 @@ mod tests {
     fn fragments_oversize_payload() {
         const LEN: u16 = 2000;
         let body = Message::new(vec![0u8; LEN as usize]);
-        let header = TestHeaderBuilder::with_message_len(LEN).build();
+        let header = TestHeaderBuilder::new(LEN).ihl().build();
 
         let expected_first = TestHeaderBuilder::new(MTU).more_fragments().build();
 
-        let expected_second = TestHeaderBuilder::with_message_len(LEN - (MTU - HEADER_OCTETS))
+        let expected_second = TestHeaderBuilder::new(LEN - (MTU - HEADER_OCTETS))
+            .ihl()
             .fragment_offset(MTU - HEADER_OCTETS)
             .build();
 
@@ -160,18 +166,18 @@ mod tests {
 
         const LEN: u16 = 2000;
         let body = Message::new(vec![0u8; LEN as usize]);
-        let header = TestHeaderBuilder::with_message_len(LEN).build();
+        let header = TestHeaderBuilder::new(LEN).ihl().build();
 
         let expected_1 = TestHeaderBuilder::new(MTU_1).more_fragments().build();
         let expected_2 = TestHeaderBuilder::new(MTU_2)
             .more_fragments()
             .fragment_offset(MTU_1 - HEADER_OCTETS)
             .build();
-        let expected_3 = TestHeaderBuilder::with_message_len(
-            LEN - (MTU_1 - HEADER_OCTETS) - (MTU_2 - HEADER_OCTETS),
-        )
-        .fragment_offset((MTU_1 - HEADER_OCTETS) + (MTU_2 - HEADER_OCTETS))
-        .build();
+        let expected_3 =
+            TestHeaderBuilder::new(LEN - (MTU_1 - HEADER_OCTETS) - (MTU_2 - HEADER_OCTETS))
+                .ihl()
+                .fragment_offset((MTU_1 - HEADER_OCTETS) + (MTU_2 - HEADER_OCTETS))
+                .build();
 
         let fragmented = match fragment(header, body, MTU_1) {
             Fragments::Fragmented(fragmented) => fragmented,
