@@ -27,13 +27,14 @@ use {
 /// Serves as a tool for looking up the ['Ipv4Address'] of a host using its
 /// known machine name (domain), and as the storage for an individual machine's
 /// name to IP mappings.
+#[derive(Default)]
 pub struct Dns {
-    listen_bindings: DashMap<Ipv4Address, Id>,
-    sessions: DashMap<SessionId, Arc<DnsSession>>,
     /// Mapping of names to IPs that is unique to each machine. When a machine
     /// connects to a host using DNS, the mapping is saved in the connecting
     /// machines DNS protocol.
     name_to_ip: DashMap<String, Ipv4Address>,
+    /// Well-known IP for the authoritative server
+    /// TODO(zachd0757): add IP object
 }
 
 impl Dns {
@@ -44,8 +45,6 @@ impl Dns {
     pub fn new() -> Self {
         Self {
             name_to_ip: DashMap::new(),
-            listen_bindings: Default::default(),
-            sessions: Default::default(),
         }
     }
 

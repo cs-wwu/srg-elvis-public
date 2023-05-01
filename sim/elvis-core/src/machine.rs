@@ -39,7 +39,7 @@ impl ProtocolMap {
 /// set of [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
-    protocols: ProtocolMap,
+    pub protocols: ProtocolMap,
 }
 
 impl Machine {
@@ -82,8 +82,4 @@ impl Machine {
         self.protocols.len()
     }
 
-    /// Returns the machine's ProtocolMap
-    pub fn protocols(&self) -> ProtocolMap {
-        self.protocols
-    }
 }

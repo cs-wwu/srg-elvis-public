@@ -1,6 +1,6 @@
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, SharedProtocol},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp, Dns},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown, Machine
@@ -145,11 +145,6 @@ impl Sockets {
             Entry::Vacant(_) => Err(DemuxError::MissingSession),
         }
     }
-
-    // Get this machine's Dns object
-    fn dns() -> Dns {
-        self.dns
-    }
     
     /// Finds the IP associated with the given domain name.
     fn get_host_by_name(
@@ -165,9 +160,7 @@ impl Sockets {
         //     }
         // };
 
-        let dns: Dns = self.dns();
-
-        match dns.get_mapping(name) {
+        match self.dns.get_mapping(name) {
             // Cache hit
             Ok(ip) => Ok(ip),
 
@@ -347,25 +340,52 @@ impl Protocol for Sockets {
 mod tests {
     use super::*;
 
-    #[test]
+    #[tokio::test]
     /// Test for Sockets:get_host_by_name() when Dns cache is empty
-    fn ghbn_cache_miss() {
+    async fn ghbn_cache_miss() {
         let sockets = Sockets::new(None).shared();
 
         let machine: Machine = 
             Machine::new([
-                sockets as SharedProtocol,
+                sockets.clone() as SharedProtocol,
             ]);
 
         let shutdown = Shutdown::new();
         let total_protocols: usize = machine.protocol_count();
         let initialized = Arc::new(Barrier::new(total_protocols));
-
+        let protocols: ProtocolMap = machine.protocols.clone();
+        
         machine.start(shutdown.clone(), initialized.clone());
+        
 
-        let ip: Ipv4Address = machine.get_host_by_name();
+        let ip: Result<Ipv4Address, SocketError> =
+            sockets.get_host_by_name("DNE".to_string(), protocols);
 
         assert_eq!(ip, Err(SocketError::Other));
+    }
 
+
+    #[tokio::test]
+    /// Test for Sockets:get_host_by_name() when IP is found in Dns cache
+    async fn ghbn_cache_hit() {
+        let sockets = Sockets::new(None).shared();
+
+        let machine: Machine = 
+            Machine::new([
+                sockets.clone() as SharedProtocol,
+            ]);
+
+        let shutdown = Shutdown::new();
+        let total_protocols: usize = machine.protocol_count();
+        let initialized = Arc::new(Barrier::new(total_protocols));
+        let protocols: ProtocolMap = machine.protocols.clone();
+        
+        machine.start(shutdown.clone(), initialized.clone());
+        
+
+        let ip: Result<Ipv4Address, SocketError> =
+            sockets.get_host_by_name("DNE".to_string(), protocols);
+
+        assert_eq!(ip, Err(SocketError::Other));
     }
 }
