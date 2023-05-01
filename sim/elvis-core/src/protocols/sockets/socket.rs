@@ -257,9 +257,10 @@ impl Socket {
         if self.wait_for_notify(NotifyType::Listening).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
-        let new_sock =
-            self.socket_api
-                .new_socket(self.family, self.sock_type, self.protocols.clone())?;
+        let new_sock = self
+            .socket_api
+            .new_socket(self.family, self.sock_type, self.protocols.clone())
+            .await?;
         let local_addr = SocketAddress {
             address: self.socket_api.get_local_ipv4()?,
             port: self.local_addr.read().unwrap().unwrap().port,
@@ -273,8 +274,9 @@ impl Socket {
             new_sock.local_addr.read().unwrap().unwrap(),
             new_sock.remote_addr.read().unwrap().unwrap(),
         )?;
-        *session.upstream.write().unwrap() = Some(new_sock.fd);
-        *new_sock.session.write().unwrap() = Some(session);
+        *session.upstream.write().unwrap() = Some(new_sock.clone());
+        *new_sock.session.write().unwrap() = Some(session.clone());
+        session.receive_stored_msg().unwrap();
         *new_sock.is_active.write().unwrap() = true;
         Ok(new_sock)
     }

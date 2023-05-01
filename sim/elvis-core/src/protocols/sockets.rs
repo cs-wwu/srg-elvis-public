@@ -7,7 +7,7 @@ use crate::{
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::{Arc, RwLock};
-use tokio::sync::Barrier;
+use tokio::sync::{Barrier, Notify};
 
 pub mod socket;
 use socket::{IpAddress, ProtocolFamily, Socket, SocketAddress, SocketError, SocketId, SocketType};
@@ -35,6 +35,7 @@ pub struct Sockets {
     sockets: Arc<FxDashMap<Id, Arc<Socket>>>,
     socket_sessions: FxDashMap<SocketId, Arc<SocketSession>>,
     listen_bindings: FxDashMap<SocketAddress, Id>,
+    notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
 }
 
@@ -51,6 +52,7 @@ impl Sockets {
             sockets: Default::default(),
             socket_sessions: Default::default(),
             listen_bindings: Default::default(),
+            notify_init: Notify::new(),
             shutdown: Default::default(),
         }
     }
@@ -61,13 +63,14 @@ impl Sockets {
     }
 
     /// Creates a new socket and adds it to its listing of sockets
-    pub fn new_socket(
+    pub async fn new_socket(
         self: &Arc<Self>,
         domain: ProtocolFamily,
         sock_type: SocketType,
         protocols: ProtocolMap,
     ) -> Result<Arc<Socket>, SocketError> {
         let fd = Id::new(*self.fds.read().unwrap());
+        self.notify_init.notified().await;
         let socket = Arc::new(Socket::new(
             domain,
             sock_type,
@@ -76,6 +79,7 @@ impl Sockets {
             self.clone(),
             self.shutdown.read().unwrap().as_ref().unwrap().clone(),
         ));
+        self.notify_init.notify_one();
         match self.sockets.entry(fd) {
             Entry::Occupied(_) => {
                 return Err(SocketError::Other);
@@ -176,6 +180,7 @@ impl Protocol for Sockets {
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
+        self.notify_init.notify_one();
         tokio::spawn(async move {
             initialized.wait().await;
         });
@@ -219,9 +224,12 @@ impl Protocol for Sockets {
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(SocketSession {
-                    upstream: RwLock::new(Some(upstream)),
+                    upstream: RwLock::new(Some(match self.sockets.entry(upstream) {
+                        Entry::Occupied(sock) => sock.get().clone(),
+                        Entry::Vacant(_) => return Err(OpenError::MissingProtocol(upstream)),
+                    })),
                     downstream,
-                    sockets: self.sockets.clone(),
+                    stored_msg: RwLock::new(None),
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -307,7 +315,7 @@ impl Protocol for Sockets {
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(None),
                     downstream: caller,
-                    sockets: self.sockets.clone(),
+                    stored_msg: RwLock::new(Some(message.clone())),
                 });
                 socket.add_listen_address(identifier.remote_address);
                 entry.insert(session.clone());
