@@ -352,7 +352,7 @@ mod tests {
 
         let shutdown = Shutdown::new();
         let total_protocols: usize = machine.protocol_count();
-        let initialized = Arc::new(Barrier::new(total_protocols));
+        // let initialized = Arc::new(Barrier::new(total_protocols));
         let protocols: ProtocolMap = machine.protocols.clone();
         
         machine.start(shutdown.clone(), initialized.clone());
@@ -362,30 +362,7 @@ mod tests {
             sockets.get_host_by_name("DNE".to_string(), protocols);
 
         assert_eq!(ip, Err(SocketError::Other));
-    }
 
-
-    #[tokio::test]
-    /// Test for Sockets:get_host_by_name() when IP is found in Dns cache
-    async fn ghbn_cache_hit() {
-        let sockets = Sockets::new(None).shared();
-
-        let machine: Machine = 
-            Machine::new([
-                sockets.clone() as SharedProtocol,
-            ]);
-
-        let shutdown = Shutdown::new();
-        let total_protocols: usize = machine.protocol_count();
-        let initialized = Arc::new(Barrier::new(total_protocols));
-        let protocols: ProtocolMap = machine.protocols.clone();
         
-        machine.start(shutdown.clone(), initialized.clone());
-        
-
-        let ip: Result<Ipv4Address, SocketError> =
-            sockets.get_host_by_name("DNE".to_string(), protocols);
-
-        assert_eq!(ip, Err(SocketError::Other));
     }
 }
