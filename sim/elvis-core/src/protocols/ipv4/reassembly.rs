@@ -24,6 +24,7 @@ pub struct Reassembly {
 
 impl Reassembly {
     /// Creates a new reassembly manager.
+    #[allow(unused)]
     pub fn new() -> Self {
         Self::default()
     }
@@ -107,7 +108,6 @@ mod tests {
     };
 
     #[test]
-    #[ignore]
     fn reassemble_segments() {
         const LEN: u16 = 1000;
         const MTU: Mtu = 600;
