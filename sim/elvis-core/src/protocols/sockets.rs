@@ -342,7 +342,8 @@ mod tests {
 
     #[tokio::test]
     /// Test for Sockets:get_host_by_name() when Dns cache is empty
-    async fn ghbn_cache_miss() {
+    async fn ghbn_test() {
+        // cache miss
         let sockets = Sockets::new(None).shared();
 
         let machine: Machine = 
@@ -362,6 +363,9 @@ mod tests {
             sockets.get_host_by_name("DNE".to_string(), protocols);
 
         assert_eq!(ip, Err(SocketError::Other));
+
+        // cache hit
+
 
         
     }
