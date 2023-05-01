@@ -31,7 +31,8 @@ pub fn fragment(header: Ipv4Header, body: Message, mtu: Mtu) -> Fragments {
     }
 }
 
-/// Implements packet fragmentation. Struct introduced for convenience of implementation.
+/// Implements packet fragmentation. Struct introduced for convenience of
+/// implementation.
 struct Fragmentation {
     /// The fragments of the packet.
     fragments: Vec<Fragment>,
@@ -48,8 +49,8 @@ impl Fragmentation {
         }
     }
 
-    /// Splits a datagram into fragments recursively. One or two fragments are added
-    /// to the fragments list for each call.
+    /// Splits a datagram into fragments recursively. One or two fragments are
+    /// added to the fragments list for each call.
     fn fragment(&mut self, mut header: Ipv4Header, mut body: Message) {
         if header.total_length <= self.mtu {
             self.fragments.push((header, body));
