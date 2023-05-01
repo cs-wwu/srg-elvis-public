@@ -1,4 +1,8 @@
-use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address, Recipient};
+use super::{
+    ipv4_parsing::{Ipv4Header, Ipv4HeaderBuilder},
+    reassembly::{Reassembly, ReceivePacketResult},
+    Ipv4, Ipv4Address, Recipient,
+};
 use crate::{
     control::{Key, Primitive},
     id::Id,
@@ -8,7 +12,10 @@ use crate::{
     session::{QueryError, SendError, SharedSession},
     Network, Session,
 };
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    fmt::{self, Debug, Formatter},
+    sync::{Arc, Mutex},
+};
 
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
@@ -18,8 +25,12 @@ pub struct Ipv4Session {
     downstream: SharedSession,
     /// The identifying information for this session
     id: SessionId,
-    /// Inforamation about how and where to send packets
+    /// Information about how and where to send packets
     destination: Recipient,
+    // TODO(hardint): Since this lock is held for a relatively long time, would
+    // a Tokio lock or message passing be a better option?
+    /// Used for reassembling fragmented packets
+    reassembly: Arc<Mutex<Reassembly>>,
 }
 
 impl Ipv4Session {
@@ -35,14 +46,37 @@ impl Ipv4Session {
             downstream,
             id: identifier,
             destination,
+            reassembly: Default::default(),
         }
     }
 
-    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
-        context
-            .protocol(self.upstream)
-            .expect("No such protocol")
-            .demux(message, self, context)?;
+    pub fn receive(
+        self: Arc<Self>,
+        header: Ipv4Header,
+        message: Message,
+        context: Context,
+    ) -> Result<(), DemuxError> {
+        let result = self
+            .reassembly
+            .lock()
+            .unwrap()
+            .receive_packet(header, message);
+
+        match result {
+            ReceivePacketResult::Complete(_, message) => {
+                context
+                    .protocol(self.upstream)
+                    .expect("No such protocol")
+                    .demux(message, self, context)?;
+            }
+            ReceivePacketResult::Incomplete(timeout, buf_id, epoch) => {
+                let reassembly = self.reassembly.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(timeout).await;
+                    reassembly.lock().unwrap().maybe_cull_segment(buf_id, epoch);
+                });
+            }
+        }
         Ok(())
     }
 }
@@ -81,7 +115,7 @@ impl Session for Ipv4Session {
 }
 
 impl Debug for Ipv4Session {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Ipv4Session")
             .field("identifier", &self.id)
             .finish()

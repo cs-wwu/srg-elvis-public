@@ -28,7 +28,7 @@ mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
 pub mod fragmentation;
-pub mod reassembly;
+mod reassembly;
 mod test_header_builder;
 
 /// An implementation of the Internet Protocol.
@@ -232,7 +232,7 @@ impl Protocol for Ipv4 {
                 session
             }
         };
-        session.receive(message, context)?;
+        session.receive(header, message, context)?;
         Ok(())
     }
 
