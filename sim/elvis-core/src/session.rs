@@ -24,10 +24,10 @@ pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 pub trait Session {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    fn send(self: Arc<Self>, message: Message, context: Context) -> Result<(), SendError>;
+    fn send(&self, message: Message, context: Context) -> Result<(), SendError>;
 
     /// Gets a piece of information from some session in the protocol stack.
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
+    fn query(&self, key: Key) -> Result<Primitive, QueryError>;
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]

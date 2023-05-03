@@ -4,7 +4,7 @@
 
 use self::primitive::PrimitiveError;
 use crate::id::Id;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use thiserror::Error as ThisError;
 
 pub(crate) mod primitive;
@@ -22,7 +22,7 @@ pub type Key = (Id, PropertyKey);
 /// configuration for opening a session. A control facilitates passing such
 /// information.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Control(HashMap<Key, Primitive>);
+pub struct Control(FxHashMap<Key, Primitive>);
 
 impl Control {
     /// Creates a new control.

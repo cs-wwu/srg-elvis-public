@@ -1,5 +1,6 @@
 use elvis_core::{
     message::Message,
+    network::Mac,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
@@ -7,10 +8,12 @@ use elvis_core::{
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap,
+    Control, Id, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
+
+use super::Transport;
 
 /// An application that sends a Time To Live (TTL) to
 /// another machine from the first machine.
@@ -18,7 +21,7 @@ use tokio::sync::{mpsc::Sender, Barrier};
 /// Once the TTL reaches 0 the program ends.
 pub struct PingPong {
     /// The channel we send on to shut down the simulation
-    shutdown: RwLock<Option<Sender<()>>>,
+    shutdown: RwLock<Option<Shutdown>>,
     /// The session we send messages on
     session: RwLock<Option<SharedSession>>,
     is_initiator: bool,
@@ -28,6 +31,10 @@ pub struct PingPong {
     /// The port we listen for a message on
     local_port: u16,
     remote_port: u16,
+    /// The machine that will receive the message
+    remote_mac: Option<Mac>,
+    /// The protocol to use in delivering the message
+    transport: Transport,
 }
 
 impl PingPong {
@@ -47,12 +54,24 @@ impl PingPong {
             remote_ip_address,
             local_port,
             remote_port,
+            remote_mac: None,
+            transport: Transport::Udp,
         }
     }
 
     /// Creates a new capture behind a shared handle.
     pub fn shared(self) -> Arc<UserProcess<Self>> {
         UserProcess::new(self).shared()
+    }
+    /// Set the MAC address of the machine to send to
+    pub fn remote_mac(mut self, mac: Mac) -> Self {
+        self.remote_mac = Some(mac);
+        self
+    }
+    /// The protocol to use in delivering the message
+    pub fn transport(mut self, transport: Transport) -> Self {
+        self.transport = transport;
+        self
     }
 }
 
@@ -61,7 +80,7 @@ impl Application for PingPong {
 
     fn start(
         &self,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
@@ -104,9 +123,7 @@ impl Application for PingPong {
         if ttl == 0 {
             tracing::info!("TTL has reach 0, PingPong has successfully completed");
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-                tokio::spawn(async move {
-                    shutdown.send(()).await.unwrap();
-                });
+                shutdown.shut_down();
             }
         } else {
             self.session
@@ -114,7 +131,6 @@ impl Application for PingPong {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .clone()
                 .send(Message::new(vec![ttl]), context)?;
         }
         Ok(())

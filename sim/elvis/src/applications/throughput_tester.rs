@@ -6,29 +6,29 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Ipv4, Udp,
     },
-    Control, Id, ProtocolMap,
+    Control, Id, ProtocolMap, Shutdown,
 };
 use std::{
     ops::Range,
     sync::{Arc, RwLock},
     time::{Duration, SystemTime},
 };
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
 #[derive(Debug)]
 pub struct ThroughputTester {
     /// The channel we send on to shut down the simulation
-    shutdown: RwLock<Option<Sender<()>>>,
+    shutdown: RwLock<Option<Shutdown>>,
     /// The address we listen for a message on
     ip_address: Ipv4Address,
     /// The port we listen for a message on
     port: u16,
     message_count: u8,
     expected_delay: Range<Duration>,
-    previous_receipt: RwLock<Option<SystemTime>>,
-    received: RwLock<u8>,
+    previous_receipt: Arc<RwLock<Option<SystemTime>>>,
+    received: Arc<RwLock<u8>>,
 }
 
 impl ThroughputTester {
@@ -45,8 +45,8 @@ impl ThroughputTester {
             port,
             message_count,
             expected_delay,
-            previous_receipt: RwLock::new(None),
-            received: RwLock::new(0),
+            previous_receipt: Arc::new(RwLock::new(None)),
+            received: Arc::new(RwLock::new(0)),
         }
     }
 
@@ -61,7 +61,7 @@ impl Application for ThroughputTester {
 
     fn start(
         &self,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
@@ -94,9 +94,7 @@ impl Application for ThroughputTester {
 
         if received >= self.message_count {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-                tokio::spawn(async move {
-                    shutdown.send(()).await.unwrap();
-                });
+                shutdown.shut_down();
             }
         }
         Ok(())
