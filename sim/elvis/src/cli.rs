@@ -15,18 +15,29 @@ use std::{
 };
 use tracing_subscriber::FmtSubscriber;
 
+use crate::ndl::generate_and_run_sim;
+
 /// Stores the different command line arguments.
 #[derive(Parser)]
 struct Args {
     #[arg(short, long)]
     log: bool,
+    #[arg(short, long, default_value = "")]
+    ndl: String,
 }
 
 /// Parses command line arguments and allows for quick checking of them.
-pub fn initialize_from_arguments() {
+pub async fn initialize_from_arguments() {
     let cli = Args::parse();
     if cli.log {
         initialize_logging();
+    }
+    if !cli.ndl.is_empty() {
+        let mut file_path: String = cli.ndl.clone();
+        if !file_path.ends_with(".ndl") {
+            file_path += ".ndl";
+        }
+        generate_and_run_sim(file_path).await;
     }
 }
 

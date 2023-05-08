@@ -3,6 +3,9 @@
 mod basic;
 pub use basic::basic;
 
+mod socket_basic;
+pub use socket_basic::socket_basic;
+
 mod telephone_multi;
 pub use telephone_multi::telephone_multi;
 
@@ -21,8 +24,22 @@ pub use latency::latency;
 mod throughput;
 pub use throughput::throughput;
 
+mod router_single;
+pub use router_single::router_single;
+
+mod router_multi;
+pub use router_multi::router_multi;
+
 mod tcp_with_reliable;
 pub use tcp_with_reliable::tcp_with_reliable;
 
 mod tcp_with_unreliable;
 pub use tcp_with_unreliable::tcp_with_unreliable;
+
+pub mod subscribing;
+
+mod tcp_gigabyte_bench;
+pub use tcp_gigabyte_bench::tcp_gigabyte_bench;
+
+mod udp_gigabyte_bench;
+pub use udp_gigabyte_bench::udp_gigabyte_bench;

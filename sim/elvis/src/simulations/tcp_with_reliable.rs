@@ -3,7 +3,7 @@ use elvis_core::{
     message::Message,
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         Pci, Tcp,
     },
     run_internet, Machine, Network,
@@ -16,26 +16,28 @@ use elvis_core::{
 pub async fn tcp_with_reliable() {
     let network = Network::basic();
     let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: IpToTapSlot = [(capture_ip_address, 0)].into_iter().collect();
+    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
+        .into_iter()
+        .collect();
 
     let message: Vec<_> = (0..20).map(|i| i as u8).collect();
     let message = Message::new(message);
-    let capture = Capture::new(capture_ip_address, 0xbeef)
+    let capture = Capture::new(capture_ip_address, 0xbeef, 1)
         .transport(Transport::Tcp)
         .shared();
     let machines = vec![
         Machine::new([
             Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
-            SendMessage::new(message.clone(), capture_ip_address, 0xbeef)
+            Pci::new([network.clone()]).shared(),
+            SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef)
                 .transport(Transport::Tcp)
                 .shared(),
         ]),
         Machine::new([
             Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             capture.clone(),
         ]),
     ];

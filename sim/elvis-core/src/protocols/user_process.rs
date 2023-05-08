@@ -8,11 +8,10 @@ use crate::{
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::{SendError, SharedSession},
-    Control, Protocol,
+    Control, Protocol, Shutdown,
 };
 use std::sync::Arc;
-use thiserror::Error as ThisError;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 use tracing::error;
 
 /// A program being run in a [`UserProcess`].
@@ -29,7 +28,7 @@ pub trait Application {
     /// begins.
     fn start(
         &self,
-        shutdown: Sender<()>,
+        shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError>;
@@ -39,7 +38,7 @@ pub trait Application {
     fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError>;
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationError {
     #[error("A listen call failed")]
     Listen(#[from] ListenError),
@@ -83,12 +82,12 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 }
 
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         A::ID
     }
 
     fn open(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,
@@ -97,7 +96,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn listen(
-        self: Arc<Self>,
+        &self,
         _upstream: Id,
         _participants: Control,
         _protocols: ProtocolMap,
@@ -106,7 +105,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         _caller: SharedSession,
         context: Context,
@@ -116,8 +115,8 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     }
 
     fn start(
-        self: Arc<Self>,
-        shutdown: Sender<()>,
+        &self,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -125,7 +124,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         Ok(())
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
     }
 }

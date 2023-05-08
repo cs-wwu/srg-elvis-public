@@ -7,16 +7,18 @@ use crate::{
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
+    network::Mac,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, Protocol,
+    Control, FxDashMap, Network, Protocol, Shutdown,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
+use dashmap::mapref::entry::Entry;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
-mod ipv4_parsing;
+pub mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
 
 mod ipv4_address;
@@ -25,14 +27,11 @@ pub use ipv4_address::Ipv4Address;
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
-pub type IpToTapSlot = DashMap<Ipv4Address, PciSlot>;
-
 /// An implementation of the Internet Protocol.
-#[derive(Clone)]
 pub struct Ipv4 {
-    listen_bindings: DashMap<Ipv4Address, Id>,
-    sessions: DashMap<SessionId, Arc<Ipv4Session>>,
-    ip_tap_slot: IpToTapSlot,
+    listen_bindings: FxDashMap<Ipv4Address, Id>,
+    sessions: FxDashMap<SessionId, Arc<Ipv4Session>>,
+    recipients: Recipients,
 }
 
 impl Ipv4 {
@@ -40,11 +39,11 @@ impl Ipv4 {
     pub const ID: Id = Id::new(4);
 
     /// Creates a new instance of the protocol.
-    pub fn new(network_for_ip: IpToTapSlot) -> Self {
+    pub fn new(recipients: Recipients) -> Self {
         Self {
             listen_bindings: Default::default(),
             sessions: Default::default(),
-            ip_tap_slot: network_for_ip,
+            recipients,
         }
     }
 
@@ -74,13 +73,25 @@ impl Ipv4 {
 // messages can be sent to the correct network
 
 impl Protocol for Ipv4 {
-    fn id(self: Arc<Self>) -> Id {
+    fn id(&self) -> Id {
         Self::ID
+    }
+
+    fn start(
+        &self,
+        _shutdown: Shutdown,
+        initialized: Arc<Barrier>,
+        _protocols: ProtocolMap,
+    ) -> Result<(), StartError> {
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
+        Ok(())
     }
 
     #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         mut participants: Control,
         protocols: ProtocolMap,
@@ -95,6 +106,7 @@ impl Protocol for Ipv4 {
                 OpenError::MissingContext
             })?,
         );
+
         match self.sessions.entry(key) {
             Entry::Occupied(_) => {
                 tracing::error!(
@@ -102,17 +114,24 @@ impl Protocol for Ipv4 {
                     key.local,
                     key.remote
                 );
-                Err(OpenError::Existing)?
+                Err(OpenError::Existing)
             }
+
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
-                let tap_slot = { *self.ip_tap_slot.get(&key.remote).unwrap() };
-                Pci::set_pci_slot(tap_slot, &mut participants);
+                let recipient = match self.recipients.get(&key.remote) {
+                    Some(tap_slot) => *tap_slot,
+                    None => {
+                        tracing::error!("No tap slot found for the IP {}", key.remote);
+                        return Err(OpenError::Other);
+                    }
+                };
+                Pci::set_pci_slot(recipient.slot, &mut participants);
                 let tap_session = protocols
                     .protocol(Pci::ID)
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols)?;
-                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, tap_slot));
+                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, recipient));
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -121,7 +140,7 @@ impl Protocol for Ipv4 {
 
     #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -130,11 +149,13 @@ impl Protocol for Ipv4 {
             tracing::error!("Missing local address on context");
             ListenError::MissingContext
         })?;
+
         match self.listen_bindings.entry(local) {
             Entry::Occupied(_) => {
                 tracing::error!("A binding already exists for local address {}", local);
                 Err(ListenError::Existing)?
             }
+
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
             }
@@ -149,7 +170,7 @@ impl Protocol for Ipv4 {
 
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
-        self: Arc<Self>,
+        &self,
         mut message: Message,
         caller: SharedSession,
         mut context: Context,
@@ -163,7 +184,7 @@ impl Protocol for Ipv4 {
                 Err(DemuxError::Header)?
             }
         };
-        message.slice(header.ihl as usize * 4..);
+        message.remove_front(header.ihl as usize * 4);
         let identifier = SessionId::new(header.destination, header.source);
 
         Self::set_local_address(identifier.local, &mut context.control);
@@ -171,44 +192,69 @@ impl Protocol for Ipv4 {
 
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => match self.listen_bindings.get(&identifier.local) {
-                Some(binding) => {
-                    // If the session does not exist but we have a listen
-                    // binding for it, create the session
-                    let network = Pci::get_pci_slot(&context.control).map_err(|_| {
-                        tracing::error!("Missing network ID on context");
-                        DemuxError::MissingContext
-                    })?;
-                    let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, network));
-                    entry.insert(session.clone());
-                    session
-                }
-                None => {
-                    tracing::error!(
-                        "Could not find a listen binding for the local address {}",
-                        identifier.local
-                    );
-                    Err(DemuxError::MissingSession)?
-                }
-            },
+
+            Entry::Vacant(entry) => {
+                // If the session does not exist, see if we have a listen
+                // binding for it
+                let binding = match self.listen_bindings.get(&identifier.local) {
+                    Some(binding) => binding,
+                    None => {
+                        // If we don't have a normal listen binding, check for
+                        // a 0.0.0.0 binding
+                        let any_listen_id = Ipv4Address::CURRENT_NETWORK;
+                        match self.listen_bindings.get(&any_listen_id) {
+                            Some(any_binding) => any_binding,
+                            None => {
+                                tracing::error!(
+                                    "Could not find a listen binding for the local address {}",
+                                    identifier.local
+                                );
+                                Err(DemuxError::MissingSession)?
+                            }
+                        }
+                    }
+                };
+                let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
+                    tracing::error!("Missing network ID on context");
+                    DemuxError::MissingContext
+                })?;
+                let mac = Network::get_sender(&context.control).map_err(|_| {
+                    tracing::error!("Missing sender MAC on context");
+                    DemuxError::MissingContext
+                })?;
+                let destination = Recipient::with_mac(slot, mac);
+                let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, destination));
+                entry.insert(session.clone());
+                session
+            }
         };
         session.receive(message, context)?;
         Ok(())
     }
 
-    fn start(
-        self: Arc<Self>,
-        _shutdown: Sender<()>,
-        initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
-        Ok(())
+    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
+        Err(QueryError::NonexistentKey)
+    }
+}
+
+pub type Recipients = FxHashMap<Ipv4Address, Recipient>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Recipient {
+    pub slot: PciSlot,
+    pub mac: Option<Mac>,
+}
+
+impl Recipient {
+    pub fn new(slot: PciSlot, mac: Option<Mac>) -> Self {
+        Self { slot, mac }
     }
 
-    fn query(self: Arc<Self>, _key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::NonexistentKey)
+    pub fn with_mac(slot: PciSlot, mac: Mac) -> Self {
+        Self::new(slot, Some(mac))
+    }
+
+    pub fn broadcast(slot: PciSlot) -> Self {
+        Self::new(slot, None)
     }
 }

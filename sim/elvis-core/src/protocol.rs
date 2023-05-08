@@ -7,10 +7,10 @@ use crate::{
     machine::ProtocolMap,
     protocols::user_process::ApplicationError,
     session::SendError,
+    Shutdown,
 };
 use std::sync::Arc;
-use thiserror::Error as ThisError;
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 
 mod context;
 pub use context::Context;
@@ -27,7 +27,7 @@ pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
 /// demultiplexing requests to the correct session.
 pub trait Protocol {
     /// Returns a unique identifier for the protocol.
-    fn id(self: Arc<Self>) -> Id;
+    fn id(&self) -> Id;
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
@@ -40,8 +40,8 @@ pub trait Protocol {
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
     fn start(
-        self: Arc<Self>,
-        shutdown: Sender<()>,
+        &self,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError>;
@@ -61,7 +61,7 @@ pub trait Protocol {
     /// remote_address}`. A UDP or TCP protocol might require the attributes
     /// `{local_address, local_port, remote_address, remote_port}`.
     fn open(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -83,7 +83,7 @@ pub trait Protocol {
     /// demultiplexing the message. Similarly, a UDP or TCP protocol would want
     /// its participant set to include {local_address, local_port}.
     fn listen(
-        self: Arc<Self>,
+        &self,
         upstream: Id,
         participants: Control,
         protocols: ProtocolMap,
@@ -108,26 +108,28 @@ pub trait Protocol {
     ///   at an earlier time. If so, a new session should be created.
     /// - Call `receive` on the selected session.
     fn demux(
-        self: Arc<Self>,
+        &self,
         message: Message,
         caller: SharedSession,
         context: Context,
     ) -> Result<(), DemuxError>;
 
     /// Gets a piece of information from the protocol
-    fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError>;
+    fn query(&self, key: Key) -> Result<Primitive, QueryError>;
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum QueryError {
     #[error("The provided key cannot be queried on this protocol")]
     NonexistentKey,
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum DemuxError {
     #[error("Failed to find a session to demux to")]
     MissingSession,
+    #[error("The session was closed")]
+    ClosedSession,
     #[error("Data expected through the context was missing")]
     MissingContext,
     #[error("Could not find the given protocol: {0}")]
@@ -144,7 +146,7 @@ pub enum DemuxError {
     Other,
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum ListenError {
     #[error("The listen binding already exists")]
     Existing,
@@ -154,7 +156,7 @@ pub enum ListenError {
     Other,
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum StartError {
     #[error("Protocol failed to start because an application failed to start")]
     Application(#[from] ApplicationError),
@@ -162,8 +164,10 @@ pub enum StartError {
     Other,
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum OpenError {
+    #[error("Could not find the given protocol: {0}")]
+    MissingProtocol(Id),
     #[error("The session already exists")]
     Existing,
     #[error("Data expected through the context was missing")]
