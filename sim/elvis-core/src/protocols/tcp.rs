@@ -9,7 +9,7 @@ use self::{
 use super::{ipv4::Ipv4Address, utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
@@ -274,6 +274,10 @@ impl Protocol for Tcp {
     fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         tracing::error!("No such key on TCP");
         Err(QueryError::NonexistentKey)
+    }
+
+    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
+        Ok(())
     }
 }
 

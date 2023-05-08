@@ -8,7 +8,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError},
     protocols::pci::Pci,
     session::SharedSession,
     Control, FxDashMap, Network, Protocol, Shutdown,
@@ -234,6 +234,10 @@ impl Protocol for Ipv4 {
 
     fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
+    }
+
+    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
+        Ok(())
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError},
     protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
@@ -328,5 +328,9 @@ impl Protocol for Sockets {
 
     fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
+    }
+
+    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
+        Ok(())
     }
 }

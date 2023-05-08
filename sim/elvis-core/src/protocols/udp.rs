@@ -6,7 +6,7 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
     Control, FxDashMap, Protocol, Shutdown,
@@ -247,5 +247,9 @@ impl Protocol for Udp {
 
     fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
+    }
+
+    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
+        Ok(())
     }
 }

@@ -116,12 +116,24 @@ pub trait Protocol {
 
     /// Gets a piece of information from the protocol
     fn query(&self, key: Key) -> Result<Primitive, QueryError>;
+
+    /// Allows for notifying a protocol about an occurrence,
+    /// Eg. a new connection being established
+    fn notify(&self, context: Context) -> Result<(), NotifyError>;
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum QueryError {
     #[error("The provided key cannot be queried on this protocol")]
     NonexistentKey,
+}
+
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
+pub enum NotifyError {
+    #[error("Data expected through the context was missing")]
+    MissingContext,
+    #[error("Unspecified query error")]
+    Other,
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]

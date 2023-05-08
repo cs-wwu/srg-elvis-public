@@ -5,7 +5,7 @@ use crate::{
     id::Id,
     machine::PciSlot,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError},
     session::SharedSession,
     Control, Network, Protocol, ProtocolMap, Shutdown,
 };
@@ -131,5 +131,9 @@ impl Protocol for Pci {
             Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.len() as u64).into()),
             _ => Err(QueryError::NonexistentKey),
         }
+    }
+
+    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
+        Ok(())
     }
 }
