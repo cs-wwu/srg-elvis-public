@@ -34,7 +34,7 @@ impl TcpSession {
         mut tcb: Tcb,
         upstream: SharedProtocol,
         downstream: SharedSession,
-        protocols: ProtocolMap,
+        context: Context
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);
         let me = Arc::new(Self {
@@ -42,7 +42,7 @@ impl TcpSession {
             downstream: downstream.clone(),
         });
         let out = me.clone();
-        let context = Context::new(protocols);
+        //let context = Context::new(protocols);
         tokio::spawn(async move {
             'outer: loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);

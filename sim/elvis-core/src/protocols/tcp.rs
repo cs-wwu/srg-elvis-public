@@ -6,7 +6,7 @@ use self::{
     tcp_parsing::TcpHeader,
     tcp_session::TcpSession,
 };
-use super::{utility::Socket, Ipv4, Pci};
+use super::{utility::Socket, Ipv4, Pci, ipv4::Ipv4Address};
 use crate::{
     control::{ControlError, Key, Primitive},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
@@ -98,6 +98,11 @@ impl Protocol for Tcp {
 
         let session_id = ConnectionId { local, remote };
 
+        let context = Context {
+            protocols: protocols.clone(),
+            control: participants.clone()
+        };
+
         match self.sessions.entry(session_id) {
             Entry::Occupied(_) => Err(OpenError::Existing),
             Entry::Vacant(entry) => {
@@ -117,7 +122,7 @@ impl Protocol for Tcp {
                         .protocol(upstream)
                         .ok_or(OpenError::MissingProtocol(upstream))?,
                     downstream,
-                    protocols,
+                    context,
                 );
                 entry.insert(session.clone());
                 Ok(session)
@@ -167,6 +172,11 @@ impl Protocol for Tcp {
             port: header.dst_port,
         };
 
+        let any_local = Socket {
+            address: Ipv4Address::CURRENT_NETWORK,
+            port: header.dst_port,
+        };
+
         let remote = Socket {
             address: remote_address,
             port: header.src_port,
@@ -186,8 +196,17 @@ impl Protocol for Tcp {
             }
 
             Entry::Vacant(session_entry) => {
-                match self.listen_bindings.entry(local) {
-                    Entry::Occupied(listen_entry) => {
+                let listen_entry = match self.listen_bindings.entry(local) {
+                    Entry::Occupied(listen_entry) => Some(listen_entry),
+                    Entry::Vacant(_) => {
+                        match self.listen_bindings.entry(any_local) {
+                            Entry::Occupied(any_listen_entry) => Some(any_listen_entry),
+                            Entry::Vacant(_) => None,
+                        }
+                    }
+                };
+                match listen_entry {
+                    Some(entry) => {
                         // TODO(hardint): Incomplete. See 3.10.7.2 for handling
                         // of segments in LISTEN state.
 
@@ -211,22 +230,21 @@ impl Protocol for Tcp {
                                     caller.send(Message::new(response.serialize()), context)?;
                                 }
                                 ListenResult::Tcb(tcb) => {
-                                    let upstream = *listen_entry.get();
+                                    let upstream = *entry.get();
                                     let session = TcpSession::new(
                                         tcb,
                                         context
                                             .protocol(upstream)
                                             .ok_or(OpenError::MissingProtocol(upstream))?,
                                         caller,
-                                        context.protocols,
+                                        context,
                                     );
                                     session_entry.insert(session);
                                 }
                             }
                         }
                     }
-
-                    Entry::Vacant(_) => {
+                    None => {
                         if let Some(response) = segment_arrives_closed(
                             segment.header,
                             segment.text.len() as u32,

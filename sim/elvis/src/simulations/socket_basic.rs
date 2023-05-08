@@ -4,6 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
+        tcp::Tcp,
         Pci, Sockets,
     },
     run_internet, Machine, Network,
@@ -39,6 +40,7 @@ pub async fn socket_basic() {
         Machine::new([
             server_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.clone()]).shared(),
             SocketServer::new(server_socket_api, 0xbeef).shared(),
@@ -46,6 +48,7 @@ pub async fn socket_basic() {
         Machine::new([
             client1_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.clone()]).shared(),
             SocketClient::new(client1_socket_api, 1, server_ip_address, 0xbeef).shared(),
@@ -53,6 +56,7 @@ pub async fn socket_basic() {
         Machine::new([
             client2_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.clone()]).shared(),
             SocketClient::new(client2_socket_api, 2, server_ip_address, 0xbeef).shared(),
@@ -60,6 +64,7 @@ pub async fn socket_basic() {
         Machine::new([
             client3_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
+            Tcp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.clone()]).shared(),
             SocketClient::new(client3_socket_api, 3, server_ip_address, 0xbeef).shared(),

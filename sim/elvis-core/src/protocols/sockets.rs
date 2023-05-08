@@ -1,13 +1,13 @@
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::{ipv4::Ipv4Address, Ipv4, Udp},
+    protocols::{ipv4::Ipv4Address, Ipv4, Udp, Tcp},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::{Arc, RwLock};
-use tokio::sync::{Barrier, Notify};
+use tokio::sync::{Barrier, Notify, OnceCell};
 
 pub mod socket;
 use socket::{IpAddress, ProtocolFamily, Socket, SocketAddress, SocketError, SocketId, SocketType};
@@ -158,12 +158,19 @@ impl Protocol for Sockets {
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
+        let sock = match self.sockets.entry(upstream) {
+            Entry::Occupied(sock) => sock.get().clone(),
+            Entry::Vacant(_) => return Err(OpenError::MissingContext),
+        };
         let identifier = SocketId::new(
             IpAddress::IPv4(Ipv4::get_local_address(&participants).map_err(|_| {
                 tracing::error!("Missing local address on context");
                 OpenError::MissingContext
             })?),
-            Udp::get_local_port(&participants).map_err(|_| {
+            match sock.sock_type {
+                SocketType::Datagram => Udp::get_local_port(&participants),
+                SocketType::Stream => Tcp::get_local_port(&participants)
+            }.map_err(|_| {
                 tracing::error!("Missing local port on context");
                 OpenError::MissingContext
             })?,
@@ -171,8 +178,11 @@ impl Protocol for Sockets {
                 tracing::error!("Missing remote address on context");
                 OpenError::MissingContext
             })?),
-            Udp::get_remote_port(&participants).map_err(|_| {
-                tracing::error!("Missing remote port on context");
+            match sock.sock_type {
+                SocketType::Datagram => Udp::get_remote_port(&participants),
+                SocketType::Stream => Tcp::get_remote_port(&participants)
+            }.map_err(|_| {
+                tracing::error!("Missing local port on context");
                 OpenError::MissingContext
             })?,
         );
@@ -183,14 +193,14 @@ impl Protocol for Sockets {
             }
             Entry::Vacant(entry) => {
                 let downstream = protocols
-                    .protocol(Udp::ID)
+                    .protocol(match sock.sock_type {
+                        SocketType::Datagram => Udp::ID,
+                        SocketType::Stream => Tcp::ID
+                    })
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(SocketSession {
-                    upstream: RwLock::new(Some(match self.sockets.entry(upstream) {
-                        Entry::Occupied(sock) => sock.get().clone(),
-                        Entry::Vacant(_) => return Err(OpenError::MissingProtocol(upstream)),
-                    })),
+                    upstream: OnceCell::new_with(Some(sock)),
                     downstream,
                     stored_msg: RwLock::new(None),
                 });
@@ -206,19 +216,29 @@ impl Protocol for Sockets {
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
+        let sock = match self.sockets.entry(upstream) {
+            Entry::Occupied(sock) => sock.get().clone(),
+            Entry::Vacant(_) => return Err(ListenError::MissingContext),
+        };
         let identifier = SocketAddress::new_v4(
             Ipv4::get_local_address(&participants).map_err(|_| {
                 tracing::error!("Missing local address on context");
                 ListenError::MissingContext
             })?,
-            Udp::get_local_port(&participants).map_err(|_| {
+            match sock.sock_type {
+                SocketType::Datagram => Udp::get_local_port(&participants),
+                SocketType::Stream => Tcp::get_local_port(&participants)
+            }.map_err(|_| {
                 tracing::error!("Missing local port on context");
                 ListenError::MissingContext
             })?,
         );
         self.listen_bindings.insert(identifier, upstream);
         protocols
-            .protocol(Udp::ID)
+            .protocol(match sock.sock_type {
+                SocketType::Datagram => Udp::ID,
+                SocketType::Stream => Tcp::ID
+            })
             .expect("No such protocol")
             .listen(Self::ID, participants, protocols)
     }
@@ -237,55 +257,75 @@ impl Protocol for Sockets {
                 tracing::error!("Missing local address on context");
                 DemuxError::MissingContext
             })?),
-            Udp::get_local_port(&context.control).map_err(|_| {
-                tracing::error!("Missing local port on context");
-                DemuxError::MissingContext
-            })?,
+            match Udp::get_local_port(&context.control) {
+                Ok(port) => port,
+                Err(_) => match Tcp::get_local_port(&context.control) {
+                    Ok(port) => port,
+                    Err(_) => {
+                        tracing::error!("Missing local port on context");
+                        return Err(DemuxError::MissingContext);
+                    }
+                }
+            },
             IpAddress::IPv4(Ipv4::get_remote_address(&context.control).map_err(|_| {
                 tracing::error!("Missing remote address on context");
                 DemuxError::MissingContext
             })?),
-            Udp::get_remote_port(&context.control).map_err(|_| {
-                tracing::error!("Missing remote port on context");
-                DemuxError::MissingContext
-            })?,
+            match Udp::get_remote_port(&context.control) {
+                Ok(port) => port,
+                Err(_) => match Tcp::get_remote_port(&context.control) {
+                    Ok(port) => port,
+                    Err(_) => {
+                        tracing::error!("Missing local port on context");
+                        return Err(DemuxError::MissingContext);
+                    }
+                }
+            },
         );
         let any_identifier =
             SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
-        let session = match self.socket_sessions.entry(identifier) {
-            Entry::Occupied(entry) => entry.get().clone(),
+        match self.socket_sessions.entry(identifier) {
+            Entry::Occupied(entry) => {
+                entry.get().clone().receive(message)?
+            },
             Entry::Vacant(entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
                 let binding = match self.listen_bindings.get(&identifier.local_address) {
-                    Some(listen_entry) => listen_entry,
+                    Some(listen_entry) => {
+                        listen_entry
+                    },
                     // If we don't have a normal listen binding, check for
                     // a 0.0.0.0 binding
                     None => match self.listen_bindings.get(&any_identifier) {
-                        Some(any_listen_entry) => any_listen_entry,
+                        Some(any_listen_entry) => {
+                            any_listen_entry
+                        },
                         None => {
                             tracing::error!(
                                 "Tried to demux with a missing session and no listen bindings"
                             );
-                            Err(DemuxError::MissingSession)?
+                            return Err(DemuxError::MissingSession)?;
                         }
                     },
                 };
                 let socket = match self.sockets.entry(*binding) {
                     Entry::Occupied(entry) => entry.get().clone(),
-                    Entry::Vacant(_) => return Err(DemuxError::MissingSession),
+                    Entry::Vacant(_) => {
+                        return Err(DemuxError::MissingSession);
+                    },
                 };
                 let session = Arc::new(SocketSession {
-                    upstream: RwLock::new(None),
+                    upstream: OnceCell::new(),
                     downstream: caller,
                     stored_msg: RwLock::new(Some(message.clone())),
                 });
                 socket.add_listen_address(identifier.remote_address);
                 entry.insert(session.clone());
-                session
+                //session
             }
         };
-        session.receive(message)?;
+        //session.receive(message)?;
         Ok(())
     }
 

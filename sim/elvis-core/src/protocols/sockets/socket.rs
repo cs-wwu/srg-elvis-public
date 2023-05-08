@@ -163,7 +163,7 @@ impl Socket {
                     Udp::set_remote_port(remote_addr.port, &mut participants);
                 }
                 SocketType::Stream => {
-                    Tcp::set_local_port(remote_addr.port, &mut participants);
+                    Tcp::set_remote_port(remote_addr.port, &mut participants);
                 }
             }
         }
@@ -274,7 +274,7 @@ impl Socket {
             new_sock.local_addr.read().unwrap().unwrap(),
             new_sock.remote_addr.read().unwrap().unwrap(),
         )?;
-        *session.upstream.write().unwrap() = Some(new_sock.clone());
+        session.upstream.set(new_sock.clone()).map_err(|_| SocketError::AcceptError)?;
         *new_sock.session.write().unwrap() = Some(session.clone());
         session.receive_stored_msg().unwrap();
         *new_sock.is_active.write().unwrap() = true;
