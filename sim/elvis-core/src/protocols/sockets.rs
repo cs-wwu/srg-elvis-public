@@ -1,7 +1,7 @@
 use crate::{
     control::{Key, Primitive},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::{ipv4::Ipv4Address, Ipv4, Udp, Tcp},
+    protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
@@ -169,8 +169,9 @@ impl Protocol for Sockets {
             })?),
             match sock.sock_type {
                 SocketType::Datagram => Udp::get_local_port(&participants),
-                SocketType::Stream => Tcp::get_local_port(&participants)
-            }.map_err(|_| {
+                SocketType::Stream => Tcp::get_local_port(&participants),
+            }
+            .map_err(|_| {
                 tracing::error!("Missing local port on context");
                 OpenError::MissingContext
             })?,
@@ -180,8 +181,9 @@ impl Protocol for Sockets {
             })?),
             match sock.sock_type {
                 SocketType::Datagram => Udp::get_remote_port(&participants),
-                SocketType::Stream => Tcp::get_remote_port(&participants)
-            }.map_err(|_| {
+                SocketType::Stream => Tcp::get_remote_port(&participants),
+            }
+            .map_err(|_| {
                 tracing::error!("Missing local port on context");
                 OpenError::MissingContext
             })?,
@@ -195,7 +197,7 @@ impl Protocol for Sockets {
                 let downstream = protocols
                     .protocol(match sock.sock_type {
                         SocketType::Datagram => Udp::ID,
-                        SocketType::Stream => Tcp::ID
+                        SocketType::Stream => Tcp::ID,
                     })
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols)?;
@@ -227,8 +229,9 @@ impl Protocol for Sockets {
             })?,
             match sock.sock_type {
                 SocketType::Datagram => Udp::get_local_port(&participants),
-                SocketType::Stream => Tcp::get_local_port(&participants)
-            }.map_err(|_| {
+                SocketType::Stream => Tcp::get_local_port(&participants),
+            }
+            .map_err(|_| {
                 tracing::error!("Missing local port on context");
                 ListenError::MissingContext
             })?,
@@ -237,7 +240,7 @@ impl Protocol for Sockets {
         protocols
             .protocol(match sock.sock_type {
                 SocketType::Datagram => Udp::ID,
-                SocketType::Stream => Tcp::ID
+                SocketType::Stream => Tcp::ID,
             })
             .expect("No such protocol")
             .listen(Self::ID, participants, protocols)
@@ -265,7 +268,7 @@ impl Protocol for Sockets {
                         tracing::error!("Missing local port on context");
                         return Err(DemuxError::MissingContext);
                     }
-                }
+                },
             },
             IpAddress::IPv4(Ipv4::get_remote_address(&context.control).map_err(|_| {
                 tracing::error!("Missing remote address on context");
@@ -279,28 +282,22 @@ impl Protocol for Sockets {
                         tracing::error!("Missing local port on context");
                         return Err(DemuxError::MissingContext);
                     }
-                }
+                },
             },
         );
         let any_identifier =
             SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
         match self.socket_sessions.entry(identifier) {
-            Entry::Occupied(entry) => {
-                entry.get().clone().receive(message)?
-            },
+            Entry::Occupied(entry) => entry.get().clone().receive(message)?,
             Entry::Vacant(entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
                 let binding = match self.listen_bindings.get(&identifier.local_address) {
-                    Some(listen_entry) => {
-                        listen_entry
-                    },
+                    Some(listen_entry) => listen_entry,
                     // If we don't have a normal listen binding, check for
                     // a 0.0.0.0 binding
                     None => match self.listen_bindings.get(&any_identifier) {
-                        Some(any_listen_entry) => {
-                            any_listen_entry
-                        },
+                        Some(any_listen_entry) => any_listen_entry,
                         None => {
                             tracing::error!(
                                 "Tried to demux with a missing session and no listen bindings"
@@ -313,7 +310,7 @@ impl Protocol for Sockets {
                     Entry::Occupied(entry) => entry.get().clone(),
                     Entry::Vacant(_) => {
                         return Err(DemuxError::MissingSession);
-                    },
+                    }
                 };
                 let session = Arc::new(SocketSession {
                     upstream: OnceCell::new(),

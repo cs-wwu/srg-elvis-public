@@ -6,7 +6,7 @@ use self::{
     tcp_parsing::TcpHeader,
     tcp_session::TcpSession,
 };
-use super::{utility::Socket, Ipv4, Pci, ipv4::Ipv4Address};
+use super::{ipv4::Ipv4Address, utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
@@ -100,7 +100,7 @@ impl Protocol for Tcp {
 
         let context = Context {
             protocols: protocols.clone(),
-            control: participants.clone()
+            control: participants.clone(),
         };
 
         match self.sessions.entry(session_id) {
@@ -198,12 +198,10 @@ impl Protocol for Tcp {
             Entry::Vacant(session_entry) => {
                 let listen_entry = match self.listen_bindings.entry(local) {
                     Entry::Occupied(listen_entry) => Some(listen_entry),
-                    Entry::Vacant(_) => {
-                        match self.listen_bindings.entry(any_local) {
-                            Entry::Occupied(any_listen_entry) => Some(any_listen_entry),
-                            Entry::Vacant(_) => None,
-                        }
-                    }
+                    Entry::Vacant(_) => match self.listen_bindings.entry(any_local) {
+                        Entry::Occupied(any_listen_entry) => Some(any_listen_entry),
+                        Entry::Vacant(_) => None,
+                    },
                 };
                 match listen_entry {
                     Some(entry) => {

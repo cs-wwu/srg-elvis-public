@@ -82,7 +82,7 @@ impl Application for SocketPingClient {
             loop {
                 // Receive a message
                 let mut ttl: u8 = *socket.clone().recv(8).await.unwrap().first().unwrap();
-        
+
                 // Send a message
                 ttl -= 1;
 

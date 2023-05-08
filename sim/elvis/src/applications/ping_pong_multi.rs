@@ -102,7 +102,10 @@ impl Application for PingPongMulti {
         Udp::set_remote_port(self.remote_port, &mut participants_1);
         let protocol_1 = protocols.protocol(Udp::ID).expect("No such protocol");
         let session_1 = protocol_1.open(Self::ID, participants_1, protocols.clone())?;
-        self.sessions.write().unwrap().insert(self.remote_ip_address_1, session_1.clone());
+        self.sessions
+            .write()
+            .unwrap()
+            .insert(self.remote_ip_address_1, session_1.clone());
 
         if !self.is_initiator {
             let mut participants_2 = Control::new();
@@ -112,7 +115,10 @@ impl Application for PingPongMulti {
             Udp::set_remote_port(self.remote_port, &mut participants_2);
             let protocol_2 = protocols.protocol(Udp::ID).expect("No such protocol");
             let session_2 = protocol_2.open(Self::ID, participants_2, protocols.clone())?;
-            self.sessions.write().unwrap().insert(self.remote_ip_address_2, session_2.clone());
+            self.sessions
+                .write()
+                .unwrap()
+                .insert(self.remote_ip_address_2, session_2.clone());
 
             let mut participants_3 = Control::new();
             Ipv4::set_local_address(self.local_ip_address, &mut participants_3);
@@ -121,7 +127,10 @@ impl Application for PingPongMulti {
             Udp::set_remote_port(self.remote_port, &mut participants_3);
             let protocol_3 = protocols.protocol(Udp::ID).expect("No such protocol");
             let session_3 = protocol_3.open(Self::ID, participants_3, protocols.clone())?;
-            self.sessions.write().unwrap().insert(self.remote_ip_address_3, session_3.clone());
+            self.sessions
+                .write()
+                .unwrap()
+                .insert(self.remote_ip_address_3, session_3.clone());
         }
 
         let context = Context::new(protocols);
@@ -154,7 +163,7 @@ impl Application for PingPongMulti {
         if ttl == 0 {
             tracing::info!("TTL has reach 0, PingPong has successfully completed");
             *self.client_count.write().unwrap() -= 1;
-            if *self.client_count.read().unwrap() <= 0 {
+            if *self.client_count.read().unwrap() == 0 {
                 if let Some(shutdown) = self.shutdown.write().unwrap().take() {
                     shutdown.shut_down();
                 }
@@ -165,9 +174,7 @@ impl Application for PingPongMulti {
                 Entry::Occupied(entry) => {
                     entry.get().clone().send(Message::new(vec![ttl]), context)?;
                 }
-                Entry::Vacant(_) => {
-                    return Err(ApplicationError::Other)
-                }
+                Entry::Vacant(_) => return Err(ApplicationError::Other),
             }
         }
         Ok(())

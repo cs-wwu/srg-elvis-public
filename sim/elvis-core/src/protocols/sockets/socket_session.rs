@@ -19,9 +19,7 @@ impl SocketSession {
     pub fn receive(&self, message: Message) -> Result<(), DemuxError> {
         match self.upstream.get() {
             Some(sock) => sock.receive(message),
-            None => {
-                Err(DemuxError::MissingSession)
-            },
+            None => Err(DemuxError::MissingSession),
         }
     }
 
@@ -31,9 +29,7 @@ impl SocketSession {
                 Some(msg) => msg,
                 None => return Err(DemuxError::MissingContext),
             }),
-            None => {
-                Err(DemuxError::MissingSession)
-            },
+            None => Err(DemuxError::MissingSession),
         }
     }
 }

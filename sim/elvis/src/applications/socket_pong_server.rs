@@ -85,7 +85,7 @@ impl Application for SocketPongServer {
 
             // Wait on ititialization before sending or receiving any message from the network
             initialized.wait().await;
-            
+
             let mut tasks = Vec::new();
             loop {
                 // Accept an incoming connection

@@ -34,7 +34,7 @@ impl TcpSession {
         mut tcb: Tcb,
         upstream: SharedProtocol,
         downstream: SharedSession,
-        context: Context
+        context: Context,
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);
         let me = Arc::new(Self {

@@ -3,8 +3,8 @@ use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
-        udp::Udp,
         tcp::Tcp,
+        udp::Udp,
         Pci, Sockets,
     },
     run_internet, Machine, Network,
