@@ -39,6 +39,7 @@ use tokio::sync::Barrier;
 ///
 /// The machine you are sending messages to MUST also have an Arp protocol, and a local IP address
 /// (set by [`Ipv4::open`] or [`Ipv4::listen`]).
+#[derive(Default)]
 pub struct Arp {
     /// Maps destination IP addresses to sessions.
     /// destination MAC addresses are stored in each session. In a sense, this is the ARP cache.
@@ -59,10 +60,7 @@ impl Arp {
 
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
-        Self {
-            sessions: Default::default(),
-            local_ips: Default::default(),
-        }
+        Default::default()
     }
 
     /// Creates a new shared handle to an instance of the protocol.
@@ -242,11 +240,5 @@ impl Protocol for Arp {
 
     fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
         Err(QueryError::NonexistentKey)
-    }
-}
-
-impl Default for Arp {
-    fn default() -> Self {
-        Self::new()
     }
 }
