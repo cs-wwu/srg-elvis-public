@@ -89,8 +89,7 @@ impl ArpSession {
         Ipv4::set_remote_address(self.dest_ip, &mut context.control);
 
         // Repeatedly send ARP requests
-        let mut requests = 0;
-        loop {
+        for _ in 0..Arp::RESEND_TRIES {
             let send_result = self
                 .downstream
                 .clone()
@@ -102,23 +101,18 @@ impl ArpSession {
                 return;
             }
 
-            requests += 1;
-
             // Wait RESEND_DELAY seconds, or stop waiting early if receiver.changed() occured
             let timeout =
                 tokio::time::timeout(Arp::RESEND_DELAY, receiver.changed()).await;
 
-            // If the mac status has been set, break out
+            // If the mac status has been set, return
             if timeout.is_ok() {
                 return;
             }
-
-            // If we've sent enough requests, set the status to failed, and break out.
-            if requests == Arp::RESEND_TRIES {
-                self.dest_mac.send_replace(MacStatus::FailedToGet);
-                return;
-            }
         }
+
+        // If we've sent 10 requests, and got no replies, set the status to failed, and break out.
+        self.dest_mac.send_replace(MacStatus::FailedToGet);
     }
 
     pub(super) fn send_arp_reply(
