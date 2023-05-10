@@ -13,12 +13,10 @@ use elvis_core::{
     run_internet, Machine, Message, Network,
 };
 
-use crate::applications::{Capture, SendMessage};
+use crate::applications::{Capture, SendMessage, PingPong};
 
 const SENDER_IP: Ipv4Address = Ipv4Address::new([123, 45, 67, 8]);
 const RECEIVER_IP: Ipv4Address = Ipv4Address::new([67, 8, 9, 10]);
-const MISC_IP_1: Ipv4Address = Ipv4Address::new([69, 42, 0, 13]);
-const MISC_IP_2: Ipv4Address = Ipv4Address::new([36, 21, 4, 3]);
 
 /// generates a Recipients to work with the simulations
 fn ip_table() -> Recipients {
@@ -26,8 +24,6 @@ fn ip_table() -> Recipients {
     [
         (SENDER_IP, default_recipient),
         (RECEIVER_IP, default_recipient),
-        (MISC_IP_1, default_recipient),
-        (MISC_IP_2, default_recipient),
     ]
     .into_iter()
     .collect()
@@ -218,6 +214,38 @@ pub async fn test_resend() {
         .expect("sender did not receive ARP reply");
 }
 
+/// A version of the ping_pong simulation that uses Arp.
+pub async fn ping_pong() {
+    let network = Network::basic();
+    let mut evil_ipv4 = SubWrap::new(Ipv4::new(ip_table()));
+    let mut evil_listener = evil_ipv4.subscribe_demux();
+    
+    let machines = vec![
+        Machine::new([
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table()).shared(),
+            Arp::new().shared(),
+            Pci::new([network.clone()]).shared(),
+            PingPong::new(true, SENDER_IP, RECEIVER_IP, 0xbeef, 0xface).shared(),
+        ]),
+        Machine::new([
+            Udp::new().shared() as SharedProtocol,
+            Ipv4::new(ip_table()).shared(),
+            Arp::new().shared(),
+            Pci::new([network.clone()]).shared(),
+            PingPong::new(false, RECEIVER_IP, SENDER_IP, 0xface, 0xbeef).shared(),
+        ]),
+        Machine::new([
+            evil_ipv4.shared() as SharedProtocol,
+            Pci::new([network.clone()]).shared(),
+        ])
+    ];
+
+    run_internet(machines, vec![network]).await;
+
+    assert!(evil_listener.try_recv().is_err(), "evil machine should not have received message");
+}
+
 #[cfg(test)]
 mod tests {
     #[tokio::test]
@@ -236,5 +264,11 @@ mod tests {
     #[tracing_test::traced_test]
     async fn test_resend() {
         super::test_resend().await;
+    }
+
+    #[tokio::test]
+    #[tracing_test::traced_test]
+    async fn ping_pong() {
+        super::ping_pong().await;
     }
 }
