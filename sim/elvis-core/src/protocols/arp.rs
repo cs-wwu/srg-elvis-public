@@ -204,13 +204,10 @@ impl Protocol for Arp {
             Entry::Occupied(entry) => {
                 let session = entry.get().clone();
                 let packet = packet;
-                // spawn a thread to set this session's status
-                tokio::spawn(async move {
-                    session
-                        .dest_mac
-                        .set_status(MacStatus::Set(packet.sender_mac))
-                        .await
-                });
+                // set this session's status
+                session
+                    .dest_mac
+                    .send_replace(MacStatus::Set(packet.sender_mac));
             }
             // If we don't have an entry for this session, make one
             Entry::Vacant(entry) => {
