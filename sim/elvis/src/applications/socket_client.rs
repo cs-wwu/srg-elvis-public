@@ -65,6 +65,7 @@ impl Application for SocketClient {
             // Create a new IPv4 Datagram Socket
             let socket = sockets
                 .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                .await
                 .unwrap();
 
             // Wait on initialization before sending any message across the network
@@ -73,14 +74,6 @@ impl Application for SocketClient {
             // "Connect" the socket to a remote address
             let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
             socket.connect(remote_sock_addr).unwrap();
-
-            // Send a connection request
-            println!("CLIENT {}: Sending connection request", client_id);
-            socket.send("SYN").unwrap();
-
-            // Receive a connection response
-            let _ack = socket.recv(32).await.unwrap();
-            println!("CLIENT {}: Connection response received", client_id);
 
             // Send a message
             let req = "Ground Control to Major Tom";
