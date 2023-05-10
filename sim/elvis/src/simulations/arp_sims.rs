@@ -13,7 +13,7 @@ use elvis_core::{
     run_internet, Machine, Message, Network,
 };
 
-use crate::applications::{Capture, SendMessage, PingPong};
+use crate::applications::{Capture, PingPong, SendMessage};
 
 const SENDER_IP: Ipv4Address = Ipv4Address::new([123, 45, 67, 8]);
 const RECEIVER_IP: Ipv4Address = Ipv4Address::new([67, 8, 9, 10]);
@@ -219,7 +219,7 @@ pub async fn ping_pong() {
     let network = Network::basic();
     let mut evil_ipv4 = SubWrap::new(Ipv4::new(ip_table()));
     let mut evil_listener = evil_ipv4.subscribe_demux();
-    
+
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
@@ -238,12 +238,15 @@ pub async fn ping_pong() {
         Machine::new([
             evil_ipv4.shared() as SharedProtocol,
             Pci::new([network.clone()]).shared(),
-        ])
+        ]),
     ];
 
     run_internet(machines, vec![network]).await;
 
-    assert!(evil_listener.try_recv().is_err(), "evil machine should not have received message");
+    assert!(
+        evil_listener.try_recv().is_err(),
+        "evil machine should not have received message"
+    );
 }
 
 #[cfg(test)]

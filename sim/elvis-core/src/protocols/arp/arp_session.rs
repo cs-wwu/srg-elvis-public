@@ -102,8 +102,7 @@ impl ArpSession {
             }
 
             // Wait RESEND_DELAY seconds, or stop waiting early if receiver.changed() occured
-            let timeout =
-                tokio::time::timeout(Arp::RESEND_DELAY, receiver.changed()).await;
+            let timeout = tokio::time::timeout(Arp::RESEND_DELAY, receiver.changed()).await;
 
             // If the mac status has been set, return
             if timeout.is_ok() {
@@ -157,9 +156,7 @@ async fn await_mac(mut recv: watch::Receiver<MacStatus>) -> Option<Mac> {
             }
             MacStatus::FailedToGet => {
                 // I can't propogate a SendError from a task unfortunately
-                tracing::error!(
-                    "Failed to get MAC address"
-                );
+                tracing::error!("Failed to get MAC address");
                 return None;
             }
             MacStatus::Waiting => {
@@ -173,7 +170,6 @@ async fn await_mac(mut recv: watch::Receiver<MacStatus>) -> Option<Mac> {
         }
     }
 }
-
 
 impl Session for ArpSession {
     /// Sends a message from the upstream session down to the PCI session,
