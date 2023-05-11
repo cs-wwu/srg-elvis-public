@@ -81,12 +81,20 @@ impl ProtocolMap {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &SharedProtocol> {
-        self.other.values()
+    pub fn iter(&self) -> impl Iterator<Item = SharedProtocol> + '_ {
+        [
+            self.pci.clone().map(|p| p as SharedProtocol),
+            self.ipv4.clone().map(|p| p as SharedProtocol),
+            self.udp.clone().map(|p| p as SharedProtocol),
+            self.tcp.clone().map(|p| p as SharedProtocol),
+        ]
+        .into_iter()
+        .filter_map(|p| p)
+        .chain(self.other.values().cloned())
     }
 
     pub fn len(&self) -> usize {
-        self.other.len() + 4
+        self.iter().count()
     }
 
     pub fn is_empty(&self) -> bool {
