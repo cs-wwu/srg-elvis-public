@@ -2,7 +2,7 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
-    control::{ControlError, Key, Primitive},
+    control::{Key, Primitive},
     id::Id,
     machine::ProtocolMap,
     message::Message,
@@ -43,22 +43,6 @@ impl Udp {
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
-
-    pub fn set_local_port(port: u16, control: &mut Control) {
-        control.insert((Self::ID, 0), port);
-    }
-
-    pub fn get_local_port(control: &Control) -> Result<u16, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u16()?)
-    }
-
-    pub fn set_remote_port(port: u16, control: &mut Control) {
-        control.insert((Self::ID, 1), port);
-    }
-
-    pub fn get_remote_port(control: &Control) -> Result<u16, ControlError> {
-        Ok(control.get((Self::ID, 1))?.ok_u16()?)
-    }
 }
 
 impl Protocol for Udp {
@@ -79,21 +63,21 @@ impl Protocol for Udp {
         // is appropriate here.
         let identifier = SessionId::new(
             Socket::new(
-                Ipv4::get_local_address(&participants).map_err(|_| {
+                participants.local.address.ok_or_else(|| {
                     tracing::error!("Missing local address on context");
                     OpenError::MissingContext
                 })?,
-                Self::get_local_port(&participants).map_err(|_| {
+                participants.remote.port.ok_or_else(|| {
                     tracing::error!("Missing local port on context");
                     OpenError::MissingContext
                 })?,
             ),
             Socket::new(
-                Ipv4::get_remote_address(&participants).map_err(|_| {
+                participants.remote.address.ok_or_else(|| {
                     tracing::error!("Missing remote address on context");
                     OpenError::MissingContext
                 })?,
-                Self::get_remote_port(&participants).map_err(|_| {
+                participants.remote.port.ok_or_else(|| {
                     tracing::error!("Missing remote port on context");
                     OpenError::MissingContext
                 })?,
@@ -132,11 +116,11 @@ impl Protocol for Udp {
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
         let identifier = Socket {
-            port: Self::get_local_port(&participants).map_err(|_| {
+            port: participants.local.port.ok_or_else(|| {
                 tracing::error!("Missing local port on context");
                 ListenError::MissingContext
             })?,
-            address: Ipv4::get_local_address(&participants).map_err(|_| {
+            address: participants.local.address.ok_or_else(|| {
                 tracing::error!("Missing local address on context");
                 ListenError::MissingContext
             })?,
@@ -157,11 +141,11 @@ impl Protocol for Udp {
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.control).map_err(|_| {
+        let local_address = context.control.local.address.ok_or_else(|| {
             tracing::error!("Missing local address on context");
             DemuxError::MissingContext
         })?;
-        let remote_address = Ipv4::get_remote_address(&context.control).map_err(|_| {
+        let remote_address = context.control.remote.address.ok_or_else(|| {
             tracing::error!("Missing remote address on context");
             DemuxError::MissingContext
         })?;
@@ -187,8 +171,8 @@ impl Protocol for Udp {
         );
 
         // Add the header information to the context
-        Self::set_local_port(session_id.local.port, &mut context.control);
-        Self::set_remote_port(session_id.remote.port, &mut context.control);
+        context.control.local.port = Some(session_id.local.port);
+        context.control.remote.port = Some(session_id.remote.port);
         let session = match self.sessions.entry(session_id) {
             Entry::Occupied(entry) => entry.get().clone(),
 

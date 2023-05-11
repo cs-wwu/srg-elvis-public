@@ -46,8 +46,8 @@ impl PciSession {
     /// useful.
     pub(crate) fn receive(self: &Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
         let mut context = Context::new(self.protocols.read().unwrap().as_ref().unwrap().clone());
-        Pci::set_pci_slot(self.index, &mut context.control);
-        Network::set_sender(delivery.sender, &mut context.control);
+        context.control.slot = Some(self.index);
+        context.control.remote.mac = Some(delivery.sender);
         let protocol = match context.protocol(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
@@ -66,14 +66,14 @@ impl PciSession {
 impl Session for PciSession {
     #[tracing::instrument(name = "PciSession::send", skip_all)]
     fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
-        let protocol = match Network::get_protocol(&context.control) {
-            Ok(protocol) => protocol,
-            Err(_) => {
+        let protocol = match context.control.first_responder {
+            Some(protocol) => protocol,
+            None => {
                 tracing::error!("Protocol missing from context");
                 Err(SendError::MissingContext)?
             }
         };
-        let destination = Network::get_destination(&context.control).ok();
+        let destination = context.control.remote.mac;
 
         if message.len() > self.network.mtu as usize {
             tracing::error!("Attempted to send a message larger than the network can handle");

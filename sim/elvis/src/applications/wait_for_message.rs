@@ -5,7 +5,6 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp, Udp,
     },
     Control, Id, Shutdown,
 };
@@ -79,11 +78,8 @@ impl Application for WaitForMessage {
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
         let mut participants = Control::new();
-        Ipv4::set_local_address(self.ip_address, &mut participants);
-        match self.transport {
-            Transport::Udp => Udp::set_local_port(self.port, &mut participants),
-            Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
-        }
+        participants.local.address = Some(self.ip_address);
+        participants.local.port = Some(self.port);
         protocols
             .protocol(self.transport.id())
             .expect("No such protocol")

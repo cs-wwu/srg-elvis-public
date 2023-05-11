@@ -2,7 +2,7 @@ use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::{ipv4::Ipv4Address, Ipv4, Udp},
+    protocols::{ipv4::Ipv4Address, Udp},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, Shutdown,
 };
@@ -160,19 +160,19 @@ impl Protocol for Sockets {
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let identifier = SocketId::new(
-            IpAddress::IPv4(Ipv4::get_local_address(&participants).map_err(|_| {
+            IpAddress::IPv4(participants.local.address.ok_or_else(|| {
                 tracing::error!("Missing local address on context");
                 OpenError::MissingContext
             })?),
-            Udp::get_local_port(&participants).map_err(|_| {
+            participants.local.port.ok_or_else(|| {
                 tracing::error!("Missing local port on context");
                 OpenError::MissingContext
             })?,
-            IpAddress::IPv4(Ipv4::get_remote_address(&participants).map_err(|_| {
+            IpAddress::IPv4(participants.remote.address.ok_or_else(|| {
                 tracing::error!("Missing remote address on context");
                 OpenError::MissingContext
             })?),
-            Udp::get_remote_port(&participants).map_err(|_| {
+            participants.remote.port.ok_or_else(|| {
                 tracing::error!("Missing remote port on context");
                 OpenError::MissingContext
             })?,
@@ -208,11 +208,11 @@ impl Protocol for Sockets {
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         let identifier = SocketAddress::new_v4(
-            Ipv4::get_local_address(&participants).map_err(|_| {
+            participants.local.address.ok_or_else(|| {
                 tracing::error!("Missing local address on context");
                 ListenError::MissingContext
             })?,
-            Udp::get_local_port(&participants).map_err(|_| {
+            participants.local.port.ok_or_else(|| {
                 tracing::error!("Missing local port on context");
                 ListenError::MissingContext
             })?,
@@ -234,19 +234,19 @@ impl Protocol for Sockets {
         context: Context,
     ) -> Result<(), DemuxError> {
         let identifier = SocketId::new(
-            IpAddress::IPv4(Ipv4::get_local_address(&context.control).map_err(|_| {
+            IpAddress::IPv4(context.control.remote.address.ok_or_else(|| {
                 tracing::error!("Missing local address on context");
                 DemuxError::MissingContext
             })?),
-            Udp::get_local_port(&context.control).map_err(|_| {
+            context.control.local.port.ok_or_else(|| {
                 tracing::error!("Missing local port on context");
                 DemuxError::MissingContext
             })?,
-            IpAddress::IPv4(Ipv4::get_remote_address(&context.control).map_err(|_| {
+            IpAddress::IPv4(context.control.remote.address.ok_or_else(|| {
                 tracing::error!("Missing remote address on context");
                 DemuxError::MissingContext
             })?),
-            Udp::get_remote_port(&context.control).map_err(|_| {
+            context.control.remote.port.ok_or_else(|| {
                 tracing::error!("Missing remote port on context");
                 DemuxError::MissingContext
             })?,

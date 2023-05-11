@@ -4,9 +4,7 @@ use elvis_core::{
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
-        udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp,
     },
     Control, Id, Shutdown,
 };
@@ -60,18 +58,10 @@ impl Application for SendMessage {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
-        Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
-        Ipv4::set_remote_address(self.remote_ip, &mut participants);
-        match self.transport {
-            Transport::Udp => {
-                Udp::set_local_port(0, &mut participants);
-                Udp::set_remote_port(self.remote_port, &mut participants);
-            }
-            Transport::Tcp => {
-                Tcp::set_local_port(0, &mut participants);
-                Tcp::set_remote_port(self.remote_port, &mut participants);
-            }
-        }
+        participants.local.address = Some(Ipv4Address::LOCALHOST);
+        participants.remote.address = Some(self.remote_ip);
+        participants.local.port = Some(0);
+        participants.remote.port = Some(self.remote_port);
         let protocol = protocols
             .protocol(self.transport.id())
             .expect("No such protocol");

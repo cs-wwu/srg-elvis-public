@@ -1,9 +1,9 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::{
-    control::{ControlError, Key, Primitive},
+    control::{Key, Primitive},
     id::Id,
-    machine::{PciSlot, ProtocolMap},
+    machine::ProtocolMap,
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::SharedSession,
@@ -52,18 +52,6 @@ impl Pci {
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
-
-    /// Sets the index of the tap that a message should be sent over or that a
-    /// message was received from.
-    pub fn set_pci_slot(slot: PciSlot, control: &mut Control) {
-        control.insert((Self::ID, 0), slot);
-    }
-
-    /// Gets the index of the tap that a message should be sent over or that a
-    /// message was received from.
-    pub fn get_pci_slot(control: &Control) -> Result<PciSlot, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u32()?)
-    }
 }
 
 impl Protocol for Pci {
@@ -77,7 +65,7 @@ impl Protocol for Pci {
         participants: Control,
         _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
-        let pci_slot = Pci::get_pci_slot(&participants).map_err(|_| {
+        let pci_slot = participants.slot.ok_or_else(|| {
             tracing::error!("Missing PCI slot on context");
             OpenError::MissingContext
         })?;

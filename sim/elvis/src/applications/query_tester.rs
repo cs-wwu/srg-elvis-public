@@ -5,7 +5,7 @@ use elvis_core::{
     protocol::Context,
     protocols::{
         user_process::{Application, ApplicationError},
-        Ipv4, Pci, Udp, UserProcess,
+        Pci, Udp, UserProcess,
     },
     Control, Id, Message, Shutdown,
 };
@@ -43,10 +43,10 @@ impl Application for QueryTester {
         assert_eq!(slot_count, 2);
 
         let mut participants = Control::new();
-        Udp::set_local_port(0, &mut participants);
-        Udp::set_remote_port(0, &mut participants);
-        Ipv4::set_local_address(0.into(), &mut participants);
-        Ipv4::set_remote_address(0.into(), &mut participants);
+        participants.local.port = Some(0);
+        participants.local.address = Some(0.into());
+        participants.remote.port = Some(0);
+        participants.remote.address = Some(0.into());
         let mtu = protocols
             .protocol(Udp::ID)
             .expect("Missing UDP protocol")

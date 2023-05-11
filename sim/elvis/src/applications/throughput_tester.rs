@@ -5,7 +5,7 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp,
+        Udp,
     },
     Control, Id, Shutdown,
 };
@@ -68,8 +68,8 @@ impl Application for ThroughputTester {
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
         let mut participants = Control::new();
-        Ipv4::set_local_address(self.ip_address, &mut participants);
-        Udp::set_local_port(self.port, &mut participants);
+        participants.local.address = Some(self.ip_address);
+        participants.local.port = Some(self.port);
         protocols
             .protocol(Udp::ID)
             .expect("No such protocol")

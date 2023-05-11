@@ -17,9 +17,7 @@
 //!   similar to adding a networking card to computer. This way, a machine can
 //!   add multiple taps to attach to different networks.
 
-use crate::{
-    control::ControlError, id::Id, protocols::pci::PciSession, Control, FxDashMap, Message,
-};
+use crate::{id::Id, protocols::pci::PciSession, FxDashMap, Message};
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
     sync::{Arc, Mutex},
@@ -139,36 +137,6 @@ impl Network {
                 }
             }
         }
-    }
-
-    /// Set the destination MAC address on a [`Control`]
-    pub fn set_destination(mac: Mac, control: &mut Control) {
-        control.insert((Self::ID, 0), mac);
-    }
-
-    /// Get the destination MAC address on a [`Control`]
-    pub fn get_destination(control: &Control) -> Result<Mac, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u64()?)
-    }
-
-    /// Set the source MAC address on a [`Control`]
-    pub fn set_sender(mac: Mac, control: &mut Control) {
-        control.insert((Self::ID, 1), mac);
-    }
-
-    /// Get the source MAC address on a [`Control`]
-    pub fn get_sender(control: &Control) -> Result<Mac, ControlError> {
-        Ok(control.get((Self::ID, 1))?.ok_u64()?)
-    }
-
-    /// Set the protocol that should respond to a network frame on a [`Control`]
-    pub fn set_protocol(protocol: Id, control: &mut Control) {
-        control.insert((Self::ID, 2), protocol.into_inner());
-    }
-
-    /// Get the protocol that should respond to a network frame on a [`Control`]
-    pub fn get_protocol(control: &Control) -> Result<Id, ControlError> {
-        Ok(control.get((Self::ID, 2))?.ok_u64()?.into())
     }
 }
 

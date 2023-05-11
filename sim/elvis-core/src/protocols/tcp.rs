@@ -8,7 +8,7 @@ use self::{
 };
 use super::{utility::Socket, Ipv4, Pci};
 use crate::{
-    control::{ControlError, Key, Primitive},
+    control::{Key, Primitive},
     machine::ProtocolMap,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
@@ -49,26 +49,6 @@ impl Tcp {
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
-
-    /// Set the local port number on a control.
-    pub fn set_local_port(port: u16, control: &mut Control) {
-        control.insert((Self::ID, 0), port);
-    }
-
-    /// Get the local port number from a control.
-    pub fn get_local_port(control: &Control) -> Result<u16, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u16()?)
-    }
-
-    /// Set the remote port number on a control.
-    pub fn set_remote_port(port: u16, control: &mut Control) {
-        control.insert((Self::ID, 1), port);
-    }
-
-    /// Get the remote port number from a control.
-    pub fn get_remote_port(control: &Control) -> Result<u16, ControlError> {
-        Ok(control.get((Self::ID, 1))?.ok_u16()?)
-    }
 }
 
 impl Protocol for Tcp {
@@ -88,13 +68,13 @@ impl Protocol for Tcp {
         // is appropriate here.
 
         let local = Socket {
-            address: Ipv4::get_local_address(&participants).unwrap(),
-            port: Self::get_local_port(&participants).unwrap(),
+            address: participants.local.address.unwrap(),
+            port: participants.local.port.unwrap(),
         };
 
         let remote = Socket {
-            address: Ipv4::get_remote_address(&participants).unwrap(),
-            port: Self::get_remote_port(&participants).unwrap(),
+            address: participants.remote.address.unwrap(),
+            port: participants.remote.port.unwrap(),
         };
 
         let session_id = ConnectionId { local, remote };
@@ -136,8 +116,8 @@ impl Protocol for Tcp {
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
         let socket = Socket {
-            port: Self::get_local_port(&participants).unwrap(),
-            address: Ipv4::get_local_address(&participants).unwrap(),
+            port: participants.local.port.unwrap(),
+            address: participants.local.address.unwrap(),
         };
         self.listen_bindings.insert(socket, upstream);
         // Ask lower-level protocols to add the binding as well
@@ -154,8 +134,8 @@ impl Protocol for Tcp {
         mut context: Context,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.control).unwrap();
-        let remote_address = Ipv4::get_remote_address(&context.control).unwrap();
+        let local_address = context.control.local.address.unwrap();
+        let remote_address = context.control.remote.address.unwrap();
 
         // Parse the header
         let header =
@@ -177,8 +157,8 @@ impl Protocol for Tcp {
         let connection_id = ConnectionId { local, remote };
 
         // Add the header information to the context
-        Tcp::set_local_port(local.port, &mut context.control);
-        Tcp::set_remote_port(remote.port, &mut context.control);
+        context.control.local.port = Some(local.port);
+        context.control.remote.port = Some(remote.port);
 
         let segment = Segment::new(header, message);
         match self.sessions.entry(connection_id) {

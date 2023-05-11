@@ -2,10 +2,9 @@
 //!
 //! This module primarily implements the [`Control`] key-value store.
 
-use self::primitive::PrimitiveError;
-use crate::id::Id;
+use crate::{id::Id, machine::PciSlot, network::Mac, protocols::ipv4::Ipv4Address};
 use rustc_hash::FxHashMap;
-use thiserror::Error as ThisError;
+use std::ops::{Deref, DerefMut};
 
 pub(crate) mod primitive;
 pub use primitive::Primitive;
@@ -22,45 +21,54 @@ pub type Key = (Id, PropertyKey);
 /// configuration for opening a session. A control facilitates passing such
 /// information.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Control(FxHashMap<Key, Primitive>);
+pub struct Control {
+    /// Box the contents of the control so that it is less expensive to pass to function parameters
+    inner: Box<ControlInner>,
+}
+
+/// Control information for incoming or outgoing packets
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ControlInner {
+    /// Storage for control values not specified in the Elvis core
+    pub other: FxHashMap<Key, Primitive>,
+    /// The PCI slot that will be sent on or that was received from
+    pub slot: Option<PciSlot>,
+    /// The protocol that PCI will forward incoming messages to
+    pub first_responder: Option<Id>,
+    /// Information about the local connection endpoint
+    pub local: Endpoint,
+    /// Information about the remote connection endpoint
+    pub remote: Endpoint,
+}
+
+/// Specifies information about a connection endpoint
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Endpoint {
+    /// The MAC address
+    pub mac: Option<Mac>,
+    /// The IPv4 address
+    pub address: Option<Ipv4Address>,
+    /// The UDP or TCP port
+    pub port: Option<u16>,
+}
 
 impl Control {
     /// Creates a new control.
     pub fn new() -> Self {
         Default::default()
     }
+}
 
-    /// A builder function that adds the given key-value pair to the control.
-    ///
-    /// See [`insert`](Self::insert) for more details.
-    pub fn with(mut self, key: Key, value: impl Into<Primitive>) -> Self {
-        self.insert_inner(key, value.into());
-        self
-    }
+impl Deref for Control {
+    type Target = ControlInner;
 
-    /// Adds the given key-value pair to the control.
-    ///
-    /// `value` can be any numeric primitive of universally-defined size, such
-    /// as an `i16` or a `u64`. `usize` and `isize` are not allowed because
-    /// their sizes are platform-dependent.
-    pub fn insert(&mut self, key: Key, value: impl Into<Primitive>) {
-        self.insert_inner(key, value.into())
-    }
-
-    fn insert_inner(&mut self, key: Key, value: Primitive) {
-        self.0.insert(key, value);
-    }
-
-    /// Gets the value for the given key.
-    pub fn get(&self, key: Key) -> Result<Primitive, ControlError> {
-        self.0.get(&key).cloned().ok_or(ControlError::Missing)
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
-pub enum ControlError {
-    #[error("Control key missing")]
-    Missing,
-    #[error("{0}")]
-    Primitive(#[from] PrimitiveError),
+impl DerefMut for Control {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
 }

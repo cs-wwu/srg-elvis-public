@@ -4,9 +4,8 @@ use crate::{
     id::Id,
     message::Message,
     protocol::{Context, DemuxError},
-    protocols::pci::Pci,
     session::{QueryError, SendError, SharedSession},
-    Network, Session,
+    Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -65,11 +64,9 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        Pci::set_pci_slot(self.destination.slot, &mut context.control);
-        Network::set_protocol(Ipv4::ID, &mut context.control);
-        if let Some(mac) = self.destination.mac {
-            Network::set_destination(mac, &mut context.control);
-        }
+        context.control.slot = Some(self.destination.slot);
+        context.control.first_responder = Some(Ipv4::ID);
+        context.control.remote.mac = self.destination.mac;
         message.header(header);
         self.downstream.send(message, context)?;
         Ok(())

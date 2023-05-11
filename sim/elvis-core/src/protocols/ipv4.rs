@@ -2,7 +2,7 @@
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
 use crate::{
-    control::{ControlError, Key, Primitive},
+    control::{Key, Primitive},
     id::Id,
     machine::PciSlot,
     machine::ProtocolMap,
@@ -11,7 +11,7 @@ use crate::{
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, FxDashMap, Network, Protocol, Shutdown,
+    Control, FxDashMap, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
@@ -51,22 +51,6 @@ impl Ipv4 {
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
     }
-
-    pub fn set_local_address(address: Ipv4Address, control: &mut Control) {
-        control.insert((Self::ID, 0), address.to_u32());
-    }
-
-    pub fn get_local_address(control: &Control) -> Result<Ipv4Address, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u32()?.into())
-    }
-
-    pub fn set_remote_address(address: Ipv4Address, control: &mut Control) {
-        control.insert((Self::ID, 1), address.to_u32());
-    }
-
-    pub fn get_remote_address(control: &Control) -> Result<Ipv4Address, ControlError> {
-        Ok(control.get((Self::ID, 1))?.ok_u32()?.into())
-    }
 }
 
 // TODO(hardint): Add a static IP lookup table in the constructor so that
@@ -97,11 +81,11 @@ impl Protocol for Ipv4 {
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(
-            Self::get_local_address(&participants).map_err(|_| {
+            participants.local.address.ok_or_else(|| {
                 tracing::error!("Missing local address on context");
                 OpenError::MissingContext
             })?,
-            Self::get_remote_address(&participants).map_err(|_| {
+            participants.remote.address.ok_or_else(|| {
                 tracing::error!("Missing remote address on context");
                 OpenError::MissingContext
             })?,
@@ -126,7 +110,7 @@ impl Protocol for Ipv4 {
                         return Err(OpenError::Other);
                     }
                 };
-                Pci::set_pci_slot(recipient.slot, &mut participants);
+                participants.slot = Some(recipient.slot);
                 let tap_session = protocols
                     .protocol(Pci::ID)
                     .expect("No such protocol")
@@ -145,7 +129,7 @@ impl Protocol for Ipv4 {
         participants: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
-        let local = Self::get_local_address(&participants).map_err(|_| {
+        let local = participants.local.address.ok_or_else(|| {
             tracing::error!("Missing local address on context");
             ListenError::MissingContext
         })?;
@@ -187,8 +171,8 @@ impl Protocol for Ipv4 {
         message.remove_front(header.ihl as usize * 4);
         let identifier = SessionId::new(header.destination, header.source);
 
-        Self::set_local_address(identifier.local, &mut context.control);
-        Self::set_remote_address(identifier.remote, &mut context.control);
+        context.control.local.address = Some(identifier.local);
+        context.control.remote.address = Some(identifier.remote);
 
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
@@ -214,11 +198,11 @@ impl Protocol for Ipv4 {
                         }
                     }
                 };
-                let slot = Pci::get_pci_slot(&context.control).map_err(|_| {
+                let slot = context.control.slot.ok_or_else(|| {
                     tracing::error!("Missing network ID on context");
                     DemuxError::MissingContext
                 })?;
-                let mac = Network::get_sender(&context.control).map_err(|_| {
+                let mac = context.control.remote.mac.ok_or_else(|| {
                     tracing::error!("Missing sender MAC on context");
                     DemuxError::MissingContext
                 })?;

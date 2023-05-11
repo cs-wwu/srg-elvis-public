@@ -3,7 +3,7 @@ use crate::{
     machine::ProtocolMap,
     message::Chunk,
     protocol::{Context, DemuxError},
-    protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
+    protocols::ipv4::Ipv4Address,
     session::SharedSession,
     Control, Id, Message, Shutdown,
 };
@@ -135,7 +135,7 @@ impl Socket {
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
             match local_addr.address {
                 IpAddress::IPv4(addr) => {
-                    Ipv4::set_local_address(addr, &mut participants);
+                    participants.local.address = Some(addr);
                 }
                 IpAddress::IPv6() => {
                     todo!();
@@ -143,17 +143,17 @@ impl Socket {
             }
             match self.sock_type {
                 SocketType::Datagram => {
-                    Udp::set_local_port(local_addr.port, &mut participants);
+                    participants.local.port = Some(local_addr.port);
                 }
                 SocketType::Stream => {
-                    Tcp::set_local_port(local_addr.port, &mut participants);
+                    participants.local.port = Some(local_addr.port);
                 }
             }
         }
         if let Some(remote_addr) = *self.remote_addr.read().unwrap() {
             match remote_addr.address {
                 IpAddress::IPv4(addr) => {
-                    Ipv4::set_remote_address(addr, &mut participants);
+                    participants.remote.address = Some(addr);
                 }
                 IpAddress::IPv6() => {
                     todo!();
@@ -161,10 +161,10 @@ impl Socket {
             }
             match self.sock_type {
                 SocketType::Datagram => {
-                    Udp::set_remote_port(remote_addr.port, &mut participants);
+                    participants.remote.port = Some(remote_addr.port);
                 }
                 SocketType::Stream => {
-                    Tcp::set_local_port(remote_addr.port, &mut participants);
+                    participants.remote.port = Some(remote_addr.port);
                 }
             }
         }
@@ -216,7 +216,7 @@ impl Socket {
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
             match local_addr.address {
                 IpAddress::IPv4(addr) => {
-                    Ipv4::set_local_address(addr, &mut participants);
+                    participants.local.address = Some(addr);
                 }
                 IpAddress::IPv6() => {
                     todo!();
@@ -224,10 +224,10 @@ impl Socket {
             }
             match self.sock_type {
                 SocketType::Datagram => {
-                    Udp::set_local_port(local_addr.port, &mut participants);
+                    participants.local.port = Some(local_addr.port);
                 }
                 SocketType::Stream => {
-                    Tcp::set_local_port(local_addr.port, &mut participants);
+                    participants.local.port = Some(local_addr.port);
                 }
             }
         }

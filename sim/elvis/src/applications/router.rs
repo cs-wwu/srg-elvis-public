@@ -8,7 +8,7 @@ use elvis_core::{
         Ipv4, Pci,
     },
     session::SharedSession,
-    Control, Id, Network, Shutdown,
+    Control, Id, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -57,7 +57,7 @@ impl Application for Router {
 
         for i in 0..number_taps {
             let mut participants = Control::new();
-            Pci::set_pci_slot(i as u32, &mut participants);
+            participants.slot = Some(i as u32);
             let val = pci
                 .open(Self::ID, participants.clone(), protocols.clone())
                 .expect("could not open session");
@@ -92,10 +92,8 @@ impl Application for Router {
             Some(recipient) => recipient,
             None => return Ok(()),
         };
-        Network::set_protocol(Ipv4::ID, &mut context.control);
-        if let Some(mac) = recipient.mac {
-            Network::set_destination(mac, &mut context.control);
-        }
+        context.control.first_responder = Some(Ipv4::ID);
+        context.control.local.mac = recipient.mac;
 
         self.outgoing
             .read()

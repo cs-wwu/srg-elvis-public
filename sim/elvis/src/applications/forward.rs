@@ -6,7 +6,6 @@ use elvis_core::{
         ipv4::Ipv4Address,
         udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4,
     },
     session::SharedSession,
     Control, Id, Shutdown,
@@ -60,10 +59,10 @@ impl Application for Forward {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let mut participants = Control::new();
-        Ipv4::set_local_address(self.local_ip, &mut participants);
-        Ipv4::set_remote_address(self.remote_ip, &mut participants);
-        Udp::set_local_port(self.local_port, &mut participants);
-        Udp::set_remote_port(self.remote_port, &mut participants);
+        participants.local.port = Some(self.local_port);
+        participants.local.address = Some(self.local_ip);
+        participants.remote.port = Some(self.remote_port);
+        participants.remote.address = Some(self.remote_ip);
 
         let udp = protocols.protocol(Udp::ID).expect("No such protocol");
         *self.outgoing.write().unwrap() = Some(udp.open(
