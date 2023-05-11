@@ -103,7 +103,7 @@ impl Protocol for Arp {
     /// # MAC address resolution (complicated technical details)
     ///
     /// The ARP requests will be repeatedly sent until an ARP reply is received,
-    /// or until [`RESEND_TRIES`] is reached. There is a delay of [`RESEND_DELAY`]
+    /// or until [`Arp::RESEND_TRIES`] is reached. There is a delay of [`Arp::RESEND_DELAY`]
     /// between each time a packet is sent.
     fn open(
         &self,
