@@ -20,6 +20,9 @@ pub use user_process::UserProcess;
 
 mod utility;
 
+pub mod arp;
+pub use arp::Arp;
+
 // TODO(hardint): Remove dead code allowance when possible
 #[allow(dead_code)]
 pub mod tcp;
