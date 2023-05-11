@@ -9,10 +9,11 @@ use self::{
 use super::{utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
+    machine::ProtocolMap,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::Arc;

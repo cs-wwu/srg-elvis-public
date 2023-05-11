@@ -1,9 +1,7 @@
-use std::time::{Duration, SystemTime};
-
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
+    machine::ProtocolMapBuilder,
     network::{Latency, NetworkBuilder},
-    protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
@@ -11,6 +9,7 @@ use elvis_core::{
     },
     run_internet, Machine, Message,
 };
+use std::time::{Duration, SystemTime};
 
 /// Runs a basic simulation.
 ///
@@ -27,18 +26,25 @@ pub async fn latency() {
 
     let capture = Capture::new(capture_ip_address, 0xbeef, 1).shared();
     let machines = vec![
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SendMessage::new(vec![Message::new("Hello!")], capture_ip_address, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table).shared(),
-            Pci::new([network.clone()]).shared(),
-            capture.clone(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(Pci::new([network.clone()]))
+                .other(
+                    SendMessage::new(vec![Message::new("Hello!")], capture_ip_address, 0xbeef)
+                        .shared(),
+                )
+                .build(),
+        ),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table))
+                .pci(Pci::new([network.clone()]))
+                .other(capture.clone())
+                .build(),
+        ),
     ];
 
     let now = SystemTime::now();

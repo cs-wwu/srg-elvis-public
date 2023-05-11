@@ -1,7 +1,7 @@
 use crate::applications::{SendMessage, ThroughputTester};
 use elvis_core::{
+    machine::ProtocolMapBuilder,
     network::{Baud, NetworkBuilder, Throughput},
-    protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
@@ -31,24 +31,30 @@ pub async fn throughput() {
     let message = Message::new("Hello!");
     let messages: Vec<_> = (0..3).map(|_| message.clone()).collect();
     let machines = vec![
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SendMessage::new(messages, capture_ip_address, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table).shared(),
-            Pci::new([network.clone()]).shared(),
-            ThroughputTester::new(
-                capture_ip_address,
-                0xbeef,
-                3,
-                Duration::from_millis(900)..Duration::from_millis(1100),
-            )
-            .shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(Pci::new([network.clone()]))
+                .other(SendMessage::new(messages, capture_ip_address, 0xbeef).shared())
+                .build(),
+        ),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table))
+                .pci(Pci::new([network.clone()]))
+                .other(
+                    ThroughputTester::new(
+                        capture_ip_address,
+                        0xbeef,
+                        3,
+                        Duration::from_millis(900)..Duration::from_millis(1100),
+                    )
+                    .shared(),
+                )
+                .build(),
+        ),
     ];
 
     run_internet(machines, vec![network]).await;

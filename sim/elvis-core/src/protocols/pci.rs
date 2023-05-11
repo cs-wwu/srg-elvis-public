@@ -3,11 +3,11 @@
 use crate::{
     control::{ControlError, Key, Primitive},
     id::Id,
-    machine::PciSlot,
+    machine::{PciSlot, ProtocolMap},
     message::Message,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     session::SharedSession,
-    Control, Network, Protocol, ProtocolMap, Shutdown,
+    Control, Network, Protocol, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;

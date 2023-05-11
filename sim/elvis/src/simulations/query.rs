@@ -1,7 +1,7 @@
 use crate::applications::QueryTester;
 use elvis_core::{
+    machine::ProtocolMapBuilder,
     network::NetworkBuilder,
-    protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Recipient},
         udp::Udp,
@@ -17,17 +17,18 @@ use elvis_core::{
 pub async fn query() {
     let network = NetworkBuilder::new().mtu(1500).build();
 
-    let machine = Machine::new([
-        Udp::new().shared() as SharedProtocol,
-        Ipv4::new(
-            [(0.into(), Recipient::with_mac(0, 0))]
-                .into_iter()
-                .collect(),
-        )
-        .shared(),
-        QueryTester::new().shared(),
-        Pci::new([network.clone(), network.clone()]).shared(),
-    ]);
+    let machine = Machine::new(
+        ProtocolMapBuilder::new()
+            .udp(Udp::new())
+            .ipv4(Ipv4::new(
+                [(0.into(), Recipient::with_mac(0, 0))]
+                    .into_iter()
+                    .collect(),
+            ))
+            .pci(Pci::new([network.clone(), network.clone()]))
+            .other(QueryTester::new().shared())
+            .build(),
+    );
 
     run_internet(vec![machine], vec![network]).await;
 }

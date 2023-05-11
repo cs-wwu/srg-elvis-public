@@ -1,4 +1,5 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
     protocol::Context,
     protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
@@ -7,7 +8,7 @@ use elvis_core::{
         Ipv4, Pci,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap, Shutdown,
+    Control, Id, Network, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;

@@ -1,7 +1,7 @@
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
+    machine::ProtocolMapBuilder,
     message::Message,
-    protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
@@ -24,18 +24,22 @@ pub async fn basic() {
     let message = Message::new("Hello!");
     let capture = Capture::new(capture_ip_address, 0xbeef, 1).shared();
     let machines = vec![
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table).shared(),
-            Pci::new([network.clone()]).shared(),
-            capture.clone(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(Pci::new([network.clone()]))
+                .other(SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef).shared())
+                .build(),
+        ),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table))
+                .pci(Pci::new([network.clone()]))
+                .other(capture.clone())
+                .build(),
+        ),
     ];
 
     run_internet(machines, vec![network]).await;

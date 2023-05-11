@@ -1,10 +1,11 @@
 use super::Sockets;
 use crate::{
+    machine::ProtocolMap,
     message::Chunk,
     protocol::{Context, DemuxError},
     protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
-    Control, Id, Message, ProtocolMap, Shutdown,
+    Control, Id, Message, Shutdown,
 };
 use std::{
     collections::VecDeque,

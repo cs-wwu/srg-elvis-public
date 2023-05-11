@@ -1,10 +1,11 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
+    machine::ProtocolMap,
     protocol::{Context, DemuxError, SharedProtocol},
     protocols::tcp::tcb::AdvanceTimeResult,
     session::{QueryError, SendError, SharedSession},
-    Id, Message, ProtocolMap, Session,
+    Id, Message, Session,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{

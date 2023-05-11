@@ -1,4 +1,5 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
     network::Mac,
     protocol::Context,
@@ -8,7 +9,7 @@ use elvis_core::{
         Ipv4, Udp,
     },
     session::SharedSession,
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Id, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;

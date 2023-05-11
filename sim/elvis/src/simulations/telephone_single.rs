@@ -1,7 +1,7 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
+    machine::ProtocolMapBuilder,
     network::Mac,
-    protocol::SharedProtocol,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -20,12 +20,16 @@ pub async fn telephone_single() {
 
     let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
-    let mut machines = vec![Machine::new([
-        Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect()).shared(),
-        Pci::new([network.clone()]).shared(),
-        SendMessage::new(vec![message.clone()], remote, 0xbeef).shared(),
-    ])];
+    let mut machines = vec![Machine::new(
+        ProtocolMapBuilder::new()
+            .udp(Udp::new())
+            .ipv4(Ipv4::new(
+                [(remote, Recipient::with_mac(0, 1))].into_iter().collect(),
+            ))
+            .pci(Pci::new([network.clone()]))
+            .other(SendMessage::new(vec![message.clone()], remote, 0xbeef).shared())
+            .build(),
+    )];
 
     for i in 0u32..(END - 1) {
         let local: Ipv4Address = i.to_be_bytes().into();
@@ -33,22 +37,26 @@ pub async fn telephone_single() {
         let table = [(remote, Recipient::with_mac(0, i as Mac + 2))]
             .into_iter()
             .collect();
-        machines.push(Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(table).shared(),
-            Pci::new([network.clone()]).shared(),
-            Forward::new(local, remote, 0xbeef, 0xbeef).shared(),
-        ]));
+        machines.push(Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(table))
+                .pci(Pci::new([network.clone()]))
+                .other(Forward::new(local, remote, 0xbeef, 0xbeef).shared())
+                .build(),
+        ));
     }
 
     let local = (END - 1).to_be_bytes().into();
     let capture = Capture::new(local, 0xbeef, 1).shared();
-    machines.push(Machine::new([
-        Udp::new().shared() as SharedProtocol,
-        Ipv4::new(Default::default()).shared(),
-        Pci::new([network.clone()]).shared(),
-        capture.clone(),
-    ]));
+    machines.push(Machine::new(
+        ProtocolMapBuilder::new()
+            .udp(Udp::new())
+            .ipv4(Ipv4::new(Default::default()))
+            .pci(Pci::new([network.clone()]))
+            .other(capture.clone())
+            .build(),
+    ));
 
     run_internet(machines, vec![network]).await;
     assert_eq!(capture.application().message(), Some(message));

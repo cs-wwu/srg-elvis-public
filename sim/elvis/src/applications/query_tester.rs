@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use elvis_core::{
+    machine::ProtocolMap,
     protocol::Context,
     protocols::{
         user_process::{Application, ApplicationError},
         Ipv4, Pci, Udp, UserProcess,
     },
-    Control, Id, Message, ProtocolMap, Shutdown,
+    Control, Id, Message, Shutdown,
 };
 use tokio::sync::Barrier;
 

@@ -1,30 +1,92 @@
-use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id, Shutdown};
+use crate::{
+    protocol::SharedProtocol,
+    protocols::{Ipv4, Pci, Tcp, Udp},
+    Id, Shutdown,
+};
 use rustc_hash::FxHashMap;
-use std::{collections::hash_map::Entry, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 /// A tap's PCI slot index
-pub type PciSlot = u32;
+pub(crate) type PciSlot = u32;
+
+#[derive(Default)]
+pub struct ProtocolMapBuilder {
+    pci: Option<Pci>,
+    ipv4: Option<Ipv4>,
+    udp: Option<Udp>,
+    tcp: Option<Tcp>,
+    other: FxHashMap<Id, SharedProtocol>,
+}
+
+impl ProtocolMapBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn pci(mut self, pci: Pci) -> Self {
+        self.pci = Some(pci);
+        self
+    }
+
+    pub fn ipv4(mut self, ipv4: Ipv4) -> Self {
+        self.ipv4 = Some(ipv4);
+        self
+    }
+
+    pub fn udp(mut self, udp: Udp) -> Self {
+        self.udp = Some(udp);
+        self
+    }
+
+    pub fn tcp(mut self, tcp: Tcp) -> Self {
+        self.tcp = Some(tcp);
+        self
+    }
+
+    pub fn other(mut self, other: SharedProtocol) -> Self {
+        self.other.insert(other.id(), other);
+        self
+    }
+
+    pub fn build(self) -> ProtocolMap {
+        ProtocolMap {
+            pci: self.pci.map(|pci| Arc::new(pci)),
+            ipv4: self.ipv4.map(|ipv4| Arc::new(ipv4)),
+            udp: self.udp.map(|udp| Arc::new(udp)),
+            tcp: self.tcp.map(|tcp| Arc::new(tcp)),
+            other: Arc::new(self.other),
+        }
+    }
+}
 
 /// A mapping of protocol IDs to protocols
 #[derive(Clone)]
-pub struct ProtocolMap(Arc<FxHashMap<Id, SharedProtocol>>);
+pub struct ProtocolMap {
+    pci: Option<Arc<Pci>>,
+    ipv4: Option<Arc<Ipv4>>,
+    udp: Option<Arc<Udp>>,
+    tcp: Option<Arc<Tcp>>,
+    other: Arc<FxHashMap<Id, SharedProtocol>>,
+}
 
 impl ProtocolMap {
-    pub fn new(protocols: FxHashMap<Id, SharedProtocol>) -> Self {
-        Self(Arc::new(protocols))
-    }
-
     pub fn protocol(&self, id: Id) -> Option<SharedProtocol> {
-        self.0.get(&id).cloned()
+        match id {
+            Pci::ID => self.pci.as_ref().map(|p| p.clone() as SharedProtocol),
+            Udp::ID => self.udp.as_ref().map(|p| p.clone() as SharedProtocol),
+            Tcp::ID => self.tcp.as_ref().map(|p| p.clone() as SharedProtocol),
+            Ipv4::ID => self.ipv4.as_ref().map(|p| p.clone() as SharedProtocol),
+            _ => self.other.get(&id).cloned(),
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &SharedProtocol> {
-        self.0.values()
+        self.other.values()
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.other.len() + 4
     }
 
     pub fn is_empty(&self) -> bool {
@@ -45,22 +107,8 @@ pub struct Machine {
 impl Machine {
     /// Creates a new machine containing the given `protocols`. Returns the
     /// machine and a channel which can be used to send messages to the machine.
-    pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>) -> Machine {
-        let mut protocols_map = FxHashMap::default();
-        let mut protocol_ids = Vec::new();
-        for protocol in protocols.into_iter() {
-            match protocols_map.entry(protocol.id()) {
-                Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
-                Entry::Vacant(entry) => {
-                    protocol_ids.push(protocol.id());
-                    entry.insert(protocol);
-                }
-            }
-        }
-        machine_creation_event(protocol_ids);
-        Self {
-            protocols: ProtocolMap::new(protocols_map),
-        }
+    pub fn new(protocols: ProtocolMap) -> Machine {
+        Self { protocols }
     }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its

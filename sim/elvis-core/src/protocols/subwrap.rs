@@ -2,11 +2,12 @@
 
 use crate::{
     control::{Key, Primitive},
+    machine::ProtocolMap,
     protocol::{
         Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
     },
     session::{self, SharedSession},
-    Control, Id, Message, Protocol, ProtocolMap, Session, Shutdown,
+    Control, Id, Message, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, Barrier};
@@ -211,7 +212,7 @@ fn send_on_all(senders: &[Sender], message: &Message, context: &Context) {
 #[cfg(test)]
 mod tests {
     use crate::{
-        protocol::SharedProtocol,
+        machine::ProtocolMapBuilder,
         protocols::{Ipv4, Pci, SubWrap},
         run_internet, Machine, Network,
     };
@@ -224,10 +225,12 @@ mod tests {
 
         let mut message_recv = wrapper.subscribe_demux();
 
-        let machine = Machine::new([
-            Ipv4::new([].into_iter().collect()).shared() as SharedProtocol,
-            wrapper.shared(),
-        ]);
+        let machine = Machine::new(
+            ProtocolMapBuilder::new()
+                .ipv4(Ipv4::new([].into_iter().collect()))
+                .other(wrapper.shared())
+                .build(),
+        );
 
         tokio::spawn(run_internet(vec![machine], vec![network]));
 

@@ -1,9 +1,10 @@
 use crate::{
     control::{Key, Primitive},
+    machine::ProtocolMap,
     protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Ipv4, Udp},
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Id, Message, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::{Arc, RwLock};

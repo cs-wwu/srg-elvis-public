@@ -1,4 +1,5 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
     protocol::Context,
     protocols::{
@@ -9,7 +10,7 @@ use elvis_core::{
         },
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Id, ProtocolMap, Shutdown,
+    Id, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;

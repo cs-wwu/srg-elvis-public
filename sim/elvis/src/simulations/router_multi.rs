@@ -1,6 +1,6 @@
 use crate::applications::{Capture, Router, SendMessage};
 use elvis_core::{
-    protocol::SharedProtocol,
+    machine::ProtocolMapBuilder,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
@@ -59,61 +59,75 @@ pub async fn router_multi() {
 
     let machines = vec![
         // send message
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(
-                [(DESTINATION, Recipient::with_mac(0, 1))]
-                    .into_iter()
-                    .collect(),
-            )
-            .shared(),
-            Pci::new([networks[0].clone()]).shared(),
-            SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(
+                    [(DESTINATION, Recipient::with_mac(0, 1))]
+                        .into_iter()
+                        .collect(),
+                ))
+                .pci(Pci::new([networks[0].clone()]))
+                .other(
+                    SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef)
+                        .shared(),
+                )
+                .build(),
+        ),
         // machine representing our router
-        Machine::new([
-            Pci::new([
-                networks[0].clone(),
-                networks[1].clone(),
-                networks[2].clone(),
-            ])
-            .shared() as SharedProtocol,
-            Router::new(ip_table1).shared(),
-        ]),
-        Machine::new([
-            Pci::new([
-                networks[1].clone(),
-                networks[3].clone(),
-                networks[4].clone(),
-            ])
-            .shared() as SharedProtocol,
-            Router::new(ip_table2).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .pci(Pci::new([
+                    networks[0].clone(),
+                    networks[1].clone(),
+                    networks[2].clone(),
+                ]))
+                .other(Router::new(ip_table1).shared())
+                .build(),
+        ),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .pci(Pci::new([
+                    networks[1].clone(),
+                    networks[3].clone(),
+                    networks[4].clone(),
+                ]))
+                .other(Router::new(ip_table2).shared())
+                .build(),
+        ),
         // capture for destination 1
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(dt1).shared(),
-            Pci::new([networks[3].clone()]).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(dt1))
+                .pci(Pci::new([networks[3].clone()]))
+                .build(),
+        ),
         // capture for destination 2
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(dt2).shared(),
-            Pci::new([networks[4].clone()]).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(dt2))
+                .pci(Pci::new([networks[4].clone()]))
+                .build(),
+        ),
         // capture for destination 3
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(dt3).shared(),
-            Pci::new([networks[2].clone()]).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(dt3))
+                .pci(Pci::new([networks[2].clone()]))
+                .build(),
+        ),
         // capture for destination 4
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(dt4).shared(),
-            Pci::new([networks[2].clone()]).shared(),
-            Capture::new(IP_ADDRESS_5, 0xbeef, 1).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(dt4))
+                .pci(Pci::new([networks[2].clone()]))
+                .other(Capture::new(IP_ADDRESS_5, 0xbeef, 1).shared())
+                .build(),
+        ),
     ];
 
     run_internet(machines, networks).await;
