@@ -228,18 +228,13 @@ impl Session for ArpSession {
 
 /// Used for an ArpSession's dest_mac.
 /// Indicates whether the session's MAC has been set, or is waiting to be set.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(super) enum MacStatus {
     /// Contains the MAC address.
     Set(Mac),
     /// Indicates this session is waiting for a MAC address.
+    #[default]
     Waiting,
     /// Indicates that this session failed to get a MAC address.
     FailedToGet,
-}
-
-impl Default for MacStatus {
-    fn default() -> Self {
-        MacStatus::Waiting
-    }
 }
