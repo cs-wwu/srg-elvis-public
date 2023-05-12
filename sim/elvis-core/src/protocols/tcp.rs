@@ -13,7 +13,7 @@ use crate::{
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, Shutdown,
+    Control, FxDashMap, Id, Message, Participants, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::Arc;
@@ -59,7 +59,7 @@ impl Protocol for Tcp {
     fn open(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
@@ -109,7 +109,7 @@ impl Protocol for Tcp {
     fn listen(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is

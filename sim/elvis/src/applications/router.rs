@@ -7,7 +7,7 @@ use elvis_core::{
         Ipv4, Pci,
     },
     session::SharedSession,
-    Control, Id, Shutdown,
+    Control, Id, Participants, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -55,7 +55,7 @@ impl Application for Router {
         let mut sessions = Vec::with_capacity(number_taps as usize);
 
         for i in 0..number_taps {
-            let mut participants = Control::new();
+            let mut participants = Participants::new();
             participants.slot = Some(i as u32);
             let val = pci
                 .open(Self::ID, participants.clone(), protocols.clone())

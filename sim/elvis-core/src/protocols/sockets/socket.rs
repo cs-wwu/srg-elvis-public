@@ -1,7 +1,7 @@
 use super::Sockets;
 use crate::{
     machine::ProtocolMap, message::Chunk, protocol::DemuxError, protocols::ipv4::Ipv4Address,
-    session::SharedSession, Control, Id, Message, Shutdown,
+    session::SharedSession, Control, Id, Message, Participants, Shutdown,
 };
 use std::{
     collections::VecDeque,
@@ -127,7 +127,7 @@ impl Socket {
         *self.remote_addr.write().unwrap() = Some(sock_addr);
         // Gather the necessary data to open a session and pass it on to the
         // Sockets API to retreive a socket_session
-        let mut participants = Control::new();
+        let mut participants = Participants::new();
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
             match local_addr.address {
                 IpAddress::IPv4(addr) => {
@@ -208,7 +208,7 @@ impl Socket {
         {
             return Err(SocketError::AcceptError);
         }
-        let mut participants = Control::new();
+        let mut participants = Participants::new();
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
             match local_addr.address {
                 IpAddress::IPv4(addr) => {

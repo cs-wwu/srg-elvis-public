@@ -11,7 +11,7 @@ use crate::{
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, FxDashMap, Protocol, Shutdown,
+    Control, FxDashMap, Participants, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
@@ -77,7 +77,7 @@ impl Protocol for Ipv4 {
     fn open(
         &self,
         upstream: Id,
-        mut participants: Control,
+        mut participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let key = SessionId::new(
@@ -126,7 +126,7 @@ impl Protocol for Ipv4 {
     fn listen(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         let local = participants.local.address.ok_or_else(|| {

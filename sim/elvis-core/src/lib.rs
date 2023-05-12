@@ -40,9 +40,10 @@ mod logging;
 pub mod protocols;
 
 pub mod control;
-use std::hash::BuildHasherDefault;
-
 pub use control::Control;
+
+mod participants;
+pub use participants::Participants;
 
 pub mod message;
 use dashmap::DashMap;
@@ -69,4 +70,5 @@ pub use id::Id;
 mod shutdown;
 pub use shutdown::Shutdown;
 
+use std::hash::BuildHasherDefault;
 type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<rustc_hash::FxHasher>>;

@@ -9,7 +9,7 @@ use crate::{
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, FxDashMap, Protocol, Shutdown,
+    Control, FxDashMap, Participants, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::Arc;
@@ -54,7 +54,7 @@ impl Protocol for Udp {
     fn open(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         // Identify the session based on the participants. If any of the
@@ -109,7 +109,7 @@ impl Protocol for Udp {
     fn listen(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         // Add the listen binding. If any of the identifying information is

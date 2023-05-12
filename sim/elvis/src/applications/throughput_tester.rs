@@ -6,7 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Udp,
     },
-    Control, Id, Shutdown,
+    Control, Id, Participants, Shutdown,
 };
 use std::{
     ops::Range,
@@ -66,7 +66,7 @@ impl Application for ThroughputTester {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-        let mut participants = Control::new();
+        let mut participants = Participants::new();
         participants.local.address = Some(self.ip_address);
         participants.local.port = Some(self.port);
         protocols

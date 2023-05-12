@@ -8,7 +8,7 @@ use elvis_core::{
         Udp,
     },
     session::SharedSession,
-    Control, Id, Shutdown,
+    Control, Id, Participants, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -86,7 +86,7 @@ impl Application for PingPong {
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
 
-        let mut participants = Control::new();
+        let mut participants = Participants::new();
         participants.local.address = Some(self.local_ip_address);
         participants.local.port = Some(self.local_port);
         participants.remote.address = Some(self.remote_ip_address);

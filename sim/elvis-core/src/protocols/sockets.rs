@@ -4,7 +4,7 @@ use crate::{
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Udp},
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, Shutdown,
+    Control, FxDashMap, Id, Message, Participants, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::sync::{Arc, RwLock};
@@ -156,7 +156,7 @@ impl Protocol for Sockets {
     fn open(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let identifier = SocketId::new(
@@ -204,7 +204,7 @@ impl Protocol for Sockets {
     fn listen(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         let identifier = SocketAddress::new_v4(

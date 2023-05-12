@@ -7,7 +7,7 @@ use crate::{
     machine::ProtocolMap,
     protocols::user_process::ApplicationError,
     session::SendError,
-    Shutdown,
+    Participants, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -60,7 +60,7 @@ pub trait Protocol {
     fn open(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError>;
 
@@ -82,7 +82,7 @@ pub trait Protocol {
     fn listen(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError>;
 

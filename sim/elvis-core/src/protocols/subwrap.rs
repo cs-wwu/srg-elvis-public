@@ -5,7 +5,7 @@ use crate::{
     machine::ProtocolMap,
     protocol::{DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError},
     session::{self, SharedSession},
-    Control, Id, Message, Protocol, Session, Shutdown,
+    Control, Id, Message, Participants, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, Barrier};
@@ -139,7 +139,7 @@ impl Protocol for SubWrap {
     fn open(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let sesh = self.inner.open(upstream, participants, protocols)?;
@@ -154,7 +154,7 @@ impl Protocol for SubWrap {
     fn listen(
         &self,
         upstream: Id,
-        participants: Control,
+        participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         self.inner.listen(upstream, participants, protocols)

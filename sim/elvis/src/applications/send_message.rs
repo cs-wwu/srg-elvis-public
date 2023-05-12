@@ -5,7 +5,7 @@ use elvis_core::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Control, Id, Shutdown,
+    Control, Id, Participants, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -56,7 +56,7 @@ impl Application for SendMessage {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let mut participants = Control::new();
+        let mut participants = Participants::new();
         participants.local.address = Some(Ipv4Address::LOCALHOST);
         participants.remote.address = Some(self.remote_ip);
         participants.local.port = Some(0);

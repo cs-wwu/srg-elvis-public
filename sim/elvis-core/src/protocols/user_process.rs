@@ -8,7 +8,7 @@ use crate::{
     message::Message,
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     session::{SendError, SharedSession},
-    Control, Protocol, Shutdown,
+    Control, Participants, Protocol, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -94,7 +94,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     fn open(
         &self,
         _upstream: Id,
-        _participants: Control,
+        _participants: Participants,
         _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         panic!("Cannot active open on a user process")
@@ -103,7 +103,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     fn listen(
         &self,
         _upstream: Id,
-        _participants: Control,
+        _participants: Participants,
         _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         panic!("Cannot listen on a user process")

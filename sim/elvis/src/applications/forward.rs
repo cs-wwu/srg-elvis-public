@@ -7,7 +7,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
     },
     session::SharedSession,
-    Control, Id, Shutdown,
+    Control, Id, Participants, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -57,7 +57,7 @@ impl Application for Forward {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let mut participants = Control::new();
+        let mut participants = Participants::new();
         participants.local.port = Some(self.local_port);
         participants.local.address = Some(self.local_ip);
         participants.remote.port = Some(self.remote_port);

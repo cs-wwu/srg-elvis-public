@@ -7,7 +7,7 @@ use crate::{
     message::Message,
     protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     session::SharedSession,
-    Control, Network, Protocol, Shutdown,
+    Control, Network, Participants, Protocol, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -62,7 +62,7 @@ impl Protocol for Pci {
     fn open(
         &self,
         _upstream: Id,
-        participants: Control,
+        participants: Participants,
         _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
         let pci_slot = participants.slot.ok_or_else(|| {
@@ -83,7 +83,7 @@ impl Protocol for Pci {
     fn listen(
         &self,
         _upstream: Id,
-        _participants: Control,
+        _participants: Participants,
         _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         Ok(())

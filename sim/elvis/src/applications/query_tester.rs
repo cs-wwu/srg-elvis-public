@@ -6,7 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError},
         Pci, Udp, UserProcess,
     },
-    Control, Id, Message, Shutdown,
+    Control, Id, Message, Participants, Shutdown,
 };
 use tokio::sync::Barrier;
 
@@ -41,7 +41,7 @@ impl Application for QueryTester {
             .unwrap();
         assert_eq!(slot_count, 2);
 
-        let mut participants = Control::new();
+        let mut participants = Participants::new();
         participants.local.port = Some(0);
         participants.local.address = Some(0.into());
         participants.remote.port = Some(0);
