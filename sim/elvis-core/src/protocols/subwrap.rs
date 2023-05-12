@@ -3,17 +3,15 @@
 use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
-    protocol::{
-        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
-    },
+    protocol::{DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError},
     session::{self, SharedSession},
     Control, Id, Message, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, Barrier};
 
-type Sender = mpsc::UnboundedSender<(Message, Context)>;
-type Receiver = mpsc::UnboundedReceiver<(Message, Context)>;
+type Sender = mpsc::UnboundedSender<(Message, Control, ProtocolMap)>;
+type Receiver = mpsc::UnboundedReceiver<(Message, Control, ProtocolMap)>;
 
 /// "SubWrap" is short for "Subscribeable wrapper." A special Protocol that can be used to listen to messages received by another protocol.
 ///
@@ -167,10 +165,11 @@ impl Protocol for SubWrap {
         &self,
         message: Message,
         caller: SharedSession,
-        context: Context,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        send_on_all(&self.demux_senders, &message, &context);
-        self.inner.demux(message, caller, context)
+        send_on_all(&self.demux_senders, &message, &control, &protocols);
+        self.inner.demux(message, caller, control, protocols)
     }
 
     /// Calls [`query`](Protocol::query) on the inner protocol and returns the result.
@@ -189,10 +188,15 @@ pub struct SubWrapSession {
 impl Session for SubWrapSession {
     /// Sends the message to all receivers created by [`subscribe_send`](SubWrap::subscribe_send),
     /// then calls [`send`](Session::send) on the inner session.
-    fn send(&self, message: Message, context: Context) -> Result<(), session::SendError> {
+    fn send(
+        &self,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), session::SendError> {
         let send_senders = self.send_senders.read().unwrap();
-        send_on_all(send_senders.as_slice(), &message, &context);
-        self.inner.send(message, context)
+        send_on_all(send_senders.as_slice(), &message, &control, &protocols);
+        self.inner.send(message, control, protocols)
     }
 
     /// Calls [`query`](Session::query) on the inner Session, then returns the result.
@@ -201,10 +205,10 @@ impl Session for SubWrapSession {
     }
 }
 
-fn send_on_all(senders: &[Sender], message: &Message, context: &Context) {
+fn send_on_all(senders: &[Sender], message: &Message, control: &Control, protocols: &ProtocolMap) {
     for sender in senders {
         if !sender.is_closed() {
-            let _ = sender.send((message.clone(), context.clone()));
+            let _ = sender.send((message.clone(), control.clone(), protocols.clone()));
         }
     }
 }

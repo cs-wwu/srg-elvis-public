@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use elvis_core::{
     machine::ProtocolMap,
-    protocol::Context,
     protocols::{
         user_process::{Application, ApplicationError},
         Pci, Udp, UserProcess,
@@ -65,7 +64,12 @@ impl Application for QueryTester {
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         unreachable!()
     }
 }

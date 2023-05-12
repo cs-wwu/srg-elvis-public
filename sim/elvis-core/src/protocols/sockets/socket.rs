@@ -1,11 +1,7 @@
 use super::Sockets;
 use crate::{
-    machine::ProtocolMap,
-    message::Chunk,
-    protocol::{Context, DemuxError},
-    protocols::ipv4::Ipv4Address,
-    session::SharedSession,
-    Control, Id, Message, Shutdown,
+    machine::ProtocolMap, message::Chunk, protocol::DemuxError, protocols::ipv4::Ipv4Address,
+    session::SharedSession, Control, Id, Message, Shutdown,
 };
 use std::{
     collections::VecDeque,
@@ -290,15 +286,15 @@ impl Socket {
         if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {
             return Err(SocketError::SendError);
         }
-        let context = Context::new(self.protocols.clone());
         let session = self.session.clone();
+        let protocols = self.protocols.clone();
         tokio::spawn(async move {
             session
                 .read()
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .send(Message::new(message), context)
+                .send(Message::new(message), Control::new(), protocols)
                 .unwrap();
         });
         Ok(())

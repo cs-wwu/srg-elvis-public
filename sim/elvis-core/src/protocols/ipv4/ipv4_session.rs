@@ -2,10 +2,11 @@ use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address, Recipient};
 use crate::{
     control::{Key, Primitive},
     id::Id,
+    machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError},
+    protocol::DemuxError,
     session::{QueryError, SendError, SharedSession},
-    Session,
+    Control, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -37,18 +38,28 @@ impl Ipv4Session {
         }
     }
 
-    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
-        context
+    pub fn receive(
+        self: Arc<Self>,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), DemuxError> {
+        protocols
             .protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, context)?;
+            .demux(message, self, control, protocols)?;
         Ok(())
     }
 }
 
 impl Session for Ipv4Session {
-    #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
-    fn send(&self, mut message: Message, mut context: Context) -> Result<(), SendError> {
+    #[tracing::instrument(name = "Ipv4Session::send", skip_all)]
+    fn send(
+        &self,
+        mut message: Message,
+        mut control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
         let length = message.iter().count();
         let header = match Ipv4HeaderBuilder::new(
             self.id.local,
@@ -64,11 +75,11 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        context.control.slot = Some(self.destination.slot);
-        context.control.first_responder = Some(Ipv4::ID);
-        context.control.remote.mac = self.destination.mac;
+        control.slot = Some(self.destination.slot);
+        control.first_responder = Some(Ipv4::ID);
+        control.remote.mac = self.destination.mac;
         message.header(header);
-        self.downstream.send(message, context)?;
+        self.downstream.send(message, control, protocols)?;
         Ok(())
     }
 

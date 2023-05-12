@@ -12,9 +12,6 @@ use crate::{
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
-mod context;
-pub use context::Context;
-
 // TODO(hardint): Should add a str argument to the Other variant of errors so
 // that the reason for an error shows up in traces and such.
 
@@ -111,7 +108,8 @@ pub trait Protocol {
         &self,
         message: Message,
         caller: SharedSession,
-        context: Context,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError>;
 
     /// Gets a piece of information from the protocol

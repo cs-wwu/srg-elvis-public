@@ -1,7 +1,7 @@
 use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Udp},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, Shutdown,
@@ -231,22 +231,23 @@ impl Protocol for Sockets {
         &self,
         message: Message,
         caller: SharedSession,
-        context: Context,
+        control: Control,
+        _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         let identifier = SocketId::new(
-            IpAddress::IPv4(context.control.remote.address.ok_or_else(|| {
+            IpAddress::IPv4(control.remote.address.ok_or_else(|| {
                 tracing::error!("Missing local address on context");
                 DemuxError::MissingContext
             })?),
-            context.control.local.port.ok_or_else(|| {
+            control.local.port.ok_or_else(|| {
                 tracing::error!("Missing local port on context");
                 DemuxError::MissingContext
             })?,
-            IpAddress::IPv4(context.control.remote.address.ok_or_else(|| {
+            IpAddress::IPv4(control.remote.address.ok_or_else(|| {
                 tracing::error!("Missing remote address on context");
                 DemuxError::MissingContext
             })?),
-            context.control.remote.port.ok_or_else(|| {
+            control.remote.port.ok_or_else(|| {
                 tracing::error!("Missing remote port on context");
                 DemuxError::MissingContext
             })?,

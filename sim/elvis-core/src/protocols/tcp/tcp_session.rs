@@ -2,10 +2,10 @@ use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
-    protocol::{Context, DemuxError, SharedProtocol},
+    protocol::{DemuxError, SharedProtocol},
     protocols::tcp::tcb::AdvanceTimeResult,
     session::{QueryError, SendError, SharedSession},
-    Id, Message, Session,
+    Control, Id, Message, Session,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -43,7 +43,6 @@ impl TcpSession {
             downstream: downstream.clone(),
         });
         let out = me.clone();
-        let context = Context::new(protocols);
         tokio::spawn(async move {
             'outer: loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
@@ -96,7 +95,7 @@ impl TcpSession {
 
                 for mut segment in tcb.segments() {
                     segment.text.header(segment.header.serialize());
-                    match downstream.send(segment.text, context.clone()) {
+                    match downstream.send(segment.text, Control::new(), protocols.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Send error: {}", e),
                     }
@@ -104,7 +103,7 @@ impl TcpSession {
 
                 let received = tcb.receive();
                 if !received.is_empty() {
-                    match upstream.demux(received, me.clone(), context.clone()) {
+                    match upstream.demux(received, me.clone(), Control::new(), protocols.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Demux error: {}", e),
                     }
@@ -115,7 +114,7 @@ impl TcpSession {
     }
 
     /// Receive an incoming message from the TCP as part of the demux flow
-    pub fn receive(&self, segment: Segment, _context: Context) {
+    pub fn receive(&self, segment: Segment) {
         let send = self.send.clone();
         tokio::spawn(async move {
             match send.send(Instruction::Incoming(segment)).await {
@@ -145,7 +144,12 @@ enum InstructionResult {
 }
 
 impl Session for TcpSession {
-    fn send(&self, message: Message, _context: Context) -> Result<(), SendError> {
+    fn send(
+        &self,
+        message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
         let send = self.send.clone();
         tokio::spawn(async move {
             match send.send(Instruction::Outgoing(message)).await {

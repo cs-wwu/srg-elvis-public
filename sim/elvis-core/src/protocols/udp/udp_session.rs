@@ -3,11 +3,12 @@ use crate::{
     control::{Key, Primitive},
     id::Id,
     logging::{receive_message_event, send_message_event},
+    machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError},
+    protocol::DemuxError,
     protocols::utility::Socket,
     session::{QueryError, SendError, SharedSession},
-    Session,
+    Control, Session,
 };
 use std::{fmt::Debug, sync::Arc};
 
@@ -18,7 +19,12 @@ pub(super) struct UdpSession {
 }
 
 impl UdpSession {
-    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
+    pub fn receive(
+        self: Arc<Self>,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), DemuxError> {
         receive_message_event(
             self.id.local.address,
             self.id.remote.address,
@@ -26,17 +32,22 @@ impl UdpSession {
             self.id.remote.port,
             message.clone(),
         );
-        context
+        protocols
             .protocol(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, context)?;
+            .demux(message, self, control, protocols)?;
         Ok(())
     }
 }
 
 impl Session for UdpSession {
-    #[tracing::instrument(name = "UdpSession::send", skip(message, context))]
-    fn send(&self, mut message: Message, context: Context) -> Result<(), SendError> {
+    #[tracing::instrument(name = "UdpSession::send", skip_all)]
+    fn send(
+        &self,
+        mut message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
         let id = self.id;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
@@ -62,7 +73,7 @@ impl Session for UdpSession {
             message.clone(),
         );
         message.header(header);
-        self.downstream.send(message, context)?;
+        self.downstream.send(message, control, protocols)?;
         Ok(())
     }
 

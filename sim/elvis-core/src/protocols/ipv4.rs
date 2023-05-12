@@ -8,7 +8,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
     Control, FxDashMap, Protocol, Shutdown,
@@ -157,7 +157,8 @@ impl Protocol for Ipv4 {
         &self,
         mut message: Message,
         caller: SharedSession,
-        mut context: Context,
+        mut control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         // Extract identifying information from the header and the context and
         // add header information to the context
@@ -171,8 +172,8 @@ impl Protocol for Ipv4 {
         message.remove_front(header.ihl as usize * 4);
         let identifier = SessionId::new(header.destination, header.source);
 
-        context.control.local.address = Some(identifier.local);
-        context.control.remote.address = Some(identifier.remote);
+        control.local.address = Some(identifier.local);
+        control.remote.address = Some(identifier.remote);
 
         let session = match self.sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
@@ -198,11 +199,11 @@ impl Protocol for Ipv4 {
                         }
                     }
                 };
-                let slot = context.control.slot.ok_or_else(|| {
+                let slot = control.slot.ok_or_else(|| {
                     tracing::error!("Missing network ID on context");
                     DemuxError::MissingContext
                 })?;
-                let mac = context.control.remote.mac.ok_or_else(|| {
+                let mac = control.remote.mac.ok_or_else(|| {
                     tracing::error!("Missing sender MAC on context");
                     DemuxError::MissingContext
                 })?;
@@ -212,7 +213,7 @@ impl Protocol for Ipv4 {
                 session
             }
         };
-        session.receive(message, context)?;
+        session.receive(message, control, protocols)?;
         Ok(())
     }
 

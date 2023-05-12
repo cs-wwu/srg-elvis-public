@@ -10,7 +10,7 @@ use super::{utility::Socket, Ipv4, Pci};
 use crate::{
     control::{Key, Primitive},
     machine::ProtocolMap,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, Shutdown,
@@ -131,11 +131,12 @@ impl Protocol for Tcp {
         &self,
         mut message: Message,
         caller: SharedSession,
-        mut context: Context,
+        mut control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         // Extract information from the context
-        let local_address = context.control.local.address.unwrap();
-        let remote_address = context.control.remote.address.unwrap();
+        let local_address = control.local.address.unwrap();
+        let remote_address = control.remote.address.unwrap();
 
         // Parse the header
         let header =
@@ -157,13 +158,13 @@ impl Protocol for Tcp {
         let connection_id = ConnectionId { local, remote };
 
         // Add the header information to the context
-        context.control.local.port = Some(local.port);
-        context.control.remote.port = Some(remote.port);
+        control.local.port = Some(local.port);
+        control.remote.port = Some(remote.port);
 
         let segment = Segment::new(header, message);
         match self.sessions.entry(connection_id) {
             Entry::Occupied(entry) => {
-                entry.get().receive(segment, context);
+                entry.get().receive(segment);
             }
 
             Entry::Vacant(session_entry) => {
@@ -189,17 +190,21 @@ impl Protocol for Tcp {
                         if let Some(listen_result) = listen_result {
                             match listen_result {
                                 ListenResult::Response(response) => {
-                                    caller.send(Message::new(response.serialize()), context)?;
+                                    caller.send(
+                                        Message::new(response.serialize()),
+                                        control,
+                                        protocols,
+                                    )?;
                                 }
                                 ListenResult::Tcb(tcb) => {
                                     let upstream = *listen_entry.get();
                                     let session = TcpSession::new(
                                         tcb,
-                                        context
+                                        protocols
                                             .protocol(upstream)
                                             .ok_or(OpenError::MissingProtocol(upstream))?,
                                         caller,
-                                        context.protocols,
+                                        protocols.clone(),
                                     );
                                     session_entry.insert(session);
                                 }
@@ -214,7 +219,7 @@ impl Protocol for Tcp {
                             local.address,
                             remote.address,
                         ) {
-                            caller.send(Message::new(response.serialize()), context)?;
+                            caller.send(Message::new(response.serialize()), control, protocols)?;
                         }
                         Err(DemuxError::MissingSession)?
                     }

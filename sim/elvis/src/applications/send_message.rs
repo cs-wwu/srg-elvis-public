@@ -1,7 +1,6 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
@@ -66,20 +65,24 @@ impl Application for SendMessage {
             .protocol(self.transport.id())
             .expect("No such protocol");
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
-        let context = Context::new(protocols);
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         tokio::spawn(async move {
             initialized.wait().await;
             for message in messages {
                 session
-                    .send(message, context.clone())
+                    .send(message, Control::new(), protocols.clone())
                     .expect("SendMessage failed to send");
             }
         });
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

@@ -1,7 +1,6 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         sockets::{
@@ -10,7 +9,7 @@ use elvis_core::{
         },
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Id, Shutdown,
+    Control, Id, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -118,7 +117,12 @@ impl Application for SocketServer {
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

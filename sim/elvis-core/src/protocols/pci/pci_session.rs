@@ -4,9 +4,9 @@ use crate::{
     machine::{PciSlot, ProtocolMap},
     message::Message,
     network::{Delivery, Mac},
-    protocol::{Context, DemuxError},
+    protocol::DemuxError,
     session::{QueryError, SendError},
-    Id, Network, Session,
+    Control, Id, Network, Session,
 };
 use std::sync::{Arc, RwLock};
 
@@ -45,10 +45,11 @@ impl PciSession {
     /// specialized arguments to pass a full network frame to this session is
     /// useful.
     pub(crate) fn receive(self: &Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
-        let mut context = Context::new(self.protocols.read().unwrap().as_ref().unwrap().clone());
-        context.control.slot = Some(self.index);
-        context.control.remote.mac = Some(delivery.sender);
-        let protocol = match context.protocol(delivery.protocol) {
+        let mut control = Control::new();
+        let protocols = self.protocols.read().unwrap().as_ref().unwrap().clone();
+        control.slot = Some(self.index);
+        control.remote.mac = Some(delivery.sender);
+        let protocol = match protocols.protocol(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
                 tracing::error!(
@@ -58,22 +59,27 @@ impl PciSession {
                 Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
-        protocol.demux(delivery.message, self.clone(), context)?;
+        protocol.demux(delivery.message, self.clone(), control, protocols)?;
         Ok(())
     }
 }
 
 impl Session for PciSession {
     #[tracing::instrument(name = "PciSession::send", skip_all)]
-    fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
-        let protocol = match context.control.first_responder {
+    fn send(
+        &self,
+        message: Message,
+        control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
+        let protocol = match control.first_responder {
             Some(protocol) => protocol,
             None => {
                 tracing::error!("Protocol missing from context");
                 Err(SendError::MissingContext)?
             }
         };
-        let destination = context.control.remote.mac;
+        let destination = control.remote.mac;
 
         if message.len() > self.network.mtu as usize {
             tracing::error!("Attempted to send a message larger than the network can handle");

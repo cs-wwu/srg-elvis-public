@@ -2,7 +2,6 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
@@ -97,21 +96,25 @@ impl Application for PingPong {
         let session = protocol.open(Self::ID, participants, protocols.clone())?;
         *self.session.write().unwrap() = Some(session.clone());
 
-        let context = Context::new(protocols);
         let is_initiator = self.is_initiator;
         tokio::spawn(async move {
             initialized.wait().await;
             if is_initiator {
                 session
                     //Send the first "Ping" message with TTL of 255
-                    .send(Message::new(vec![255]), context)
+                    .send(Message::new(vec![255]), Control::new(), protocols)
                     .unwrap();
             }
         });
         Ok(())
     }
 
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
@@ -128,12 +131,11 @@ impl Application for PingPong {
                 shutdown.shut_down();
             }
         } else {
-            self.session
-                .read()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .send(Message::new(vec![ttl]), context)?;
+            self.session.read().unwrap().as_ref().unwrap().send(
+                Message::new(vec![ttl]),
+                control,
+                protocols,
+            )?;
         }
         Ok(())
     }

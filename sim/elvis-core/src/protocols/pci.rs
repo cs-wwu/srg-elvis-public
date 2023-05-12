@@ -5,7 +5,7 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
     session::SharedSession,
     Control, Network, Protocol, Shutdown,
 };
@@ -93,7 +93,8 @@ impl Protocol for Pci {
         &self,
         _message: Message,
         _caller: SharedSession,
-        _context: Context,
+        _control: Control,
+        _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         panic!("Cannot demux on a Pci")
     }

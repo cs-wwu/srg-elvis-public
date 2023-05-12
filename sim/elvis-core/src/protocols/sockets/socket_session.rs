@@ -1,9 +1,10 @@
 use super::socket::Socket;
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError},
+    machine::ProtocolMap,
+    protocol::DemuxError,
     session::{QueryError, SendError, SharedSession},
-    Message, Session,
+    Control, Message, Session,
 };
 use std::sync::{Arc, RwLock};
 
@@ -33,8 +34,13 @@ impl SocketSession {
 }
 
 impl Session for SocketSession {
-    fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
-        self.downstream.send(message, context)
+    fn send(
+        &self,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), SendError> {
+        self.downstream.send(message, control, protocols)
     }
 
     fn query(&self, key: Key) -> Result<Primitive, QueryError> {
