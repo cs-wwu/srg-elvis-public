@@ -1,11 +1,9 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
+    protocol::{DemuxError, StartError},
     protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
-    protocols::{
-        user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Pci,
-    },
+    protocols::{user_process::ApplicationError, Ipv4, Pci},
     session::SharedSession,
     Control, Participants, Protocol, Shutdown,
 };
@@ -27,13 +25,9 @@ impl Router {
             recipients,
         }
     }
-
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
 }
 
-impl Application for Router {
+impl Protocol for Router {
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
     fn start(
@@ -41,7 +35,7 @@ impl Application for Router {
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         // get the pci protocol
         let pci = protocols.protocol::<Pci>().expect("No such protocol");
 
@@ -54,11 +48,7 @@ impl Application for Router {
             let mut participants = Participants::new();
             participants.slot = Some(i as u32);
             let val = pci
-                .open(
-                    TypeId::of::<UserProcess<Self>>(),
-                    participants.clone(),
-                    protocols.clone(),
-                )
+                .open(self.id(), participants.clone(), protocols.clone())
                 .expect("could not open session");
             sessions.push(val);
         }
@@ -76,12 +66,13 @@ impl Application for Router {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(
+    fn demux(
         &self,
         message: Message,
+        _caller: SharedSession,
         mut control: Control,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         // obtain destination address of the message
         // cant use this as we dont have an ipv4 protocol in the router
         // should probably extract it from the message object somehow
@@ -107,5 +98,28 @@ impl Application for Router {
             .send(message, control, protocols)?;
 
         Ok(())
+    }
+
+    fn id(&self) -> TypeId {
+        TypeId::of::<Ipv4>()
+    }
+
+    fn open(
+        &self,
+        _upstream: TypeId,
+        _participants: Participants,
+        _protocols: ProtocolMap,
+    ) -> Result<SharedSession, elvis_core::protocol::OpenError> {
+        panic!("Cannot open on a router")
+    }
+
+    fn listen(
+        &self,
+        // TODO(hardint): Should this just be Arc<Protocol>?
+        _upstream: TypeId,
+        _participants: Participants,
+        _protocols: ProtocolMap,
+    ) -> Result<(), elvis_core::protocol::ListenError> {
+        panic!("Cannot listen on a router")
     }
 }

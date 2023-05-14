@@ -82,7 +82,7 @@ pub async fn router_multi() {
                     networks[1].clone(),
                     networks[2].clone(),
                 ]))
-                .with(Router::new(ip_table1).process())
+                .with(Router::new(ip_table1))
                 .build(),
         ),
         Machine::new(
@@ -92,7 +92,7 @@ pub async fn router_multi() {
                     networks[3].clone(),
                     networks[4].clone(),
                 ]))
-                .with(Router::new(ip_table2).process())
+                .with(Router::new(ip_table2))
                 .build(),
         ),
         // capture for destination 1

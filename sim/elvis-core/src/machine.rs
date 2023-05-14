@@ -22,14 +22,14 @@ impl ProtocolMapBuilder {
         Self::default()
     }
 
-    pub fn with<T>(mut self, other: T) -> Self
+    pub fn with<T>(mut self, protocol: T) -> Self
     where
         T: Protocol + Send + Sync + 'static,
     {
-        let other = Arc::new(other);
+        let protocol = Arc::new(protocol);
         self.inner.insert(
-            TypeId::of::<T>(),
-            (other.clone() as ArcAny, other as SharedProtocol),
+            protocol.id(),
+            (protocol.clone() as ArcAny, protocol as SharedProtocol),
         );
         self
     }

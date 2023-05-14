@@ -64,7 +64,7 @@ pub async fn router_single() {
                     networks[2].clone(),
                     networks[3].clone(),
                 ]))
-                .with(Router::new(ip_table).process())
+                .with(Router::new(ip_table))
                 .build(),
         ),
         // capture for destination 1
