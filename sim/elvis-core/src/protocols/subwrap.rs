@@ -31,22 +31,21 @@ type Receiver = mpsc::UnboundedReceiver<(Message, Control, ProtocolMap)>;
 /// #    protocol::SharedProtocol,
 /// #    protocols::{Ipv4, Pci, SubWrap},
 /// #    run_internet, Machine, Network,
+/// #    machine::ProtocolMapBuilder,
 /// # };
 ///
 /// #[tokio::main]
 /// async fn main() {
 ///     let network = Network::basic();
-///
 ///     let mut wrapper = SubWrap::new(Pci::new([network.clone()]));
-///
 ///     let mut message_recv = wrapper.subscribe_demux();
-///
-///     let machine = Machine::new([
-///         Ipv4::new([].into_iter().collect()).shared() as SharedProtocol,
-///         wrapper.shared(),
-///     ]);
-///
-///     tokio::spawn(run_internet(vec![machine], vec![network]));
+///     let machine = Machine::new(
+///         ProtocolMapBuilder::new()
+///             .with(Ipv4::new([].into_iter().collect()))
+///             .with(wrapper)
+///             .build()
+///     );
+///     tokio::spawn(async move { run_internet(&[machine]).await });
 ///
 ///     // Receive messages from demux:
 ///     tokio::spawn(async move { message_recv.recv().await });
