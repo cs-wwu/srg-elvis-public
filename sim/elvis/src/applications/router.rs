@@ -55,7 +55,7 @@ impl Application for Router {
             participants.slot = Some(i as u32);
             let val = pci
                 .open(
-                    TypeId::of::<Self>(),
+                    TypeId::of::<UserProcess<Self>>(),
                     participants.clone(),
                     protocols.clone(),
                 )

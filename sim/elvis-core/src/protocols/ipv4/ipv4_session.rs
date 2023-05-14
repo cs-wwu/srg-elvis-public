@@ -78,7 +78,7 @@ impl Session for Ipv4Session {
             }
         };
         control.slot = Some(self.destination.slot);
-        control.first_responder = Some(TypeId::of::<Self>());
+        control.first_responder = Some(TypeId::of::<Ipv4>());
         control.remote.mac = self.destination.mac;
         message.header(header);
         self.downstream.send(message, control, protocols)?;

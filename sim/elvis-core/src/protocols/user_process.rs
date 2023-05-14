@@ -85,7 +85,7 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     fn id(&self) -> TypeId {
-        TypeId::of::<A>()
+        TypeId::of::<Self>()
     }
 
     fn open(

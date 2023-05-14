@@ -71,7 +71,7 @@ impl Application for ThroughputTester {
         protocols
             .protocol::<Udp>()
             .expect("No such protocol")
-            .listen(TypeId::of::<Self>(), participants, protocols)?;
+            .listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });

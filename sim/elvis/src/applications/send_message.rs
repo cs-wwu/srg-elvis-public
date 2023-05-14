@@ -63,7 +63,11 @@ impl Application for SendMessage {
         let protocol = protocols
             .get(self.transport.into())
             .expect("No such protocol");
-        let session = protocol.open(TypeId::of::<Self>(), participants, protocols.clone())?;
+        let session = protocol.open(
+            TypeId::of::<UserProcess<Self>>(),
+            participants,
+            protocols.clone(),
+        )?;
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         tokio::spawn(async move {
             initialized.wait().await;

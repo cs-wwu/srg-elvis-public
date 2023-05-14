@@ -45,7 +45,7 @@ impl Application for QueryTester {
         let mtu = protocols
             .protocol::<Udp>()
             .expect("Missing UDP protocol")
-            .open(TypeId::of::<Self>(), participants, protocols)
+            .open(TypeId::of::<UserProcess<Self>>(), participants, protocols)
             .unwrap()
             .info(TypeId::of::<Pci>())
             .expect("Missing PCI info")

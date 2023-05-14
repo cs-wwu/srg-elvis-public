@@ -94,7 +94,11 @@ impl Application for PingPong {
         participants.remote.port = Some(self.remote_port);
 
         let protocol = protocols.protocol::<Udp>().expect("No such protocol");
-        let session = protocol.open(TypeId::of::<Self>(), participants, protocols.clone())?;
+        let session = protocol.open(
+            TypeId::of::<UserProcess<Self>>(),
+            participants,
+            protocols.clone(),
+        )?;
         *self.session.write().unwrap() = Some(session.clone());
 
         let is_initiator = self.is_initiator;

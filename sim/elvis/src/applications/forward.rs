@@ -66,12 +66,12 @@ impl Application for Forward {
 
         let udp = protocols.protocol::<Udp>().expect("No such protocol");
         *self.outgoing.write().unwrap() = Some(udp.open(
-            TypeId::of::<Self>(),
+            TypeId::of::<UserProcess<Self>>(),
             // TODO(hardint): Can these clones be cheaper?
             participants.clone(),
             protocols.clone(),
         )?);
-        udp.listen(TypeId::of::<Self>(), participants, protocols)?;
+        udp.listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });

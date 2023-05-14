@@ -78,7 +78,7 @@ impl Application for Capture {
         protocols
             .get(self.transport.into())
             .expect("No such protocol")
-            .listen(TypeId::of::<Self>(), participants, protocols)?;
+            .listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });
