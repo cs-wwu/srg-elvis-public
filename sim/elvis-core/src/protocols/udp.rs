@@ -62,7 +62,7 @@ impl Protocol for Udp {
                     tracing::error!("Missing local address on context");
                     OpenError::MissingContext
                 })?,
-                participants.remote.port.ok_or_else(|| {
+                participants.local.port.ok_or_else(|| {
                     tracing::error!("Missing local port on context");
                     OpenError::MissingContext
                 })?,
