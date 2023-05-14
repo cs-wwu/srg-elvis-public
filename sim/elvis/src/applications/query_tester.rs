@@ -1,12 +1,13 @@
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 
 use elvis_core::{
     machine::ProtocolMap,
     protocols::{
+        pci::pci_session::SessionInfo,
         user_process::{Application, ApplicationError},
         Pci, Udp, UserProcess,
     },
-    Control, Id, Message, Participants, Shutdown,
+    Control, Message, Participants, Protocol, Shutdown,
 };
 use tokio::sync::Barrier;
 
@@ -18,14 +19,12 @@ impl QueryTester {
         Default::default()
     }
 
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
 impl Application for QueryTester {
-    const ID: Id = Id::from_string("Query tester");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -33,12 +32,9 @@ impl Application for QueryTester {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let slot_count = protocols
-            .protocol(Pci::ID)
+            .protocol::<Pci>()
             .expect("Missing PCI protocol")
-            .query(Pci::SLOT_COUNT_QUERY_KEY)
-            .unwrap()
-            .ok_u64()
-            .unwrap();
+            .slot_count();
         assert_eq!(slot_count, 2);
 
         let mut participants = Participants::new();
@@ -47,14 +43,15 @@ impl Application for QueryTester {
         participants.remote.port = Some(0);
         participants.remote.address = Some(0.into());
         let mtu = protocols
-            .protocol(Udp::ID)
+            .protocol::<Udp>()
             .expect("Missing UDP protocol")
-            .open(Self::ID, participants, protocols)
+            .open(TypeId::of::<Self>(), participants, protocols)
             .unwrap()
-            .query(Pci::MTU_QUERY_KEY)
-            .unwrap()
-            .ok_u32()
-            .unwrap();
+            .info(TypeId::of::<Pci>())
+            .expect("Missing PCI info")
+            .downcast::<SessionInfo>()
+            .expect("Downcast PCI session info")
+            .mtu;
         assert_eq!(mtu, 1500);
 
         tokio::spawn(async move {

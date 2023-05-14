@@ -199,6 +199,7 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.4](https://www.rfc-editor.org/rfc/rfc9293.html#name-close-call).
+    #[allow(unused)]
     pub fn close(&mut self) -> CloseResult {
         match self.state {
             State::SynReceived | State::Established => {
@@ -235,6 +236,7 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.5](https://www.rfc-editor.org/rfc/rfc9293.html#section-3.10.5).
+    #[allow(unused)]
     pub fn abort(&mut self) {
         // 3.10.5
         match self.state {
@@ -255,6 +257,7 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.6](https://www.rfc-editor.org/rfc/rfc9293.html#name-status-call).
+    #[allow(unused)]
     pub fn status(&self) -> State {
         // 3.10.6
         self.state
@@ -941,6 +944,7 @@ pub enum SegmentArrivesResult {
 
 /// The result of a call to send on the TCB
 #[must_use]
+#[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SendResult {
     /// The send completed successfully
@@ -951,6 +955,7 @@ pub enum SendResult {
 
 /// The result of a call to close on the TCB
 #[must_use]
+#[allow(unused)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CloseResult {
     /// The close was processed successfully
@@ -976,6 +981,7 @@ pub enum ListenResult {
 
 impl ListenResult {
     /// Gets the response header, if available
+    #[allow(unused)]
     fn response(self) -> Option<TcpHeader> {
         match self {
             ListenResult::Response(response) => Some(response),
@@ -984,6 +990,7 @@ impl ListenResult {
     }
 
     /// Gets the TCB, if available
+    #[allow(unused)]
     fn tcb(self) -> Option<Tcb> {
         match self {
             ListenResult::Response(_) => None,
@@ -1011,10 +1018,4 @@ struct Connection {
     pub snd: SendSequenceSpace,
     /// The receive sequence space
     pub rcv: ReceiveSequenceSpace,
-}
-
-impl Connection {
-    pub fn new(state: State, snd: SendSequenceSpace, rcv: ReceiveSequenceSpace) -> Self {
-        Self { state, snd, rcv }
-    }
 }

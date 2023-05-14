@@ -2,9 +2,12 @@
 //!
 //! This module primarily implements the [`Control`] key-value store.
 
-use crate::{id::Id, machine::PciSlot, network::Mac, protocols::ipv4::Ipv4Address};
+use crate::{machine::PciSlot, network::Mac, protocols::ipv4::Ipv4Address};
 use rustc_hash::FxHashMap;
-use std::ops::{Deref, DerefMut};
+use std::{
+    any::TypeId,
+    ops::{Deref, DerefMut},
+};
 
 pub(crate) mod primitive;
 pub use primitive::Primitive;
@@ -12,7 +15,7 @@ pub use primitive::Primitive;
 pub type PropertyKey = u64;
 
 /// A key for a [`Control`].
-pub type Key = (Id, PropertyKey);
+pub type Key = (TypeId, PropertyKey);
 
 /// A key-value store with which to exchange data between protocols.
 ///
@@ -34,7 +37,7 @@ pub struct ControlInner {
     /// The PCI slot that will be sent on or that was received from
     pub slot: Option<PciSlot>,
     /// The protocol that PCI will forward incoming messages to
-    pub first_responder: Option<Id>,
+    pub first_responder: Option<TypeId>,
     /// Information about the local connection endpoint
     pub local: Endpoint,
     /// Information about the remote connection endpoint

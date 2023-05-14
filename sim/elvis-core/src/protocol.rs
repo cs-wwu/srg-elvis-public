@@ -2,29 +2,26 @@
 
 use super::{message::Message, session::SharedSession, Control};
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
-    machine::ProtocolMap,
-    protocols::user_process::ApplicationError,
-    session::SendError,
+    machine::ProtocolMap, protocols::user_process::ApplicationError, session::SendError,
     Participants, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 // TODO(hardint): Should add a str argument to the Other variant of errors so
 // that the reason for an error shows up in traces and such.
 
 /// A shared handle to a [`Protocol`].
-pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
+pub type SharedProtocol = Arc<dyn Protocol + Send + Sync + 'static>;
+
+// TODO(hardint): Use associated types for passing context information
 
 /// A member of a networking protocol stack.
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
 pub trait Protocol {
-    /// Returns a unique identifier for the protocol.
-    fn id(&self) -> Id;
+    fn id(&self) -> TypeId;
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
@@ -59,7 +56,7 @@ pub trait Protocol {
     /// `{local_address, local_port, remote_address, remote_port}`.
     fn open(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError>;
@@ -81,7 +78,8 @@ pub trait Protocol {
     /// its participant set to include {local_address, local_port}.
     fn listen(
         &self,
-        upstream: Id,
+        // TODO(hardint): Should this just be Arc<Protocol>?
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError>;
@@ -111,15 +109,6 @@ pub trait Protocol {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError>;
-
-    /// Gets a piece of information from the protocol
-    fn query(&self, key: Key) -> Result<Primitive, QueryError>;
-}
-
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
-pub enum QueryError {
-    #[error("The provided key cannot be queried on this protocol")]
-    NonexistentKey,
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
@@ -130,8 +119,8 @@ pub enum DemuxError {
     ClosedSession,
     #[error("Data expected through the context was missing")]
     MissingContext,
-    #[error("Could not find the given protocol: {0}")]
-    MissingProtocol(Id),
+    #[error("Could not find the given protocol: {0:?}")]
+    MissingProtocol(TypeId),
     #[error("Failed to parse a header during demux")]
     Header,
     #[error("Receive failed during the execution of an Application")]
@@ -164,8 +153,8 @@ pub enum StartError {
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum OpenError {
-    #[error("Could not find the given protocol: {0}")]
-    MissingProtocol(Id),
+    #[error("Could not find the given protocol: {0:?}")]
+    MissingProtocol(TypeId),
     #[error("The session already exists")]
     Existing,
     #[error("Data expected through the context was missing")]

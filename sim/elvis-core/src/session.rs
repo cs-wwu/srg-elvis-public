@@ -1,13 +1,11 @@
 //! The [`Session`] trait and supporting types.
 
 use super::Message;
-use crate::{
-    control::{Key, Primitive},
-    machine::ProtocolMap,
-    network::Mtu,
-    Control,
+use crate::{machine::ProtocolMap, network::Mtu, Control};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
 };
-use std::sync::Arc;
 use thiserror::Error as ThisError;
 
 // TODO(hardint): Query methods could take &self
@@ -33,8 +31,8 @@ pub trait Session {
         protocols: ProtocolMap,
     ) -> Result<(), SendError>;
 
-    /// Gets a piece of information from some session in the protocol stack.
-    fn query(&self, key: Key) -> Result<Primitive, QueryError>;
+    // TODO(hardint): There is a better interface somewhere here. I know it.
+    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>>;
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]

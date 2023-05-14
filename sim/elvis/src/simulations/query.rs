@@ -19,18 +19,18 @@ pub async fn query() {
 
     let machine = Machine::new(
         ProtocolMapBuilder::new()
-            .udp(Udp::new())
-            .ipv4(Ipv4::new(
+            .with(Udp::new())
+            .with(Ipv4::new(
                 [(0.into(), Recipient::with_mac(0, 0))]
                     .into_iter()
                     .collect(),
             ))
-            .pci(Pci::new([network.clone(), network.clone()]))
-            .other(QueryTester::new().shared())
+            .with(Pci::new([network.clone(), network.clone()]))
+            .with(QueryTester::new().process())
             .build(),
     );
 
-    run_internet(vec![machine], vec![network]).await;
+    run_internet(&[machine]).await;
 }
 
 #[cfg(test)]

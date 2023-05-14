@@ -2,20 +2,18 @@
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
     Control, FxDashMap, Participants, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
@@ -29,15 +27,12 @@ use ipv4_session::{Ipv4Session, SessionId};
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
-    listen_bindings: FxDashMap<Ipv4Address, Id>,
+    listen_bindings: FxDashMap<Ipv4Address, TypeId>,
     sessions: FxDashMap<SessionId, Arc<Ipv4Session>>,
     recipients: Recipients,
 }
 
 impl Ipv4 {
-    /// A unique identifier for the protocol.
-    pub const ID: Id = Id::new(4);
-
     /// Creates a new instance of the protocol.
     pub fn new(recipients: Recipients) -> Self {
         Self {
@@ -57,8 +52,8 @@ impl Ipv4 {
 // messages can be sent to the correct network
 
 impl Protocol for Ipv4 {
-    fn id(&self) -> Id {
-        Self::ID
+    fn id(&self) -> TypeId {
+        TypeId::of::<Self>()
     }
 
     fn start(
@@ -76,7 +71,7 @@ impl Protocol for Ipv4 {
     #[tracing::instrument(name = "Ipv4::open", skip_all)]
     fn open(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         mut participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -112,10 +107,17 @@ impl Protocol for Ipv4 {
                 };
                 participants.slot = Some(recipient.slot);
                 let tap_session = protocols
-                    .protocol(Pci::ID)
+                    .protocol::<Pci>()
                     .expect("No such protocol")
-                    .open(Self::ID, participants, protocols)?;
-                let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, recipient));
+                    .open(TypeId::of::<Self>(), participants, protocols)?;
+                let session = Arc::new(
+                    Ipv4Session::new(tap_session, upstream, key, recipient).ok_or_else(|| {
+                        tracing::error!(
+                            "Could not get protocol number for the given upstream protocol"
+                        );
+                        OpenError::Other
+                    })?,
+                );
                 entry.insert(session.clone());
                 Ok(session)
             }
@@ -125,7 +127,7 @@ impl Protocol for Ipv4 {
     #[tracing::instrument(name = "Ipv4::listen", skip_all)]
     fn listen(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
@@ -147,9 +149,9 @@ impl Protocol for Ipv4 {
 
         // Essentially a no-op but good for completeness and as an example
         protocols
-            .protocol(Pci::ID)
+            .protocol::<Pci>()
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+            .listen(TypeId::of::<Self>(), participants, protocols)
     }
 
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
@@ -175,50 +177,52 @@ impl Protocol for Ipv4 {
         control.local.address = Some(identifier.local);
         control.remote.address = Some(identifier.remote);
 
-        let session = match self.sessions.entry(identifier) {
-            Entry::Occupied(entry) => entry.get().clone(),
+        let session =
+            match self.sessions.entry(identifier) {
+                Entry::Occupied(entry) => entry.get().clone(),
 
-            Entry::Vacant(entry) => {
-                // If the session does not exist, see if we have a listen
-                // binding for it
-                let binding = match self.listen_bindings.get(&identifier.local) {
-                    Some(binding) => binding,
-                    None => {
-                        // If we don't have a normal listen binding, check for
-                        // a 0.0.0.0 binding
-                        let any_listen_id = Ipv4Address::CURRENT_NETWORK;
-                        match self.listen_bindings.get(&any_listen_id) {
-                            Some(any_binding) => any_binding,
-                            None => {
-                                tracing::error!(
-                                    "Could not find a listen binding for the local address {}",
-                                    identifier.local
-                                );
-                                Err(DemuxError::MissingSession)?
+                Entry::Vacant(entry) => {
+                    // If the session does not exist, see if we have a listen
+                    // binding for it
+                    let binding = match self.listen_bindings.get(&identifier.local) {
+                        Some(binding) => binding,
+                        None => {
+                            // If we don't have a normal listen binding, check for
+                            // a 0.0.0.0 binding
+                            let any_listen_id = Ipv4Address::CURRENT_NETWORK;
+                            match self.listen_bindings.get(&any_listen_id) {
+                                Some(any_binding) => any_binding,
+                                None => {
+                                    tracing::error!(
+                                        "Could not find a listen binding for the local address {}",
+                                        identifier.local
+                                    );
+                                    Err(DemuxError::MissingSession)?
+                                }
                             }
                         }
-                    }
-                };
-                let slot = control.slot.ok_or_else(|| {
-                    tracing::error!("Missing network ID on context");
-                    DemuxError::MissingContext
-                })?;
-                let mac = control.remote.mac.ok_or_else(|| {
-                    tracing::error!("Missing sender MAC on context");
-                    DemuxError::MissingContext
-                })?;
-                let destination = Recipient::with_mac(slot, mac);
-                let session = Arc::new(Ipv4Session::new(caller, *binding, identifier, destination));
-                entry.insert(session.clone());
-                session
-            }
-        };
+                    };
+                    let slot = control.slot.ok_or_else(|| {
+                        tracing::error!("Missing network ID on context");
+                        DemuxError::MissingContext
+                    })?;
+                    let mac = control.remote.mac.ok_or_else(|| {
+                        tracing::error!("Missing sender MAC on context");
+                        DemuxError::MissingContext
+                    })?;
+                    let destination = Recipient::with_mac(slot, mac);
+                    let session = Arc::new(
+                    Ipv4Session::new(caller, *binding, identifier, destination).ok_or_else(|| {
+    tracing::error!("Could not get a protocol number for the given upstream protocol");
+    DemuxError::Other
+                    })?
+                    );
+                    entry.insert(session.clone());
+                    session
+                }
+            };
         session.receive(message, control, protocols)?;
         Ok(())
-    }
-
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::NonexistentKey)
     }
 }
 

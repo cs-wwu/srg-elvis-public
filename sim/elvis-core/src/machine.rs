@@ -1,22 +1,20 @@
-use crate::{
-    protocol::SharedProtocol,
-    protocols::{Ipv4, Pci, Tcp, Udp},
-    Id, Shutdown,
-};
+use crate::{protocol::SharedProtocol, Protocol, Shutdown};
 use rustc_hash::FxHashMap;
-use std::sync::Arc;
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+};
 use tokio::sync::Barrier;
 
 /// A tap's PCI slot index
 pub(crate) type PciSlot = u32;
 
+type ArcAny = Arc<dyn Any + Send + Sync + 'static>;
+type AnyMap = FxHashMap<TypeId, (ArcAny, SharedProtocol)>;
+
 #[derive(Default)]
 pub struct ProtocolMapBuilder {
-    pci: Option<Pci>,
-    ipv4: Option<Ipv4>,
-    udp: Option<Udp>,
-    tcp: Option<Tcp>,
-    other: FxHashMap<Id, SharedProtocol>,
+    inner: AnyMap,
 }
 
 impl ProtocolMapBuilder {
@@ -24,38 +22,21 @@ impl ProtocolMapBuilder {
         Self::default()
     }
 
-    pub fn pci(mut self, pci: Pci) -> Self {
-        self.pci = Some(pci);
-        self
-    }
-
-    pub fn ipv4(mut self, ipv4: Ipv4) -> Self {
-        self.ipv4 = Some(ipv4);
-        self
-    }
-
-    pub fn udp(mut self, udp: Udp) -> Self {
-        self.udp = Some(udp);
-        self
-    }
-
-    pub fn tcp(mut self, tcp: Tcp) -> Self {
-        self.tcp = Some(tcp);
-        self
-    }
-
-    pub fn other(mut self, other: SharedProtocol) -> Self {
-        self.other.insert(other.id(), other);
+    pub fn with<T>(mut self, other: T) -> Self
+    where
+        T: Protocol + Send + Sync + 'static,
+    {
+        let other = Arc::new(other);
+        self.inner.insert(
+            TypeId::of::<T>(),
+            (other.clone() as ArcAny, other as SharedProtocol),
+        );
         self
     }
 
     pub fn build(self) -> ProtocolMap {
         ProtocolMap {
-            pci: self.pci.map(|pci| Arc::new(pci)),
-            ipv4: self.ipv4.map(|ipv4| Arc::new(ipv4)),
-            udp: self.udp.map(|udp| Arc::new(udp)),
-            tcp: self.tcp.map(|tcp| Arc::new(tcp)),
-            other: Arc::new(self.other),
+            inner: Arc::new(self.inner),
         }
     }
 }
@@ -63,38 +44,29 @@ impl ProtocolMapBuilder {
 /// A mapping of protocol IDs to protocols
 #[derive(Clone)]
 pub struct ProtocolMap {
-    pci: Option<Arc<Pci>>,
-    ipv4: Option<Arc<Ipv4>>,
-    udp: Option<Arc<Udp>>,
-    tcp: Option<Arc<Tcp>>,
-    other: Arc<FxHashMap<Id, SharedProtocol>>,
+    inner: Arc<AnyMap>,
 }
 
 impl ProtocolMap {
-    pub fn protocol(&self, id: Id) -> Option<SharedProtocol> {
-        match id {
-            Pci::ID => self.pci.as_ref().map(|p| p.clone() as SharedProtocol),
-            Udp::ID => self.udp.as_ref().map(|p| p.clone() as SharedProtocol),
-            Tcp::ID => self.tcp.as_ref().map(|p| p.clone() as SharedProtocol),
-            Ipv4::ID => self.ipv4.as_ref().map(|p| p.clone() as SharedProtocol),
-            _ => self.other.get(&id).cloned(),
-        }
+    pub fn protocol<T>(&self) -> Option<Arc<T>>
+    where
+        T: Protocol + Send + Sync + 'static,
+    {
+        self.inner
+            .get(&TypeId::of::<T>())
+            .map(|t| t.0.clone().downcast().unwrap())
+    }
+
+    pub fn get(&self, id: TypeId) -> Option<SharedProtocol> {
+        self.inner.get(&id).map(|t| t.1.clone())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = SharedProtocol> + '_ {
-        [
-            self.pci.clone().map(|p| p as SharedProtocol),
-            self.ipv4.clone().map(|p| p as SharedProtocol),
-            self.udp.clone().map(|p| p as SharedProtocol),
-            self.tcp.clone().map(|p| p as SharedProtocol),
-        ]
-        .into_iter()
-        .filter_map(|p| p)
-        .chain(self.other.values().cloned())
+        self.inner.values().map(|t| t.1.clone())
     }
 
     pub fn len(&self) -> usize {
-        self.iter().count()
+        self.inner.len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -121,7 +93,7 @@ impl Machine {
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub(crate) fn start(self, shutdown: Shutdown, initialized: Arc<Barrier>) {
+    pub(crate) fn start(&self, shutdown: Shutdown, initialized: Arc<Barrier>) {
         for protocol in self.protocols.iter() {
             protocol
                 .start(
@@ -136,5 +108,9 @@ impl Machine {
     /// The number of protocols in the machine.
     pub fn protocol_count(&self) -> usize {
         self.protocols.len()
+    }
+
+    pub fn into_inner(self) -> ProtocolMap {
+        self.protocols
     }
 }

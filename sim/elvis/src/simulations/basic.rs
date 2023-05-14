@@ -5,7 +5,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
-        Pci,
+        Pci, UserProcess,
     },
     run_internet, Machine, Network,
 };
@@ -22,28 +22,36 @@ pub async fn basic() {
         .collect();
 
     let message = Message::new("Hello!");
-    let capture = Capture::new(capture_ip_address, 0xbeef, 1).shared();
     let machines = vec![
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(ip_table.clone()))
-                .pci(Pci::new([network.clone()]))
-                .other(SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef).shared())
+                .with(Udp::new())
+                .with(Ipv4::new(ip_table.clone()))
+                .with(Pci::new([network.clone()]))
+                .with(SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef).process())
                 .build(),
         ),
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(ip_table))
-                .pci(Pci::new([network.clone()]))
-                .other(capture.clone())
+                .with(Udp::new())
+                .with(Ipv4::new(ip_table))
+                .with(Pci::new([network.clone()]))
+                .with(Capture::new(capture_ip_address, 0xbeef, 1).process())
                 .build(),
         ),
     ];
 
-    run_internet(machines, vec![network]).await;
-    assert_eq!(capture.application().message(), Some(message),);
+    run_internet(&machines).await;
+    let received = machines
+        .into_iter()
+        .nth(1)
+        .unwrap()
+        .into_inner()
+        .protocol::<UserProcess<Capture>>()
+        .unwrap()
+        .application()
+        .message();
+    assert_eq!(received, Some(message));
 }
 
 #[cfg(test)]

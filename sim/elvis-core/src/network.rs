@@ -17,9 +17,10 @@
 //!   similar to adding a networking card to computer. This way, a machine can
 //!   add multiple taps to attach to different networks.
 
-use crate::{id::Id, protocols::pci::PciSession, FxDashMap, Message};
+use crate::{protocols::pci::PciSession, FxDashMap, Message};
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
+    any::TypeId,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -52,9 +53,6 @@ impl Default for Network {
 }
 
 impl Network {
-    /// An identifier for the network type
-    pub const ID: Id = Id::from_string("Network");
-
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
         let throughput_permit = Arc::new(Notify::new());
@@ -213,7 +211,7 @@ pub(crate) struct Delivery {
     /// destination is `None`, the message should be broadcast.
     pub destination: Option<Mac>,
     /// The protocol that should respond to the packet, usually an IP protocol
-    pub protocol: Id,
+    pub protocol: TypeId,
 }
 
 /// A network maximum transmission unit.

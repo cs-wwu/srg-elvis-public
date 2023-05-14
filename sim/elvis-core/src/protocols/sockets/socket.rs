@@ -1,7 +1,7 @@
 use super::Sockets;
 use crate::{
     machine::ProtocolMap, message::Chunk, protocol::DemuxError, protocols::ipv4::Ipv4Address,
-    session::SharedSession, Control, Id, Message, Participants, Shutdown,
+    session::SharedSession, Control, Message, Participants, Shutdown,
 };
 use std::{
     collections::VecDeque,
@@ -15,7 +15,7 @@ use tokio::{select, sync::Notify};
 pub struct Socket {
     pub family: ProtocolFamily,
     pub sock_type: SocketType,
-    fd: Id,
+    fd: u64,
     is_active: RwLock<bool>,
     is_bound: RwLock<bool>,
     is_listening: RwLock<bool>,
@@ -49,7 +49,7 @@ impl Socket {
     pub(super) fn new(
         domain: ProtocolFamily,
         sock_type: SocketType,
-        fd: Id,
+        fd: u64,
         protocols: ProtocolMap,
         socket_api: Arc<Sockets>,
         shutdown: Shutdown,
@@ -166,9 +166,9 @@ impl Socket {
         }
         let session = match self
             .protocols
-            .protocol(Sockets::ID)
+            .protocol::<Sockets>()
             .expect("Sockets API not found")
-            .open(self.fd, participants, self.protocols.clone())
+            .open_with_fd(self.fd, participants, self.protocols.clone())
         {
             Ok(v) => v,
             Err(_) => return Err(SocketError::ConnectError),
@@ -229,9 +229,9 @@ impl Socket {
         }
         match self
             .protocols
-            .protocol(Sockets::ID)
+            .protocol::<Sockets>()
             .expect("Sockets API not found")
-            .listen(self.fd, participants, self.protocols.clone())
+            .listen_with_fd(self.fd, participants, self.protocols.clone())
         {
             Ok(_) => {
                 *self.is_listening.write().unwrap() = true;

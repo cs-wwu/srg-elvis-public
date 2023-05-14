@@ -7,9 +7,12 @@ use elvis_core::{
         Ipv4, Pci,
     },
     session::SharedSession,
-    Control, Id, Participants, Shutdown,
+    Control, Participants, Protocol, Shutdown,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
 
 pub struct Router {
@@ -25,15 +28,12 @@ impl Router {
         }
     }
 
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
 impl Application for Router {
-    /// A unique identifier for the application used by controls and the protocol map
-    const ID: Id = Ipv4::ID;
-
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
     fn start(
@@ -43,14 +43,10 @@ impl Application for Router {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         // get the pci protocol
-        let pci = protocols.protocol(Pci::ID).expect("No such protocol");
+        let pci = protocols.protocol::<Pci>().expect("No such protocol");
 
         // query the number of taps in our pci session
-        let number_taps = pci
-            .query(Pci::SLOT_COUNT_QUERY_KEY)
-            .expect("could not get slot count")
-            .to_u64()
-            .expect("could not unwrap u32");
+        let number_taps = pci.slot_count();
 
         let mut sessions = Vec::with_capacity(number_taps as usize);
 
@@ -58,7 +54,11 @@ impl Application for Router {
             let mut participants = Participants::new();
             participants.slot = Some(i as u32);
             let val = pci
-                .open(Self::ID, participants.clone(), protocols.clone())
+                .open(
+                    TypeId::of::<Self>(),
+                    participants.clone(),
+                    protocols.clone(),
+                )
                 .expect("could not open session");
             sessions.push(val);
         }
@@ -96,7 +96,7 @@ impl Application for Router {
             Some(recipient) => recipient,
             None => return Ok(()),
         };
-        control.first_responder = Some(Ipv4::ID);
+        control.first_responder = Some(TypeId::of::<Ipv4>());
         control.local.mac = recipient.mac;
 
         self.outgoing

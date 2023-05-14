@@ -1,10 +1,10 @@
 use super::Machine;
-use crate::{Network, Shutdown};
+use crate::Shutdown;
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
 /// Runs the simulation with the given machines and networks
-pub async fn run_internet(machines: Vec<Machine>, _networks: Vec<Arc<Network>>) {
+pub async fn run_internet(machines: &[Machine]) {
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()

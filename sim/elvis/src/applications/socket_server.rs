@@ -3,34 +3,27 @@ use elvis_core::{
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::{
-            socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
-            Sockets,
-        },
+        sockets::socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
+        Sockets,
     },
-    Control, Id, Shutdown,
+    Control, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 pub struct SocketServer {
-    /// The Sockets API
-    sockets: Arc<Sockets>,
     /// The port to capture a message on
     local_port: u16,
 }
 
 impl SocketServer {
-    pub fn new(sockets: Arc<Sockets>, local_port: u16) -> Self {
-        Self {
-            sockets,
-            local_port,
-        }
+    pub fn new(local_port: u16) -> Self {
+        Self { local_port }
     }
 
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
@@ -53,8 +46,6 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 }
 
 impl Application for SocketServer {
-    const ID: Id = Id::from_string("Socket Server");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -63,7 +54,9 @@ impl Application for SocketServer {
     ) -> Result<(), ApplicationError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = self.sockets.clone();
+        let sockets = protocols
+            .protocol::<Sockets>()
+            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<Sockets>()))?;
         let local_port = self.local_port;
 
         tokio::spawn(async move {

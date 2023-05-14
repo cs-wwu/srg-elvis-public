@@ -7,9 +7,12 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
     },
     session::SharedSession,
-    Control, Id, Participants, Shutdown,
+    Control, Participants, Protocol, Shutdown,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 pub struct Forward {
@@ -43,14 +46,12 @@ impl Forward {
     }
 
     /// Creates a new forwarding application behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
 impl Application for Forward {
-    const ID: Id = Id::from_string("Forward");
-
     fn start(
         &self,
         _shutdown: Shutdown,
@@ -63,14 +64,14 @@ impl Application for Forward {
         participants.remote.port = Some(self.remote_port);
         participants.remote.address = Some(self.remote_ip);
 
-        let udp = protocols.protocol(Udp::ID).expect("No such protocol");
+        let udp = protocols.protocol::<Udp>().expect("No such protocol");
         *self.outgoing.write().unwrap() = Some(udp.open(
-            Self::ID,
+            TypeId::of::<Self>(),
             // TODO(hardint): Can these clones be cheaper?
             participants.clone(),
             protocols.clone(),
         )?);
-        udp.listen(Self::ID, participants, protocols)?;
+        udp.listen(TypeId::of::<Self>(), participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });

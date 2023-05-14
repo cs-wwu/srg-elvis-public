@@ -24,31 +24,30 @@ pub async fn latency() {
         .into_iter()
         .collect();
 
-    let capture = Capture::new(capture_ip_address, 0xbeef, 1).shared();
     let machines = vec![
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(ip_table.clone()))
-                .pci(Pci::new([network.clone()]))
-                .other(
+                .with(Udp::new())
+                .with(Ipv4::new(ip_table.clone()))
+                .with(Pci::new([network.clone()]))
+                .with(
                     SendMessage::new(vec![Message::new("Hello!")], capture_ip_address, 0xbeef)
-                        .shared(),
+                        .process(),
                 )
                 .build(),
         ),
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(ip_table))
-                .pci(Pci::new([network.clone()]))
-                .other(capture.clone())
+                .with(Udp::new())
+                .with(Ipv4::new(ip_table))
+                .with(Pci::new([network.clone()]))
+                .with(Capture::new(capture_ip_address, 0xbeef, 1).process())
                 .build(),
         ),
     ];
 
     let now = SystemTime::now();
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
     assert!(now.elapsed().unwrap().as_millis() >= 1000);
 }
 

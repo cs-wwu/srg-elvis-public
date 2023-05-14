@@ -2,17 +2,15 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
     Control, FxDashMap, Participants, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 mod udp_session;
@@ -26,14 +24,11 @@ use super::{ipv4::Ipv4Address, utility::Socket};
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: FxDashMap<Socket, Id>,
+    listen_bindings: FxDashMap<Socket, TypeId>,
     sessions: FxDashMap<SessionId, Arc<UdpSession>>,
 }
 
 impl Udp {
-    /// A unique identifier for the protocol.
-    pub const ID: Id = Id::new(17);
-
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
         Default::default()
@@ -46,14 +41,14 @@ impl Udp {
 }
 
 impl Protocol for Udp {
-    fn id(&self) -> Id {
-        Self::ID
+    fn id(&self) -> TypeId {
+        TypeId::of::<Self>()
     }
 
     #[tracing::instrument(name = "Udp::open", skip_all)]
     fn open(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -91,9 +86,9 @@ impl Protocol for Udp {
             Entry::Vacant(entry) => {
                 // Create the session and save it
                 let downstream = protocols
-                    .protocol(Ipv4::ID)
+                    .protocol::<Ipv4>()
                     .expect("No such protocol")
-                    .open(Self::ID, participants, protocols)?;
+                    .open(TypeId::of::<Self>(), participants, protocols)?;
                 let session = Arc::new(UdpSession {
                     upstream,
                     downstream,
@@ -108,7 +103,7 @@ impl Protocol for Udp {
     #[tracing::instrument(name = "Udp::listen", skip_all)]
     fn listen(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
@@ -128,9 +123,9 @@ impl Protocol for Udp {
         self.listen_bindings.insert(identifier, upstream);
         // Ask lower-level protocols to add the binding as well
         protocols
-            .protocol(Ipv4::ID)
+            .protocol::<Ipv4>()
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+            .listen(TypeId::of::<Self>(), participants, protocols)
     }
 
     #[tracing::instrument(name = "Udp::demux", skip_all)]
@@ -228,9 +223,5 @@ impl Protocol for Udp {
             initialized.wait().await;
         });
         Ok(())
-    }
-
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::NonexistentKey)
     }
 }

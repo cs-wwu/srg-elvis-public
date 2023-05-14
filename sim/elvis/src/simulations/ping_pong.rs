@@ -28,23 +28,23 @@ pub async fn ping_pong() {
     let machines = vec![
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(ip_table.clone()))
-                .pci(Pci::new([network.clone()]))
-                .other(PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface).shared())
+                .with(Udp::new())
+                .with(Ipv4::new(ip_table.clone()))
+                .with(Pci::new([network.clone()]))
+                .with(PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface).process())
                 .build(),
         ),
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(ip_table.clone()))
-                .pci(Pci::new([network.clone()]))
-                .other(PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef).shared())
+                .with(Udp::new())
+                .with(Ipv4::new(ip_table.clone()))
+                .with(Pci::new([network.clone()]))
+                .with(PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef).process())
                 .build(),
         ),
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 
     // TODO(hardint): Should check here that things actually ran correctly
 }

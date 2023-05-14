@@ -1,18 +1,16 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, StartError},
     session::SharedSession,
     Control, Network, Participants, Protocol, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
-mod pci_session;
+pub mod pci_session;
 pub(crate) use pci_session::PciSession;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
@@ -28,15 +26,6 @@ pub struct Pci {
 }
 
 impl Pci {
-    /// A unique identifier for the protocol.
-    pub const ID: Id = Id::from_string("PCI");
-
-    /// THe key used the query the number of attached [`Tap`]s
-    pub const SLOT_COUNT_QUERY_KEY: Key = (Self::ID, 0);
-
-    /// The key used to query the MTU of the network
-    pub const MTU_QUERY_KEY: Key = (Self::ID, 1);
-
     /// Creates a new network tap.
     pub fn new(networks: impl IntoIterator<Item = Arc<Network>>) -> Self {
         Self {
@@ -48,6 +37,10 @@ impl Pci {
         }
     }
 
+    pub fn slot_count(&self) -> usize {
+        self.sessions.len()
+    }
+
     /// Creates a new network tap.
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)
@@ -55,13 +48,13 @@ impl Pci {
 }
 
 impl Protocol for Pci {
-    fn id(&self) -> Id {
-        Self::ID
+    fn id(&self) -> TypeId {
+        TypeId::of::<Self>()
     }
 
     fn open(
         &self,
-        _upstream: Id,
+        _upstream: TypeId,
         participants: Participants,
         _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -82,7 +75,7 @@ impl Protocol for Pci {
 
     fn listen(
         &self,
-        _upstream: Id,
+        _upstream: TypeId,
         _participants: Participants,
         _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
@@ -113,12 +106,5 @@ impl Protocol for Pci {
             initialized.wait().await;
         });
         Ok(())
-    }
-
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        match key {
-            Self::SLOT_COUNT_QUERY_KEY => Ok((self.sessions.len() as u64).into()),
-            _ => Err(QueryError::NonexistentKey),
-        }
     }
 }

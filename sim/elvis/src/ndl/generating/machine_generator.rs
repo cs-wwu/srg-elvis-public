@@ -146,12 +146,12 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     ip_table.insert(*ip, Recipient::new(net_num, mac));
                 }
             }
-            protocol_map = protocol_map.pci(Pci::new(networks_to_be_added));
+            protocol_map = protocol_map.with(Pci::new(networks_to_be_added));
             for protocol in &machine.interfaces.protocols {
                 for option in &protocol.options {
                     match option.1.as_str() {
-                        "UDP" => protocol_map = protocol_map.udp(Udp::new()),
-                        "IPv4" => protocol_map = protocol_map.ipv4(Ipv4::new(ip_table.clone())),
+                        "UDP" => protocol_map = protocol_map.with(Udp::new()),
+                        "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
                         _ => {
                             panic!(
                                 "Invalid Protocol found in machine. Found: {}",
@@ -169,19 +169,19 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 let app_name = app.options.get("name").unwrap().as_str();
                 match app_name {
                     "send_message" => {
-                        protocol_map = protocol_map.other(send_message_builder(app, &name_to_ip))
+                        protocol_map = protocol_map.with(send_message_builder(app, &name_to_ip))
                     }
 
                     "capture" => {
-                        protocol_map = protocol_map.other(capture_builder(app));
+                        protocol_map = protocol_map.with(capture_builder(app));
                     }
 
                     "forward" => {
-                        protocol_map = protocol_map.other(forward_message_builder(app, &name_to_ip))
+                        protocol_map = protocol_map.with(forward_message_builder(app, &name_to_ip))
                     }
 
                     "ping_pong" => {
-                        protocol_map = protocol_map.other(ping_pong_builder(
+                        protocol_map = protocol_map.with(ping_pong_builder(
                             app,
                             &name_to_ip,
                             &ip_to_mac,

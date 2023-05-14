@@ -1,13 +1,16 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
-    control::{Key, Primitive},
     machine::ProtocolMap,
     protocol::{DemuxError, SharedProtocol},
     protocols::tcp::tcb::AdvanceTimeResult,
-    session::{QueryError, SendError, SharedSession},
-    Control, Id, Message, Session,
+    session::{SendError, SharedSession},
+    Control, Message, Session,
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::{
     sync::mpsc::{channel, error::TryRecvError, Sender},
     time::timeout,
@@ -160,19 +163,14 @@ impl Session for TcpSession {
         Ok(())
     }
 
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        // TODO(hardint): Add queries
-        self.downstream.query(key)
+    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>> {
+        self.downstream.info(protocol_id)
     }
 }
 
 /// An error that occurred during `TcpSession::receive`
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveError {
-    #[error("Attempted to receive on a closing connection")]
-    Closing,
-    #[error("Could not get a protocol for the ID {0}")]
-    Protocol(Id),
     #[error("{0}")]
     Demux(#[from] DemuxError),
     #[error("{0}")]

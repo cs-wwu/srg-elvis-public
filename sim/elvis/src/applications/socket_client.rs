@@ -3,20 +3,16 @@ use elvis_core::{
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::{
-            socket::{ProtocolFamily, SocketAddress, SocketType},
-            Sockets,
-        },
+        sockets::socket::{ProtocolFamily, SocketAddress, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
+        Sockets,
     },
-    Control, Id, Shutdown,
+    Control, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 pub struct SocketClient {
-    /// The Sockets API
-    sockets: Arc<Sockets>,
     /// Numerical ID
     client_id: u16,
     /// The IP address to send to
@@ -26,28 +22,20 @@ pub struct SocketClient {
 }
 
 impl SocketClient {
-    pub fn new(
-        sockets: Arc<Sockets>,
-        client_id: u16,
-        remote_ip: Ipv4Address,
-        remote_port: u16,
-    ) -> Self {
+    pub fn new(client_id: u16, remote_ip: Ipv4Address, remote_port: u16) -> Self {
         Self {
-            sockets,
             client_id,
             remote_ip,
             remote_port,
         }
     }
 
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
 impl Application for SocketClient {
-    const ID: Id = Id::from_string("Socket Client");
-
     fn start(
         &self,
         _shutdown: Shutdown,
@@ -56,7 +44,9 @@ impl Application for SocketClient {
     ) -> Result<(), ApplicationError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = self.sockets.clone();
+        let sockets = protocols
+            .protocol::<Sockets>()
+            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<Sockets>()))?;
         let remote_ip = self.remote_ip;
         let remote_port = self.remote_port;
         let client_id = self.client_id;

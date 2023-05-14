@@ -1,19 +1,21 @@
 use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address, Recipient};
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
     machine::ProtocolMap,
     message::Message,
     protocol::DemuxError,
-    session::{QueryError, SendError, SharedSession},
-    Control, Session,
+    session::{SendError, SharedSession},
+    Control, Session, Transport,
 };
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    fmt::{self, Debug, Formatter},
+    sync::Arc,
+};
 
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
     /// The protocol that we demux incoming messages to
-    upstream: Id,
+    upstream: Transport,
     /// The session we mux outgoing messages to
     downstream: SharedSession,
     /// The identifying information for this session
@@ -26,16 +28,16 @@ impl Ipv4Session {
     /// Creates a new IPv4 session
     pub(super) fn new(
         downstream: SharedSession,
-        upstream: Id,
+        upstream: TypeId,
         identifier: SessionId,
         destination: Recipient,
-    ) -> Self {
-        Self {
+    ) -> Option<Self> {
+        Transport::try_from(upstream).ok().map(|upstream| Self {
             upstream,
             downstream,
             id: identifier,
             destination,
-        }
+        })
     }
 
     pub fn receive(
@@ -45,7 +47,7 @@ impl Ipv4Session {
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         protocols
-            .protocol(self.upstream)
+            .get(self.upstream.into())
             .expect("No such protocol")
             .demux(message, self, control, protocols)?;
         Ok(())
@@ -64,7 +66,7 @@ impl Session for Ipv4Session {
         let header = match Ipv4HeaderBuilder::new(
             self.id.local,
             self.id.remote,
-            self.upstream.into_inner() as u8,
+            self.upstream as u8,
             length as u16,
         )
         .build()
@@ -76,20 +78,24 @@ impl Session for Ipv4Session {
             }
         };
         control.slot = Some(self.destination.slot);
-        control.first_responder = Some(Ipv4::ID);
+        control.first_responder = Some(TypeId::of::<Self>());
         control.remote.mac = self.destination.mac;
         message.header(header);
         self.downstream.send(message, control, protocols)?;
         Ok(())
     }
 
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.query(key)
+    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>> {
+        if protocol_id == TypeId::of::<Ipv4>() {
+            return Some(Box::new(self.id));
+        } else {
+            self.downstream.info(protocol_id)
+        }
     }
 }
 
 impl Debug for Ipv4Session {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Ipv4Session")
             .field("identifier", &self.id)
             .finish()

@@ -6,17 +6,16 @@ use self::{
     tcp_parsing::TcpHeader,
     tcp_session::TcpSession,
 };
-use super::{utility::Socket, Ipv4, Pci};
+use super::{pci::pci_session::SessionInfo, utility::Socket, Ipv4, Pci};
 use crate::{
-    control::{Key, Primitive},
     machine::ProtocolMap,
-    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Participants, Protocol, Shutdown,
+    Control, FxDashMap, Message, Participants, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 mod tcb;
@@ -31,15 +30,12 @@ mod tcp_session;
 pub struct Tcp {
     /// A record of which protocol requested to listen for connections on
     /// particular sockets.
-    listen_bindings: FxDashMap<Socket, Id>,
+    listen_bindings: FxDashMap<Socket, TypeId>,
     /// A lookup table for sessions based on their endpoints.
     sessions: FxDashMap<ConnectionId, Arc<TcpSession>>,
 }
 
 impl Tcp {
-    /// The simulation-unique ID for TCP.
-    pub const ID: Id = Id::new(6);
-
     /// Creates a new TCP protocol
     pub fn new() -> Self {
         Self::default()
@@ -52,13 +48,13 @@ impl Tcp {
 }
 
 impl Protocol for Tcp {
-    fn id(&self) -> Id {
-        Self::ID
+    fn id(&self) -> TypeId {
+        TypeId::of::<Self>()
     }
 
     fn open(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -84,18 +80,18 @@ impl Protocol for Tcp {
             Entry::Vacant(entry) => {
                 // Create the session and save it
                 let downstream = protocols
-                    .protocol(Ipv4::ID)
+                    .protocol::<Ipv4>()
                     .expect("No such protocol")
-                    .open(Self::ID, participants, protocols.clone())?;
-                let mtu = downstream
-                    .query(Pci::MTU_QUERY_KEY)
-                    .map_err(|_| OpenError::Other)?
-                    .ok_u32()
-                    .map_err(|_| OpenError::Other)?;
+                    .open(TypeId::of::<Self>(), participants, protocols.clone())?;
+                let pci_session_info = downstream
+                    .info(TypeId::of::<Pci>())
+                    .expect("Could not get PCI session info")
+                    .downcast::<SessionInfo>()
+                    .expect("Could not cast PCI session info");
                 let session = TcpSession::new(
-                    Tcb::open(session_id, rand::random(), mtu),
+                    Tcb::open(session_id, rand::random(), pci_session_info.mtu),
                     protocols
-                        .protocol(upstream)
+                        .get(upstream)
                         .ok_or(OpenError::MissingProtocol(upstream))?,
                     downstream,
                     protocols,
@@ -108,7 +104,7 @@ impl Protocol for Tcp {
 
     fn listen(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
@@ -122,9 +118,9 @@ impl Protocol for Tcp {
         self.listen_bindings.insert(socket, upstream);
         // Ask lower-level protocols to add the binding as well
         protocols
-            .protocol(Ipv4::ID)
+            .protocol::<Ipv4>()
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+            .listen(TypeId::of::<Self>(), participants, protocols)
     }
 
     fn demux(
@@ -175,17 +171,17 @@ impl Protocol for Tcp {
 
                         // If we have a listen binding, create the session and
                         // save it
-                        let mtu = caller
-                            .query(Pci::MTU_QUERY_KEY)
-                            .map_err(|_| DemuxError::Other)?
-                            .ok_u32()
-                            .map_err(|_| DemuxError::Other)?;
+                        let pci_session_info = caller
+                            .info(TypeId::of::<Pci>())
+                            .expect("No PCI session info")
+                            .downcast::<SessionInfo>()
+                            .expect("Could not cast PCI session info");
                         let listen_result = segment_arrives_listen(
                             segment,
                             local.address,
                             remote.address,
                             rand::random(),
-                            mtu,
+                            pci_session_info.mtu,
                         );
                         if let Some(listen_result) = listen_result {
                             match listen_result {
@@ -201,7 +197,7 @@ impl Protocol for Tcp {
                                     let session = TcpSession::new(
                                         tcb,
                                         protocols
-                                            .protocol(upstream)
+                                            .get(upstream)
                                             .ok_or(OpenError::MissingProtocol(upstream))?,
                                         caller,
                                         protocols.clone(),
@@ -239,11 +235,6 @@ impl Protocol for Tcp {
             initialized.wait().await;
         });
         Ok(())
-    }
-
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        tracing::error!("No such key on TCP");
-        Err(QueryError::NonexistentKey)
     }
 }
 

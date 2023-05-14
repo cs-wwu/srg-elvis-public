@@ -5,12 +5,13 @@ use elvis_core::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Control, Id, Participants, Shutdown,
+    Control, Participants, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
-
-use super::Transport;
 
 /// An application that sends a single message over the network.
 pub struct SendMessage {
@@ -36,8 +37,8 @@ impl SendMessage {
     }
 
     /// Wrap the SendMessage in a user process
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 
     /// The protocol to use in delivering the message
@@ -48,8 +49,6 @@ impl SendMessage {
 }
 
 impl Application for SendMessage {
-    const ID: Id = Id::from_string("Send Message");
-
     fn start(
         &self,
         _shutdown: Shutdown,
@@ -62,9 +61,9 @@ impl Application for SendMessage {
         participants.local.port = Some(0);
         participants.remote.port = Some(self.remote_port);
         let protocol = protocols
-            .protocol(self.transport.id())
+            .get(self.transport.into())
             .expect("No such protocol");
-        let session = protocol.open(Self::ID, participants, protocols.clone())?;
+        let session = protocol.open(TypeId::of::<Self>(), participants, protocols.clone())?;
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         tokio::spawn(async move {
             initialized.wait().await;

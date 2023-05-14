@@ -5,7 +5,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
-        Pci,
+        Pci, UserProcess,
     },
     run_internet, Machine, Message, Network,
 };
@@ -22,12 +22,12 @@ pub async fn telephone_single() {
     let remote = 0u32.to_be_bytes().into();
     let mut machines = vec![Machine::new(
         ProtocolMapBuilder::new()
-            .udp(Udp::new())
-            .ipv4(Ipv4::new(
+            .with(Udp::new())
+            .with(Ipv4::new(
                 [(remote, Recipient::with_mac(0, 1))].into_iter().collect(),
             ))
-            .pci(Pci::new([network.clone()]))
-            .other(SendMessage::new(vec![message.clone()], remote, 0xbeef).shared())
+            .with(Pci::new([network.clone()]))
+            .with(SendMessage::new(vec![message.clone()], remote, 0xbeef).process())
             .build(),
     )];
 
@@ -39,27 +39,35 @@ pub async fn telephone_single() {
             .collect();
         machines.push(Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(table))
-                .pci(Pci::new([network.clone()]))
-                .other(Forward::new(local, remote, 0xbeef, 0xbeef).shared())
+                .with(Udp::new())
+                .with(Ipv4::new(table))
+                .with(Pci::new([network.clone()]))
+                .with(Forward::new(local, remote, 0xbeef, 0xbeef).process())
                 .build(),
         ));
     }
 
     let local = (END - 1).to_be_bytes().into();
-    let capture = Capture::new(local, 0xbeef, 1).shared();
     machines.push(Machine::new(
         ProtocolMapBuilder::new()
-            .udp(Udp::new())
-            .ipv4(Ipv4::new(Default::default()))
-            .pci(Pci::new([network.clone()]))
-            .other(capture.clone())
+            .with(Udp::new())
+            .with(Ipv4::new(Default::default()))
+            .with(Pci::new([network.clone()]))
+            .with(Capture::new(local, 0xbeef, 1).process())
             .build(),
     ));
 
-    run_internet(machines, vec![network]).await;
-    assert_eq!(capture.application().message(), Some(message));
+    run_internet(&machines).await;
+    let received = machines
+        .into_iter()
+        .last()
+        .unwrap()
+        .into_inner()
+        .protocol::<UserProcess<Capture>>()
+        .unwrap()
+        .application()
+        .message();
+    assert_eq!(received, Some(message));
 }
 
 #[cfg(test)]

@@ -36,71 +36,67 @@ pub async fn router_single() {
         .into_iter()
         .collect();
 
-    let d1 = Capture::new(IP_ADDRESS_2, 0xbeef, 1).shared();
-    let d2 = Capture::new(IP_ADDRESS_3, 0xbeef, 1).shared();
-    let d3 = Capture::new(IP_ADDRESS_4, 0xbeef, 1).shared();
-
     let networks: Vec<_> = (0..4).map(|_| Network::basic()).collect();
 
     let machines = vec![
         // send message
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(
+                .with(Udp::new())
+                .with(Ipv4::new(
                     [(DESTINATION, Recipient::with_mac(0, 1))]
                         .into_iter()
                         .collect(),
                 ))
-                .pci(Pci::new([networks[0].clone()]))
-                .other(
+                .with(Pci::new([networks[0].clone()]))
+                .with(
                     SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef)
-                        .shared(),
+                        .process(),
                 )
                 .build(),
         ),
         // machine representing our router
         Machine::new(
             ProtocolMapBuilder::new()
-                .pci(Pci::new([
+                .with(Pci::new([
                     networks[0].clone(),
                     networks[1].clone(),
                     networks[2].clone(),
                     networks[3].clone(),
                 ]))
-                .other(Router::new(ip_table).shared())
+                .with(Router::new(ip_table).process())
                 .build(),
         ),
         // capture for destination 1
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(dt1))
-                .pci(Pci::new([networks[1].clone()]))
-                .other(d1.clone())
+                .with(Udp::new())
+                .with(Ipv4::new(dt1))
+                .with(Pci::new([networks[1].clone()]))
+                .with(Capture::new(IP_ADDRESS_2, 0xbeef, 1).process())
                 .build(),
         ),
         // capture for destination 2
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(dt2))
-                .pci(Pci::new([networks[2].clone()]))
-                .other(d2.clone())
+                .with(Udp::new())
+                .with(Ipv4::new(dt2))
+                .with(Pci::new([networks[2].clone()]))
+                .with(Capture::new(IP_ADDRESS_3, 0xbeef, 1).process())
                 .build(),
         ),
         // capture for destination 3
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(dt3))
-                .pci(Pci::new([networks[3].clone()]))
-                .other(d3.clone())
+                .with(Udp::new())
+                .with(Ipv4::new(dt3))
+                .with(Pci::new([networks[3].clone()]))
+                .with(Capture::new(IP_ADDRESS_4, 0xbeef, 1).process())
                 .build(),
         ),
     ];
 
-    run_internet(machines, networks).await;
+    run_internet(&machines).await;
 }
 
 #[cfg(test)]

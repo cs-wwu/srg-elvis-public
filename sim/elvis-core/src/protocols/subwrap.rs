@@ -1,13 +1,15 @@
 //! A special Protocol that can be used to listen to messages received by another protocol.
 
 use crate::{
-    control::{Key, Primitive},
     machine::ProtocolMap,
-    protocol::{DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError},
+    protocol::{DemuxError, ListenError, OpenError, SharedProtocol, StartError},
     session::{self, SharedSession},
-    Control, Id, Message, Participants, Protocol, Session, Shutdown,
+    Control, Message, Participants, Protocol, Session, Shutdown,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::{Any, TypeId},
+    sync::{Arc, RwLock},
+};
 use tokio::sync::{mpsc, Barrier};
 
 type Sender = mpsc::UnboundedSender<(Message, Control, ProtocolMap)>;
@@ -120,7 +122,7 @@ impl SubWrap {
 }
 
 impl Protocol for SubWrap {
-    fn id(&self) -> Id {
+    fn id(&self) -> TypeId {
         self.inner.id()
     }
 
@@ -138,7 +140,7 @@ impl Protocol for SubWrap {
     /// Wraps the resulting session with a [`SubWrapSession`].
     fn open(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -153,7 +155,7 @@ impl Protocol for SubWrap {
     /// Calls [`listen`](Protocol::listen) on the inner protocol.
     fn listen(
         &self,
-        upstream: Id,
+        upstream: TypeId,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
@@ -170,11 +172,6 @@ impl Protocol for SubWrap {
     ) -> Result<(), DemuxError> {
         send_on_all(&self.demux_senders, &message, &control, &protocols);
         self.inner.demux(message, caller, control, protocols)
-    }
-
-    /// Calls [`query`](Protocol::query) on the inner protocol and returns the result.
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.inner.query(key)
     }
 }
 
@@ -199,9 +196,8 @@ impl Session for SubWrapSession {
         self.inner.send(message, control, protocols)
     }
 
-    /// Calls [`query`](Session::query) on the inner Session, then returns the result.
-    fn query(&self, key: Key) -> Result<Primitive, session::QueryError> {
-        self.inner.query(key)
+    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>> {
+        self.inner.info(protocol_id)
     }
 }
 
@@ -231,12 +227,12 @@ mod tests {
 
         let machine = Machine::new(
             ProtocolMapBuilder::new()
-                .ipv4(Ipv4::new([].into_iter().collect()))
-                .other(wrapper.shared())
+                .with(Ipv4::new([].into_iter().collect()))
+                .with(wrapper)
                 .build(),
         );
 
-        tokio::spawn(run_internet(vec![machine], vec![network]));
+        tokio::spawn(async move { run_internet(&[machine]).await });
 
         // Receive messages from demux:
         tokio::spawn(async move { message_recv.recv().await });

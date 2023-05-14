@@ -6,9 +6,10 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Udp,
     },
-    Control, Id, Participants, Shutdown,
+    Control, Participants, Protocol, Shutdown,
 };
 use std::{
+    any::TypeId,
     ops::Range,
     sync::{Arc, RwLock},
     time::{Duration, SystemTime},
@@ -51,14 +52,12 @@ impl ThroughputTester {
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
 impl Application for ThroughputTester {
-    const ID: Id = Id::from_string("Capture");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -70,9 +69,9 @@ impl Application for ThroughputTester {
         participants.local.address = Some(self.ip_address);
         participants.local.port = Some(self.port);
         protocols
-            .protocol(Udp::ID)
+            .protocol::<Udp>()
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)?;
+            .listen(TypeId::of::<Self>(), participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });

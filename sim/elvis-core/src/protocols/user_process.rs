@@ -2,15 +2,13 @@
 //! protocol-oriented simulation.
 
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, StartError},
     session::{SendError, SharedSession},
     Control, Participants, Protocol, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 use tracing::error;
 
@@ -21,9 +19,6 @@ use tracing::error;
 /// network or when the containing machine awakens the
 /// application to give it time to run.
 pub trait Application {
-    /// A unique identifier for the application.
-    const ID: Id;
-
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
     fn start(
@@ -51,6 +46,8 @@ pub enum ApplicationError {
     Open(#[from] OpenError),
     #[error("A send call failed")]
     Send(#[from] SendError),
+    #[error("Missing protocol {0:?}")]
+    MissingProtocol(TypeId),
     #[error("Unspecified error")]
     Other,
 }
@@ -87,13 +84,13 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 }
 
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(&self) -> Id {
-        A::ID
+    fn id(&self) -> TypeId {
+        TypeId::of::<A>()
     }
 
     fn open(
         &self,
-        _upstream: Id,
+        _upstream: TypeId,
         _participants: Participants,
         _protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -102,7 +99,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
 
     fn listen(
         &self,
-        _upstream: Id,
+        _upstream: TypeId,
         _participants: Participants,
         _protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
@@ -128,9 +125,5 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     ) -> Result<(), StartError> {
         self.application.start(shutdown, initialized, protocols)?;
         Ok(())
-    }
-
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::NonexistentKey)
     }
 }

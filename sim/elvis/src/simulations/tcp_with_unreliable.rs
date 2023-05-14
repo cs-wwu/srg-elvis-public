@@ -1,4 +1,4 @@
-use crate::applications::{SendMessage, Transport, WaitForMessage};
+use crate::applications::{SendMessage, WaitForMessage};
 use elvis_core::{
     machine::ProtocolMapBuilder,
     message::Message,
@@ -7,7 +7,7 @@ use elvis_core::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         Pci, Tcp,
     },
-    run_internet, Machine,
+    run_internet, Machine, Transport,
 };
 use std::time::Duration;
 
@@ -34,31 +34,31 @@ pub async fn tcp_with_unreliable() {
     let machines = vec![
         Machine::new(
             ProtocolMapBuilder::new()
-                .tcp(Tcp::new())
-                .ipv4(Ipv4::new(ip_table.clone()))
-                .pci(Pci::new([network.clone()]))
-                .other(
+                .with(Tcp::new())
+                .with(Ipv4::new(ip_table.clone()))
+                .with(Pci::new([network.clone()]))
+                .with(
                     SendMessage::new(vec![message.clone()], dst_ip_address, 0xbeef)
                         .transport(Transport::Tcp)
-                        .shared(),
+                        .process(),
                 )
                 .build(),
         ),
         Machine::new(
             ProtocolMapBuilder::new()
-                .tcp(Tcp::new())
-                .ipv4(Ipv4::new(ip_table))
-                .pci(Pci::new([network.clone()]))
-                .other(
+                .with(Tcp::new())
+                .with(Ipv4::new(ip_table))
+                .with(Pci::new([network.clone()]))
+                .with(
                     WaitForMessage::new(dst_ip_address, 0xbeef, message)
                         .transport(Transport::Tcp)
-                        .shared(),
+                        .process(),
                 )
                 .build(),
         ),
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 }
 
 #[cfg(test)]

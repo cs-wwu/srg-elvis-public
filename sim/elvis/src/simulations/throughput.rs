@@ -33,31 +33,31 @@ pub async fn throughput() {
     let machines = vec![
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(ip_table.clone()))
-                .pci(Pci::new([network.clone()]))
-                .other(SendMessage::new(messages, capture_ip_address, 0xbeef).shared())
+                .with(Udp::new())
+                .with(Ipv4::new(ip_table.clone()))
+                .with(Pci::new([network.clone()]))
+                .with(SendMessage::new(messages, capture_ip_address, 0xbeef).process())
                 .build(),
         ),
         Machine::new(
             ProtocolMapBuilder::new()
-                .udp(Udp::new())
-                .ipv4(Ipv4::new(ip_table))
-                .pci(Pci::new([network.clone()]))
-                .other(
+                .with(Udp::new())
+                .with(Ipv4::new(ip_table))
+                .with(Pci::new([network.clone()]))
+                .with(
                     ThroughputTester::new(
                         capture_ip_address,
                         0xbeef,
                         3,
                         Duration::from_millis(900)..Duration::from_millis(1100),
                     )
-                    .shared(),
+                    .process(),
                 )
                 .build(),
         ),
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 }
 
 #[cfg(test)]

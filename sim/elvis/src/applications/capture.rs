@@ -5,12 +5,13 @@ use elvis_core::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Control, Id, Participants, Shutdown,
+    Control, Participants, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
-
-use super::Transport;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
@@ -47,8 +48,8 @@ impl Capture {
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 
     /// Gets the message that was received.
@@ -64,8 +65,6 @@ impl Capture {
 }
 
 impl Application for Capture {
-    const ID: Id = Id::from_string("Capture");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -77,9 +76,9 @@ impl Application for Capture {
         participants.local.address = Some(self.ip_address);
         participants.local.port = Some(self.port);
         protocols
-            .protocol(self.transport.id())
+            .get(self.transport.into())
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)?;
+            .listen(TypeId::of::<Self>(), participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });

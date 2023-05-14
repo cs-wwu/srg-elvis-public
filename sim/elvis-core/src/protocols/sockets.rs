@@ -1,13 +1,15 @@
 use crate::{
-    control::{Key, Primitive},
     machine::ProtocolMap,
-    protocol::{DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, ListenError, OpenError, StartError},
     protocols::{ipv4::Ipv4Address, Udp},
     session::SharedSession,
-    Control, FxDashMap, Id, Message, Participants, Protocol, Shutdown,
+    Control, FxDashMap, Message, Participants, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::{Barrier, Notify};
 
 pub mod socket;
@@ -32,24 +34,21 @@ pub struct Sockets {
     local_ports: RwLock<u16>,
     // TODO(giddinl2): This will be added once IPv6 is implemented
     // local_ipv6_address: Option<Ipv6Address>,
-    fds: RwLock<u64>,
-    sockets: Arc<FxDashMap<Id, Arc<Socket>>>,
+    next_fd: RwLock<u64>,
+    sockets: Arc<FxDashMap<u64, Arc<Socket>>>,
     socket_sessions: FxDashMap<SocketId, Arc<SocketSession>>,
-    listen_bindings: FxDashMap<SocketAddress, Id>,
+    listen_bindings: FxDashMap<SocketAddress, u64>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
 }
 
 impl Sockets {
-    /// A unique identifier for the protocol
-    pub const ID: Id = Id::from_string("Sockets");
-
     /// Creates a new instance of the protocol
     pub fn new(local_ipv4_address: Option<Ipv4Address>) -> Self {
         Self {
             local_ipv4_address,
             local_ports: RwLock::new(49152),
-            fds: RwLock::new(0),
+            next_fd: RwLock::new(0),
             sockets: Default::default(),
             socket_sessions: Default::default(),
             listen_bindings: Default::default(),
@@ -70,7 +69,12 @@ impl Sockets {
         sock_type: SocketType,
         protocols: ProtocolMap,
     ) -> Result<Arc<Socket>, SocketError> {
-        let fd = Id::new(*self.fds.read().unwrap());
+        let fd = {
+            let mut lock = self.next_fd.write().unwrap();
+            let fd = *lock;
+            *lock += 1;
+            fd
+        };
         self.notify_init.notified().await;
         let socket = Arc::new(Socket::new(
             domain,
@@ -87,9 +91,6 @@ impl Sockets {
             }
             Entry::Vacant(entry) => entry.insert(socket.clone()),
         };
-        // Currently, mock "file descriptors" are distrubuted on an incremental
-        // basis and not reused
-        *self.fds.write().unwrap() += 1;
         Ok(socket)
     }
 
@@ -130,32 +131,12 @@ impl Sockets {
         self.socket_sessions.insert(identifier, session.clone());
         Ok(session)
     }
-}
-
-impl Protocol for Sockets {
-    fn id(&self) -> Id {
-        Self::ID
-    }
-
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        *self.shutdown.write().unwrap() = Some(shutdown);
-        self.notify_init.notify_one();
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
-        Ok(())
-    }
 
     /// Called from Socket::connect() and Socket::accept()
     /// Creates a new socket_session based on IP address and port and returns it
-    fn open(
+    pub fn open_with_fd(
         &self,
-        upstream: Id,
+        fd: u64,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<SharedSession, OpenError> {
@@ -184,13 +165,13 @@ impl Protocol for Sockets {
             }
             Entry::Vacant(entry) => {
                 let downstream = protocols
-                    .protocol(Udp::ID)
+                    .protocol::<Udp>()
                     .expect("No such protocol")
-                    .open(Self::ID, participants, protocols)?;
+                    .open(TypeId::of::<Self>(), participants, protocols)?;
                 let session = Arc::new(SocketSession {
-                    upstream: RwLock::new(Some(match self.sockets.entry(upstream) {
+                    upstream: RwLock::new(Some(match self.sockets.entry(fd) {
                         Entry::Occupied(sock) => sock.get().clone(),
-                        Entry::Vacant(_) => return Err(OpenError::MissingProtocol(upstream)),
+                        Entry::Vacant(_) => return Err(OpenError::Other),
                     })),
                     downstream,
                     stored_msg: RwLock::new(None),
@@ -201,9 +182,9 @@ impl Protocol for Sockets {
         }
     }
 
-    fn listen(
+    fn listen_with_fd(
         &self,
-        upstream: Id,
+        fd: u64,
         participants: Participants,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
@@ -217,11 +198,51 @@ impl Protocol for Sockets {
                 ListenError::MissingContext
             })?,
         );
-        self.listen_bindings.insert(identifier, upstream);
+        self.listen_bindings.insert(identifier, fd);
         protocols
-            .protocol(Udp::ID)
+            .protocol::<Udp>()
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+            .listen(TypeId::of::<Self>(), participants, protocols)
+    }
+}
+
+impl Protocol for Sockets {
+    fn id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
+
+    fn start(
+        &self,
+        shutdown: Shutdown,
+        initialized: Arc<Barrier>,
+        _protocols: ProtocolMap,
+    ) -> Result<(), StartError> {
+        *self.shutdown.write().unwrap() = Some(shutdown);
+        self.notify_init.notify_one();
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
+        Ok(())
+    }
+
+    /// Called from Socket::connect() and Socket::accept()
+    /// Creates a new socket_session based on IP address and port and returns it
+    fn open(
+        &self,
+        _upstream: TypeId,
+        _participants: Participants,
+        _protocols: ProtocolMap,
+    ) -> Result<SharedSession, OpenError> {
+        panic!("Use the concrete method Sockets::open_with_fd")
+    }
+
+    fn listen(
+        &self,
+        _upstream: TypeId,
+        _participants: Participants,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ListenError> {
+        panic!("Use the concrete method Sockets::listen_with_fd")
     }
 
     /// When the Sockets API receives a message from a Udp or Tcp session, it is
@@ -289,9 +310,5 @@ impl Protocol for Sockets {
         };
         session.receive(message)?;
         Ok(())
-    }
-
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::NonexistentKey)
     }
 }

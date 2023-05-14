@@ -1,5 +1,8 @@
-use crate::{machine::PciSlot, network::Mac, protocols::ipv4::Ipv4Address, Id};
-use std::ops::{Deref, DerefMut};
+use crate::{machine::PciSlot, network::Mac, protocols::ipv4::Ipv4Address};
+use std::{
+    any::TypeId,
+    ops::{Deref, DerefMut},
+};
 
 /// A key-value store with which to exchange data between protocols.
 ///
@@ -19,7 +22,7 @@ pub struct ParticipantsInner {
     /// The PCI slot that will be sent on or that was received from
     pub slot: Option<PciSlot>,
     /// The protocol that PCI will forward incoming messages to
-    pub first_responder: Option<Id>,
+    pub first_responder: Option<TypeId>,
     /// Information about the local connection endpoint
     pub local: Endpoint,
     /// Information about the remote connection endpoint

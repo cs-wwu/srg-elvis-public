@@ -1,19 +1,21 @@
-use super::udp_parsing::build_udp_header;
+use super::{udp_parsing::build_udp_header, Udp};
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
     logging::{receive_message_event, send_message_event},
     machine::ProtocolMap,
     message::Message,
     protocol::DemuxError,
     protocols::utility::Socket,
-    session::{QueryError, SendError, SharedSession},
+    session::{SendError, SharedSession},
     Control, Session,
 };
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    fmt::Debug,
+    sync::Arc,
+};
 
 pub(super) struct UdpSession {
-    pub upstream: Id,
+    pub upstream: TypeId,
     pub downstream: SharedSession,
     pub id: SessionId,
 }
@@ -33,7 +35,7 @@ impl UdpSession {
             message.clone(),
         );
         protocols
-            .protocol(self.upstream)
+            .get(self.upstream)
             .expect("No such protocol")
             .demux(message, self, control, protocols)?;
         Ok(())
@@ -77,8 +79,12 @@ impl Session for UdpSession {
         Ok(())
     }
 
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.query(key)
+    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>> {
+        if protocol_id == TypeId::of::<Udp>() {
+            Some(Box::new(self.id))
+        } else {
+            self.downstream.info(protocol_id)
+        }
     }
 }
 

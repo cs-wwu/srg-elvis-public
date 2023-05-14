@@ -8,12 +8,13 @@ use elvis_core::{
         Udp,
     },
     session::SharedSession,
-    Control, Id, Participants, Shutdown,
+    Control, Participants, Protocol, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
-
-use super::Transport;
 
 /// An application that sends a Time To Live (TTL) to
 /// another machine from the first machine.
@@ -60,14 +61,16 @@ impl PingPong {
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
+
     /// Set the MAC address of the machine to send to
     pub fn remote_mac(mut self, mac: Mac) -> Self {
         self.remote_mac = Some(mac);
         self
     }
+
     /// The protocol to use in delivering the message
     pub fn transport(mut self, transport: Transport) -> Self {
         self.transport = transport;
@@ -76,8 +79,6 @@ impl PingPong {
 }
 
 impl Application for PingPong {
-    const ID: Id = Id::from_string("PingPong");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -92,8 +93,8 @@ impl Application for PingPong {
         participants.remote.address = Some(self.remote_ip_address);
         participants.remote.port = Some(self.remote_port);
 
-        let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
-        let session = protocol.open(Self::ID, participants, protocols.clone())?;
+        let protocol = protocols.protocol::<Udp>().expect("No such protocol");
+        let session = protocol.open(TypeId::of::<Self>(), participants, protocols.clone())?;
         *self.session.write().unwrap() = Some(session.clone());
 
         let is_initiator = self.is_initiator;
