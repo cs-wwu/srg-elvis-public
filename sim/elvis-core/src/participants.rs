@@ -1,4 +1,4 @@
-use crate::{machine::PciSlot, network::Mac, protocols::ipv4::Ipv4Address};
+use crate::{control::Endpoint, machine::PciSlot};
 use std::{
     any::TypeId,
     ops::{Deref, DerefMut},
@@ -27,17 +27,6 @@ pub struct ParticipantsInner {
     pub local: Endpoint,
     /// Information about the remote connection endpoint
     pub remote: Endpoint,
-}
-
-/// Specifies information about a connection endpoint
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Endpoint {
-    /// The MAC address
-    pub mac: Option<Mac>,
-    /// The IPv4 address
-    pub address: Option<Ipv4Address>,
-    /// The UDP or TCP port
-    pub port: Option<u16>,
 }
 
 impl Participants {

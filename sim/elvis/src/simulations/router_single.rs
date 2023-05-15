@@ -64,7 +64,8 @@ pub async fn router_single() {
                     networks[2].clone(),
                     networks[3].clone(),
                 ]))
-                .with(Router::new(ip_table))
+                .with(Ipv4::new(ip_table))
+                .with(Router::new().process())
                 .build(),
         ),
         // capture for destination 1
@@ -102,7 +103,7 @@ pub async fn router_single() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    async fn router_simulation() {
+    async fn router_single() {
         super::router_single().await
     }
 }

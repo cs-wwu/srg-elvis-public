@@ -1,33 +1,29 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocol::{DemuxError, StartError},
-    protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
-    protocols::{user_process::ApplicationError, Ipv4, Pci},
-    session::SharedSession,
+    protocols::{
+        ipv4::Ipv4Address,
+        user_process::{Application, ApplicationError},
+        Ipv4, UserProcess,
+    },
     Control, Participants, Protocol, Shutdown,
 };
-use std::{
-    any::TypeId,
-    sync::{Arc, RwLock},
-};
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
-pub struct Router {
-    outgoing: RwLock<Vec<SharedSession>>,
-    recipients: Recipients,
-}
+pub struct Router;
 
 impl Router {
-    pub fn new(recipients: Recipients) -> Self {
-        Self {
-            outgoing: Default::default(),
-            recipients,
-        }
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
-impl Protocol for Router {
+impl Application for Router {
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
     fn start(
@@ -35,29 +31,11 @@ impl Protocol for Router {
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        // get the pci protocol
-        let pci = protocols.protocol::<Pci>().expect("No such protocol");
-
-        // query the number of taps in our pci session
-        let number_taps = pci.slot_count();
-
-        let mut sessions = Vec::with_capacity(number_taps as usize);
-
-        for i in 0..number_taps {
-            let mut participants = Participants::new();
-            participants.slot = Some(i as u32);
-            let val = pci
-                .open(self.id(), participants.clone(), protocols.clone())
-                .expect("could not open session");
-            sessions.push(val);
-        }
-
-        *self
-            .outgoing
-            .write()
-            .expect("could not put array in outgoing") = sessions;
-
+    ) -> Result<(), ApplicationError> {
+        let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
+        let mut participants = Participants::new();
+        participants.local.address = Some(Ipv4Address::CURRENT_NETWORK);
+        ipv4.listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
         tokio::spawn(async move {
             initialize.wait().await;
         });
@@ -66,60 +44,23 @@ impl Protocol for Router {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn demux(
+    fn receive(
         &self,
         message: Message,
-        _caller: SharedSession,
-        mut control: Control,
+        control: Control,
         protocols: ProtocolMap,
-    ) -> Result<(), DemuxError> {
-        // obtain destination address of the message
-        // cant use this as we dont have an ipv4 protocol in the router
-        // should probably extract it from the message object somehow
-
-        // if the header cant parse drop the packet
-        let header: Ipv4Header =
-            Ipv4Header::from_bytes(message.iter()).or(Err(ApplicationError::Other))?;
-
-        let address = header.destination;
-
-        let recipient = match self.recipients.get(&address) {
-            Some(recipient) => recipient,
-            None => return Ok(()),
-        };
-        control.first_responder = Some(TypeId::of::<Ipv4>());
-        control.local.mac = recipient.mac;
-
-        self.outgoing
-            .read()
-            .expect("could not get outgoing as reference")
-            .get(recipient.slot as usize)
-            .expect("Could not send message")
-            .send(message, control, protocols)?;
-
+    ) -> Result<(), ApplicationError> {
+        println!("Hit: {control:?}");
+        let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
+        let mut participants = Participants::new();
+        participants.local.address = control.local.address;
+        participants.remote.address = control.remote.address;
+        let session = ipv4.open(
+            TypeId::of::<UserProcess<Self>>(),
+            participants,
+            protocols.clone(),
+        )?;
+        session.send(message, Control::new(), protocols)?;
         Ok(())
-    }
-
-    fn id(&self) -> TypeId {
-        TypeId::of::<Ipv4>()
-    }
-
-    fn open(
-        &self,
-        _upstream: TypeId,
-        _participants: Participants,
-        _protocols: ProtocolMap,
-    ) -> Result<SharedSession, elvis_core::protocol::OpenError> {
-        panic!("Cannot open on a router")
-    }
-
-    fn listen(
-        &self,
-        // TODO(hardint): Should this just be Arc<Protocol>?
-        _upstream: TypeId,
-        _participants: Participants,
-        _protocols: ProtocolMap,
-    ) -> Result<(), elvis_core::protocol::ListenError> {
-        panic!("Cannot listen on a router")
     }
 }

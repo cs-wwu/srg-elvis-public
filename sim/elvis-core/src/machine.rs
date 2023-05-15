@@ -28,7 +28,7 @@ impl ProtocolMapBuilder {
     {
         let protocol = Arc::new(protocol);
         self.inner.insert(
-            protocol.id(),
+            TypeId::of::<T>(),
             (protocol.clone() as ArcAny, protocol as SharedProtocol),
         );
         self

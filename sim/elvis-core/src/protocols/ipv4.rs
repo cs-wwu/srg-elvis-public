@@ -177,50 +177,53 @@ impl Protocol for Ipv4 {
         control.local.address = Some(identifier.local);
         control.remote.address = Some(identifier.remote);
 
-        let session =
-            match self.sessions.entry(identifier) {
-                Entry::Occupied(entry) => entry.get().clone(),
+        let session = match self.sessions.entry(identifier) {
+            Entry::Occupied(entry) => entry.get().clone(),
 
-                Entry::Vacant(entry) => {
-                    // If the session does not exist, see if we have a listen
-                    // binding for it
-                    let binding = match self.listen_bindings.get(&identifier.local) {
-                        Some(binding) => binding,
-                        None => {
-                            // If we don't have a normal listen binding, check for
-                            // a 0.0.0.0 binding
-                            let any_listen_id = Ipv4Address::CURRENT_NETWORK;
-                            match self.listen_bindings.get(&any_listen_id) {
-                                Some(any_binding) => any_binding,
-                                None => {
-                                    tracing::error!(
-                                        "Could not find a listen binding for the local address {}",
-                                        identifier.local
-                                    );
-                                    Err(DemuxError::MissingSession)?
-                                }
+            Entry::Vacant(entry) => {
+                // If the session does not exist, see if we have a listen
+                // binding for it
+                let binding = match self.listen_bindings.get(&identifier.local) {
+                    Some(binding) => *binding,
+                    None => {
+                        // If we don't have a normal listen binding, check for
+                        // a 0.0.0.0 binding
+                        let any_listen_id = Ipv4Address::CURRENT_NETWORK;
+                        match self.listen_bindings.get(&any_listen_id) {
+                            Some(any_binding) => *any_binding,
+                            None => {
+                                tracing::error!(
+                                    "Could not find a listen binding for the local address {}",
+                                    identifier.local
+                                );
+                                Err(DemuxError::MissingSession)?
                             }
                         }
-                    };
-                    let slot = control.slot.ok_or_else(|| {
-                        tracing::error!("Missing network ID on context");
-                        DemuxError::MissingContext
-                    })?;
-                    let mac = control.remote.mac.ok_or_else(|| {
-                        tracing::error!("Missing sender MAC on context");
-                        DemuxError::MissingContext
-                    })?;
-                    let destination = Recipient::with_mac(slot, mac);
-                    let session = Arc::new(
-                    Ipv4Session::new(caller, *binding, identifier, destination).ok_or_else(|| {
-    tracing::error!("Could not get a protocol number for the given upstream protocol");
-    DemuxError::Other
-                    })?
-                    );
-                    entry.insert(session.clone());
-                    session
-                }
-            };
+                    }
+                };
+                let slot = control.slot.ok_or_else(|| {
+                    tracing::error!("Missing network ID on context");
+                    DemuxError::MissingContext
+                })?;
+                let mac = control.remote.mac.ok_or_else(|| {
+                    tracing::error!("Missing sender MAC on context");
+                    DemuxError::MissingContext
+                })?;
+                let destination = Recipient::with_mac(slot, mac);
+                let session = Arc::new(
+                    Ipv4Session::new(caller, binding, identifier, destination).ok_or_else(
+                        || {
+                            tracing::error!(
+                                "Could not get a protocol number for the given upstream protocol"
+                            );
+                            DemuxError::Other
+                        },
+                    )?,
+                );
+                entry.insert(session.clone());
+                session
+            }
+        };
         session.receive(message, control, protocols)?;
         Ok(())
     }
