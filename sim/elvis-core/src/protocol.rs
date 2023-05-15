@@ -119,7 +119,13 @@ pub trait Protocol {
 
     /// Allows for notifying a protocol about an occurrence,
     /// Eg. a new connection being established
-    fn notify(&self, context: Context) -> Result<(), NotifyError>;
+    fn notify(&self, notification: NotifyType, context: Context);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotifyType {
+    NewConnection,
+    NewMessage,
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]

@@ -1,7 +1,7 @@
 use super::Sockets;
 use crate::{
     message::Chunk,
-    protocol::{Context, DemuxError},
+    protocol::{Context, DemuxError, NotifyType},
     protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
     Control, Id, Message, ProtocolMap, Shutdown,
@@ -40,12 +40,6 @@ pub struct Socket {
 enum NotifyResult {
     Notified,
     Shutdown,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum NotifyType {
-    Listening,
-    Receiving,
 }
 
 impl Socket {
@@ -94,11 +88,11 @@ impl Socket {
         if *self.is_blocking.read().unwrap() {
             let mut shutdown_receiver = self.shutdown.receiver();
             match notify_type {
-                NotifyType::Listening => select! {
+                NotifyType::NewConnection => select! {
                     _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
                     _ = self.notify_listen.notified() => NotifyResult::Notified,
                 },
-                NotifyType::Receiving => select! {
+                NotifyType::NewMessage => select! {
                     _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
                     _ = self.notify_recv.notified() => NotifyResult::Notified,
                 },
@@ -254,7 +248,7 @@ impl Socket {
         if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
-        if self.wait_for_notify(NotifyType::Listening).await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::NewConnection).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
         let new_sock = self
@@ -319,7 +313,7 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if self.wait_for_notify(NotifyType::Receiving).await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
         let mut buf = Vec::new();
@@ -353,7 +347,7 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if self.wait_for_notify(NotifyType::Receiving).await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
         let mut queue = self.messages.write().unwrap().clone();
@@ -483,5 +477,38 @@ impl SocketId {
             local_address,
             remote_address,
         }
+    }
+
+    pub fn new_from_context(context: Context) -> Result<SocketId, DemuxError> {
+        Ok(SocketId::new(
+            IpAddress::IPv4(Ipv4::get_local_address(&context.control).map_err(|_| {
+                tracing::error!("Missing local address on context");
+                DemuxError::MissingContext
+            })?),
+            match Udp::get_local_port(&context.control) {
+                Ok(port) => port,
+                Err(_) => match Tcp::get_local_port(&context.control) {
+                    Ok(port) => port,
+                    Err(_) => {
+                        tracing::error!("Missing local port on context");
+                        return Err(DemuxError::MissingContext);
+                    }
+                },
+            },
+            IpAddress::IPv4(Ipv4::get_remote_address(&context.control).map_err(|_| {
+                tracing::error!("Missing remote address on context");
+                DemuxError::MissingContext
+            })?),
+            match Udp::get_remote_port(&context.control) {
+                Ok(port) => port,
+                Err(_) => match Tcp::get_remote_port(&context.control) {
+                    Ok(port) => port,
+                    Err(_) => {
+                        tracing::error!("Missing local port on context");
+                        return Err(DemuxError::MissingContext);
+                    }
+                },
+            },
+        ))
     }
 }

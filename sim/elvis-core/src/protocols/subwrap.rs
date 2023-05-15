@@ -3,7 +3,7 @@
 use crate::{
     control::{Key, Primitive},
     protocol::{
-        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError, NotifyError,
+        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError, NotifyError, NotifyType,
     },
     session::{self, SharedSession},
     Control, Id, Message, Protocol, ProtocolMap, Session, Shutdown,
@@ -177,8 +177,8 @@ impl Protocol for SubWrap {
         self.inner.query(key)
     }
 
-    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
-        Ok(())
+    fn notify(&self, _notification: NotifyType, _context: Context) {
+        
     }
 }
 

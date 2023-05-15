@@ -8,7 +8,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError, NotifyType},
     protocols::pci::Pci,
     session::SharedSession,
     Control, FxDashMap, Network, Protocol, Shutdown,
@@ -236,8 +236,8 @@ impl Protocol for Ipv4 {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
-        Ok(())
+    fn notify(&self, _notification: NotifyType, _context: Context) {
+        
     }
 }
 

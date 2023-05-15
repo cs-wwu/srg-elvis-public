@@ -1,6 +1,6 @@
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError, NotifyType},
     protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
@@ -255,36 +255,7 @@ impl Protocol for Sockets {
         caller: SharedSession,
         context: Context,
     ) -> Result<(), DemuxError> {
-        let identifier = SocketId::new(
-            IpAddress::IPv4(Ipv4::get_local_address(&context.control).map_err(|_| {
-                tracing::error!("Missing local address on context");
-                DemuxError::MissingContext
-            })?),
-            match Udp::get_local_port(&context.control) {
-                Ok(port) => port,
-                Err(_) => match Tcp::get_local_port(&context.control) {
-                    Ok(port) => port,
-                    Err(_) => {
-                        tracing::error!("Missing local port on context");
-                        return Err(DemuxError::MissingContext);
-                    }
-                },
-            },
-            IpAddress::IPv4(Ipv4::get_remote_address(&context.control).map_err(|_| {
-                tracing::error!("Missing remote address on context");
-                DemuxError::MissingContext
-            })?),
-            match Udp::get_remote_port(&context.control) {
-                Ok(port) => port,
-                Err(_) => match Tcp::get_remote_port(&context.control) {
-                    Ok(port) => port,
-                    Err(_) => {
-                        tracing::error!("Missing local port on context");
-                        return Err(DemuxError::MissingContext);
-                    }
-                },
-            },
-        );
+        let identifier = SocketId::new_from_context(context)?;
         let any_identifier =
             SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
         match self.socket_sessions.entry(identifier) {
@@ -330,7 +301,16 @@ impl Protocol for Sockets {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
-        Ok(())
+    fn notify(&self, notification: NotifyType, context: Context) {
+        let identifier = match notification {
+            NotifyType::NewConnection => {
+                match SocketId::new_from_context(context) {
+                    Ok(id) => id,
+                    Err(_) => return
+                };
+            },
+            NotifyType::NewMessage => return
+        };
+        // TODO(giddinl2): Handle the notification
     }
 }

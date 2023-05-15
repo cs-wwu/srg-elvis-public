@@ -1,8 +1,8 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError, SharedProtocol},
-    protocols::tcp::tcb::AdvanceTimeResult,
+    protocol::{Context, DemuxError, SharedProtocol, NotifyType},
+    protocols::tcp::tcb::{AdvanceTimeResult, State},
     session::{QueryError, SendError, SharedSession},
     Id, Message, ProtocolMap, Session,
 };
@@ -44,6 +44,7 @@ impl TcpSession {
         let out = me.clone();
         //let context = Context::new(protocols);
         tokio::spawn(async move {
+            let mut connected = false;
             'outer: loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
 
@@ -52,6 +53,11 @@ impl TcpSession {
                 // any ready instructions without setting up a timeout and then
                 // maybe do the timeout if there were no instructions ready.
                 let mut needs_timeout = true;
+
+                if !connected && tcb.status() == State::Established {
+                    connected = true;
+                    upstream.notify(NotifyType::NewConnection, context.clone());
+                }
 
                 loop {
                     match recv.try_recv() {

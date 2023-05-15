@@ -6,7 +6,7 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError, NotifyType},
     session::{SendError, SharedSession},
     Control, Protocol, Shutdown,
 };
@@ -128,7 +128,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, _context: Context) -> Result<(), NotifyError> {
-        Err(NotifyError::Other)
+    fn notify(&self, _notification: NotifyType, _context: Context) {
+        
     }
 }
