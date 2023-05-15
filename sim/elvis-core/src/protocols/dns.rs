@@ -24,27 +24,45 @@ use {
     tokio::sync::Barrier,
 };
 
+pub enum DnsType {
+    /// Authoritative Server
+    AUT,
+    /// Client
+    CLI,
+    /// Recursive
+    REC,
+}
+
 /// Serves as a tool for looking up the ['Ipv4Address'] of a host using its
 /// known machine name (domain), and as the storage for an individual machine's
 /// name to IP mappings.
-#[derive(Default)]
 pub struct Dns {
     /// Mapping of names to IPs that is unique to each machine. When a machine
     /// connects to a host using DNS, the mapping is saved in the connecting
     /// machines DNS protocol.
     name_to_ip: DashMap<String, Ipv4Address>,
+
+    /// The type for this Dns protocol telling us what kind of machine we're on
+    dns_type: DnsType,
+
+    /// Direct reference to Sockets
+    // TODO(zachd9757): Replace this with a reference to the ELVIS API once it exists
+    // sockets: Sockets,
+
     /// Well-known IP for the authoritative server
-    /// TODO(zachd0757): add IP object
+    auth_ip: Ipv4Address,
 }
 
 impl Dns {
     /// A unique identifier for the protocol.
-    pub const ID: Id = Id::new(16);  // 16 is the ID for DNS
+    pub const ID: Id = Id::new(16);  // 16 is the unique ID for DNS
 
     /// Creates a new instance of the protocol.
-    pub fn new() -> Self {
+    pub fn new(dns_type: DnsType, auth_ip: Ipv4Address) -> Self {
         Self {
             name_to_ip: DashMap::new(),
+            dns_type,
+            auth_ip,
         }
     }
 
@@ -67,6 +85,32 @@ impl Dns {
             Entry::Vacant(e) => {
                 Err(DnsError::Cache)
             }
+        }
+    }
+
+    /// Finds the IP associated with the given domain name.
+    fn get_host_by_name(
+        &self,
+        name: String,
+        protocols: ProtocolMap,
+    ) -> Result<Ipv4Address, /* SocketError */ DnsError> {
+        // Get DNS protocol from this socket protocol's machine
+        // let dns: Dns = match protocols.protocol(Dns::ID) {
+        //     Some(p) => p,
+        //     None => {
+        //         return Err(SocketError::Other);
+        //     }
+        // };
+
+        match self.get_mapping(name) {
+            // Cache hit
+            Ok(ip) => Ok(ip),
+
+            // Cache miss
+            Err(DnsError) => {
+                // TODO(zachd9757): Check authoritative server
+                Err(/* SocketError::Other*/ DnsError::Other)
+            },
         }
     }
 }

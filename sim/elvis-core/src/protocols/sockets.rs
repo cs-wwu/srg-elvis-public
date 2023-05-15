@@ -37,9 +37,7 @@ pub struct Sockets {
     listen_bindings: FxDashMap<SocketAddress, Id>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
-    // Sockets use Dns as a tool for looking up IPs and need direct access
-    // to the Dns cache.
-    dns: Dns,
+    // TODO(zachd9757): A reference to the ELVIS API once it exists
 }
 
 impl Sockets {
@@ -57,7 +55,6 @@ impl Sockets {
             listen_bindings: Default::default(),
             notify_init: Notify::new(),
             shutdown: Default::default(),
-            dns: Dns::new(),
         }
     }
 
@@ -146,31 +143,31 @@ impl Sockets {
         }
     }
     
-    /// Finds the IP associated with the given domain name.
-    fn get_host_by_name(
-        &self,
-        name: String,
-        protocols: ProtocolMap,
-    ) -> Result<Ipv4Address, SocketError> {
-        // Get DNS protocol from this socket protocol's machine
-        // let dns: Dns =  match protocols.protocol(Dns::ID) {
-        //     Some(p) => p,
-        //     None => {
-        //         return Err(SocketError::Other);
-        //     }
-        // };
+    // /// Finds the IP associated with the given domain name.
+    // fn get_host_by_name(
+    //     &self,
+    //     name: String,
+    //     protocols: ProtocolMap,
+    // ) -> Result<Ipv4Address, SocketError> {
+    //     // Get DNS protocol from this socket protocol's machine
+    //     // let dns: Dns =  match protocols.protocol(Dns::ID) {
+    //     //     Some(p) => p,
+    //     //     None => {
+    //     //         return Err(SocketError::Other);
+    //     //     }
+    //     // };
 
-        match self.dns.get_mapping(name) {
-            // Cache hit
-            Ok(ip) => Ok(ip),
+    //     match get_mapping(name) {
+    //         // Cache hit
+    //         Ok(ip) => Ok(ip),
 
-            // Cache miss
-            Err(DnsError) => {
-                // TODO(zachd9757): Check authoritative server
-                Err(SocketError::Other)
-            },
-        }
-    }
+    //         // Cache miss
+    //         Err(DnsError) => {
+    //             // TODO(zachd9757): Check authoritative server
+    //             Err(SocketError::Other)
+    //         },
+    //     }
+    // }
 }
 
 impl Protocol for Sockets {
@@ -351,13 +348,12 @@ mod tests {
             ]);
 
         let shutdown = Shutdown::new();
-        // let total_protocols: usize = machine.protocol_count();
+        let total_protocols: usize = machine.protocol_count();
         let initialized = Arc::new(Barrier::new(total_protocols));
         let protocols: ProtocolMap = machine.protocols.clone();
         
         machine.start(shutdown.clone(), initialized.clone());
         
-
         let ip: Result<Ipv4Address, SocketError> =
             sockets.get_host_by_name("DNE".to_string(), protocols);
 
@@ -367,6 +363,6 @@ mod tests {
         // machine-to-machine connection and check if the cache is auto-updated
 
 
-        
+
     }
 }
