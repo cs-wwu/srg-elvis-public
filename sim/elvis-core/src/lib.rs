@@ -64,6 +64,9 @@ pub use machine::ProtocolMap;
 mod internet;
 pub use internet::run_internet;
 
+mod network_api;
+pub use network_api::NetworkAPI;
+
 mod id;
 pub use id::Id;
 

@@ -4,27 +4,26 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         sockets::{
-            socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
-            Sockets,
+            socket::{ProtocolFamily, Socket, SocketAddress, SocketType}
         },
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Id, ProtocolMap, Shutdown,
+    Id, ProtocolMap, Shutdown, NetworkAPI,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
 pub struct SocketServer {
-    /// The Sockets API
-    sockets: Arc<Sockets>,
+    /// The Network API
+    network_api: Arc<NetworkAPI>,
     /// The port to capture a message on
     local_port: u16,
 }
 
 impl SocketServer {
-    pub fn new(sockets: Arc<Sockets>, local_port: u16) -> Self {
+    pub fn new(network_api: Arc<NetworkAPI>, local_port: u16) -> Self {
         Self {
-            sockets,
+            network_api,
             local_port,
         }
     }
@@ -63,12 +62,12 @@ impl Application for SocketServer {
     ) -> Result<(), ApplicationError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = self.sockets.clone();
+        let network_api = self.network_api.clone();
         let local_port = self.local_port;
 
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
-            let listen_socket = sockets
+            let listen_socket = network_api
                 .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .await
                 .unwrap();
