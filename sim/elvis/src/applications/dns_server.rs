@@ -1,19 +1,3 @@
-use elvis_core::{
-    message::Message,
-    protocol::Context,
-    protocols::{
-        ipv4::Ipv4Address,
-        sockets::{
-            socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
-            Sockets,
-        },
-        user_process::{Application, ApplicationError, UserProcess},
-    },
-    Id, ProtocolMap, Shutdown,
-};
-use std::sync::Arc;
-use tokio::sync::Barrier;
-
 pub struct DnsServer {
     /// The Sockets API
     sockets: Arc<Sockets>,
@@ -34,26 +18,8 @@ impl DnsServer {
     }
 }
 
-async fn communicate_with_client(socket: Arc<Socket>) {
-    // Receive a message
-    let req = socket.recv(32).await.unwrap();
-    println!(
-        "SERVER: Request Received: {:?}",
-        String::from_utf8(req).unwrap()
-    );
-
-    // Send a message
-    let resp = "Major Tom to Ground Control";
-    println!("SERVER: Sending Response: {:?}", resp);
-    socket.send(resp).unwrap();
-
-    // Receive a message (Also example usage of recv_msg)
-    let _ack = socket.recv_msg().await.unwrap();
-    println!("SERVER: Ackowledgement Received");
-}
-
 impl Application for DnsServer {
-    const ID: Id = Id::from_string("Dns Server");
+    const ID: Id = Id::from_string("DNS Server");
 
     fn start(
         &self,
@@ -77,8 +43,8 @@ impl Application for DnsServer {
             let local_sock_addr = SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, local_port);
             listen_socket.bind(local_sock_addr).unwrap();
 
-            // Listen for incoming connections, with a maximum backlog of 10
-            listen_socket.listen(10).unwrap();
+            // Listen for incoming connections, with an unlimited backlog
+            listen_socket.listen(0).unwrap();
             println!("SERVER: Listening for incoming connections");
 
             // Wait on ititialization before sending or receiving any message from the network
@@ -116,8 +82,12 @@ impl Application for DnsServer {
         });
         Ok(())
     }
+}
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
-        Ok(())
+impl Default for DnsServer {
+    fn default() -> Self {
+        Self {
+            sockets: Sockets::new(Some(BROADCAST)).shared(),
+        }
     }
 }
