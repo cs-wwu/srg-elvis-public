@@ -11,14 +11,13 @@ use crate::{
 
 pub struct NetworkAPI {
     socket_api: Arc<Sockets>,
-    // TODO: dns: Arc<DNS>,
+    // TODO(giddinl2): add DNS field
 }
 
 impl NetworkAPI {
     pub fn new(local_ip: Option<Ipv4Address>) -> Self {
         Self {
             socket_api: Sockets::new(local_ip).shared(),
-            // TODO: dns: DNS::new().shared()
         }
     }
 
@@ -41,20 +40,11 @@ impl NetworkAPI {
             .await
     }
 
-    // pub fn dns(&self) -> Arc<DNS> {
-    //     self.dns.clone()
-    // }
-    
-    // pub fn get_host_by_name(&self) -> Result<Ipv4Address, DNSError> {
-    //     self.dns.get_host_by_name(self.socket_api.clone())
-    // }
+    // TODO(giddinl2): function to return Arc of DNS
 
-    // pub fn tcp_stream(&self, ip: Ipv4Address) -> Arc<TCPStream> {
-    //     // TODO: create TCPStream
-    // }
+    // TODO(giddinl2): get_host_by_name function
 
-    // pub fn tcp_listener(&self, ip: Ipv4Address) -> Arc<TCPListener> {
-    //     // TODO: create TCPListener
-    // }
+    // TODO(giddinl2): function to create a tcp_stream instance
 
+    // TODO(giddinl2): function to create a tcp_listener instance
 }
