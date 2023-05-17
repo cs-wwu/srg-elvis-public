@@ -2,11 +2,10 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Udp,
+        Endpoint, Udp,
     },
-    Control, Participants, Protocol, Shutdown,
+    Control, Shutdown,
 };
 use std::{
     any::TypeId,
@@ -22,10 +21,7 @@ use tokio::sync::Barrier;
 pub struct ThroughputTester {
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
-    /// The address we listen for a message on
-    ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    port: u16,
+    endpoint: Endpoint,
     message_count: u8,
     expected_delay: Range<Duration>,
     previous_receipt: Arc<RwLock<Option<SystemTime>>>,
@@ -34,16 +30,10 @@ pub struct ThroughputTester {
 
 impl ThroughputTester {
     /// Creates a new capture.
-    pub fn new(
-        ip_address: Ipv4Address,
-        port: u16,
-        message_count: u8,
-        expected_delay: Range<Duration>,
-    ) -> Self {
+    pub fn new(endpoint: Endpoint, message_count: u8, expected_delay: Range<Duration>) -> Self {
         Self {
             shutdown: Default::default(),
-            ip_address,
-            port,
+            endpoint,
             message_count,
             expected_delay,
             previous_receipt: Arc::new(RwLock::new(None)),
@@ -65,13 +55,11 @@ impl Application for ThroughputTester {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-        let mut participants = Participants::new();
-        participants.local.address = Some(self.ip_address);
-        participants.local.port = Some(self.port);
         protocols
             .protocol::<Udp>()
             .expect("No such protocol")
-            .listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
+            .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+            .unwrap();
         tokio::spawn(async move {
             initialized.wait().await;
         });

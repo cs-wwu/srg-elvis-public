@@ -4,28 +4,31 @@
 use crate::{
     machine::ProtocolMap,
     message::Message,
-    protocol::{DemuxError, ListenError, OpenError, StartError},
+    protocol::{DemuxError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
-    Control, FxDashMap, Participants, Protocol, Shutdown,
+    Control, FxDashMap, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 mod udp_session;
-use udp_session::{SessionId, UdpSession};
+use udp_session::UdpSession;
 
 mod udp_parsing;
 use self::udp_parsing::UdpHeader;
 
-use super::{ipv4::Ipv4Address, utility::Socket};
+use super::{
+    ipv4::{self, AddressPair, Ipv4Address},
+    utility::{Endpoint, Endpoints},
+};
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: FxDashMap<Socket, TypeId>,
-    sessions: FxDashMap<SessionId, Arc<UdpSession>>,
+    listen_bindings: FxDashMap<Endpoint, TypeId>,
+    sessions: FxDashMap<Endpoints, Arc<UdpSession>>,
 }
 
 impl Udp {
@@ -34,9 +37,53 @@ impl Udp {
         Default::default()
     }
 
-    /// Creates a new shared handle to an instance of the protocol.
-    pub fn shared(self) -> Arc<Self> {
-        Arc::new(self)
+    pub fn open(
+        &self,
+        upstream: TypeId,
+        sockets: Endpoints,
+        protocols: ProtocolMap,
+    ) -> Result<SharedSession, OpenError> {
+        match self.sessions.entry(sockets) {
+            Entry::Occupied(_) => {
+                tracing::error!("Tried to create an existing session");
+                return Err(OpenError::Existing(sockets));
+            }
+            Entry::Vacant(entry) => {
+                // Create the session and save it
+                let downstream = protocols.protocol::<Ipv4>().unwrap().open(
+                    TypeId::of::<Self>(),
+                    sockets.into(),
+                    protocols,
+                )?;
+                let session = Arc::new(UdpSession {
+                    upstream,
+                    downstream,
+                    sockets,
+                });
+                entry.insert(session.clone());
+                Ok(session)
+            }
+        }
+    }
+
+    pub fn listen(
+        &self,
+        upstream: TypeId,
+        socket: Endpoint,
+        protocols: ProtocolMap,
+    ) -> Result<(), ListenError> {
+        match self.listen_bindings.entry(socket) {
+            Entry::Occupied(mut entry) => {
+                let _ = entry.insert(upstream);
+            }
+            Entry::Vacant(_) => return Err(ListenError::Existing(socket)),
+        }
+        // Ask lower-level protocols to add the binding as well
+        protocols
+            .protocol::<Ipv4>()
+            .expect("No such protocol")
+            .listen(TypeId::of::<Self>(), socket.address)?;
+        Ok(())
     }
 }
 
@@ -45,112 +92,20 @@ impl Protocol for Udp {
         TypeId::of::<Self>()
     }
 
-    #[tracing::instrument(name = "Udp::open", skip_all)]
-    fn open(
-        &self,
-        upstream: TypeId,
-        participants: Participants,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        // Identify the session based on the participants. If any of the
-        // identifying information we need is not provided, that is a bug in one
-        // of the higher-up protocols and we should crash. Therefore, unwrapping
-        // is appropriate here.
-        let identifier = SessionId::new(
-            Socket::new(
-                participants.local.address.ok_or_else(|| {
-                    tracing::error!("Missing local address on context");
-                    OpenError::MissingContext
-                })?,
-                participants.local.port.ok_or_else(|| {
-                    tracing::error!("Missing local port on context");
-                    OpenError::MissingContext
-                })?,
-            ),
-            Socket::new(
-                participants.remote.address.ok_or_else(|| {
-                    tracing::error!("Missing remote address on context");
-                    OpenError::MissingContext
-                })?,
-                participants.remote.port.ok_or_else(|| {
-                    tracing::error!("Missing remote port on context");
-                    OpenError::MissingContext
-                })?,
-            ),
-        );
-        match self.sessions.entry(identifier) {
-            Entry::Occupied(_) => {
-                tracing::error!("Tried to create an existing session");
-                Err(OpenError::Existing)?
-            }
-            Entry::Vacant(entry) => {
-                // Create the session and save it
-                let downstream = protocols
-                    .protocol::<Ipv4>()
-                    .expect("No such protocol")
-                    .open(TypeId::of::<Self>(), participants, protocols)?;
-                let session = Arc::new(UdpSession {
-                    upstream,
-                    downstream,
-                    id: identifier,
-                });
-                entry.insert(session.clone());
-                Ok(session)
-            }
-        }
-    }
-
-    #[tracing::instrument(name = "Udp::listen", skip_all)]
-    fn listen(
-        &self,
-        upstream: TypeId,
-        participants: Participants,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
-        // Add the listen binding. If any of the identifying information is
-        // missing, that is a bug in the protocol that requested the listen and
-        // we should crash. Unwrapping serves the purpose.
-        let identifier = Socket {
-            port: participants.local.port.ok_or_else(|| {
-                tracing::error!("Missing local port on context");
-                ListenError::MissingContext
-            })?,
-            address: participants.local.address.ok_or_else(|| {
-                tracing::error!("Missing local address on context");
-                ListenError::MissingContext
-            })?,
-        };
-        self.listen_bindings.insert(identifier, upstream);
-        // Ask lower-level protocols to add the binding as well
-        protocols
-            .protocol::<Ipv4>()
-            .expect("No such protocol")
-            .listen(TypeId::of::<Self>(), participants, protocols)
-    }
-
-    #[tracing::instrument(name = "Udp::demux", skip_all)]
     fn demux(
         &self,
         mut message: Message,
         caller: SharedSession,
-        mut control: Control,
+        control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        // Extract information from the context
-        let local_address = control.local.address.ok_or_else(|| {
-            tracing::error!("Missing local address on context");
-            DemuxError::MissingContext
-        })?;
-        let remote_address = control.remote.address.ok_or_else(|| {
-            tracing::error!("Missing remote address on context");
-            DemuxError::MissingContext
-        })?;
+        let addresses = control.get::<AddressPair>().unwrap();
         // Parse the header
         let header = match UdpHeader::from_bytes_ipv4(
             message.iter(),
             message.len(),
-            remote_address,
-            local_address,
+            addresses.remote,
+            addresses.local,
         ) {
             Ok(header) => header,
             Err(e) => {
@@ -161,32 +116,25 @@ impl Protocol for Udp {
         message.remove_front(8);
 
         // Use the context and the header information to identify the session
-        let session_id = SessionId::new(
-            Socket::new(local_address, header.destination),
-            Socket::new(remote_address, header.source),
+        let endpoints = Endpoints::new(
+            Endpoint::new(addresses.local, header.destination),
+            Endpoint::new(addresses.remote, header.source),
         );
 
-        // Add the header information to the context
-        control.local.port = Some(session_id.local.port);
-        control.remote.port = Some(session_id.remote.port);
-        let session = match self.sessions.entry(session_id) {
+        let session = match self.sessions.entry(endpoints) {
             Entry::Occupied(entry) => entry.get().clone(),
 
             Entry::Vacant(session_entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
-                let listen_id = Socket {
-                    address: local_address,
-                    port: session_id.local.port,
-                };
-                let binding = match self.listen_bindings.get(&listen_id) {
+                let binding = match self.listen_bindings.get(&endpoints.local) {
                     Some(listen_entry) => listen_entry,
                     None => {
                         // If we don't have a normal listen binding, check for
                         // a 0.0.0.0 binding
-                        let any_listen_id = Socket {
+                        let any_listen_id = Endpoint {
                             address: Ipv4Address::CURRENT_NETWORK,
-                            port: session_id.local.port,
+                            port: endpoints.local.port,
                         };
                         match self.listen_bindings.get(&any_listen_id) {
                             Some(any_listen_entry) => any_listen_entry,
@@ -203,7 +151,7 @@ impl Protocol for Udp {
                 let session = Arc::new(UdpSession {
                     upstream: *binding,
                     downstream: caller,
-                    id: session_id,
+                    sockets: endpoints,
                 });
                 session_entry.insert(session.clone());
                 session
@@ -224,4 +172,20 @@ impl Protocol for Udp {
         });
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum OpenError {
+    #[error("The socket pair already has an associated session: {0:?}")]
+    Existing(Endpoints),
+    #[error("{0}")]
+    Ipv4(#[from] ipv4::OpenError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum ListenError {
+    #[error("The socket already has a listen binding: {0:?}")]
+    Existing(Endpoint),
+    #[error("{0}")]
+    Ipv4(#[from] ipv4::ListenError),
 }

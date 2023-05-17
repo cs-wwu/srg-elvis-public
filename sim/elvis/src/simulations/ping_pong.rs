@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
-        Pci,
+        Endpoint, Endpoints, Pci,
     },
     run_internet, Machine, Network,
 };
@@ -18,6 +18,16 @@ const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);
 /// back and forth till the TTL reaches 0. TTL will be subtracted by 1 every time a machine reveives it.
 pub async fn ping_pong() {
     let network = Network::basic();
+    let endpoints = Endpoints {
+        local: Endpoint {
+            address: IP_ADDRESS_1,
+            port: 0xbeef,
+        },
+        remote: Endpoint {
+            address: IP_ADDRESS_2,
+            port: 0xface,
+        },
+    };
     let ip_table: Recipients = [
         (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
         (IP_ADDRESS_2, Recipient::with_mac(0, 1)),
@@ -31,7 +41,7 @@ pub async fn ping_pong() {
                 .with(Udp::new())
                 .with(Ipv4::new(ip_table.clone()))
                 .with(Pci::new([network.clone()]))
-                .with(PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface).process())
+                .with(PingPong::new(true, endpoints).process())
                 .build(),
         ),
         Machine::new(
@@ -39,7 +49,7 @@ pub async fn ping_pong() {
                 .with(Udp::new())
                 .with(Ipv4::new(ip_table.clone()))
                 .with(Pci::new([network.clone()]))
-                .with(PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef).process())
+                .with(PingPong::new(false, endpoints.reverse()).process())
                 .build(),
         ),
     ];

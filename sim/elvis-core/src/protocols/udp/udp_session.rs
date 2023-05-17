@@ -1,23 +1,19 @@
-use super::{udp_parsing::build_udp_header, Udp};
+use super::udp_parsing::build_udp_header;
 use crate::{
     logging::{receive_message_event, send_message_event},
     machine::ProtocolMap,
     message::Message,
     protocol::DemuxError,
-    protocols::utility::Socket,
+    protocols::utility::Endpoints,
     session::{SendError, SharedSession},
     Control, Session,
 };
-use std::{
-    any::{Any, TypeId},
-    fmt::Debug,
-    sync::Arc,
-};
+use std::{any::TypeId, fmt::Debug, sync::Arc};
 
 pub(super) struct UdpSession {
     pub upstream: TypeId,
     pub downstream: SharedSession,
-    pub id: SessionId,
+    pub sockets: Endpoints,
 }
 
 impl UdpSession {
@@ -28,10 +24,10 @@ impl UdpSession {
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         receive_message_event(
-            self.id.local.address,
-            self.id.remote.address,
-            self.id.local.port,
-            self.id.remote.port,
+            self.sockets.local.address,
+            self.sockets.remote.address,
+            self.sockets.local.port,
+            self.sockets.remote.port,
             message.clone(),
         );
         protocols
@@ -43,20 +39,14 @@ impl UdpSession {
 }
 
 impl Session for UdpSession {
-    #[tracing::instrument(name = "UdpSession::send", skip_all)]
-    fn send(
-        &self,
-        mut message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), SendError> {
-        let id = self.id;
+    fn send(&self, mut message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
+        let id = self.sockets;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
         let header = match build_udp_header(
-            self.id.local.address,
+            self.sockets.local.address,
             id.local.port,
-            self.id.remote.address,
+            self.sockets.remote.address,
             id.remote.port,
             message.iter(),
             message.len(),
@@ -68,40 +58,22 @@ impl Session for UdpSession {
             }
         };
         send_message_event(
-            self.id.local.address,
-            self.id.remote.address,
+            self.sockets.local.address,
+            self.sockets.remote.address,
             id.local.port,
             id.remote.port,
             message.clone(),
         );
         message.header(header);
-        self.downstream.send(message, control, protocols)?;
+        self.downstream.send(message, protocols)?;
         Ok(())
-    }
-
-    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>> {
-        if protocol_id == TypeId::of::<Udp>() {
-            Some(Box::new(self.id))
-        } else {
-            self.downstream.info(protocol_id)
-        }
     }
 }
 
 impl Debug for UdpSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("UdpSession").field("id", &self.id).finish()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct SessionId {
-    pub local: Socket,
-    pub remote: Socket,
-}
-
-impl SessionId {
-    pub fn new(local: Socket, remote: Socket) -> Self {
-        Self { local, remote }
+        f.debug_struct("UdpSession")
+            .field("id", &self.sockets)
+            .finish()
     }
 }

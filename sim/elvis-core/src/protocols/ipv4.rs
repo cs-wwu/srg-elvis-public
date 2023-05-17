@@ -6,10 +6,10 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{DemuxError, ListenError, OpenError, StartError},
+    protocol::{DemuxError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, FxDashMap, Participants, Protocol, Shutdown,
+    Control, FxDashMap, Protocol, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
@@ -23,12 +23,17 @@ mod ipv4_address;
 pub use ipv4_address::Ipv4Address;
 
 mod ipv4_session;
-use ipv4_session::{Ipv4Session, SessionId};
+pub use ipv4_session::AddressPair;
+use ipv4_session::Ipv4Session;
+
+use super::pci;
+
+pub type DemuxInfo = AddressPair;
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     listen_bindings: FxDashMap<Ipv4Address, TypeId>,
-    sessions: FxDashMap<SessionId, Arc<Ipv4Session>>,
+    sessions: FxDashMap<AddressPair, Arc<Ipv4Session>>,
     recipients: Recipients,
 }
 
@@ -42,9 +47,45 @@ impl Ipv4 {
         }
     }
 
-    /// Creates a new shared handle to an instance of the protocol.
-    pub fn shared(self) -> Arc<Self> {
-        Arc::new(self)
+    pub fn open(
+        &self,
+        upstream: TypeId,
+        endpoints: AddressPair,
+        protocols: ProtocolMap,
+    ) -> Result<Arc<Ipv4Session>, OpenError> {
+        // TODO(hardint): Possibly make the receiver part of the session ID and just return an
+        // existing session as needed
+        match self.sessions.entry(endpoints) {
+            Entry::Occupied(_) => return Err(OpenError::Exists(endpoints)),
+            Entry::Vacant(entry) => {
+                // If the session does not exist, create it
+                let recipient = match self.recipients.get(&endpoints.remote) {
+                    Some(recipient) => *recipient,
+                    None => {
+                        return Err(OpenError::UnknownRecipient(endpoints.remote));
+                    }
+                };
+                let pci_session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
+                let session = Arc::new(Ipv4Session {
+                    pci_session,
+                    upstream,
+                    endpoints,
+                    recipient,
+                });
+                entry.insert(session.clone());
+                Ok(session)
+            }
+        }
+    }
+
+    pub fn listen(&self, upstream: TypeId, address: Ipv4Address) -> Result<(), ListenError> {
+        match self.listen_bindings.entry(address) {
+            Entry::Occupied(_) => return Err(ListenError::Exists(address))?,
+            Entry::Vacant(entry) => {
+                entry.insert(upstream);
+                Ok(())
+            }
+        }
     }
 }
 
@@ -68,97 +109,11 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    #[tracing::instrument(name = "Ipv4::open", skip_all)]
-    fn open(
-        &self,
-        upstream: TypeId,
-        mut participants: Participants,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        let key = SessionId::new(
-            participants.local.address.ok_or_else(|| {
-                tracing::error!("Missing local address on context");
-                OpenError::MissingContext
-            })?,
-            participants.remote.address.ok_or_else(|| {
-                tracing::error!("Missing remote address on context");
-                OpenError::MissingContext
-            })?,
-        );
-
-        match self.sessions.entry(key) {
-            Entry::Occupied(_) => {
-                tracing::error!(
-                    "A session already exists for {} -> {}",
-                    key.local,
-                    key.remote
-                );
-                Err(OpenError::Existing)
-            }
-
-            Entry::Vacant(entry) => {
-                // If the session does not exist, create it
-                let recipient = match self.recipients.get(&key.remote) {
-                    Some(tap_slot) => *tap_slot,
-                    None => {
-                        tracing::error!("No tap slot found for the IP {}", key.remote);
-                        return Err(OpenError::Other);
-                    }
-                };
-                participants.slot = Some(recipient.slot);
-                let tap_session = protocols
-                    .protocol::<Pci>()
-                    .expect("No such protocol")
-                    .open(TypeId::of::<Self>(), participants, protocols)?;
-                let session = Arc::new(
-                    Ipv4Session::new(tap_session, upstream, key, recipient).ok_or_else(|| {
-                        tracing::error!(
-                            "Could not get protocol number for the given upstream protocol"
-                        );
-                        OpenError::Other
-                    })?,
-                );
-                entry.insert(session.clone());
-                Ok(session)
-            }
-        }
-    }
-
-    #[tracing::instrument(name = "Ipv4::listen", skip_all)]
-    fn listen(
-        &self,
-        upstream: TypeId,
-        participants: Participants,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
-        let local = participants.local.address.ok_or_else(|| {
-            tracing::error!("Missing local address on context");
-            ListenError::MissingContext
-        })?;
-
-        match self.listen_bindings.entry(local) {
-            Entry::Occupied(_) => {
-                tracing::error!("A binding already exists for local address {}", local);
-                Err(ListenError::Existing)?
-            }
-
-            Entry::Vacant(entry) => {
-                entry.insert(upstream);
-            }
-        }
-
-        // Essentially a no-op but good for completeness and as an example
-        protocols
-            .protocol::<Pci>()
-            .expect("No such protocol")
-            .listen(TypeId::of::<Self>(), participants, protocols)
-    }
-
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
         &self,
         mut message: Message,
-        caller: SharedSession,
+        _caller: SharedSession,
         mut control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
@@ -172,54 +127,51 @@ impl Protocol for Ipv4 {
             }
         };
         message.remove_front(header.ihl as usize * 4);
-        let identifier = SessionId::new(header.destination, header.source);
-
-        control.local.address = Some(identifier.local);
-        control.remote.address = Some(identifier.remote);
-
-        let session = match self.sessions.entry(identifier) {
+        let endpoints = AddressPair {
+            local: header.destination,
+            remote: header.source,
+        };
+        control.insert(endpoints);
+        let session = match self.sessions.entry(endpoints) {
             Entry::Occupied(entry) => entry.get().clone(),
 
             Entry::Vacant(entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
-                let binding = match self.listen_bindings.get(&identifier.local) {
+                let upstream = match self.listen_bindings.get(&endpoints.local) {
                     Some(binding) => *binding,
                     None => {
                         // If we don't have a normal listen binding, check for
                         // a 0.0.0.0 binding
-                        let any_listen_id = Ipv4Address::CURRENT_NETWORK;
-                        match self.listen_bindings.get(&any_listen_id) {
-                            Some(any_binding) => *any_binding,
+                        match self.listen_bindings.get(&Ipv4Address::CURRENT_NETWORK) {
+                            Some(binding) => *binding,
                             None => {
                                 tracing::error!(
                                     "Could not find a listen binding for the local address {}",
-                                    identifier.local
+                                    endpoints.local
                                 );
                                 Err(DemuxError::MissingSession)?
                             }
                         }
                     }
                 };
-                let slot = control.slot.ok_or_else(|| {
-                    tracing::error!("Missing network ID on context");
-                    DemuxError::MissingContext
-                })?;
-                let mac = control.remote.mac.ok_or_else(|| {
-                    tracing::error!("Missing sender MAC on context");
-                    DemuxError::MissingContext
-                })?;
-                let destination = Recipient::with_mac(slot, mac);
-                let session = Arc::new(
-                    Ipv4Session::new(caller, binding, identifier, destination).ok_or_else(
-                        || {
-                            tracing::error!(
-                                "Could not get a protocol number for the given upstream protocol"
-                            );
-                            DemuxError::Other
-                        },
-                    )?,
-                );
+
+                let pci_demux_info = control
+                    .get::<pci::DemuxInfo>()
+                    .ok_or(DemuxError::MissingContext)?;
+                let recipient = Recipient::with_mac(pci_demux_info.slot, pci_demux_info.source);
+                let session = Arc::new(Ipv4Session {
+                    upstream,
+                    pci_session: protocols
+                        .protocol::<Pci>()
+                        .unwrap()
+                        .open(pci_demux_info.slot),
+                    endpoints: AddressPair {
+                        local: header.destination,
+                        remote: header.source,
+                    },
+                    recipient,
+                });
                 entry.insert(session.clone());
                 session
             }
@@ -231,6 +183,7 @@ impl Protocol for Ipv4 {
 
 pub type Recipients = FxHashMap<Ipv4Address, Recipient>;
 
+// TODO(hardint): Rename to something like pci::SendInfo and move to the PCI module
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Recipient {
     pub slot: PciSlot,
@@ -249,4 +202,18 @@ impl Recipient {
     pub fn broadcast(slot: PciSlot) -> Self {
         Self::new(slot, None)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
+pub enum OpenError {
+    #[error("There is already a session for {0:?}")]
+    Exists(AddressPair),
+    #[error("The IP table is missing an entry for {0}")]
+    UnknownRecipient(Ipv4Address),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum ListenError {
+    #[error("There is already a session for {0:?}")]
+    Exists(Ipv4Address),
 }

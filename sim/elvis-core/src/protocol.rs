@@ -1,9 +1,9 @@
 //! The [`Protocol`] trait and supporting types.
 
-use super::{message::Message, session::SharedSession, Control};
+use super::message::Message;
 use crate::{
-    machine::ProtocolMap, protocols::user_process::ApplicationError, session::SendError,
-    Participants, Shutdown,
+    machine::ProtocolMap, protocols::user_process::ApplicationError, session::SharedSession,
+    Control, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -40,50 +40,6 @@ pub trait Protocol {
         protocols: ProtocolMap,
     ) -> Result<(), StartError>;
 
-    /// Actively open a new network connection.
-    ///
-    /// Called by the `upstream` protocol to create a new
-    /// [`Session`](super::Session) for a connection. Each protocol should, in
-    /// turn, `open` a session with some downstream protocol to establish a
-    /// chain of sessions with which to send and receive messages for the
-    /// requesting user program.
-    ///
-    /// The `participants` set contains key-value pairs that identify aspects of
-    /// a connection to facilitate [`demux`](Protocol::demux)ing. It should
-    /// contain all attributes needed to uniquely identify the connection. For
-    /// example, an IP protocol might require the attributes `{local_address,
-    /// remote_address}`. A UDP or TCP protocol might require the attributes
-    /// `{local_address, local_port, remote_address, remote_port}`.
-    fn open(
-        &self,
-        upstream: TypeId,
-        participants: Participants,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError>;
-
-    /// Listen for new connections.
-    ///
-    /// Requests that messages for which there is no existing session be sent to
-    /// the `upstream` protocol. Only messages that match the `participants` set
-    /// will be forwarded. See [`demux`](Protocol::demux) for more details.
-    ///
-    /// The participants set should contain all attributes needed to identify
-    /// the listening program. For example, an IP protocol might use the set of
-    /// attributes `{local_address}`. Since we are listening for connections
-    /// from any remote address, when the IP protocol sees a message it does not
-    /// have a session for, it will check whether the local address given in the
-    /// header is one it is listening for. If so, it will create the session
-    /// identified by `{local_address, remote_address}` and continue
-    /// demultiplexing the message. Similarly, a UDP or TCP protocol would want
-    /// its participant set to include {local_address, local_port}.
-    fn listen(
-        &self,
-        // TODO(hardint): Should this just be Arc<Protocol>?
-        upstream: TypeId,
-        participants: Participants,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError>;
-
     /// Identifies the session that a message belongs to and forwards the
     /// message to it.
     ///
@@ -111,6 +67,8 @@ pub trait Protocol {
     ) -> Result<(), DemuxError>;
 }
 
+// TODO(hardint): Get rid of these error types and replace them with inline logging
+
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum DemuxError {
     #[error("Failed to find a session to demux to")]
@@ -125,21 +83,7 @@ pub enum DemuxError {
     Header,
     #[error("Receive failed during the execution of an Application")]
     Application(#[from] ApplicationError),
-    #[error("Failed to open a session during demux")]
-    Open(#[from] OpenError),
-    #[error("Failed to send a message during demux")]
-    Send(#[from] SendError),
     #[error("Unspecified demux error")]
-    Other,
-}
-
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
-pub enum ListenError {
-    #[error("The listen binding already exists")]
-    Existing,
-    #[error("Data expected through the context was missing")]
-    MissingContext,
-    #[error("Unspecified error")]
     Other,
 }
 
@@ -147,20 +91,6 @@ pub enum ListenError {
 pub enum StartError {
     #[error("Protocol failed to start because an application failed to start")]
     Application(#[from] ApplicationError),
-    #[error("Unspecified error")]
-    Other,
-}
-
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
-pub enum OpenError {
-    #[error("Could not find the given protocol: {0:?}")]
-    MissingProtocol(TypeId),
-    #[error("The session already exists")]
-    Existing,
-    #[error("Data expected through the context was missing")]
-    MissingContext,
-    #[error("Send failed while opening a session: {0}")]
-    Send(#[from] SendError),
     #[error("Unspecified error")]
     Other,
 }

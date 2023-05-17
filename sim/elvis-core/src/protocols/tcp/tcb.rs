@@ -5,13 +5,13 @@
 //! types so that it can be more easily tested outside of the full simulation
 //! environment.
 
-use super::{
-    tcp_parsing::{TcpHeader, TcpHeaderBuilder},
-    ConnectionId,
-};
+use super::tcp_parsing::{TcpHeader, TcpHeaderBuilder};
 use crate::{
     network::Mtu,
-    protocols::{ipv4::Ipv4Address, utility::Socket},
+    protocols::{
+        ipv4::Ipv4Address,
+        utility::{Endpoint, Endpoints},
+    },
     Message,
 };
 use std::{collections::BinaryHeap, mem, time::Duration};
@@ -50,7 +50,7 @@ const RETRANSMISSION_TIMEOUT: Duration = Duration::from_millis(100);
 #[derive(Debug)]
 pub struct Tcb {
     /// The pair of endpoints that identifies this connection
-    id: ConnectionId,
+    id: Endpoints,
     /// The maximum transmission unit of the network
     mtu: Mtu,
     /// How the connection was initiated locally
@@ -71,7 +71,7 @@ pub struct Tcb {
 impl Tcb {
     /// Creates a new TCB
     fn new(
-        id: ConnectionId,
+        id: Endpoints,
         mtu: Mtu,
         initiation: Initiation,
         state: State,
@@ -97,7 +97,7 @@ impl Tcb {
     /// 3.10.1](https://www.rfc-editor.org/rfc/rfc9293.html#name-open-call) for
     /// the case of an active open. Handling for packets in a passive open
     /// LISTEN state is provided by [`handle_listen`].
-    pub fn open(id: ConnectionId, iss: u32, mtu: Mtu) -> Self {
+    pub fn open(id: Endpoints, iss: u32, mtu: Mtu) -> Self {
         let mut tcb = Self::new(
             id,
             mtu,
@@ -811,12 +811,12 @@ pub fn segment_arrives_listen(
         // Third:
         let rcv_nxt = seg.seq + 1;
         let mut tcb = Tcb::new(
-            ConnectionId {
-                local: Socket {
+            Endpoints {
+                local: Endpoint {
                     address: local,
                     port: seg.dst_port,
                 },
-                remote: Socket {
+                remote: Endpoint {
                     address: remote,
                     port: seg.src_port,
                 },

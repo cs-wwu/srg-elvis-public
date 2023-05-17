@@ -2,11 +2,11 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocols::{
-        ipv4::Ipv4Address,
+        ipv4::{AddressPair, Ipv4Address},
         user_process::{Application, ApplicationError},
         Ipv4, UserProcess,
     },
-    Control, Participants, Protocol, Shutdown,
+    Control, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -33,9 +33,11 @@ impl Application for Router {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
-        let mut participants = Participants::new();
-        participants.local.address = Some(Ipv4Address::CURRENT_NETWORK);
-        ipv4.listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
+        ipv4.listen(
+            TypeId::of::<UserProcess<Self>>(),
+            Ipv4Address::CURRENT_NETWORK,
+        )
+        .unwrap();
         tokio::spawn(async move {
             initialize.wait().await;
         });
@@ -52,15 +54,15 @@ impl Application for Router {
     ) -> Result<(), ApplicationError> {
         println!("Hit: {control:?}");
         let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
-        let mut participants = Participants::new();
-        participants.local.address = control.local.address;
-        participants.remote.address = control.remote.address;
-        let session = ipv4.open(
-            TypeId::of::<UserProcess<Self>>(),
-            participants,
-            protocols.clone(),
-        )?;
-        session.send(message, Control::new(), protocols)?;
+        let addresses = control.get::<AddressPair>().unwrap().clone();
+        let session = ipv4
+            .open(
+                TypeId::of::<UserProcess<Self>>(),
+                addresses,
+                protocols.clone(),
+            )
+            .unwrap();
+        session.send(message, protocols)?;
         Ok(())
     }
 }

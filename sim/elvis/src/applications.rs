@@ -18,9 +18,6 @@ pub use forward::Forward;
 mod ping_pong;
 pub use ping_pong::PingPong;
 
-mod query_tester;
-pub use query_tester::QueryTester;
-
 pub mod router;
 pub use router::Router;
 

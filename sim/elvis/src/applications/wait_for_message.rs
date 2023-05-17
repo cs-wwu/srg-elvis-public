@@ -2,10 +2,10 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
+        Endpoint, Tcp, Udp,
     },
-    Control, Participants, Shutdown, Transport,
+    Control, Shutdown, Transport,
 };
 use std::{
     any::TypeId,
@@ -19,10 +19,7 @@ use tokio::sync::Barrier;
 pub struct WaitForMessage {
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
-    /// The address we listen for a message on
-    ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    port: u16,
+    endpoint: Endpoint,
     /// The transport protocol to use
     transport: Transport,
     /// The message that was received, if any
@@ -36,10 +33,9 @@ pub struct WaitForMessage {
 
 impl WaitForMessage {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16, expected: Message) -> Self {
+    pub fn new(endpoint: Endpoint, expected: Message) -> Self {
         Self {
-            ip_address,
-            port,
+            endpoint,
             expected,
             transport: Transport::Udp,
             actual: Default::default(),
@@ -75,13 +71,22 @@ impl Application for WaitForMessage {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-        let mut participants = Participants::new();
-        participants.local.address = Some(self.ip_address);
-        participants.local.port = Some(self.port);
-        protocols
-            .get(self.transport.into())
-            .expect("No such protocol")
-            .listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
+        match self.transport {
+            Transport::Tcp => {
+                protocols
+                    .protocol::<Tcp>()
+                    .unwrap()
+                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .unwrap();
+            }
+            Transport::Udp => {
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .unwrap();
+            }
+        }
         tokio::spawn(async move {
             initialized.wait().await;
         });

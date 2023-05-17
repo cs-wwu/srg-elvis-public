@@ -6,11 +6,7 @@ use crate::{
     session::{SendError, SharedSession},
     Control, Message, Session,
 };
-use std::{
-    any::{Any, TypeId},
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::mpsc::{channel, error::TryRecvError, Sender},
     time::timeout,
@@ -29,7 +25,6 @@ use tokio::{
 /// The session part of the TCP protocol.
 pub struct TcpSession {
     send: Sender<Instruction>,
-    downstream: SharedSession,
 }
 
 impl TcpSession {
@@ -41,10 +36,7 @@ impl TcpSession {
         protocols: ProtocolMap,
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);
-        let me = Arc::new(Self {
-            send,
-            downstream: downstream.clone(),
-        });
+        let me = Arc::new(Self { send });
         let out = me.clone();
         tokio::spawn(async move {
             'outer: loop {
@@ -98,7 +90,7 @@ impl TcpSession {
 
                 for mut segment in tcb.segments() {
                     segment.text.header(segment.header.serialize());
-                    match downstream.send(segment.text, Control::new(), protocols.clone()) {
+                    match downstream.send(segment.text, protocols.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Send error: {}", e),
                     }
@@ -147,12 +139,7 @@ enum InstructionResult {
 }
 
 impl Session for TcpSession {
-    fn send(
-        &self,
-        message: Message,
-        _control: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), SendError> {
+    fn send(&self, message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
         let send = self.send.clone();
         tokio::spawn(async move {
             match send.send(Instruction::Outgoing(message)).await {
@@ -161,10 +148,6 @@ impl Session for TcpSession {
             }
         });
         Ok(())
-    }
-
-    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>> {
-        self.downstream.info(protocol_id)
     }
 }
 

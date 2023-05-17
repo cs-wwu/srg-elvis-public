@@ -4,9 +4,9 @@
 use crate::{
     machine::ProtocolMap,
     message::Message,
-    protocol::{DemuxError, ListenError, OpenError, StartError},
+    protocol::{DemuxError, StartError},
     session::{SendError, SharedSession},
-    Control, Participants, Protocol, Shutdown,
+    Control, Protocol, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -40,10 +40,6 @@ pub trait Application {
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationError {
-    #[error("A listen call failed")]
-    Listen(#[from] ListenError),
-    #[error("An open call failed")]
-    Open(#[from] OpenError),
     #[error("A send call failed")]
     Send(#[from] SendError),
     #[error("Missing protocol {0:?}")]
@@ -86,24 +82,6 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
-    }
-
-    fn open(
-        &self,
-        _upstream: TypeId,
-        _participants: Participants,
-        _protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        panic!("Cannot active open on a user process")
-    }
-
-    fn listen(
-        &self,
-        _upstream: TypeId,
-        _participants: Participants,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
-        panic!("Cannot listen on a user process")
     }
 
     fn demux(

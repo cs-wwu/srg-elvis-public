@@ -15,9 +15,6 @@ pub use telephone_single::telephone_single;
 mod ping_pong;
 pub use ping_pong::ping_pong;
 
-mod query;
-pub use query::query;
-
 mod latency;
 pub use latency::latency;
 

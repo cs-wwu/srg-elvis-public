@@ -1,10 +1,19 @@
 use super::Sockets;
 use crate::{
-    machine::ProtocolMap, message::Chunk, protocol::DemuxError, protocols::ipv4::Ipv4Address,
-    session::SharedSession, Control, Message, Participants, Shutdown,
+    machine::ProtocolMap,
+    message::Chunk,
+    protocol::DemuxError,
+    protocols::{
+        ipv4::Ipv4Address,
+        utility::{Endpoint, Endpoints},
+    },
+    session::SharedSession,
+    Message, Shutdown,
 };
 use std::{
     collections::VecDeque,
+    error::Error,
+    fmt::{self, Display, Formatter},
     sync::{Arc, RwLock},
 };
 use thiserror::Error as ThisError;
@@ -127,56 +136,31 @@ impl Socket {
         *self.remote_addr.write().unwrap() = Some(sock_addr);
         // Gather the necessary data to open a session and pass it on to the
         // Sockets API to retreive a socket_session
-        let mut participants = Participants::new();
-        if let Some(local_addr) = *self.local_addr.read().unwrap() {
-            match local_addr.address {
-                IpAddress::IPv4(addr) => {
-                    participants.local.address = Some(addr);
-                }
-                IpAddress::IPv6() => {
-                    todo!();
-                }
-            }
-            match self.sock_type {
-                SocketType::Datagram => {
-                    participants.local.port = Some(local_addr.port);
-                }
-                SocketType::Stream => {
-                    participants.local.port = Some(local_addr.port);
-                }
-            }
+        if let (Some(local), Some(remote)) = (
+            *self.local_addr.read().unwrap(),
+            *self.remote_addr.read().unwrap(),
+        ) {
+            let session = match self
+                .protocols
+                .protocol::<Sockets>()
+                .expect("Sockets API not found")
+                .open_with_fd(
+                    self.fd,
+                    SocketId::new_from_addresses(local, remote),
+                    self.protocols.clone(),
+                ) {
+                Ok(v) => v,
+                Err(_) => return Err(SocketError::ConnectError),
+            };
+            // Assign the socket_session to the socket
+            *self.session.write().unwrap() = Some(session);
+            *self.is_active.write().unwrap() = true;
+            Ok(())
+        } else {
+            // TODO(hardint): I don't know exactly what error to return here so I hope good sir
+            // Logan will revise it for me :)
+            Err(SocketError::Other)
         }
-        if let Some(remote_addr) = *self.remote_addr.read().unwrap() {
-            match remote_addr.address {
-                IpAddress::IPv4(addr) => {
-                    participants.remote.address = Some(addr);
-                }
-                IpAddress::IPv6() => {
-                    todo!();
-                }
-            }
-            match self.sock_type {
-                SocketType::Datagram => {
-                    participants.remote.port = Some(remote_addr.port);
-                }
-                SocketType::Stream => {
-                    participants.remote.port = Some(remote_addr.port);
-                }
-            }
-        }
-        let session = match self
-            .protocols
-            .protocol::<Sockets>()
-            .expect("Sockets API not found")
-            .open_with_fd(self.fd, participants, self.protocols.clone())
-        {
-            Ok(v) => v,
-            Err(_) => return Err(SocketError::ConnectError),
-        };
-        // Assign the socket_session to the socket
-        *self.session.write().unwrap() = Some(session);
-        *self.is_active.write().unwrap() = true;
-        Ok(())
     }
 
     /// Assigns a local ip address and port to a socket
@@ -208,37 +192,24 @@ impl Socket {
         {
             return Err(SocketError::AcceptError);
         }
-        let mut participants = Participants::new();
+
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
-            match local_addr.address {
-                IpAddress::IPv4(addr) => {
-                    participants.local.address = Some(addr);
+            match self
+                .protocols
+                .protocol::<Sockets>()
+                .expect("Sockets API not found")
+                .listen_with_fd(self.fd, local_addr, self.protocols.clone())
+            {
+                Ok(_) => {
+                    *self.is_listening.write().unwrap() = true;
+                    *self.listen_backlog.write().unwrap() = backlog;
+                    Ok(())
                 }
-                IpAddress::IPv6() => {
-                    todo!();
-                }
+                Err(_) => Err(SocketError::ListenError),
             }
-            match self.sock_type {
-                SocketType::Datagram => {
-                    participants.local.port = Some(local_addr.port);
-                }
-                SocketType::Stream => {
-                    participants.local.port = Some(local_addr.port);
-                }
-            }
-        }
-        match self
-            .protocols
-            .protocol::<Sockets>()
-            .expect("Sockets API not found")
-            .listen_with_fd(self.fd, participants, self.protocols.clone())
-        {
-            Ok(_) => {
-                *self.is_listening.write().unwrap() = true;
-                *self.listen_backlog.write().unwrap() = backlog;
-                Ok(())
-            }
-            Err(_) => Err(SocketError::ListenError),
+        } else {
+            // TODO(hardint): Pls mr giddins pick a better error
+            Err(SocketError::Other)
         }
     }
 
@@ -294,7 +265,7 @@ impl Socket {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .send(Message::new(message), Control::new(), protocols)
+                .send(Message::new(message), protocols)
                 .unwrap();
         });
         Ok(())
@@ -421,6 +392,23 @@ pub enum IpAddress {
     IPv6(),
 }
 
+impl From<Ipv4Address> for IpAddress {
+    fn from(address: Ipv4Address) -> Self {
+        Self::IPv4(address)
+    }
+}
+
+impl TryFrom<IpAddress> for Ipv4Address {
+    type Error = AddressConversionError;
+
+    fn try_from(address: IpAddress) -> Result<Self, Self::Error> {
+        match address {
+            IpAddress::IPv4(address) => Ok(address),
+            IpAddress::IPv6() => Err(AddressConversionError),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SocketAddress {
     pub address: IpAddress,
@@ -447,6 +435,23 @@ impl SocketAddress {
             address: IpAddress::IPv6(),
             port,
         }
+    }
+}
+
+impl From<Endpoint> for SocketAddress {
+    fn from(endpoint: Endpoint) -> Self {
+        Self::new(endpoint.address.into(), endpoint.port)
+    }
+}
+
+impl TryFrom<SocketAddress> for Endpoint {
+    type Error = AddressConversionError;
+
+    fn try_from(address: SocketAddress) -> Result<Self, Self::Error> {
+        Ok(Endpoint {
+            address: address.address.try_into()?,
+            port: address.port,
+        })
     }
 }
 
@@ -479,3 +484,34 @@ impl SocketId {
         }
     }
 }
+
+impl From<Endpoints> for SocketId {
+    fn from(endpoints: Endpoints) -> Self {
+        Self {
+            local_address: endpoints.local.into(),
+            remote_address: endpoints.remote.into(),
+        }
+    }
+}
+
+impl TryFrom<SocketId> for Endpoints {
+    type Error = AddressConversionError;
+
+    fn try_from(socket_id: SocketId) -> Result<Self, Self::Error> {
+        Ok(Endpoints {
+            local: socket_id.local_address.try_into()?,
+            remote: socket_id.remote_address.try_into()?,
+        })
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct AddressConversionError;
+
+impl Display for AddressConversionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "Expected IPv4, got IPv6")
+    }
+}
+
+impl Error for AddressConversionError {}

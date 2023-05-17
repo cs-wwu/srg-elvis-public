@@ -2,46 +2,32 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocols::{
-        ipv4::Ipv4Address,
         udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
+        Endpoints,
     },
     session::SharedSession,
-    Control, Participants, Protocol, Shutdown,
+    Control, Shutdown,
 };
 use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
 use tokio::sync::Barrier;
+
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 pub struct Forward {
     /// The session on which we send any messages we receive
     outgoing: RwLock<Option<SharedSession>>,
-    /// The IP address for incoming messages
-    local_ip: Ipv4Address,
-    /// The IP address for outgoing messages
-    remote_ip: Ipv4Address,
-    /// The port number for incoming messages
-    local_port: u16,
-    /// The port number for outgoing messages
-    remote_port: u16,
+    endpoints: Endpoints,
 }
 
 impl Forward {
     /// Creates a new forwarding application.
-    pub fn new(
-        local_ip: Ipv4Address,
-        remote_ip: Ipv4Address,
-        local_port: u16,
-        remote_port: u16,
-    ) -> Self {
+    pub fn new(endpoints: Endpoints) -> Self {
         Self {
             outgoing: Default::default(),
-            local_ip,
-            remote_ip,
-            local_port,
-            remote_port,
+            endpoints,
         }
     }
 
@@ -58,20 +44,23 @@ impl Application for Forward {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let mut participants = Participants::new();
-        participants.local.port = Some(self.local_port);
-        participants.local.address = Some(self.local_ip);
-        participants.remote.port = Some(self.remote_port);
-        participants.remote.address = Some(self.remote_ip);
-
         let udp = protocols.protocol::<Udp>().expect("No such protocol");
-        *self.outgoing.write().unwrap() = Some(udp.open(
+        *self.outgoing.write().unwrap() = Some(
+            udp.open(
+                TypeId::of::<UserProcess<Self>>(),
+                // TODO(hardint): Can these clones be cheaper?
+                self.endpoints,
+                protocols.clone(),
+            )
+            .unwrap(),
+        );
+
+        udp.listen(
             TypeId::of::<UserProcess<Self>>(),
-            // TODO(hardint): Can these clones be cheaper?
-            participants.clone(),
-            protocols.clone(),
-        )?);
-        udp.listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
+            self.endpoints.local,
+            protocols,
+        )
+        .unwrap();
         tokio::spawn(async move {
             initialized.wait().await;
         });
@@ -82,7 +71,7 @@ impl Application for Forward {
     fn receive(
         &self,
         message: Message,
-        control: Control,
+        _control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         self.outgoing
@@ -90,7 +79,7 @@ impl Application for Forward {
             .unwrap()
             .as_ref()
             .unwrap()
-            .send(message, control, protocols)?;
+            .send(message, protocols)?;
         Ok(())
     }
 }

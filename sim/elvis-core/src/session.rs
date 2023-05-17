@@ -1,11 +1,8 @@
 //! The [`Session`] trait and supporting types.
 
 use super::Message;
-use crate::{machine::ProtocolMap, network::Mtu, Control};
-use std::{
-    any::{Any, TypeId},
-    sync::Arc,
-};
+use crate::{machine::ProtocolMap, network::Mtu};
+use std::sync::Arc;
 use thiserror::Error as ThisError;
 
 // TODO(hardint): Query methods could take &self
@@ -24,15 +21,7 @@ pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 pub trait Session {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    fn send(
-        &self,
-        message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), SendError>;
-
-    // TODO(hardint): There is a better interface somewhere here. I know it.
-    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>>;
+    fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError>;
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]

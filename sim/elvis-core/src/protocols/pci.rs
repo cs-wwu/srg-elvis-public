@@ -1,17 +1,19 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::{
-    machine::ProtocolMap,
+    machine::{PciSlot, ProtocolMap},
     message::Message,
-    protocol::{DemuxError, ListenError, OpenError, StartError},
+    network::{Mac, Mtu},
+    protocol::{DemuxError, StartError},
     session::SharedSession,
-    Control, Network, Participants, Protocol, Shutdown,
+    Control, Network, Protocol, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 pub mod pci_session;
 pub(crate) use pci_session::PciSession;
+pub use pci_session::SendInfo;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
@@ -37,6 +39,14 @@ impl Pci {
         }
     }
 
+    /// Gets the PCI session for the given slot.
+    ///
+    /// # Panics
+    /// The user should ensure that the slot is less than [`Pci::slot_count`]
+    pub fn open(&self, slot: PciSlot) -> Arc<PciSession> {
+        self.sessions.get(slot as usize).unwrap().clone()
+    }
+
     pub fn slot_count(&self) -> usize {
         self.sessions.len()
     }
@@ -50,36 +60,6 @@ impl Pci {
 impl Protocol for Pci {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
-    }
-
-    fn open(
-        &self,
-        _upstream: TypeId,
-        participants: Participants,
-        _protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        let pci_slot = participants.slot.ok_or_else(|| {
-            tracing::error!("Missing PCI slot on context");
-            OpenError::MissingContext
-        })?;
-        let session = self
-            .sessions
-            .get(pci_slot as usize)
-            .ok_or_else(|| {
-                tracing::error!("PCI slot is out of bounds");
-                OpenError::Other
-            })?
-            .clone();
-        Ok(session)
-    }
-
-    fn listen(
-        &self,
-        _upstream: TypeId,
-        _participants: Participants,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
-        Ok(())
     }
 
     fn demux(
@@ -107,4 +87,15 @@ impl Protocol for Pci {
         });
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DemuxInfo {
+    /// The PCI slot that was received on
+    pub slot: PciSlot,
+    /// The sender's MAC address
+    pub source: Mac,
+    /// The local MAC address the message was sent to or none to indicate a broadcast message
+    pub destination: Option<Mac>,
+    pub mtu: Mtu,
 }

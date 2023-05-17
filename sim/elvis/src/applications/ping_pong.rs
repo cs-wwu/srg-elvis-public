@@ -3,12 +3,11 @@ use elvis_core::{
     message::Message,
     network::Mac,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Udp,
+        Endpoints, Udp,
     },
     session::SharedSession,
-    Control, Participants, Protocol, Shutdown, Transport,
+    Control, Shutdown, Transport,
 };
 use std::{
     any::TypeId,
@@ -26,12 +25,7 @@ pub struct PingPong {
     /// The session we send messages on
     session: RwLock<Option<SharedSession>>,
     is_initiator: bool,
-    /// The address we listen for a message on
-    local_ip_address: Ipv4Address,
-    remote_ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    local_port: u16,
-    remote_port: u16,
+    endpoints: Endpoints,
     /// The machine that will receive the message
     remote_mac: Option<Mac>,
     /// The protocol to use in delivering the message
@@ -40,21 +34,12 @@ pub struct PingPong {
 
 impl PingPong {
     /// Creates a new capture.
-    pub fn new(
-        is_initiator: bool,
-        local_ip_address: Ipv4Address,
-        remote_ip_address: Ipv4Address,
-        local_port: u16,
-        remote_port: u16,
-    ) -> Self {
+    pub fn new(is_initiator: bool, endpoints: Endpoints) -> Self {
         Self {
             is_initiator,
             shutdown: Default::default(),
             session: Default::default(),
-            local_ip_address,
-            remote_ip_address,
-            local_port,
-            remote_port,
+            endpoints,
             remote_mac: None,
             transport: Transport::Udp,
         }
@@ -86,19 +71,14 @@ impl Application for PingPong {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-
-        let mut participants = Participants::new();
-        participants.local.address = Some(self.local_ip_address);
-        participants.local.port = Some(self.local_port);
-        participants.remote.address = Some(self.remote_ip_address);
-        participants.remote.port = Some(self.remote_port);
-
         let protocol = protocols.protocol::<Udp>().expect("No such protocol");
-        let session = protocol.open(
-            TypeId::of::<UserProcess<Self>>(),
-            participants,
-            protocols.clone(),
-        )?;
+        let session = protocol
+            .open(
+                TypeId::of::<UserProcess<Self>>(),
+                self.endpoints,
+                protocols.clone(),
+            )
+            .unwrap();
         *self.session.write().unwrap() = Some(session.clone());
 
         let is_initiator = self.is_initiator;
@@ -107,7 +87,7 @@ impl Application for PingPong {
             if is_initiator {
                 session
                     //Send the first "Ping" message with TTL of 255
-                    .send(Message::new(vec![255]), Control::new(), protocols)
+                    .send(Message::new(vec![255]), protocols)
                     .unwrap();
             }
         });
@@ -117,7 +97,7 @@ impl Application for PingPong {
     fn receive(
         &self,
         message: Message,
-        control: Control,
+        _control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
@@ -136,11 +116,12 @@ impl Application for PingPong {
                 shutdown.shut_down();
             }
         } else {
-            self.session.read().unwrap().as_ref().unwrap().send(
-                Message::new(vec![ttl]),
-                control,
-                protocols,
-            )?;
+            self.session
+                .read()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .send(Message::new(vec![ttl]), protocols)?;
         }
         Ok(())
     }

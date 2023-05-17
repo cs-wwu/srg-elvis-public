@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
-        Pci,
+        Endpoint, Pci,
     },
     run_internet, Machine, Message, Network,
 };
@@ -50,8 +50,14 @@ pub async fn router_single() {
                 ))
                 .with(Pci::new([networks[0].clone()]))
                 .with(
-                    SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef)
-                        .process(),
+                    SendMessage::new(
+                        vec![Message::new(b"Hello World!")],
+                        Endpoint {
+                            address: DESTINATION,
+                            port: 0xbeef,
+                        },
+                    )
+                    .process(),
                 )
                 .build(),
         ),
@@ -74,7 +80,16 @@ pub async fn router_single() {
                 .with(Udp::new())
                 .with(Ipv4::new(dt1))
                 .with(Pci::new([networks[1].clone()]))
-                .with(Capture::new(IP_ADDRESS_2, 0xbeef, 1).process())
+                .with(
+                    Capture::new(
+                        Endpoint {
+                            address: IP_ADDRESS_2,
+                            port: 0xbeef,
+                        },
+                        1,
+                    )
+                    .process(),
+                )
                 .build(),
         ),
         // capture for destination 2
@@ -83,7 +98,16 @@ pub async fn router_single() {
                 .with(Udp::new())
                 .with(Ipv4::new(dt2))
                 .with(Pci::new([networks[2].clone()]))
-                .with(Capture::new(IP_ADDRESS_3, 0xbeef, 1).process())
+                .with(
+                    Capture::new(
+                        Endpoint {
+                            address: IP_ADDRESS_3,
+                            port: 0xbeef,
+                        },
+                        1,
+                    )
+                    .process(),
+                )
                 .build(),
         ),
         // capture for destination 3
@@ -92,7 +116,16 @@ pub async fn router_single() {
                 .with(Udp::new())
                 .with(Ipv4::new(dt3))
                 .with(Pci::new([networks[3].clone()]))
-                .with(Capture::new(IP_ADDRESS_4, 0xbeef, 1).process())
+                .with(
+                    Capture::new(
+                        Endpoint {
+                            address: IP_ADDRESS_4,
+                            port: 0xbeef,
+                        },
+                        1,
+                    )
+                    .process(),
+                )
                 .build(),
         ),
     ];

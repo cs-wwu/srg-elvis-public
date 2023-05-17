@@ -2,10 +2,10 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
+        Endpoint, Tcp, Udp,
     },
-    Control, Participants, Shutdown, Transport,
+    Control, Shutdown, Transport,
 };
 use std::{
     any::TypeId,
@@ -21,10 +21,7 @@ pub struct Capture {
     message: RwLock<Option<Message>>,
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
-    /// The address we listen for a message on
-    ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    port: u16,
+    endpoint: Endpoint,
     /// The number of messages it will receive before stopping
     message_count: u32,
     /// The number of messages currently recieved
@@ -35,12 +32,11 @@ pub struct Capture {
 
 impl Capture {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16, message_count: u32) -> Self {
+    pub fn new(endpoint: Endpoint, message_count: u32) -> Self {
         Self {
             message: Default::default(),
             shutdown: Default::default(),
-            ip_address,
-            port,
+            endpoint,
             message_count,
             cur_count: RwLock::new(0),
             transport: Transport::Udp,
@@ -71,14 +67,24 @@ impl Application for Capture {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
+        match self.transport {
+            Transport::Tcp => {
+                protocols
+                    .protocol::<Tcp>()
+                    .unwrap()
+                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .unwrap();
+            }
+            Transport::Udp => {
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .unwrap();
+            }
+        }
+
         *self.shutdown.write().unwrap() = Some(shutdown);
-        let mut participants = Participants::new();
-        participants.local.address = Some(self.ip_address);
-        participants.local.port = Some(self.port);
-        protocols
-            .get(self.transport.into())
-            .expect("No such protocol")
-            .listen(TypeId::of::<UserProcess<Self>>(), participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });

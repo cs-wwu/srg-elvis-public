@@ -3,12 +3,9 @@ use crate::{
     machine::ProtocolMap,
     protocol::DemuxError,
     session::{SendError, SharedSession},
-    Control, Message, Session,
+    Message, Session,
 };
-use std::{
-    any::{Any, TypeId},
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 pub(super) struct SocketSession {
     pub upstream: RwLock<Option<Arc<Socket>>>,
@@ -36,16 +33,7 @@ impl SocketSession {
 }
 
 impl Session for SocketSession {
-    fn send(
-        &self,
-        message: Message,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), SendError> {
-        self.downstream.send(message, control, protocols)
-    }
-
-    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>> {
-        self.downstream.info(protocol_id)
+    fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
+        self.downstream.send(message, protocols)
     }
 }

@@ -37,15 +37,9 @@
 //! [x-kernel]: https://ieeexplore.ieee.org/document/67579
 
 mod logging;
+pub mod message;
 pub mod protocols;
 
-pub mod control;
-pub use control::Control;
-
-mod participants;
-pub use participants::Participants;
-
-pub mod message;
 use dashmap::DashMap;
 pub use message::Message;
 
@@ -69,6 +63,9 @@ pub use shutdown::Shutdown;
 
 mod transport;
 pub use transport::Transport;
+
+mod control;
+pub use control::Control;
 
 use std::hash::BuildHasherDefault;
 type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<rustc_hash::FxHasher>>;

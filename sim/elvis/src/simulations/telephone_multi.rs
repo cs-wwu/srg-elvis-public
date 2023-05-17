@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Recipient},
         udp::Udp,
-        Pci, UserProcess,
+        Endpoint, Endpoints, Pci, UserProcess,
     },
     run_internet, Machine, Message, Network,
 };
@@ -28,7 +28,16 @@ pub async fn telephone_multi() {
                 [(remote, Recipient::with_mac(0, 1))].into_iter().collect(),
             ))
             .with(Pci::new([networks[0].clone()]))
-            .with(SendMessage::new(vec![message.clone()], remote, 0xbeef).process())
+            .with(
+                SendMessage::new(
+                    vec![message.clone()],
+                    Endpoint {
+                        address: remote,
+                        port: 0xbeef,
+                    },
+                )
+                .process(),
+            )
             .build(),
     )];
 
@@ -44,7 +53,13 @@ pub async fn telephone_multi() {
                     networks[i as usize].clone(),
                     networks[i as usize + 1].clone(),
                 ]))
-                .with(Forward::new(local, remote, 0xbeef, 0xbeef).process())
+                .with(
+                    Forward::new(Endpoints::new(
+                        Endpoint::new(local, 0xbeef),
+                        Endpoint::new(remote, 0xbeef),
+                    ))
+                    .process(),
+                )
                 .build(),
         ));
     }
@@ -56,7 +71,7 @@ pub async fn telephone_multi() {
             .with(Udp::new())
             .with(Ipv4::new(Default::default()))
             .with(Pci::new([networks[last_network as usize].clone()]))
-            .with(Capture::new(local, 0xbeef, 1).process())
+            .with(Capture::new(Endpoint::new(local, 0xbeef), 1).process())
             .build(),
     ));
 

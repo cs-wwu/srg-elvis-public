@@ -3,9 +3,9 @@ use elvis_core::{
     machine::ProtocolMapBuilder,
     network::{Latency, NetworkBuilder},
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
+        ipv4::{Ipv4, Recipient, Recipients},
         udp::Udp,
-        Pci,
+        Endpoint, Pci,
     },
     run_internet, Machine, Message,
 };
@@ -19,8 +19,11 @@ pub async fn latency() {
     let network = NetworkBuilder::new()
         .latency(Latency::constant(Duration::from_secs(1)))
         .build();
-    let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
+    let endpoint = Endpoint {
+        address: [123, 45, 67, 89].into(),
+        port: 0xbeef,
+    };
+    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
@@ -30,10 +33,7 @@ pub async fn latency() {
                 .with(Udp::new())
                 .with(Ipv4::new(ip_table.clone()))
                 .with(Pci::new([network.clone()]))
-                .with(
-                    SendMessage::new(vec![Message::new("Hello!")], capture_ip_address, 0xbeef)
-                        .process(),
-                )
+                .with(SendMessage::new(vec![Message::new("Hello!")], endpoint).process())
                 .build(),
         ),
         Machine::new(
@@ -41,7 +41,7 @@ pub async fn latency() {
                 .with(Udp::new())
                 .with(Ipv4::new(ip_table))
                 .with(Pci::new([network.clone()]))
-                .with(Capture::new(capture_ip_address, 0xbeef, 1).process())
+                .with(Capture::new(endpoint, 1).process())
                 .build(),
         ),
     ];

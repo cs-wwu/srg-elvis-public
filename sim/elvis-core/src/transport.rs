@@ -5,6 +5,8 @@ use std::{
     fmt::{self, Display, Formatter},
 };
 
+// TODO(hardint): This should probably be moved into the IPv4 parsing stuff
+
 /// A byte used to indicate the protocol contained inside an IPv4 packet
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

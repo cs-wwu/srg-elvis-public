@@ -4,7 +4,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
-        Pci,
+        Endpoint, Pci,
     },
     run_internet, Machine, Message, Network,
 };
@@ -69,8 +69,14 @@ pub async fn router_multi() {
                 ))
                 .with(Pci::new([networks[0].clone()]))
                 .with(
-                    SendMessage::new(vec![Message::new(b"Hello World!")], DESTINATION, 0xbeef)
-                        .process(),
+                    SendMessage::new(
+                        vec![Message::new(b"Hello World!")],
+                        Endpoint {
+                            address: DESTINATION,
+                            port: 0xbeef,
+                        },
+                    )
+                    .process(),
                 )
                 .build(),
         ),
@@ -127,7 +133,16 @@ pub async fn router_multi() {
                 .with(Udp::new())
                 .with(Ipv4::new(dt4))
                 .with(Pci::new([networks[2].clone()]))
-                .with(Capture::new(IP_ADDRESS_5, 0xbeef, 1).process())
+                .with(
+                    Capture::new(
+                        Endpoint {
+                            address: IP_ADDRESS_5,
+                            port: 0xbeef,
+                        },
+                        1,
+                    )
+                    .process(),
+                )
                 .build(),
         ),
     ];

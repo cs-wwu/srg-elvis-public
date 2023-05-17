@@ -1,4 +1,3 @@
-use super::Pci;
 use crate::{
     machine::{PciSlot, ProtocolMap},
     message::Message,
@@ -8,14 +7,16 @@ use crate::{
     Control, Network, Session,
 };
 use std::{
-    any::{Any, TypeId},
+    any::TypeId,
     sync::{Arc, RwLock},
 };
+
+use super::DemuxInfo;
 
 /// The session type for a [`Tap`](super::Tap).
 pub struct PciSession {
     mac: Mac,
-    index: PciSlot,
+    slot: PciSlot,
     network: Arc<Network>,
     protocols: RwLock<Option<ProtocolMap>>,
 }
@@ -26,13 +27,25 @@ impl PciSession {
         let mac = network.next_mac();
         let this = Self {
             mac,
-            index,
+            slot: index,
             network: network.clone(),
             protocols: Default::default(),
         };
         let this = Arc::new(this);
         network.register_tap(mac, this.clone());
         this
+    }
+
+    pub fn mac(&self) -> Mac {
+        self.mac
+    }
+
+    pub fn slot(&self) -> PciSlot {
+        self.slot
+    }
+
+    pub fn mtu(&self) -> Mtu {
+        self.network.mtu
     }
 
     /// Called by the owning [`Pci`] protocol at the beginning of the simulation
@@ -48,9 +61,14 @@ impl PciSession {
     /// useful.
     pub(crate) fn receive(self: &Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
         let mut control = Control::new();
+        let pci_demux_info = DemuxInfo {
+            slot: self.slot,
+            source: delivery.sender,
+            destination: delivery.destination,
+            mtu: self.network.mtu,
+        };
+        control.insert(pci_demux_info);
         let protocols = self.protocols.read().unwrap().as_ref().unwrap().clone();
-        control.slot = Some(self.index);
-        control.remote.mac = Some(delivery.sender);
         let protocol = match protocols.get(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
@@ -64,35 +82,22 @@ impl PciSession {
         protocol.demux(delivery.message, self.clone(), control, protocols)?;
         Ok(())
     }
-}
 
-impl Session for PciSession {
-    #[tracing::instrument(name = "PciSession::send", skip_all)]
-    fn send(
+    pub fn send_pci(
         &self,
         message: Message,
-        control: Control,
-        _protocols: ProtocolMap,
+        remote_mac: Option<Mac>,
+        receiver: TypeId,
     ) -> Result<(), SendError> {
-        let protocol = match control.first_responder {
-            Some(protocol) => protocol,
-            None => {
-                tracing::error!("Protocol missing from context");
-                Err(SendError::MissingContext)?
-            }
-        };
-        let destination = control.remote.mac;
-
         if message.len() > self.network.mtu as usize {
-            tracing::error!("Attempted to send a message larger than the network can handle");
-            Err(SendError::Mtu(self.network.mtu))?
+            return Err(SendError::Mtu(self.network.mtu));
         }
 
         let delivery = Delivery {
             message,
             sender: self.mac,
-            destination,
-            protocol,
+            destination: remote_mac,
+            protocol: receiver,
         };
 
         let network = self.network.clone();
@@ -101,17 +106,12 @@ impl Session for PciSession {
         });
         Ok(())
     }
+}
 
-    fn info(&self, protocol_id: TypeId) -> Option<Box<dyn Any>> {
-        if protocol_id == TypeId::of::<Pci>() {
-            Some(Box::new(SessionInfo {
-                mac: self.mac,
-                index: self.index,
-                mtu: self.network.mtu,
-            }))
-        } else {
-            None
-        }
+// TODO(hardint): I think PCI sessions maybe just shouldn't implement to session type
+impl Session for PciSession {
+    fn send(&self, _message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
+        panic!("Should use PciSession::send_pci instead");
     }
 }
 
@@ -123,8 +123,10 @@ pub enum ReceiveError {
     Demux(#[from] DemuxError),
 }
 
-pub struct SessionInfo {
-    pub mac: Mac,
-    pub index: PciSlot,
-    pub mtu: Mtu,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SendInfo {
+    /// The MAC address to send to or none to broadcast on the network
+    pub remote_mac: Option<Mac>,
+    /// The protocol to receive the packet
+    pub receiver: TypeId,
 }
