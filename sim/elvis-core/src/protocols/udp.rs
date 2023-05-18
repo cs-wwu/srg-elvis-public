@@ -46,7 +46,7 @@ impl Udp {
         match self.sessions.entry(sockets) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
-                return Err(OpenError::Existing(sockets));
+                Err(OpenError::Existing(sockets))
             }
             Entry::Vacant(entry) => {
                 // Create the session and save it

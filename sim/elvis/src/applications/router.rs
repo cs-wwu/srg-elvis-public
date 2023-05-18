@@ -11,11 +11,12 @@ use elvis_core::{
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 pub struct Router;
 
 impl Router {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 
     pub fn process(self) -> UserProcess<Self> {
@@ -54,7 +55,7 @@ impl Application for Router {
     ) -> Result<(), ApplicationError> {
         println!("Hit: {control:?}");
         let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
-        let addresses = control.get::<AddressPair>().unwrap().clone();
+        let addresses = *control.get::<AddressPair>().unwrap();
         let session = ipv4
             .open(
                 TypeId::of::<UserProcess<Self>>(),

@@ -56,7 +56,7 @@ impl Ipv4 {
         // TODO(hardint): Possibly make the receiver part of the session ID and just return an
         // existing session as needed
         match self.sessions.entry(endpoints) {
-            Entry::Occupied(_) => return Err(OpenError::Exists(endpoints)),
+            Entry::Occupied(_) => Err(OpenError::Exists(endpoints)),
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
                 let recipient = match self.recipients.get(&endpoints.remote) {
@@ -80,7 +80,7 @@ impl Ipv4 {
 
     pub fn listen(&self, upstream: TypeId, address: Ipv4Address) -> Result<(), ListenError> {
         match self.listen_bindings.entry(address) {
-            Entry::Occupied(_) => return Err(ListenError::Exists(address))?,
+            Entry::Occupied(_) => Err(ListenError::Exists(address)),
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
                 Ok(())

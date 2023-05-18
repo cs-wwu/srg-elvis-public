@@ -33,7 +33,7 @@ impl Ipv4Session {
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         protocols
-            .get(self.upstream.into())
+            .get(self.upstream)
             .expect("No such protocol")
             .demux(message, self, control, protocols)?;
         Ok(())

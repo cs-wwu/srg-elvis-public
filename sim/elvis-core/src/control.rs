@@ -18,7 +18,6 @@ impl Control {
     pub fn get<T: 'static>(&self) -> Option<&T> {
         self.inner
             .get(&TypeId::of::<T>())
-            .map(|t| t.downcast_ref())
-            .flatten()
+            .and_then(|t| t.downcast_ref())
     }
 }
