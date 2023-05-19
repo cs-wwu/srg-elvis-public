@@ -73,10 +73,10 @@ impl Udp {
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         match self.listen_bindings.entry(socket) {
-            Entry::Occupied(mut entry) => {
+            Entry::Occupied(_) => return Err(ListenError::Existing(socket)),
+            Entry::Vacant(entry) => {
                 let _ = entry.insert(upstream);
             }
-            Entry::Vacant(_) => return Err(ListenError::Existing(socket)),
         }
         // Ask lower-level protocols to add the binding as well
         protocols
