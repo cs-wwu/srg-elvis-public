@@ -56,7 +56,7 @@ impl Ipv4 {
         // TODO(hardint): Possibly make the receiver part of the session ID and just return an
         // existing session as needed
         match self.sessions.entry(endpoints) {
-            Entry::Occupied(_) => Err(OpenError::Exists(endpoints)),
+            Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
                 // If the session does not exist, create it
                 let recipient = match self.recipients.get(&endpoints.remote) {
