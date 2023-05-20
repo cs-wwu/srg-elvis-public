@@ -11,14 +11,14 @@ use elvis_core::{
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Router {
     ip_table: Recipients,
 }
 
 impl Router {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(ip_table: Recipients) -> Self {
+        Self { ip_table }
     }
 
     pub fn process(self) -> UserProcess<Self> {
@@ -70,11 +70,7 @@ impl Application for Router {
             .get(&ipv4_header.destination)
             .ok_or(ApplicationError::Other)?;
         let session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
-        let transport: Transport = ipv4_header
-            .protocol
-            .try_into()
-            .or(Err(ApplicationError::Other))?;
-        session.send_pci(message, recipient.mac, transport.into())?;
+        session.send_pci(message, recipient.mac, TypeId::of::<Ipv4>())?;
         Ok(())
     }
 }

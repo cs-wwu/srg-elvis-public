@@ -70,8 +70,8 @@ pub async fn router_single() {
                     networks[2].clone(),
                     networks[3].clone(),
                 ]))
-                .with(Ipv4::new(ip_table))
-                .with(Router::new().process())
+                .with(Ipv4::new(ip_table.clone()))
+                .with(Router::new(ip_table).process())
                 .build(),
         ),
         // capture for destination 1
