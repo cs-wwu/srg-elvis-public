@@ -2,7 +2,7 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocols::{
-        ipv4::{AddressPair, Ipv4Address},
+        ipv4::{self, Ipv4Address},
         user_process::{Application, ApplicationError},
         Ipv4, UserProcess,
     },
@@ -53,13 +53,12 @@ impl Application for Router {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        println!("Hit: {control:?}");
         let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
-        let addresses = *control.get::<AddressPair>().unwrap();
+        let demux_info = *control.get::<ipv4::DemuxInfo>().unwrap();
         let session = ipv4
             .open(
-                TypeId::of::<UserProcess<Self>>(),
-                addresses,
+                demux_info.protocol.into(),
+                demux_info.addresses,
                 protocols.clone(),
             )
             .unwrap();

@@ -7,8 +7,7 @@ use self::{
     tcp_session::TcpSession,
 };
 use super::{
-    ipv4::{self, AddressPair},
-    pci,
+    ipv4, pci,
     utility::{Endpoint, Endpoints},
     Ipv4,
 };
@@ -99,27 +98,27 @@ impl Protocol for Tcp {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let addresses = control
-            .get::<AddressPair>()
+        let demux_info = control
+            .get::<ipv4::DemuxInfo>()
             .ok_or(DemuxError::MissingContext)?;
 
         // Parse the header
         let header = TcpHeader::from_bytes(
             message.iter(),
             message.len(),
-            addresses.remote,
-            addresses.local,
+            demux_info.addresses.remote,
+            demux_info.addresses.local,
         )
         .map_err(|_| DemuxError::Header)?;
         message.remove_front(20);
 
         let endpoints = Endpoints {
             local: Endpoint {
-                address: addresses.local,
+                address: demux_info.addresses.local,
                 port: header.dst_port,
             },
             remote: Endpoint {
-                address: addresses.remote,
+                address: demux_info.addresses.remote,
                 port: header.src_port,
             },
         };

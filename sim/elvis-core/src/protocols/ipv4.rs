@@ -9,7 +9,7 @@ use crate::{
     protocol::{DemuxError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
-    Control, FxDashMap, Protocol, Shutdown,
+    Control, FxDashMap, Protocol, Shutdown, Transport,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
@@ -27,8 +27,6 @@ pub use ipv4_session::AddressPair;
 use ipv4_session::Ipv4Session;
 
 use super::pci;
-
-pub type DemuxInfo = AddressPair;
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
@@ -131,7 +129,11 @@ impl Protocol for Ipv4 {
             local: header.destination,
             remote: header.source,
         };
-        control.insert(endpoints);
+        let demux_info = DemuxInfo {
+            addresses: endpoints,
+            protocol: header.protocol.try_into().or(Err(DemuxError::Other))?,
+        };
+        control.insert(demux_info);
         let session = match self.sessions.entry(endpoints) {
             Entry::Occupied(entry) => entry.get().clone(),
 
@@ -216,4 +218,10 @@ pub enum OpenError {
 pub enum ListenError {
     #[error("There is already a session for {0:?}")]
     Exists(Ipv4Address),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DemuxInfo {
+    pub addresses: AddressPair,
+    pub protocol: Transport,
 }
