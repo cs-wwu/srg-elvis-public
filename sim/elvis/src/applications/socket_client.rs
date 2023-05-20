@@ -3,12 +3,10 @@ use elvis_core::{
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::{
-            socket::{ProtocolFamily, SocketAddress, SocketType}
-        },
+        sockets::socket::{ProtocolFamily, SocketAddress, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Id, ProtocolMap, Shutdown, NetworkAPI,
+    Id, NetworkAPI, ProtocolMap, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
