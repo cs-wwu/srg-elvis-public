@@ -53,16 +53,6 @@ cp ../target/release/$BINARY_NAME ./
 echo "Beginning benchmarking"
 echo "starting test base-basic.ndl 1000 10000 1000"
 python3 benchmarking.py base-basic.ndl 1000 10000 1000
-echo "starting test base-basic.ndl 10000 100000 10000"
-python3 benchmarking.py base-basic.ndl 10000 100000 10000
-echo "starting test base-basic.ndl 100000 1000000 100000"
-python3 benchmarking.py base-basic.ndl 100000 1000000 100000
-echo "starting test base-high-bandwidth.ndl 100 1000 100"
-python3 benchmarking.py base-high-bandwidth.ndl 100 1000 100
-echo "starting test base-high-bandwidth.ndl 1000 10000 1000"
-python3 benchmarking.py base-high-bandwidth.ndl 1000 10000 1000
-echo "starting test base-high-bandwidth.ndl 10000 100000 10000"
-python3 benchmarking.py base-high-bandwidth.ndl 10000 100000 10000
 
 
 echo "Benchmarking finished, removing binaries"
