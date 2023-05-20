@@ -6,7 +6,8 @@ const HEADER_OCTETS: u16 = 8;
 
 /// Represents a UDP header, either one that was parsed or one we are going to
 /// serialize
-pub(super) struct UdpHeader {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UdpHeader {
     /// The source port
     pub source: u16,
     /// The destination port
@@ -78,7 +79,7 @@ impl UdpHeader {
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ParseError {
+pub enum ParseError {
     #[error("Too few bytes to constitute a UDP header")]
     HeaderTooShort,
     #[error(
@@ -90,7 +91,7 @@ pub(super) enum ParseError {
 }
 
 /// Creates a serialized UDP packet header with the values provided
-pub(super) fn build_udp_header(
+pub fn build_udp_header(
     source_address: Ipv4Address,
     source_port: u16,
     destination_address: Ipv4Address,
@@ -124,7 +125,7 @@ pub(super) fn build_udp_header(
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
-pub(super) enum BuildHeaderError {
+pub enum BuildHeaderError {
     #[error("The UDP payload is longer than can fit into a single packet")]
     OverlyLongPayload,
 }

@@ -6,7 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError},
         Ipv4, Pci, UserProcess,
     },
-    Control, Shutdown, Transport,
+    Control, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;

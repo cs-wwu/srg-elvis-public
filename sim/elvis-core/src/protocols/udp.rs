@@ -17,7 +17,7 @@ mod udp_session;
 use udp_session::UdpSession;
 
 mod udp_parsing;
-use self::udp_parsing::UdpHeader;
+pub use udp_parsing::UdpHeader;
 
 use super::{
     ipv4::{self, ipv4_parsing::Ipv4Header, Ipv4Address},
@@ -96,10 +96,10 @@ impl Protocol for Udp {
         &self,
         mut message: Message,
         caller: SharedSession,
-        control: Control,
+        mut control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let ipv4_header = control.get::<Ipv4Header>().unwrap();
+        let ipv4_header = *control.get::<Ipv4Header>().unwrap();
         // Parse the header
         let udp_header = match UdpHeader::from_bytes_ipv4(
             message.iter(),
@@ -114,6 +114,7 @@ impl Protocol for Udp {
             }
         };
         message.remove_front(8);
+        control.insert(udp_header);
 
         // Use the context and the header information to identify the session
         let endpoints = Endpoints::new(

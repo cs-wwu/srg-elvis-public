@@ -1,7 +1,8 @@
 use super::{
-    ipv4::AddressPair,
-    tcp, udp,
-    utility::{Endpoint, PortPair},
+    ipv4::ipv4_parsing::Ipv4Header,
+    tcp,
+    udp::{self, UdpHeader},
+    utility::Endpoint,
 };
 use crate::{
     machine::ProtocolMap,
@@ -215,13 +216,14 @@ impl Protocol for Sockets {
         control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let address_pair = control.get::<AddressPair>().unwrap();
-        let port_pair = control.get::<PortPair>().unwrap();
+        let ipv4_header = control.get::<Ipv4Header>().unwrap();
+        let udp_header = control.get::<UdpHeader>().unwrap();
         let identifier = SocketId::new_from_addresses(
-            SocketAddress::new_v4(address_pair.local, port_pair.local),
-            SocketAddress::new_v4(address_pair.remote, port_pair.remote),
+            SocketAddress::new_v4(ipv4_header.destination, udp_header.destination),
+            SocketAddress::new_v4(ipv4_header.source, udp_header.source),
         );
-        let any_identifier = SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, port_pair.local);
+        let any_identifier =
+            SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, udp_header.destination);
         let session = match self.socket_sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
