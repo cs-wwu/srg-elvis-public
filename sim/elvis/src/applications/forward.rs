@@ -1,6 +1,5 @@
 use elvis_core::{
     message::Message,
-    network::Mac,
     protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
@@ -9,10 +8,10 @@ use elvis_core::{
         Ipv4,
     },
     session::SharedSession,
-    Control, Id, Network, ProtocolMap,
+    Control, Id, ProtocolMap, Shutdown,
 };
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc::Sender, Barrier};
+use tokio::sync::Barrier;
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 pub struct Forward {
     /// The session on which we send any messages we receive
@@ -25,7 +24,6 @@ pub struct Forward {
     local_port: u16,
     /// The port number for outgoing messages
     remote_port: u16,
-    destination_mac: Option<Mac>,
 }
 
 impl Forward {
@@ -35,7 +33,6 @@ impl Forward {
         remote_ip: Ipv4Address,
         local_port: u16,
         remote_port: u16,
-        destination_mac: Option<Mac>,
     ) -> Self {
         Self {
             outgoing: Default::default(),
@@ -43,7 +40,6 @@ impl Forward {
             remote_ip,
             local_port,
             remote_port,
-            destination_mac,
         }
     }
 
@@ -58,7 +54,7 @@ impl Application for Forward {
 
     fn start(
         &self,
-        _shutdown: Sender<()>,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
@@ -69,7 +65,7 @@ impl Application for Forward {
         Udp::set_remote_port(self.remote_port, &mut participants);
 
         let udp = protocols.protocol(Udp::ID).expect("No such protocol");
-        *self.outgoing.write().unwrap() = Some(udp.clone().open(
+        *self.outgoing.write().unwrap() = Some(udp.open(
             Self::ID,
             // TODO(hardint): Can these clones be cheaper?
             participants.clone(),
@@ -79,19 +75,16 @@ impl Application for Forward {
         tokio::spawn(async move {
             initialized.wait().await;
         });
+
         Ok(())
     }
 
-    fn receive(&self, message: Message, mut context: Context) -> Result<(), ApplicationError> {
-        if let Some(destination_mac) = self.destination_mac {
-            Network::set_destination(destination_mac, &mut context.control);
-        }
+    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
         self.outgoing
             .read()
             .unwrap()
             .as_ref()
             .unwrap()
-            .clone()
             .send(message, context)?;
         Ok(())
     }

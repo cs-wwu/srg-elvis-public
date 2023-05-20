@@ -28,7 +28,7 @@ fn basic_synchronization() {
 
     // 2
     let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
-    assert_eq!(peer_a.state, State::SynSent);
+    assert_eq!(peer_a.status(), State::SynSent);
     let peer_a_syn = peer_a.segments().remove(0);
     assert_eq!(peer_a_syn.header.seq, 100);
     assert!(peer_a_syn.header.ctl.syn());
@@ -43,7 +43,7 @@ fn basic_synchronization() {
     .unwrap()
     .tcb()
     .unwrap();
-    assert_eq!(peer_b.state, State::SynReceived);
+    assert_eq!(peer_b.status(), State::SynReceived);
 
     // 3
     let peer_b_syn_ack = peer_b.segments().remove(0);
@@ -53,7 +53,7 @@ fn basic_synchronization() {
     assert!(peer_b_syn_ack.header.ctl.ack());
 
     peer_a.segment_arrives(peer_b_syn_ack);
-    assert_eq!(peer_a.state, State::Established);
+    assert_eq!(peer_a.status(), State::Established);
 
     // 4
     let peer_a_ack = peer_a.segments().remove(0);
@@ -62,7 +62,7 @@ fn basic_synchronization() {
     assert!(peer_a_ack.header.ctl.ack());
 
     peer_b.segment_arrives(peer_a_ack);
-    assert_eq!(peer_b.state, State::Established);
+    assert_eq!(peer_b.status(), State::Established);
 
     // 5 TODO(hardint): Needs data segment transmission to work
 }
@@ -82,24 +82,24 @@ fn simultaneous_initiation() {
 
     // 2
     let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
-    assert_eq!(peer_a.state, State::SynSent);
+    assert_eq!(peer_a.status(), State::SynSent);
     let a_syn = peer_a.segments().remove(0);
     assert_eq!(a_syn.header.seq, 100);
     assert!(a_syn.header.ctl.syn());
 
     // 3
     let mut peer_b = Tcb::open(PEER_B_ID, 300, 1500);
-    assert_eq!(peer_b.state, State::SynSent);
+    assert_eq!(peer_b.status(), State::SynSent);
     let b_syn = peer_b.segments().remove(0);
     assert_eq!(b_syn.header.seq, 300);
     assert!(b_syn.header.ctl.syn());
 
     peer_a.segment_arrives(b_syn);
-    assert_eq!(peer_a.state, State::SynReceived);
+    assert_eq!(peer_a.status(), State::SynReceived);
 
     // 4
     peer_b.segment_arrives(a_syn);
-    assert_eq!(peer_b.state, State::SynReceived);
+    assert_eq!(peer_b.status(), State::SynReceived);
 
     // 5
     let a_syn_ack = peer_a.segments().remove(0);
@@ -116,11 +116,11 @@ fn simultaneous_initiation() {
     assert_eq!(b_syn_ack.header.ack, 101);
 
     peer_a.segment_arrives(b_syn_ack);
-    assert_eq!(peer_a.state, State::Established);
+    assert_eq!(peer_a.status(), State::Established);
 
     // 7
     peer_b.segment_arrives(a_syn_ack);
-    assert_eq!(peer_b.state, State::Established);
+    assert_eq!(peer_b.status(), State::Established);
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn old_duplicate_syn() {
     assert_eq!(peer_b_syn_ack.header.ack, 91);
 
     peer_a.segment_arrives(peer_b_syn_ack);
-    assert_eq!(peer_a.state, State::SynSent);
+    assert_eq!(peer_a.status(), State::SynSent);
 
     // 5
     let peer_a_rst = peer_a.segments().remove(0);
@@ -205,7 +205,7 @@ fn old_duplicate_syn() {
     assert_eq!(peer_b_syn_ack.header.ack, 101);
 
     peer_a.segment_arrives(peer_b_syn_ack);
-    assert_eq!(peer_a.state, State::Established);
+    assert_eq!(peer_a.status(), State::Established);
 
     // 8
     let peer_a_ack = peer_a.segments().remove(0);
@@ -234,8 +234,8 @@ fn established_pair(peer_a_iss: u32, peer_b_iss: u32) -> (Tcb, Tcb) {
     peer_a.segment_arrives(peer_b_syn_ack);
     let peer_a_ack = peer_a.segments().remove(0);
     peer_b.segment_arrives(peer_a_ack);
-    assert_eq!(peer_a.state, State::Established);
-    assert_eq!(peer_b.state, State::Established);
+    assert_eq!(peer_a.status(), State::Established);
+    assert_eq!(peer_b.status(), State::Established);
     (peer_a, peer_b)
 }
 
@@ -267,7 +267,7 @@ fn normal_close_sequence() {
 
     // 2
     peer_a.close();
-    assert_eq!(peer_a.state, State::FinWait1);
+    assert_eq!(peer_a.status(), State::FinWait1);
 
     let peer_a_fin = peer_a.segments().remove(0);
     assert!(peer_a_fin.header.ctl.fin());
@@ -276,7 +276,7 @@ fn normal_close_sequence() {
     assert_eq!(peer_a_fin.header.ack, 300);
 
     peer_b.segment_arrives(peer_a_fin);
-    assert_eq!(peer_b.state, State::CloseWait);
+    assert_eq!(peer_b.status(), State::CloseWait);
 
     // 3
     let peer_b_ack = peer_b.segments().remove(0);
@@ -285,11 +285,11 @@ fn normal_close_sequence() {
     assert_eq!(peer_b_ack.header.ack, 101);
 
     peer_a.segment_arrives(peer_b_ack);
-    assert_eq!(peer_a.state, State::FinWait2);
+    assert_eq!(peer_a.status(), State::FinWait2);
 
     // 4
     peer_b.close();
-    assert_eq!(peer_b.state, State::LastAck);
+    assert_eq!(peer_b.status(), State::LastAck);
 
     let peer_b_fin = peer_b.segments().remove(0);
     assert!(peer_b_fin.header.ctl.fin());
@@ -298,7 +298,7 @@ fn normal_close_sequence() {
     assert_eq!(peer_b_fin.header.ack, 101);
 
     peer_a.segment_arrives(peer_b_fin);
-    assert_eq!(peer_a.state, State::TimeWait);
+    assert_eq!(peer_a.status(), State::TimeWait);
 
     // 5
     let peer_a_ack = peer_a.segments().remove(0);
@@ -339,7 +339,7 @@ fn simultaneous_close_sequence() {
 
     // 2
     peer_a.close();
-    assert_eq!(peer_a.state, State::FinWait1);
+    assert_eq!(peer_a.status(), State::FinWait1);
     let fin_ack_a = peer_a.segments().remove(0);
     assert_eq!(fin_ack_a.header.seq, 100);
     assert_eq!(fin_ack_a.header.ack, 300);
@@ -347,7 +347,7 @@ fn simultaneous_close_sequence() {
     assert!(fin_ack_a.header.ctl.ack());
 
     peer_b.close();
-    assert_eq!(peer_b.state, State::FinWait1);
+    assert_eq!(peer_b.status(), State::FinWait1);
     let fin_ack_b = peer_b.segments().remove(0);
     assert_eq!(fin_ack_b.header.seq, 300);
     assert_eq!(fin_ack_b.header.ack, 100);
@@ -356,14 +356,14 @@ fn simultaneous_close_sequence() {
 
     // 3
     peer_a.segment_arrives(fin_ack_b);
-    assert_eq!(peer_a.state, State::Closing);
+    assert_eq!(peer_a.status(), State::Closing);
     let ack_a = peer_a.segments().remove(0);
     assert_eq!(ack_a.header.seq, 101);
     assert_eq!(ack_a.header.ack, 301);
     assert!(ack_a.header.ctl.ack());
 
     peer_b.segment_arrives(fin_ack_a);
-    assert_eq!(peer_b.state, State::Closing);
+    assert_eq!(peer_b.status(), State::Closing);
     let ack_b = peer_b.segments().remove(0);
     assert_eq!(ack_b.header.seq, 301);
     assert_eq!(ack_b.header.ack, 101);
@@ -371,14 +371,14 @@ fn simultaneous_close_sequence() {
 
     // 4
     peer_a.segment_arrives(ack_b);
-    assert_eq!(peer_a.state, State::TimeWait);
+    assert_eq!(peer_a.status(), State::TimeWait);
     assert_eq!(
         peer_a.advance_time(MSL.mul_f32(2.1)),
         AdvanceTimeResult::CloseConnection
     );
 
     peer_b.segment_arrives(ack_a);
-    assert_eq!(peer_b.state, State::TimeWait);
+    assert_eq!(peer_b.status(), State::TimeWait);
     assert_eq!(
         peer_b.advance_time(MSL.mul_f32(2.1)),
         AdvanceTimeResult::CloseConnection
@@ -389,7 +389,7 @@ fn simultaneous_close_sequence() {
 fn message_send() {
     let expected = b"Hello, world!";
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(&Message::new(expected));
+    peer_a.send(Message::new(expected));
     for outgoing in peer_a.segments() {
         peer_b.segment_arrives(outgoing);
     }
@@ -405,7 +405,7 @@ fn message_segmentation() {
         .take(4000)
         .collect();
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(&Message::new(expected.clone()));
+    peer_a.send(Message::new(expected.clone()));
     let mut count = 0;
     for outgoing in peer_a.segments() {
         count += 1;
@@ -424,7 +424,7 @@ fn large_message_transmission() {
         .take(8000) // This is beyond our receive window now
         .collect();
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(&Message::new(expected.clone()));
+    peer_a.send(Message::new(expected.clone()));
     let mut received = vec![];
     while received.len() != expected.len() {
         for outgoing in peer_a.segments() {
@@ -444,7 +444,7 @@ fn large_message_transmission() {
 fn message_retransmission() {
     let expected: Vec<_> = (0..8000).map(|i| i as u8).collect();
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(&Message::new(expected.clone()));
+    peer_a.send(Message::new(expected.clone()));
     let mut received = vec![];
     while received.len() < expected.len() {
         for outgoing in peer_a.segments() {
@@ -472,7 +472,7 @@ fn out_of_order_delivery() {
         .take(4000)
         .collect();
     let (mut peer_a, mut peer_b) = established_pair(100, 300);
-    peer_a.send(&Message::new(expected.clone()));
+    peer_a.send(Message::new(expected.clone()));
     let segments = peer_a.segments();
     for outgoing in segments.into_iter().rev() {
         peer_b.segment_arrives(outgoing);
@@ -514,7 +514,7 @@ fn loss_during_initiation() {
         peer_a.segment_arrives(peer_b_syn_ack.clone()),
         SegmentArrivesResult::Ok
     );
-    assert_eq!(peer_a.state, State::Established);
+    assert_eq!(peer_a.status(), State::Established);
     // Lost, new ACK not generated
     let _peer_a_ack = peer_a.segments();
 
@@ -537,13 +537,13 @@ fn loss_during_initiation() {
     );
 
     assert_eq!(peer_b.segment_arrives(peer_a_ack), SegmentArrivesResult::Ok);
-    assert_eq!(peer_b.state, State::Established);
+    assert_eq!(peer_b.status(), State::Established);
 }
 
 #[test]
 fn send_before_established() {
     let mut peer_a = Tcb::open(PEER_A_ID, 100, 1500);
-    peer_a.send(&Message::new("Hello!"));
+    peer_a.send(Message::new("Hello!"));
     let peer_a_syn = peer_a.segments().remove(0);
     let mut peer_b = segment_arrives_listen(
         peer_a_syn,
@@ -555,15 +555,40 @@ fn send_before_established() {
     .unwrap()
     .tcb()
     .unwrap();
-    peer_b.send(&Message::new("Hi!"));
+    peer_b.send(Message::new("Hi!"));
     for segment in peer_b.segments() {
         peer_a.segment_arrives(segment);
     }
     for segment in peer_a.segments() {
         peer_b.segment_arrives(segment);
     }
-    assert_eq!(peer_a.state, State::Established);
-    assert_eq!(peer_b.state, State::Established);
+    assert_eq!(peer_a.status(), State::Established);
+    assert_eq!(peer_b.status(), State::Established);
     assert_eq!(peer_a.receive().to_vec(), b"Hi!");
     assert_eq!(peer_b.receive().to_vec(), b"Hello!");
+}
+
+#[test]
+#[ignore]
+fn tcp_gig_isolation() {
+    let expected: Vec<_> = std::iter::repeat(0)
+        .enumerate()
+        .map(|(i, _)| i as u8)
+        .take(1_000_000_000)
+        .collect();
+    let (mut peer_a, mut peer_b) = established_pair(100, 300);
+    peer_a.send(Message::new(expected.clone()));
+    let mut received_bytes = 0;
+    while received_bytes < expected.len() {
+        for outgoing in peer_a.segments() {
+            peer_b.segment_arrives(outgoing);
+        }
+        received_bytes += peer_b.receive().len();
+        for outgoing in peer_b.segments() {
+            peer_a.segment_arrives(outgoing);
+        }
+        peer_a.advance_time(Duration::from_secs(1));
+        peer_b.advance_time(Duration::from_secs(1));
+    }
+    assert_eq!(received_bytes, 1_000_000_000);
 }

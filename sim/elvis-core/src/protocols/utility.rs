@@ -13,10 +13,14 @@ impl Checksum {
     }
 
     /// Adds a `u16` to the checksum value.
+    #[cfg(feature = "compute_checksum")]
     pub fn add_u16(&mut self, value: u16) {
         let (sum, carry) = self.0.overflowing_add(value);
         self.0 = sum + carry as u16;
     }
+
+    #[cfg(not(feature = "compute_checksum"))]
+    pub fn add_u16(&mut self, _value: u16) {}
 
     /// Adds `u16` formed by two `u8`s to the checksum value.
     pub fn add_u8(&mut self, a: u8, b: u8) {
@@ -31,26 +35,22 @@ impl Checksum {
 
     /// Repeatedly gets the next two bytes at a `u16` from a byte iterator. If the `payload`
     /// contains an odd number of bytes, the last `u8` will be appended with the
-    /// value zero. Returns the number of bytes consumed.
-    pub fn accumulate_remainder(&mut self, payload: &mut impl Iterator<Item = u8>) -> u16 {
-        let mut length = 0;
-        while let Some(first) = payload.next() {
-            let second = match payload.next() {
-                Some(second) => {
-                    length += 2;
-                    second
-                }
-                None => {
-                    length += 1;
-                    0
-                }
-            };
-            self.add_u8(first, second);
+    /// value zero.
+    #[cfg(feature = "compute_checksum")]
+    pub fn accumulate_remainder(&mut self, mut payload: impl Iterator<Item = u8>) {
+        while let Some(a) = payload.next() {
+            self.add_u8(a, payload.next().unwrap_or(0));
         }
-        length
     }
 
+    /// Repeatedly gets the next two bytes at a `u16` from a byte iterator. If the `payload`
+    /// contains an odd number of bytes, the last `u8` will be appended with the
+    /// value zero.
+    #[cfg(not(feature = "compute_checksum"))]
+    pub fn accumulate_remainder(&mut self, _payload: impl Iterator<Item = u8>) {}
+
     /// Computes the final checksum value.
+    #[cfg(feature = "compute_checksum")]
     pub fn as_u16(&self) -> u16 {
         match self.0 {
             // Use that there are two one's complement representations of zero
@@ -59,6 +59,12 @@ impl Checksum {
             0xffff => 0xffff,
             sum => !sum,
         }
+    }
+
+    /// Computes the final checksum value.
+    #[cfg(not(feature = "compute_checksum"))]
+    pub fn as_u16(&self) -> u16 {
+        0
     }
 }
 

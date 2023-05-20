@@ -2,7 +2,7 @@ use crate::applications::PingPong;
 use elvis_core::{
     protocol::SharedProtocol,
     protocols::{
-        ipv4::{IpToTapSlot, Ipv4, Ipv4Address},
+        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Pci,
     },
@@ -18,19 +18,24 @@ const IP_ADDRESS_2: Ipv4Address = Ipv4Address::new([123, 45, 67, 90]);
 /// back and forth till the TTL reaches 0. TTL will be subtracted by 1 every time a machine reveives it.
 pub async fn ping_pong() {
     let network = Network::basic();
-    let ip_table: IpToTapSlot = [(IP_ADDRESS_1, 0), (IP_ADDRESS_2, 0)].into_iter().collect();
+    let ip_table: Recipients = [
+        (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
+        (IP_ADDRESS_2, Recipient::with_mac(0, 1)),
+    ]
+    .into_iter()
+    .collect();
 
     let machines = vec![
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xbeef, 0xface).shared(),
         ]),
         Machine::new([
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.tap()]).shared(),
+            Pci::new([network.clone()]).shared(),
             PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xbeef).shared(),
         ]),
     ];
