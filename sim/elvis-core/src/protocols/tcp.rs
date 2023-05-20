@@ -7,7 +7,8 @@ use self::{
     tcp_session::TcpSession,
 };
 use super::{
-    ipv4, pci,
+    ipv4::{self, ipv4_parsing::Ipv4Header},
+    pci,
     utility::{Endpoint, Endpoints},
     Ipv4,
 };
@@ -98,32 +99,32 @@ impl Protocol for Tcp {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let demux_info = control
-            .get::<ipv4::DemuxInfo>()
+        let ipv4_header = control
+            .get::<Ipv4Header>()
             .ok_or(DemuxError::MissingContext)?;
 
         // Parse the header
-        let header = TcpHeader::from_bytes(
+        let tcp_header = TcpHeader::from_bytes(
             message.iter(),
             message.len(),
-            demux_info.addresses.remote,
-            demux_info.addresses.local,
+            ipv4_header.source,
+            ipv4_header.destination,
         )
         .map_err(|_| DemuxError::Header)?;
         message.remove_front(20);
 
         let endpoints = Endpoints {
             local: Endpoint {
-                address: demux_info.addresses.local,
-                port: header.dst_port,
+                address: ipv4_header.destination,
+                port: tcp_header.dst_port,
             },
             remote: Endpoint {
-                address: demux_info.addresses.remote,
-                port: header.src_port,
+                address: ipv4_header.source,
+                port: tcp_header.src_port,
             },
         };
 
-        let segment = Segment::new(header, message);
+        let segment = Segment::new(tcp_header, message);
         match self.sessions.entry(endpoints) {
             Entry::Occupied(entry) => {
                 entry.get().receive(segment);

@@ -2,17 +2,19 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocols::{
-        ipv4::{self, Ipv4Address},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipients},
         user_process::{Application, ApplicationError},
-        Ipv4, UserProcess,
+        Ipv4, Pci, UserProcess,
     },
-    Control, Session, Shutdown,
+    Control, Shutdown, Transport,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
-pub struct Router;
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+pub struct Router {
+    ip_table: Recipients,
+}
 
 impl Router {
     pub fn new() -> Self {
@@ -49,20 +51,30 @@ impl Application for Router {
     /// network and gives the application time to handle it.
     fn receive(
         &self,
-        message: Message,
+        mut message: Message,
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
-        let demux_info = *control.get::<ipv4::DemuxInfo>().unwrap();
-        let session = ipv4
-            .open(
-                demux_info.protocol.into(),
-                demux_info.addresses,
-                protocols.clone(),
-            )
-            .unwrap();
-        session.send(message, protocols)?;
+        let mut ipv4_header = control
+            .get::<Ipv4Header>()
+            .ok_or(ApplicationError::Other)?
+            .clone();
+        ipv4_header.time_to_live -= 1;
+        if ipv4_header.time_to_live == 0 {
+            return Ok(());
+        }
+        // TODO(hardint): Fragmentation
+        message.header(ipv4_header.serialize().or(Err(ApplicationError::Other))?);
+        let recipient = self
+            .ip_table
+            .get(&ipv4_header.destination)
+            .ok_or(ApplicationError::Other)?;
+        let session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
+        let transport: Transport = ipv4_header
+            .protocol
+            .try_into()
+            .or(Err(ApplicationError::Other))?;
+        session.send_pci(message, recipient.mac, transport.into())?;
         Ok(())
     }
 }

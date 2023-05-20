@@ -20,7 +20,7 @@ mod udp_parsing;
 use self::udp_parsing::UdpHeader;
 
 use super::{
-    ipv4::{self, Ipv4Address},
+    ipv4::{self, ipv4_parsing::Ipv4Header, Ipv4Address},
     utility::{Endpoint, Endpoints},
 };
 
@@ -99,13 +99,13 @@ impl Protocol for Udp {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let demux_info = control.get::<ipv4::DemuxInfo>().unwrap();
+        let ipv4_header = control.get::<Ipv4Header>().unwrap();
         // Parse the header
-        let header = match UdpHeader::from_bytes_ipv4(
+        let udp_header = match UdpHeader::from_bytes_ipv4(
             message.iter(),
             message.len(),
-            demux_info.addresses.remote,
-            demux_info.addresses.local,
+            ipv4_header.source,
+            ipv4_header.destination,
         ) {
             Ok(header) => header,
             Err(e) => {
@@ -117,8 +117,8 @@ impl Protocol for Udp {
 
         // Use the context and the header information to identify the session
         let endpoints = Endpoints::new(
-            Endpoint::new(demux_info.addresses.local, header.destination),
-            Endpoint::new(demux_info.addresses.remote, header.source),
+            Endpoint::new(ipv4_header.destination, udp_header.destination),
+            Endpoint::new(ipv4_header.source, udp_header.source),
         );
 
         let session = match self.sessions.entry(endpoints) {
