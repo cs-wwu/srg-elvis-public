@@ -21,6 +21,7 @@ nom = "7"
 criterion = { version = "0.4.0", features = [ "async_tokio", "html_reports" ] }
 anyhow = "1.0.66"
 ntest = "0.9"
+tracing-test = "0.2.4"
 
 [[bench]]
 name = "scaled_sim_benchmark"

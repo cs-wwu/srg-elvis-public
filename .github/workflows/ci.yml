@@ -16,14 +16,14 @@
 #       run: |
 #         rustup update
 #         rustc --version
-#     - name: Build
-#       run: cargo build --verbose
 #     - name: Run tests
 #       run: cargo test --verbose
 #     - name: Run clippy
 #       run: cargo clippy --all-targets -- -D warnings
 #     - name: Check formatting
 #       run: cargo fmt --all -- --check
+#     - name: Check documentation
+#       run: RUSTDOCFLAGS="-D warnings" cargo doc --all-features --document-private-items
 #   # build and test on mac to check for bugs that only show up on that OS
 #   test-on-mac:
 #     runs-on: macos-latest
@@ -36,8 +36,6 @@
 #       run: |
 #         rustup update
 #         rustc --version
-#     - name: Build
-#       run: cargo build --verbose
 #     - name: Run tests
 #       run: cargo test --verbose
 #   # build and test on windows to check for bugs that only show up on windows
@@ -52,7 +50,5 @@
 #       run: |
 #         rustup update
 #         rustc --version
-#     - name: Build
-#       run: cargo build --verbose
 #     - name: Run tests
 #       run: cargo test --verbose

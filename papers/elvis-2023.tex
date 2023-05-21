@@ -21,7 +21,7 @@
 \title{\elvis{}: A Highly Scalable Virtual Internet Simulator\\}
 
 \author{%%%% author names
-    \IEEEauthorblockN{Tim Harding}, 
+    \IEEEauthorblockN{Tim Harding},
     \IEEEauthorblockN{Jacob Hollands},
     \IEEEauthorblockN{Mitchell Thompson},
     \IEEEauthorblockN{Logan Giddings},
@@ -63,14 +63,14 @@ A further example is the SEED Internet Emulator [5],  a Python library that impl
 
 \section{Rust}
 
-Rust is a general purpose programming language that is focused on performance and memory-safety. Unlike languages like Java or C\# that maintain memory-safety with a garbage collector, Rust maintains memory-safety by requiring that all references point to valid memory through the use of the compiler. 
+Rust is a general purpose programming language that is focused on performance and memory-safety. Unlike languages like Java or C\# that maintain memory-safety with a garbage collector, Rust maintains memory-safety by requiring that all references point to valid memory through the use of the compiler.
 
 Memory in Rust is reclaimed when owning variables go out of scope. The potent result of this is that a Rust program that compiles has a much lower risk of leaking memory,  and also guaranteed to never have a segmentation fault due to the invalid access of memory. Without a garbage collector, Rust is also as fast as C or C++\cite{rust-speed}.
 
 
 \subsection{Rust and Memory Safety}
 
-The Rust borrow checker tracks the lifetimes of pointers, making sure that all references are valid and a heap allocation is not freed until all references are released. 
+The Rust borrow checker tracks the lifetimes of pointers, making sure that all references are valid and a heap allocation is not freed until all references are released.
 
 Only one variable can ``own'' a pointer. Assigning the pointer to another variable transfers ownership of the pointer, and the pointer can no longer be accessed with the original variable. This is conceptually similar to C++'s unique\_ptr smart pointer, but Rust enforces this strictly at compile time. Temporary references to a pointer may be passed to functions to use, but the compiler ensures that the lifetimes of those references never exceed the lifetime of the owning variable. When the owning variable goes out of scope, the memory that the pointer references is freed.
 
@@ -80,19 +80,19 @@ In situations where it is critical for multiple references to exist for shared d
 
 Programmers can circumvent Rust's memory-safety by marking a region of code ``unsafe''. This is usually needed when Rust calls into C-code, which is by nature unsafe. The onus is on the programmer to make sure that memory safety is preserved in unsafe Rust code.
 
-\elvis{} makes no use of unsafe Rust. Memory-safety is maintained throughout the simulation. 
+\elvis{} makes no use of unsafe Rust. Memory-safety is maintained throughout the simulation.
 
 \subsection{Concurrency}
 
 Rust provides native support for concurrency through the thread:: module. In Unix, this is a wrapper on top of POSIX threads.
 
 We chose instead to base our implementation on the Tokio \cite{b6} library. Tokio provides users with the ability for asynchronous programming using async/await functions. More important to \elvis{}, Tokio allows user level coroutines to be multiplexed on top of kernel threads.
-Coroutine resource usage is significantly lower than threads that require both a 
+Coroutine resource usage is significantly lower than threads that require both a
 user-level stack as well as a kernel-level stack.
 
 \subsection{Trade Offs}
 
-The drawback to Rust is that the programming paradigm requires a much steeper learning curve. Programmers new to Rust often report ``fighting the borrow checker''. This situation improves with experience but is certainly a real impediment. In our experience, students new to the \elvis{} research group typically spend one academic quarter simply becoming comfortable 
+The drawback to Rust is that the programming paradigm requires a much steeper learning curve. Programmers new to Rust often report ``fighting the borrow checker''. This situation improves with experience but is certainly a real impediment. In our experience, students new to the \elvis{} research group typically spend one academic quarter simply becoming comfortable
 with Rust.
 
 \section{Architecture}
@@ -114,7 +114,7 @@ Machines are connected to networks, which are the conduit through which packet t
 
 In order to make our networking as efficient as possible, our simulation uses a bespoke message data structure that allows addition and removal of headers, slicing, and sharing without copying or moving bytes. This helps us avoid serialization and deserialization of network traffic for efficiency gains. All of our protocols are written from scratch to take advantage of this data structure. For example, where most TCP implementations expect flat byte arrays for input and copy segment text into ring buffers, our implementation uses zero-copy concatenation of messages and accesses bytes through an iterator interface to circumvent the need for serialization.
 
-With this model, we are able to isolate machines from one another without heavy-duty mechanisms such as containers. Instead, we use asynchronous functions to deliver packets over networks and avoid context switches. Because of Rust’s guarantees, users need not worry that unsafe memory accesses will break isolation such that a malfunction in one machine can affect another. 
+With this model, we are able to isolate machines from one another without heavy-duty mechanisms such as containers. Instead, we use asynchronous functions to deliver packets over networks and avoid context switches. Because of Rust’s guarantees, users need not worry that unsafe memory accesses will break isolation such that a malfunction in one machine can affect another.
 
 
 \subsection{Network Description Language}
@@ -137,27 +137,30 @@ Each of those sections are defined using a tabbed structure. A core declaration 
 
 Arguments for subsections can be defined freely. Other than the core needs of a specific application or protocol, such as the name of the protocol or the IP range of a network, users can define any such argument needed and it will be read in. This argument then gets stored with the rest of the arguments, core or otherwise, and can be accessed in the generator code. Users have no extra steps in defining new applications or protocols for use other than adding checks for those new applications or arguments, then accessing and using them.
 
-Putting all of those sections together results in a complete language for defining in depth simulations for \elvis{}. 
+Putting all of those sections together results in a complete language for defining in depth simulations for \elvis{}.
 
 \subsection{Socket API}
 
 One of our goals in designing \elvis{} was retaining the ability to easily port existing applications into the simulation. In order to achieve this, we needed a socket API that closely mimicked UNIX sockets, with functionality of creating sockets, using sockets to connect to a server machine or listen and accept incoming client connections, as well as sending and receiving messages over the network.
 
 A challenge in doing this is the fact that the machines in \elvis{} operate using a x-Kernel style protocol stack, which is incompatible with writing UNIX style applications.
-The \elvis{} socket API serves as an interface between the two. 
-A second drawback is that UNIX style sockets have undesirable aspects to their implementation, such as  pointer casting. 
+The \elvis{} socket API serves as an interface between the two.
+A second drawback is that UNIX style sockets have undesirable aspects to their implementation, such as  pointer casting.
 \elvis{} presents a modernized  implementation while retaining all the functionality needed.
 
 The resulting socket API is familiar and easy to use for anyone who has experience writing server-client applications using UNIX sockets, with the only noticeable differences being syntactical ones and the fact that applications utilizing it are written in Rust instead of C. This allows for convenient conversion and porting of existing UNIX server-client applications into \elvis{} applications.
 
+Note that it is not the goal of \elvis{} to support full OS-level functionality in the
+simulation. \elvis{} applications are limited to using the \elvis{} Socket API to
+create network connections, and send/receive data.
 
-\subsection{Profiling Web Traffic}
+\subsection{Web Traffic}
 
 In order to create realistic simulations of the Internet within \elvis{}, we require realistic traffic. One primary category of traffic is web traffic between clients and servers.  To do this, we first have to characterize servers on the internet.
 
-That means gathering data from top servers on the size, number of links, number of images, and the size of images for each page on a web server. The distribution of that  data will then be used to model the distribution of web pages on that type of website. Our simulated web servers will generate html pages for “users” to browse based on the distribution of size, number of links, and images sizes for that category of website. 
+That means gathering data from top servers on the size, number of links, number of images, and the size of images for each page on a web server. The distribution of that  data will then be used to model the distribution of web pages on that type of website. Our simulated web servers will generate html pages for “users” to browse based on the distribution of size, number of links, and images sizes for that category of website.
 
-We started by creating a web scraper in Rust that recursively traverses a website and outputs the links and images on each page as well as the size. We chose yahoo.com to test this scraper since it is a large site and most of the links on Yahoo lead to other pages on the site. We scraped over 200,000 pages.  
+We started by creating a web scraper in Rust that recursively traverses a website and outputs the links and images on each page as well as the size. We chose yahoo.com to test this scraper since it is a large site and most of the links on Yahoo lead to other pages on the site. We scraped over 200,000 pages.
 
 When analyzed, we found that for each attribute measured, the majority of pages tended to fall within a narrow range of values with the rest being fairly scattered without a clear distribution. This made it difficult to find a simple mathematical model of the distribution. Instead, we created a program that went through the data for each page characteristic (size, number of links, etc.) and sorted it into buckets while keeping track of how many pages fell into each bucket. This information was saved in a .csv, which can then be passed into the web server program to inform the characteristics of the html pages it generates so the web server can mimic the servers we gathered data from.
 
@@ -261,7 +264,7 @@ Another factor to consider is the CPU usage of the simulations. In figure 11 it 
 
 \subsection{TCP Performance}
 
-On our test machine, we are able to transfer data over TCP at a rate of 1GB per 2.6s on a single thread, roughly thrice as fast as an ideal gigabit Internet connection. We believe that there is significant room for improvement in performance for several reasons. First, we note that enabling multithreading currently decreases throughput by 33\%. This suggests that our current approach to parallelism causes unnecessary contention and  leaves a great deal of performance on the table. Additionally, profiling shows that we spend only 30\% of CPU time in \elvis{} code, with the other 70\% being shared between the Tokio async runtime and system calls. For future work, we intend to invest effort into refactoring the core simulation to spend more time in \elvis code and make better use of multiple CPUs. At the time of publication, we have an initial implementation of a custom task system that gives 170\% the throughput of the Tokio system described in this paper. This demonstrates the potential for substantial gains in TCP throughput. 
+On our test machine, we are able to transfer data over TCP at a rate of 1GB per 2.6s on a single thread, roughly thrice as fast as an ideal gigabit Internet connection. We believe that there is significant room for improvement in performance for several reasons. First, we note that enabling multithreading currently decreases throughput by 33\%. This suggests that our current approach to parallelism causes unnecessary contention and  leaves a great deal of performance on the table. Additionally, profiling shows that we spend only 30\% of CPU time in \elvis{} code, with the other 70\% being shared between the Tokio async runtime and system calls. For future work, we intend to invest effort into refactoring the core simulation to spend more time in \elvis code and make better use of multiple CPUs. At the time of publication, we have an initial implementation of a custom task system that gives 170\% the throughput of the Tokio system described in this paper. This demonstrates the potential for substantial gains in TCP throughput.
 
 \subsection{Socket API Performance}
 We tested the performance of simulations that use our  Socket API against the performance of simulations that do not in order to see how heavily the usage of sockets affects performance. The runtimes of several simulations are shown in Table \ref{tab:socket_perf}.
@@ -286,16 +289,16 @@ Usage of sockets is expected to slow down simulations since there are several bl
 
 \section{Limitations of the Approach}
 Our original goal was 50,000 nodes in the simulation. While the low bandwidth test demonstrated
-that double that amount could be achieved, the more realistic high bandwidth test 
+that double that amount could be achieved, the more realistic high bandwidth test
 showded that memory limits were reached on a 16G workstation with 20,000 nodes.
 The experiments nevertheless demonstrate the feasibility of large scale simulations
 with memory safe language constructs providing isolation between nodes.
 
 While memory safety is enforced, our approach has currently no way to divide resources
-between nodes that the more heavyweight, container-based approaches are able to. 
+between nodes that the more heavyweight, container-based approaches are able to.
 For example, we are currently unable to assign more priority to
-one node to the next, or indeed for one task to the next. 
-Since scalability is predicated on green threaded cooperative coroutines, 
+one node to the next, or indeed for one task to the next.
+Since scalability is predicated on green threaded cooperative coroutines,
 it is entirely possible that one task may run for long periods, depriving other
 tasks of execution time. We are currently investigating the use of
 a custom coroutine runtime that may address these issues, as well as
@@ -321,6 +324,7 @@ Near term future work in \elvis{} includes fleshing out the protocol stack with 
 
 Our thanks to Min Ngyuen and Kelly McElroy for their early contributions to \elvis{}. Western Washington University and Dr. Filip Jagodzinski graciously donated lab space.
 Dr. Erik Fretheim and Vipul Kumar provided the initial inspiration for \elvis{}.
+Dr. Aran Clauson and Dr. Phil Nelson provided invaluable comments.
 
 % \subsection{Figures and Tables}
 % \paragraph{Positioning Figures and Tables} Place figures and tables at the top and
@@ -376,12 +380,12 @@ Dr. Erik Fretheim and Vipul Kumar provided the initial inspiration for \elvis{}.
 
 \begin{thebibliography}{00}
     \bibitem{rust} Klabnick, Steve and Nichols, Carol. 202. The Rust Programming Language. No Starch Press
-    
+
     \bibitem{docker} Merkel, D. 2014. Docker: lightweight linux containers for consistent development and deployment. Linux Journal, 2014(239), 2.
-    
+
     \bibitem{cisco} Frezzo, D., Wang, M., Chen, M., Anderson, B., Hou, J., Hoang, T., Deng, T., Vinco, P., Nguyen, T., Le, T. and Ghoghari, N., 2010. Cisco Packet Tracer. Cisco Networking Academy.
 
-    \bibitem{core} Ahrenholz, Jeff., Henderson, Thomas., Kim, Jae H. November 2008. CORE: Real time network emulator. In MILCOM 2008 - IEEE Military Communications Conference 2008. 
+    \bibitem{core} Ahrenholz, Jeff., Henderson, Thomas., Kim, Jae H. November 2008. CORE: Real time network emulator. In MILCOM 2008 - IEEE Military Communications Conference 2008.
 
     \bibitem{seed} Du, Wenliang., Zeng, Honghao. Jan 2022. The SEED Internet Emulator and Its Applications in Cybersecurity Education. arXiv preprint arXiv:2201.03135, 2022.
 

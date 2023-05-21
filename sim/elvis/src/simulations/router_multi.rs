@@ -153,6 +153,7 @@ pub async fn router_multi() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    #[tracing_test::traced_test]
     async fn router_multi() {
         super::router_multi().await
     }
