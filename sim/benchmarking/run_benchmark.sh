@@ -15,6 +15,12 @@ else
     exit
 fi
 
+if [ $# -ne 3 ]; then
+    echo "Error: three command-line arguments are required."
+    echo "Usage: ./run_benchmark.sh SIM_NAME STARTING_COUNT ENDING_COUNT"
+    exit
+fi
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 echo "Moving to script directory"
@@ -49,6 +55,7 @@ fi
 echo "Moving ELVIS binary to benchmarking directory"
 
 cp ../target/release/$BINARY_NAME ./
+
 
 echo "Beginning benchmarking"
 echo "starting simulation $1 $2 $3"
