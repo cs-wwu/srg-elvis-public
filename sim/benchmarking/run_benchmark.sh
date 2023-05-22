@@ -21,6 +21,14 @@ if [ $# -ne 3 ]; then
     exit
 fi
 
+if [ "$2" -lt 100 ]; then
+    echo "Error: Starting value less than 100"
+    exit
+elif [ "$3" -lt 100 ]; then
+    echo "Error: Ending value less than 100"
+    exit
+fi
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 echo "Moving to script directory"
