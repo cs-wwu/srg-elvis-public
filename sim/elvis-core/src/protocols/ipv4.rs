@@ -28,6 +28,10 @@ use ipv4_session::Ipv4Session;
 
 use super::pci;
 
+pub mod fragmentation;
+mod reassembly;
+mod test_header_builder;
+
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     listen_bindings: FxDashMap<Ipv4Address, TypeId>,

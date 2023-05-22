@@ -1,4 +1,8 @@
-use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address, Recipient};
+use super::{
+    ipv4_parsing::{Ipv4Header, Ipv4HeaderBuilder},
+    reassembly::{Reassembly, ReceivePacketResult},
+    Ipv4, Ipv4Address, Recipient,
+};
 use crate::{
     machine::ProtocolMap,
     message::Message,
@@ -12,6 +16,10 @@ use std::{
     fmt::{self, Debug, Formatter},
     sync::Arc,
 };
+use std::{
+    fmt::{self, Debug, Formatter},
+    sync::{Arc, Mutex},
+};
 
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
@@ -20,22 +28,59 @@ pub struct Ipv4Session {
     /// The session we mux outgoing messages to
     pub(super) pci_session: Arc<PciSession>,
     /// The identifying information for this session
-    pub(super) endpoints: AddressPair,
+    id: SessionId,
     /// Information about how and where to send packets
-    pub(super) recipient: Recipient,
+    destination: Recipient,
+    // TODO(hardint): Since this lock is held for a relatively long time, would
+    // a Tokio lock or message passing be a better option?
+    /// Used for reassembling fragmented packets
+    reassembly: Arc<Mutex<Reassembly>>,
 }
 
 impl Ipv4Session {
+    /// Creates a new IPv4 session
+    pub(super) fn new(
+        downstream: SharedSession,
+        upstream: Id,
+        identifier: SessionId,
+        destination: Recipient,
+    ) -> Self {
+        Self {
+            upstream,
+            downstream,
+            id: identifier,
+            destination,
+            reassembly: Default::default(),
+        }
+    }
+
     pub fn receive(
         self: Arc<Self>,
+        header: Ipv4Header,
         message: Message,
-        control: Control,
-        protocols: ProtocolMap,
+        context: Context,
     ) -> Result<(), DemuxError> {
-        protocols
-            .get(self.upstream)
-            .expect("No such protocol")
-            .demux(message, self, control, protocols)?;
+        let result = self
+            .reassembly
+            .lock()
+            .unwrap()
+            .receive_packet(header, message);
+
+        match result {
+            ReceivePacketResult::Complete(_, message) => {
+                context
+                    .protocol(self.upstream)
+                    .expect("No such protocol")
+                    .demux(message, self, context)?;
+            }
+            ReceivePacketResult::Incomplete(timeout, buf_id, epoch) => {
+                let reassembly = self.reassembly.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(timeout).await;
+                    reassembly.lock().unwrap().maybe_cull_segment(buf_id, epoch);
+                });
+            }
+        }
         Ok(())
     }
 
