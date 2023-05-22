@@ -5,7 +5,7 @@ use crate::{
     id::Id,
     machine::PciSlot,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError, NotifyType},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyType},
     session::SharedSession,
     Control, Network, Protocol, ProtocolMap, Shutdown,
 };
@@ -133,7 +133,7 @@ impl Protocol for Pci {
         }
     }
 
-    fn notify(&self, _notification: NotifyType, _context: Context) {
+    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {
         
     }
 }

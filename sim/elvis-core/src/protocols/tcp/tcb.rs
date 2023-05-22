@@ -148,10 +148,12 @@ impl Tcb {
     /// Implements [section
     /// 3.10.2](https://www.rfc-editor.org/rfc/rfc9293.html#name-send-call).
     pub fn send(&mut self, message: Message) {
+        println!("Tcb Send: {:?}", std::str::from_utf8(&message.to_vec()));
         // 3.10.2 (Not compliant, doing things differently. We don't have a
         // retransmission queue.)
         match self.state {
             State::SynSent | State::SynReceived | State::Established => {
+                println!("Tcb Concatenating");
                 self.outgoing.text.concatenate(message);
             }
 
@@ -320,9 +322,12 @@ impl Tcb {
             self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
         }
 
-        // for segment in out.iter() {
-        //     println!("{:?}, {}", segment.header, segment.text.len());
-        // }
+        for segment in out.iter() {
+            println!("{:?}, {}", segment.header, segment.text.len());
+            if segment.text.len() > 0 {
+                println!("Segment Text: {:?}", std::str::from_utf8(&segment.text.to_vec()));
+            }
+        }
 
         out
     }

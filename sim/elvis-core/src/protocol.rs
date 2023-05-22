@@ -119,7 +119,7 @@ pub trait Protocol {
 
     /// Allows for notifying a protocol about an occurrence,
     /// Eg. a new connection being established
-    fn notify(&self, notification: NotifyType, context: Context);
+    fn notify(&self, notification: NotifyType, caller: SharedSession, context: Context);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

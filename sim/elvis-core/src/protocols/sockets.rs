@@ -1,13 +1,13 @@
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError, NotifyType},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyType},
     protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::{Arc, RwLock};
-use tokio::sync::{Barrier, Notify, OnceCell};
+use std::{sync::{Arc, RwLock}, collections::VecDeque};
+use tokio::sync::{Barrier, Notify};
 
 pub mod socket;
 use socket::{IpAddress, ProtocolFamily, Socket, SocketAddress, SocketError, SocketId, SocketType};
@@ -202,9 +202,9 @@ impl Protocol for Sockets {
                     .expect("No such protocol")
                     .open(Self::ID, participants, protocols)?;
                 let session = Arc::new(SocketSession {
-                    upstream: OnceCell::new_with(Some(sock)),
+                    upstream: RwLock::new(Some(sock)),
                     downstream,
-                    stored_msg: RwLock::new(None),
+                    stored_messages: RwLock::new(VecDeque::new()),
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -256,6 +256,7 @@ impl Protocol for Sockets {
         context: Context,
     ) -> Result<(), DemuxError> {
         let identifier = SocketId::new_from_context(context)?;
+        println!("Sockets Demux: {:?}", std::str::from_utf8(&message.to_vec()));
         let any_identifier =
             SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
         match self.socket_sessions.entry(identifier) {
@@ -273,21 +274,24 @@ impl Protocol for Sockets {
                             tracing::error!(
                                 "Tried to demux with a missing session and no listen bindings"
                             );
+                            println!("Error 1");
                             return Err(DemuxError::MissingSession)?;
                         }
                     },
                 };
                 let socket = match self.sockets.entry(*binding) {
-                    Entry::Occupied(entry) => entry.get().clone(),
+                    Entry::Occupied(sock) => sock.get().clone(),
                     Entry::Vacant(_) => {
+                        println!("Error 2");
                         return Err(DemuxError::MissingSession);
                     }
                 };
                 let session = Arc::new(SocketSession {
-                    upstream: OnceCell::new(),
+                    upstream: RwLock::new(None),
                     downstream: caller,
-                    stored_msg: RwLock::new(Some(message.clone())),
+                    stored_messages: RwLock::new(VecDeque::new()),
                 });
+                session.stored_messages.write().unwrap().push_back(message);
                 socket.add_listen_address(identifier.remote_address);
                 entry.insert(session.clone());
                 //session
@@ -301,16 +305,39 @@ impl Protocol for Sockets {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, notification: NotifyType, context: Context) {
-        let identifier = match notification {
-            NotifyType::NewConnection => {
-                match SocketId::new_from_context(context) {
-                    Ok(id) => id,
-                    Err(_) => return
+    fn notify(&self, notification: NotifyType, caller: SharedSession, context: Context) {
+        let Ok(identifier) = (match notification {
+            NotifyType::NewConnection => SocketId::new_from_context(context),
+            NotifyType::NewMessage => Err(DemuxError::Other)
+        }) else { return };
+        let any_identifier =
+            SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
+        match self.socket_sessions.entry(identifier) {
+            Entry::Occupied(entry) => entry.get().clone().connection_established(),
+            Entry::Vacant(entry) => {
+                // If the session does not exist, see if we have a listen
+                // binding for it
+                let binding = match self.listen_bindings.get(&identifier.local_address) {
+                    Some(listen_entry) => listen_entry,
+                    // If we don't have a normal listen binding, check for
+                    // a 0.0.0.0 binding
+                    None => match self.listen_bindings.get(&any_identifier) {
+                        Some(any_listen_entry) => any_listen_entry,
+                        None => { return; }
+                    },
                 };
-            },
-            NotifyType::NewMessage => return
+                let socket = match self.sockets.entry(*binding) {
+                    Entry::Occupied(sock) => sock.get().clone(),
+                    Entry::Vacant(_) => { return; }
+                };
+                let session = Arc::new(SocketSession {
+                    upstream: RwLock::new(None),
+                    downstream: caller,
+                    stored_messages: RwLock::new(VecDeque::new()),
+                });
+                socket.add_listen_address(identifier.remote_address);
+                entry.insert(session.clone());
+            }
         };
-        // TODO(giddinl2): Handle the notification
     }
 }

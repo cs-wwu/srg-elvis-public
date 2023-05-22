@@ -36,6 +36,7 @@ impl SocketServer {
 
 async fn communicate_with_client(socket: Arc<Socket>) {
     // Receive a message
+    // println!("SERVER: Waiting for request...");
     let req = socket.recv(32).await.unwrap();
     println!(
         "SERVER: Request Received: {:?}",
@@ -44,10 +45,11 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 
     // Send a message
     let resp = "Major Tom to Ground Control";
-    println!("SERVER: Sending Response: {:?}", resp);
+    println!("\nSERVER: Sending Response: {:?}", resp);
     socket.send(resp).unwrap();
 
     // Receive a message (Also example usage of recv_msg)
+    // println!("SERVER: Waiting for awkowledgement...");
     let _ack = socket.recv_msg().await.unwrap();
     println!("SERVER: Ackowledgement Received");
 }
@@ -79,7 +81,7 @@ impl Application for SocketServer {
 
             // Listen for incoming connections, with a maximum backlog of 10
             listen_socket.listen(10).unwrap();
-            println!("SERVER: Listening for incoming connections");
+            println!("\nSERVER: Listening for incoming connections");
 
             // Wait on ititialization before sending or receiving any message from the network
             initialized.wait().await;
@@ -102,7 +104,7 @@ impl Application for SocketServer {
                 // served, stops accepting new connections after the third,
                 // and shuts down the simulation once communication with
                 // the third has ended
-                if tasks.len() >= 3 {
+                if tasks.len() >= 1 {
                     while !tasks.is_empty() {
                         tasks.pop().unwrap().await.unwrap()
                     }
@@ -111,7 +113,7 @@ impl Application for SocketServer {
             }
 
             // Shut down the simulation
-            // println!("SERVER: Shutting down");
+            println!("SERVER: Shutting down");
             shutdown.shut_down();
         });
         Ok(())

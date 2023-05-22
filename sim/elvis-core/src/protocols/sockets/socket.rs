@@ -107,9 +107,13 @@ impl Socket {
         *self.is_blocking.write().unwrap() = is_blocking;
     }
 
+    pub fn connection_established(&self) {
+        self.notify_listen.notify_one();
+    }
+
     /// Assigns a remote ip address and port to a socket and connects the socket
     /// to that endpoint
-    pub fn connect(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub async fn connect(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected. Also, a listening
         // socket cannot connect to a remote endpoint
@@ -173,6 +177,11 @@ impl Socket {
         // Assign the socket_session to the socket
         *self.session.write().unwrap() = Some(session);
         *self.is_active.write().unwrap() = true;
+        if self.sock_type == SocketType::Stream {
+            if self.wait_for_notify(NotifyType::NewConnection).await == NotifyResult::Shutdown {
+                return Err(SocketError::Shutdown);
+            }
+        }
         Ok(())
     }
 
@@ -268,12 +277,9 @@ impl Socket {
             new_sock.local_addr.read().unwrap().unwrap(),
             new_sock.remote_addr.read().unwrap().unwrap(),
         )?;
-        session
-            .upstream
-            .set(new_sock.clone())
-            .map_err(|_| SocketError::AcceptError)?;
+        *session.upstream.write().unwrap() = Some(new_sock.clone());
         *new_sock.session.write().unwrap() = Some(session.clone());
-        session.receive_stored_msg().unwrap();
+        session.receive_stored_messages().unwrap();
         *new_sock.is_active.write().unwrap() = true;
         Ok(new_sock)
     }

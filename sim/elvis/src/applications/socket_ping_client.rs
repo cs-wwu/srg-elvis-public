@@ -17,8 +17,6 @@ use tokio::sync::Barrier;
 pub struct SocketPingClient {
     /// The Sockets API
     sockets: Arc<Sockets>,
-    /// Numerical ID
-    client_id: u16,
     /// The IP address to send to
     remote_ip: Ipv4Address,
     /// The port to send to
@@ -28,13 +26,11 @@ pub struct SocketPingClient {
 impl SocketPingClient {
     pub fn new(
         sockets: Arc<Sockets>,
-        client_id: u16,
         remote_ip: Ipv4Address,
         remote_port: u16,
     ) -> Self {
         Self {
             sockets,
-            client_id,
             remote_ip,
             remote_port,
         }
@@ -59,7 +55,6 @@ impl Application for SocketPingClient {
         let sockets = self.sockets.clone();
         let remote_ip = self.remote_ip;
         let remote_port = self.remote_port;
-        let client_id = self.client_id;
 
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
@@ -74,7 +69,7 @@ impl Application for SocketPingClient {
 
             // "Connect" the socket to a remote address
             let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
-            socket.clone().connect(remote_sock_addr).unwrap();
+            socket.clone().connect(remote_sock_addr).await.unwrap();
 
             // Send a message
             socket.clone().send(vec![255]).unwrap();

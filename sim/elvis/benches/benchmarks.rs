@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use elvis::simulations;
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::Runtime;
 
 fn basic(c: &mut Criterion) {
     c.bench_function("basic", |b| b.to_async(runtime()).iter(simulations::basic));
@@ -61,10 +61,11 @@ fn tcp_gigabyte(c: &mut Criterion) {
 criterion_group!(
     benches,
     basic,
-    //telephone_multi,
-    //telephone_single,
-    //tcp_gigabyte,
-    //socket_basic,
+    ping_pong,
+    telephone_multi,
+    telephone_single,
+    tcp_gigabyte,
+    socket_basic,
     ping_pong_multi,
     socket_ping_pong,
 );

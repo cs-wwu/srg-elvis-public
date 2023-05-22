@@ -1,5 +1,3 @@
-use tokio::sync::OnceCell;
-
 use super::socket::Socket;
 use crate::{
     control::{Key, Primitive},
@@ -7,35 +5,52 @@ use crate::{
     session::{QueryError, SendError, SharedSession},
     Message, Session,
 };
-use std::sync::{Arc, RwLock};
+use std::{sync::{Arc, RwLock}, collections::VecDeque};
 
 pub(super) struct SocketSession {
-    pub upstream: OnceCell<Arc<Socket>>,
+    pub upstream: RwLock<Option<Arc<Socket>>>,
     pub downstream: SharedSession,
-    pub stored_msg: RwLock<Option<Message>>,
+    pub stored_messages: RwLock<VecDeque<Message>>,
 }
 
 impl SocketSession {
     pub fn receive(&self, message: Message) -> Result<(), DemuxError> {
-        match self.upstream.get() {
+        match self.upstream.read().unwrap().clone() {
             Some(sock) => sock.receive(message),
-            None => Err(DemuxError::MissingSession),
+            None => {
+                self.stored_messages.write().unwrap().push_back(message);
+                Ok(())
+            }
         }
     }
 
-    pub fn receive_stored_msg(self: Arc<Self>) -> Result<(), DemuxError> {
-        match self.upstream.get() {
-            Some(sock) => sock.receive(match self.stored_msg.read().unwrap().clone() {
-                Some(msg) => msg,
-                None => return Err(DemuxError::MissingContext),
-            }),
-            None => Err(DemuxError::MissingSession),
+    pub fn receive_stored_messages(self: Arc<Self>) -> Result<(), DemuxError> {
+        match self.upstream.read().unwrap().clone() {
+            Some(sock) => {
+                let mut queue = self.stored_messages.write().unwrap();
+                while !queue.is_empty() {
+                    sock.receive(queue.pop_front().unwrap())?;
+                }
+                Ok(())
+            },
+            None => {
+                println!("Error 4");
+                Err(DemuxError::MissingSession)
+            }
+        }
+    }
+
+    pub fn connection_established(self: Arc<Self>) {
+        match self.upstream.read().unwrap().clone() {
+            Some(sock) => sock.connection_established(),
+            None => (),
         }
     }
 }
 
 impl Session for SocketSession {
     fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
+        println!("SocketSession Send: {:?}", std::str::from_utf8(&message.to_vec()));
         self.downstream.send(message, context)
     }
 

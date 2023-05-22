@@ -6,7 +6,7 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError, NotifyType},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyType},
     protocols::ipv4::Ipv4,
     session::SharedSession,
     Control, FxDashMap, Protocol, Shutdown,
@@ -249,7 +249,7 @@ impl Protocol for Udp {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, _notification: NotifyType, _context: Context) {
+    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {
         
     }
 }

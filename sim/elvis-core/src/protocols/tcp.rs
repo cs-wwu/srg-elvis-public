@@ -9,7 +9,7 @@ use self::{
 use super::{ipv4::Ipv4Address, utility::Socket, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyError, NotifyType},
+    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyType},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
@@ -157,6 +157,7 @@ impl Protocol for Tcp {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), DemuxError> {
+        // println!("TCP Demux");
         // Extract information from the context
         let local_address = Ipv4::get_local_address(&context.control).unwrap();
         let remote_address = Ipv4::get_remote_address(&context.control).unwrap();
@@ -276,7 +277,7 @@ impl Protocol for Tcp {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, _notification: NotifyType, _context: Context) {
+    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {
         
     }
 }

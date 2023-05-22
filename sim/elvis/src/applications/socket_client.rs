@@ -73,14 +73,17 @@ impl Application for SocketClient {
 
             // "Connect" the socket to a remote address
             let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
-            socket.connect(remote_sock_addr).unwrap();
+            println!("CLIENT {}: Attempting to connect...", client_id);
+            socket.connect(remote_sock_addr).await.unwrap();
+            println!("CLIENT {}: Connected", client_id);
 
             // Send a message
             let req = "Ground Control to Major Tom";
-            println!("CLIENT {}: Sending Request: {:?}", client_id, req);
+            println!("\nCLIENT {}: Sending Request: {:?}", client_id, req);
             socket.send(req).unwrap();
 
             // Receive a message
+            // println!("CLIENT {}: Waiting for response...", client_id);
             let resp = socket.recv(32).await.unwrap();
             println!(
                 "CLIENT {}: Response Received: {:?}",

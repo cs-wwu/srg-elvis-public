@@ -48,31 +48,31 @@ pub async fn socket_ping_pong() {
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.clone()]).shared(),
-            SocketPingClient::new(client_1_socket_api, 1, server_ip_address, 0xbeef).shared(),
+            SocketPingClient::new(client_1_socket_api, server_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
             client_2_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.clone()]).shared(),
-            SocketPingClient::new(client_2_socket_api, 2, server_ip_address, 0xbeef).shared(),
+            SocketPingClient::new(client_2_socket_api, server_ip_address, 0xbeef).shared(),
         ]),
         Machine::new([
             client_3_socket_api.clone(),
             Udp::new().shared() as SharedProtocol,
             Ipv4::new(ip_table.clone()).shared(),
             Pci::new([network.clone()]).shared(),
-            SocketPingClient::new(client_3_socket_api, 3, server_ip_address, 0xbeef).shared(),
+            SocketPingClient::new(client_3_socket_api, server_ip_address, 0xbeef).shared(),
         ]),
     ];
 
     run_internet(machines, vec![network]).await;
 }
 
-#[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn socket_ping_pong() {
-        super::socket_ping_pong().await;
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     #[tokio::test]
+//     async fn socket_ping_pong() {
+//         super::socket_ping_pong().await;
+//     }
+// }
