@@ -24,15 +24,6 @@ use {
     tokio::sync::Barrier,
 };
 
-pub enum DnsType {
-    /// Authoritative Server
-    AUT,
-    /// Client
-    CLI,
-    /// Recursive
-    REC,
-}
-
 /// Serves as a tool for looking up the ['Ipv4Address'] of a host using its
 /// known machine name (domain), and as the storage for an individual machine's
 /// name to IP mappings.
@@ -46,7 +37,7 @@ pub struct Dns {
     dns_type: DnsType,
 
     /// Direct reference to Sockets
-    // TODO(zachd9757): Replace this with a reference to the ELVIS API once it exists
+    // TODO(zachd9757): Replace this with a reference to the Network API once it exists
     // sockets: Sockets,
 
     /// Well-known IP for the authoritative server
@@ -167,6 +158,15 @@ impl Protocol for Dns {
         //TODO
         Err(QueryError::NonexistentKey)
     }
+}
+
+pub enum DnsType {
+    /// Authoritative Server
+    AUT,
+    /// Client
+    CLI,
+    /// Recursive
+    REC,
 }
 
 #[cfg(test)]
