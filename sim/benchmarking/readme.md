@@ -27,3 +27,7 @@ Which also corresponds to the inputted machine count but may be caltulated to be
 ## New Fields
 New fields are easy to add if you want to add a new string identifier. Simply open the `benchmarking.py` file and find the `create_and_run_sims` function. In there, there is an if statement allowing for more fields to be added.
 
+## Notes
+
+There are a few issues with sub-libraries inside Python currently and causes warnings to appear about math. Note that these can mostly be ignored as the operations they reference are ones mostly not used.
+
