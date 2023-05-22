@@ -14,10 +14,6 @@ use crate::{
 use std::{
     any::TypeId,
     fmt::{self, Debug, Formatter},
-    sync::Arc,
-};
-use std::{
-    fmt::{self, Debug, Formatter},
     sync::{Arc, Mutex},
 };
 
@@ -28,37 +24,22 @@ pub struct Ipv4Session {
     /// The session we mux outgoing messages to
     pub(super) pci_session: Arc<PciSession>,
     /// The identifying information for this session
-    id: SessionId,
+    pub(super) addresses: AddressPair,
     /// Information about how and where to send packets
-    destination: Recipient,
+    pub(super) destination: Recipient,
     // TODO(hardint): Since this lock is held for a relatively long time, would
     // a Tokio lock or message passing be a better option?
     /// Used for reassembling fragmented packets
-    reassembly: Arc<Mutex<Reassembly>>,
+    pub(super) reassembly: Arc<Mutex<Reassembly>>,
 }
 
 impl Ipv4Session {
-    /// Creates a new IPv4 session
-    pub(super) fn new(
-        downstream: SharedSession,
-        upstream: Id,
-        identifier: SessionId,
-        destination: Recipient,
-    ) -> Self {
-        Self {
-            upstream,
-            downstream,
-            id: identifier,
-            destination,
-            reassembly: Default::default(),
-        }
-    }
-
     pub fn receive(
         self: Arc<Self>,
         header: Ipv4Header,
         message: Message,
-        context: Context,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         let result = self
             .reassembly
@@ -68,10 +49,10 @@ impl Ipv4Session {
 
         match result {
             ReceivePacketResult::Complete(_, message) => {
-                context
-                    .protocol(self.upstream)
+                protocols
+                    .get(self.upstream)
                     .expect("No such protocol")
-                    .demux(message, self, context)?;
+                    .demux(message, self, control, protocols)?;
             }
             ReceivePacketResult::Incomplete(timeout, buf_id, epoch) => {
                 let reassembly = self.reassembly.clone();
@@ -88,8 +69,8 @@ impl Ipv4Session {
         self.pci_session.as_ref()
     }
 
-    pub fn endpoints(&self) -> AddressPair {
-        self.endpoints
+    pub fn addresses(&self) -> AddressPair {
+        self.addresses
     }
 }
 
@@ -99,8 +80,8 @@ impl Session for Ipv4Session {
         let length = message.iter().count();
         let transport: Transport = self.upstream.try_into().or(Err(SendError::Other))?;
         let header = match Ipv4HeaderBuilder::new(
-            self.endpoints.local,
-            self.endpoints.remote,
+            self.addresses.local,
+            self.addresses.remote,
             transport as u8,
             length as u16,
         )
@@ -114,7 +95,7 @@ impl Session for Ipv4Session {
         };
         message.header(header);
         self.pci_session
-            .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
+            .send_pci(message, self.destination.mac, TypeId::of::<Ipv4>())?;
         Ok(())
     }
 }
@@ -122,7 +103,7 @@ impl Session for Ipv4Session {
 impl Debug for Ipv4Session {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Ipv4Session")
-            .field("identifier", &self.endpoints)
+            .field("addresses", &self.addresses)
             .finish()
     }
 }

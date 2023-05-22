@@ -71,8 +71,9 @@ impl Ipv4 {
                 let session = Arc::new(Ipv4Session {
                     pci_session,
                     upstream,
-                    endpoints,
-                    recipient,
+                    reassembly: Default::default(),
+                    addresses: endpoints.into(),
+                    destination: recipient,
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -111,7 +112,6 @@ impl Protocol for Ipv4 {
         Ok(())
     }
 
-    #[tracing::instrument(name = "Ipv4::demux", skip_all)]
     fn demux(
         &self,
         mut message: Message,
@@ -168,17 +168,18 @@ impl Protocol for Ipv4 {
                         .protocol::<Pci>()
                         .unwrap()
                         .open(pci_demux_info.slot),
-                    endpoints: AddressPair {
+                    addresses: AddressPair {
                         local: header.destination,
                         remote: header.source,
                     },
-                    recipient,
+                    destination: recipient,
+                    reassembly: Default::default(),
                 });
                 entry.insert(session.clone());
                 session
             }
         };
-        session.receive(message, control, protocols)?;
+        session.receive(header, message, control, protocols)?;
         Ok(())
     }
 }
