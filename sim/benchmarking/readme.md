@@ -12,7 +12,7 @@ For example calling:
 
 ```bash run_benchmark.sh base-basic.ndl 10 100``` 
 
-Which would specify the simulation `base-basic.ndl` to be ran with machine counts ranging from 10 to 100. 
+Which would specify the simulation `base-basic.ndl` to be ran with machine counts ranging from 10 to 100 with increments of 10. 
 It should be noted that you can forgoe this syntax if you wish to run a whole batch of simulations by simply adding called to the python program manually to the bash script. This is not advised but will work. This tool should work both on Windows and Linux but not MacOS.
 
 ## Creating Benchmarks
