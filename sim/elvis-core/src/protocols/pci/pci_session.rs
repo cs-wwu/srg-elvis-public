@@ -97,6 +97,7 @@ impl Session for PciSession {
     fn query(&self, key: Key) -> Result<Primitive, QueryError> {
         match key {
             Pci::MTU_QUERY_KEY => Ok(self.network.mtu.into()),
+            Pci::MAC_QUERY_KEY => Ok(self.mac.into()),
             _ => Err(QueryError::MissingKey),
         }
     }

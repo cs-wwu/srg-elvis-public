@@ -1,5 +1,6 @@
 use super::Ipv4Address;
 use crate::protocols::utility::Checksum;
+use std::fmt::{self, Debug, Formatter};
 use thiserror::Error as ThisError;
 
 // Note: There are many #[allow(dead_code)] flags in this file. None of this
@@ -15,6 +16,7 @@ const BASE_OCTETS: u16 = BASE_WORDS as u16 * 4;
 const FRAGMENT_OFFSET_MASK: u16 = 0x1fff;
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ipv4Header {
     /// Internet Header Length, the number of `u32` words in the IPv4 header
@@ -25,7 +27,7 @@ pub struct Ipv4Header {
     pub total_length: u16,
     /// Assigned by the sender to aid in assembling fragments
     pub identification: u16,
-    /// Where in the datagram this fragment belongs
+    /// Where in the datagram this fragment belongs in units of 8 bytes
     pub fragment_offset: u16,
     /// Flags describing fragmentation properties
     pub flags: ControlFlags,
@@ -33,8 +35,6 @@ pub struct Ipv4Header {
     pub time_to_live: u8,
     /// Indicates the next level protocol in the data portion of the datagram
     pub protocol: u8,
-    // TODO(hardint): This isn't needed after parsing in main line code, but it is nice
-    // for testing and for completeness. Consider whether it is worth removing.
     /// The IPv4 header checksum
     pub checksum: u16,
     /// The source address
@@ -260,27 +260,50 @@ pub enum HeaderBuildError {
     OverlyLongFragmentOffset,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ControlFlags(u8);
 
 impl ControlFlags {
+    pub const DEFAULT: Self = Self::new(true, true);
+
     #[allow(dead_code)]
-    pub fn new(may_fragment: bool, is_last_fragment: bool) -> Self {
+    pub const fn new(may_fragment: bool, is_last_fragment: bool) -> Self {
         Self((!is_last_fragment as u8) | ((!may_fragment as u8) << 1))
     }
 
-    #[allow(dead_code)]
-    pub fn may_fragment(&self) -> bool {
+    pub const fn may_fragment(&self) -> bool {
         self.0 & 0b10 == 0
     }
 
-    #[allow(dead_code)]
-    pub fn is_last_fragment(&self) -> bool {
-        self.0 & 0b1 == 0
+    pub fn set_may_fragment(&mut self, value: bool) {
+        self.0 = (self.0 & 0b01) | ((!value as u8) << 1);
     }
 
-    pub fn as_u8(self) -> u8 {
-        self.into()
+    pub const fn is_last_fragment(&self) -> bool {
+        self.0 & 0b01 == 0
+    }
+
+    pub fn set_is_last_fragment(&mut self, value: bool) {
+        self.0 = (self.0 & 0b10) | !value as u8;
+    }
+
+    pub const fn as_u8(self) -> u8 {
+        self.0
+    }
+}
+
+impl Debug for ControlFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ControlFlags")
+            .field("MayFrag", &self.may_fragment())
+            .field("LastFrag", &self.is_last_fragment())
+            .finish()
+    }
+}
+
+impl Default for ControlFlags {
+    fn default() -> Self {
+        Self::DEFAULT
     }
 }
 
@@ -307,7 +330,7 @@ impl From<ControlFlags> for u8 {
 /// high-reliability, and high-throughput.
 ///
 /// See RFC791 p11 s3.1 for more details.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TypeOfService(u8);
 
 impl TypeOfService {
@@ -315,8 +338,15 @@ impl TypeOfService {
     // because the enum variants cover any possible byte value we would be
     // passing in.
 
+    pub const DEFAULT: Self = Self::new(
+        Precedence::Routine,
+        Delay::Normal,
+        Throughput::Normal,
+        Reliability::Normal,
+    );
+
     #[allow(dead_code)]
-    pub fn new(
+    pub const fn new(
         precedence: Precedence,
         delay: Delay,
         throughput: Throughput,
@@ -352,6 +382,17 @@ impl TypeOfService {
 
     pub fn as_u8(self) -> u8 {
         self.into()
+    }
+}
+
+impl Debug for TypeOfService {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TypeOfService")
+            .field("precedence", &self.precedence())
+            .field("delay", &self.delay())
+            .field("throughput", &self.throughput())
+            .field("reliability", &self.reliability())
+            .finish()
     }
 }
 

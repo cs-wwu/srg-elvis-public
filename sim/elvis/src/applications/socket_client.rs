@@ -4,19 +4,18 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         sockets::{
-            socket::{ProtocolFamily, SocketAddress, SocketType},
-            Sockets,
+            socket::{ProtocolFamily, SocketAddress, SocketType}
         },
         user_process::{Application, ApplicationError, UserProcess},
     },
-    Id, ProtocolMap, Shutdown,
+    Id, ProtocolMap, Shutdown, NetworkAPI,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
 pub struct SocketClient {
-    /// The Sockets API
-    sockets: Arc<Sockets>,
+    /// The Network API
+    network_api: Arc<NetworkAPI>,
     /// Numerical ID
     client_id: u16,
     /// The IP address to send to
@@ -27,13 +26,13 @@ pub struct SocketClient {
 
 impl SocketClient {
     pub fn new(
-        sockets: Arc<Sockets>,
+        network_api: Arc<NetworkAPI>,
         client_id: u16,
         remote_ip: Ipv4Address,
         remote_port: u16,
     ) -> Self {
         Self {
-            sockets,
+            network_api,
             client_id,
             remote_ip,
             remote_port,
@@ -56,14 +55,14 @@ impl Application for SocketClient {
     ) -> Result<(), ApplicationError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = self.sockets.clone();
+        let network_api = self.network_api.clone();
         let remote_ip = self.remote_ip;
         let remote_port = self.remote_port;
         let client_id = self.client_id;
 
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
-            let socket = sockets
+            let socket = network_api
                 .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .await
                 .unwrap();

@@ -57,6 +57,9 @@ impl Network {
     /// An identifier for the network type
     pub const ID: Id = Id::from_string("Network");
 
+    /// The broadcast MAC address FF:FF:FF:FF:FF:FF
+    pub const BROADCAST_MAC: Mac = 0xFF_FF_FF_FF_FF_FF;
+
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
         let throughput_permit = Arc::new(Notify::new());
@@ -251,7 +254,7 @@ pub(crate) struct Delivery {
 /// A network maximum transmission unit.
 ///
 /// The largest number of bytes that can be sent over the network at once.
-pub type Mtu = u32;
+pub type Mtu = u16;
 
 /// A MAC address that uniquely identifies a [`Tap`] on a network.
 pub type Mac = u64;

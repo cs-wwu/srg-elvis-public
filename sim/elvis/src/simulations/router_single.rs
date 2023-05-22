@@ -95,6 +95,7 @@ pub async fn router_single() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    #[tracing_test::traced_test]
     async fn router_simulation() {
         super::router_single().await
     }

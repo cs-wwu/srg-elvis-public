@@ -8,8 +8,10 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    protocols::pci::Pci,
+    protocol::{
+        Context, DemuxError, ListenError, OpenError, QueryError, SharedProtocol, StartError,
+    },
+    protocols::{Arp, Pci},
     session::SharedSession,
     Control, FxDashMap, Network, Protocol, Shutdown,
 };
@@ -26,6 +28,10 @@ pub use ipv4_address::Ipv4Address;
 
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
+
+pub mod fragmentation;
+mod reassembly;
+mod test_header_builder;
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
@@ -66,6 +72,18 @@ impl Ipv4 {
 
     pub fn get_remote_address(control: &Control) -> Result<Ipv4Address, ControlError> {
         Ok(control.get((Self::ID, 1))?.ok_u32()?.into())
+    }
+
+    /// Returns the ID of the protocol below this one.
+    /// Will be Arp::ID if this machine has Arp. Otherwise, it will be Pci.
+    fn get_downstream_protocol(protocols: &ProtocolMap) -> SharedProtocol {
+        if let Some(arp) = protocols.protocol(Arp::ID) {
+            arp
+        } else if let Some(pci) = protocols.protocol(Pci::ID) {
+            pci
+        } else {
+            panic!("No downstream protocol found");
+        }
     }
 }
 
@@ -127,10 +145,14 @@ impl Protocol for Ipv4 {
                     }
                 };
                 Pci::set_pci_slot(recipient.slot, &mut participants);
-                let tap_session = protocols
-                    .protocol(Pci::ID)
-                    .expect("No such protocol")
-                    .open(Self::ID, participants, protocols)?;
+                if let Some(mac) = recipient.mac {
+                    Network::set_destination(mac, &mut participants);
+                }
+                let tap_session = Self::get_downstream_protocol(&protocols).open(
+                    Self::ID,
+                    participants,
+                    protocols,
+                )?;
                 let session = Arc::new(Ipv4Session::new(tap_session, upstream, key, recipient));
                 entry.insert(session.clone());
                 Ok(session)
@@ -161,11 +183,8 @@ impl Protocol for Ipv4 {
             }
         }
 
-        // Essentially a no-op but good for completeness and as an example
-        protocols
-            .protocol(Pci::ID)
-            .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+        // Protocols should call listen on the downstream protocol
+        Ipv4::get_downstream_protocol(&protocols).listen(Self::ID, participants, protocols)
     }
 
     #[tracing::instrument(name = "Ipv4::demux", skip_all)]
@@ -228,7 +247,7 @@ impl Protocol for Ipv4 {
                 session
             }
         };
-        session.receive(message, context)?;
+        session.receive(header, message, context)?;
         Ok(())
     }
 
