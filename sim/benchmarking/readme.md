@@ -33,5 +33,7 @@ New fields are easy to add if you want to add a new string identifier. Simply op
 
 ## Notes
 
-There are a few issues with sub-libraries inside Python currently and causes warnings to appear about math. Note that these can mostly be ignored as the operations they reference are ones mostly not used.
+There are a few issues with sub-libraries inside Python currently and causes warnings to appear about math. Note that these can mostly be ignored as the operations they reference are ones mostly not used. 
+
+Additionally, running the program on smaller sims (less than 100 machines) may result in the simulation's processes closing before the program can latch onto them. As this tool is inteded for testing large machine counts this should be fine.
 
