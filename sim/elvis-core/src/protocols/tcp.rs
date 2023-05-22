@@ -109,7 +109,7 @@ impl Protocol for Tcp {
                 let mtu = downstream
                     .query(Pci::MTU_QUERY_KEY)
                     .map_err(|_| OpenError::Other)?
-                    .ok_u32()
+                    .ok_u16()
                     .map_err(|_| OpenError::Other)?;
                 let session = TcpSession::new(
                     Tcb::open(session_id, rand::random(), mtu),
@@ -196,7 +196,7 @@ impl Protocol for Tcp {
                         let mtu = caller
                             .query(Pci::MTU_QUERY_KEY)
                             .map_err(|_| DemuxError::Other)?
-                            .ok_u32()
+                            .ok_u16()
                             .map_err(|_| DemuxError::Other)?;
                         let listen_result = segment_arrives_listen(
                             segment,

@@ -29,6 +29,10 @@ pub use ipv4_address::Ipv4Address;
 mod ipv4_session;
 use ipv4_session::{Ipv4Session, SessionId};
 
+pub mod fragmentation;
+mod reassembly;
+mod test_header_builder;
+
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     listen_bindings: FxDashMap<Ipv4Address, Id>,
@@ -243,7 +247,7 @@ impl Protocol for Ipv4 {
                 session
             }
         };
-        session.receive(message, context)?;
+        session.receive(header, message, context)?;
         Ok(())
     }
 
