@@ -72,7 +72,7 @@ impl Ipv4 {
                     pci_session,
                     upstream,
                     reassembly: Default::default(),
-                    addresses: endpoints.into(),
+                    addresses: endpoints,
                     destination: recipient,
                 });
                 entry.insert(session.clone());

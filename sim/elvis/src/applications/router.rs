@@ -55,10 +55,7 @@ impl Application for Router {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let mut ipv4_header = control
-            .get::<Ipv4Header>()
-            .ok_or(ApplicationError::Other)?
-            .clone();
+        let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(ApplicationError::Other)?;
         ipv4_header.time_to_live -= 1;
         if ipv4_header.time_to_live == 0 {
             return Ok(());
