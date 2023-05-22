@@ -2,21 +2,14 @@
 
 ## Using the Tool
 
-You can use the benchmarker by going into the `run_benchmark.sh` file and under the `Beginning benchmarking` you can add your calls to the python function. This is fairly similar to the normal call to run Elvis, but with a few changes.
+You can use the benchmarker by calling the `run_benchmark.sh` with the appropriate command line parameters. Calling the script will make sure the correct version of Elvis is built for your OS as well as checking for a Python3 install and installing all of the Python libraries required via the `requirements.txt` file.
 
-First you must use python3 instead of ./elvis
-
-Then you call the `benchmarking.py` python file
-
-Then you specify the NDL benchmarking file (see creation section)
-
-Then the ranges of numbers of computers to test.
-
-For example:
-
-`python3 benchmarking.py base-basic.ndl 1000 10000 1000`
-
-This specifies the base-basic.ndl simualtion, and coimputer counts ranging from 1000 to 10000 with an incrementor of 1000. This tool should work both on Windows and Linux, not MacOS however.
+To run a set of simulations to run you can use the following syntax:
+```bash run_benchmark.sh SIM_NAME STARTING_COUNT ENDING_COUNT```
+For example calling:
+```bash run_benchmark.sh base-basic.ndl 10 100``` 
+Which would specify the simulation `base-basic.ndl` to be ran with machine counts ranging from 10 to 100. 
+It should be noted that you can forgoe this syntax if you wish to run a whole batch of simulations by simply adding called to the python program manually to the bash script. This is not advised but will work. This tool should work both on Windows and Linux but not MacOS.
 
 ## Creating Benchmarks
 Benchmarks can be created and used just like normal NDL defined simulations, except for counts which will use string indentifiers to fill in data.
@@ -32,5 +25,5 @@ Similar idea follows for the recieve count on machines:
 Which also corresponds to the inputted machine count but may be caltulated to be a different value if a machine sends mutliple messages or something of that variety.
 
 ## New Fields
-New fields are easy to add if you want to add a new string identifier. Simply open the `benchmarking.py` file and find the `create_and_run_sims` function. In there there is an if statemate allowing for more fields to be added.
+New fields are easy to add if you want to add a new string identifier. Simply open the `benchmarking.py` file and find the `create_and_run_sims` function. In there, there is an if statement allowing for more fields to be added.
 

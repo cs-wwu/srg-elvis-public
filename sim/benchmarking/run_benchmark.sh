@@ -51,8 +51,8 @@ echo "Moving ELVIS binary to benchmarking directory"
 cp ../target/release/$BINARY_NAME ./
 
 echo "Beginning benchmarking"
-echo "starting test base-basic.ndl 1000 10000 1000"
-python3 benchmarking.py base-basic.ndl 1000 10000 1000
+echo "starting simulation $1 $2 $3"
+python3 benchmarking.py $1 $2 $3 $2
 
 
 echo "Benchmarking finished, removing binaries"
