@@ -9,6 +9,7 @@ use elvis_core::{
         },
         user_process::{Application, ApplicationError, UserProcess},
     },
+
     Id, ProtocolMap,
 };
 use std::sync::Arc;
@@ -17,8 +18,12 @@ use tokio::sync::{mpsc::Sender, Barrier};
 pub struct DnsClient {
     /// The Sockets API
     sockets: Arc<Sockets>,
+
+    /// Numerical ID
+    client_id: u16,
     /// The text of the message to send
     text: &'static str,
+
     /// The IP address to send to
     remote_ip: Ipv4Address,
     /// The port to send to
@@ -69,8 +74,10 @@ impl Application for DnsClient {
             let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
             socket.clone().connect(remote_sock_addr).unwrap();
 
+
             // Wait on initialization before sending any message across the network
             initialized.wait().await;
+
 
             // Send a connection request
             println!("CLIENT: Sending connection request");
