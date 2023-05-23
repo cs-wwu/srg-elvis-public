@@ -2,6 +2,7 @@ use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
     machine::ProtocolMapBuilder,
     network::Mac,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -20,16 +21,12 @@ pub async fn telephone_single() {
 
     let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
-    let mut machines = vec![Machine::new(
-        ProtocolMapBuilder::new()
-            .with(Udp::new())
-            .with(Ipv4::new(
-                [(remote, Recipient::with_mac(0, 1))].into_iter().collect(),
-            ))
-            .with(Pci::new([network.clone()]))
-            .with(SendMessage::new(vec![message.clone()], Endpoint::new(remote, 0xbeef)).process())
-            .build(),
-    )];
+    let mut machines = vec![new_machine![
+        Udp::new(),
+        Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect(),),
+        Pci::new([network.clone()]),
+        SendMessage::new(vec![message.clone()], Endpoint::new(remote, 0xbeef)).process()
+    ]];
 
     for i in 0u32..(END - 1) {
         let local: Ipv4Address = i.to_be_bytes().into();
@@ -37,31 +34,25 @@ pub async fn telephone_single() {
         let table = [(remote, Recipient::with_mac(0, i as Mac + 2))]
             .into_iter()
             .collect();
-        machines.push(Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(table))
-                .with(Pci::new([network.clone()]))
-                .with(
-                    Forward::new(Endpoints::new(
-                        Endpoint::new(local, 0xbeef),
-                        Endpoint::new(remote, 0xbeef),
-                    ))
-                    .process(),
-                )
-                .build(),
-        ));
+        machines.push(new_machine![
+            Udp::new(),
+            Ipv4::new(table),
+            Pci::new([network.clone()]),
+            Forward::new(Endpoints::new(
+                Endpoint::new(local, 0xbeef),
+                Endpoint::new(remote, 0xbeef),
+            ))
+            .process(),
+        ]);
     }
 
     let local = (END - 1).to_be_bytes().into();
-    machines.push(Machine::new(
-        ProtocolMapBuilder::new()
-            .with(Udp::new())
-            .with(Ipv4::new(Default::default()))
-            .with(Pci::new([network.clone()]))
-            .with(Capture::new(Endpoint::new(local, 0xbeef), 1).process())
-            .build(),
-    ));
+    machines.push(new_machine![
+        Udp::new(),
+        Ipv4::new(Default::default()),
+        Pci::new([network.clone()]),
+        Capture::new(Endpoint::new(local, 0xbeef), 1).process()
+    ]);
 
     run_internet(&machines).await;
     let received = machines

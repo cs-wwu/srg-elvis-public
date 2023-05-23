@@ -115,7 +115,7 @@ impl Machine {
     }
 }
 
-/// Creates a machine with the protocols given.
+/// Creates a [`Machine`] with the protocols given.
 ///
 /// # Example
 ///
@@ -125,17 +125,18 @@ impl Machine {
 ///     run_internet,
 ///     machine::*,
 /// };
-/// 
+///
 /// let machines = [
-///     new_machine!(
+///     new_machine![
 ///         Ipv4::new(std::iter::empty().collect()),
 ///         Pci::new([]),
-///     ),
-///     new_machine!(
+///     ],
+///     new_machine![
 ///         Udp::new(),
 ///         Ipv4::new(std::iter::empty().collect()),
 ///         Pci::new([]),
-///     ),
+///     ],
+///     new_machine![],
 /// ];
 ///
 /// run_internet(&machines);

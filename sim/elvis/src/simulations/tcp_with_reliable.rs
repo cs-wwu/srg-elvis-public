@@ -2,6 +2,7 @@ use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     machine::ProtocolMapBuilder,
     message::Message,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Recipient, Recipients},
         Endpoint, Pci, Tcp, UserProcess,
@@ -28,30 +29,22 @@ pub async fn tcp_with_reliable() {
     let message: Vec<_> = (0..20).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Tcp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(
-                    SendMessage::new(vec![message.clone()], endpoint)
-                        .transport(Transport::Tcp)
-                        .process(),
-                )
-                .build(),
-        ),
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Tcp::new())
-                .with(Ipv4::new(ip_table))
-                .with(Pci::new([network.clone()]))
-                .with(
-                    Capture::new(endpoint, 1)
-                        .transport(Transport::Tcp)
-                        .process(),
-                )
-                .build(),
-        ),
+        new_machine![
+            Tcp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            SendMessage::new(vec![message.clone()], endpoint)
+                .transport(Transport::Tcp)
+                .process(),
+        ],
+        new_machine![
+            Tcp::new(),
+            Ipv4::new(ip_table),
+            Pci::new([network.clone()]),
+            Capture::new(endpoint, 1)
+                .transport(Transport::Tcp)
+                .process(),
+        ],
     ];
 
     run_internet(&machines).await;

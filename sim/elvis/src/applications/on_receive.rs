@@ -1,10 +1,15 @@
-use std::{sync::{Arc, Mutex}, any::TypeId};
+use std::{
+    any::TypeId,
+    sync::{Arc, Mutex},
+};
 
 use elvis_core::{
+    machine::ProtocolMap,
     protocols::{
-        user_process::{Application, ApplicationError}, Udp, UserProcess, Endpoint, Tcp,
+        user_process::{Application, ApplicationError},
+        Endpoint, Tcp, Udp, UserProcess,
     },
-    Control, Message, machine::ProtocolMap, Shutdown, Transport,
+    Control, Message, Shutdown, Transport,
 };
 use tokio::sync::Barrier;
 
@@ -71,14 +76,22 @@ impl Application for OnReceive {
                 protocols
                     .protocol::<Tcp>()
                     .unwrap()
-                    .listen(TypeId::of::<UserProcess<Self>>(), self.local_endpoint, protocols)
+                    .listen(
+                        TypeId::of::<UserProcess<Self>>(),
+                        self.local_endpoint,
+                        protocols,
+                    )
                     .unwrap();
             }
             Transport::Udp => {
                 protocols
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(TypeId::of::<UserProcess<Self>>(), self.local_endpoint, protocols)
+                    .listen(
+                        TypeId::of::<UserProcess<Self>>(),
+                        self.local_endpoint,
+                        protocols,
+                    )
                     .unwrap();
             }
         }
@@ -88,7 +101,12 @@ impl Application for OnReceive {
         Ok(())
     }
 
-    fn receive(&self, message: Message, context: Control, _protocols: ProtocolMap) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        context: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         // Run the function of this OnReceive
         let result = self.fn_to_run.lock();
         match result {
@@ -106,19 +124,18 @@ impl Application for OnReceive {
 
 #[cfg(test)]
 mod tests {
-    use elvis_core::{protocols::*, machine::*};
+    use elvis_core::{machine::*, protocols::*};
 
     use crate::applications::OnReceive;
 
     #[tokio::test]
     async fn doctest() {
         let fn_to_run = |message, _context| println!("received message: {message}");
-        let _puter = Machine::new(
-                ProtocolMapBuilder::new()
-            .with(OnReceive::new(fn_to_run, Endpoint::new(0.into(), 0xfefe)))
-            .with(Udp::new())
-            .with(Ipv4::new(std::iter::empty().collect()))
-            .with(Pci::new([]))
-        .build());
+        let _puter = new_machine![
+            OnReceive::new(fn_to_run, Endpoint::new(0.into(), 0xfefe)),
+            Udp::new(),
+            Ipv4::new(std::iter::empty().collect()),
+            Pci::new([])
+        ];
     }
 }

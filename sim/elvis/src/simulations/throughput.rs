@@ -2,6 +2,7 @@ use crate::applications::{SendMessage, ThroughputTester};
 use elvis_core::{
     machine::ProtocolMapBuilder,
     network::{Baud, NetworkBuilder, Throughput},
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Recipient, Recipients},
         udp::Udp,
@@ -31,29 +32,23 @@ pub async fn throughput() {
     let message = Message::new("Hello!");
     let messages: Vec<_> = (0..3).map(|_| message.clone()).collect();
     let machines = vec![
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(SendMessage::new(messages, endpoint).process())
-                .build(),
-        ),
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table))
-                .with(Pci::new([network.clone()]))
-                .with(
-                    ThroughputTester::new(
-                        endpoint,
-                        3,
-                        Duration::from_millis(900)..Duration::from_millis(1100),
-                    )
-                    .process(),
-                )
-                .build(),
-        ),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            SendMessage::new(messages, endpoint).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table),
+            Pci::new([network.clone()]),
+            ThroughputTester::new(
+                endpoint,
+                3,
+                Duration::from_millis(900)..Duration::from_millis(1100),
+            )
+            .process(),
+        ],
     ];
 
     run_internet(&machines).await;

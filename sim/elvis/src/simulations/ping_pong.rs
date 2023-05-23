@@ -1,6 +1,7 @@
 use crate::applications::PingPong;
 use elvis_core::{
     machine::ProtocolMapBuilder,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
@@ -36,22 +37,18 @@ pub async fn ping_pong() {
     .collect();
 
     let machines = vec![
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(PingPong::new(true, endpoints).process())
-                .build(),
-        ),
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(PingPong::new(false, endpoints.reverse()).process())
-                .build(),
-        ),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            PingPong::new(true, endpoints).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            PingPong::new(false, endpoints.reverse()).process()
+        ],
     ];
 
     run_internet(&machines).await;

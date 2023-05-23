@@ -1,10 +1,11 @@
 use crate::applications::{SocketClient, SocketServer};
 use elvis_core::{
     machine::ProtocolMapBuilder,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
-        Pci, Sockets
+        Pci, Sockets,
     },
     run_internet, Machine, Network,
 };
@@ -32,42 +33,34 @@ pub async fn socket_basic() {
     .collect();
 
     let machines = vec![
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(Sockets::new(Some(server_ip_address)))
-                .with(SocketServer::new(0xbeef).process())
-                .build(),
-        ),
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(Sockets::new(Some(client1_ip_address)))
-                .with(SocketClient::new(1, server_ip_address, 0xbeef).process())
-                .build(),
-        ),
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(Sockets::new(Some(client2_ip_address)))
-                .with(SocketClient::new(2, server_ip_address, 0xbeef).process())
-                .build(),
-        ),
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(Sockets::new(Some(client3_ip_address)))
-                .with(SocketClient::new(3, server_ip_address, 0xbeef).process())
-                .build(),
-        ),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Sockets::new(Some(server_ip_address)),
+            SocketServer::new(0xbeef).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Sockets::new(Some(client1_ip_address)),
+            SocketClient::new(1, server_ip_address, 0xbeef).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Sockets::new(Some(client2_ip_address)),
+            SocketClient::new(2, server_ip_address, 0xbeef).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Sockets::new(Some(client3_ip_address)),
+            SocketClient::new(3, server_ip_address, 0xbeef).process()
+        ],
     ];
 
     run_internet(&machines).await;

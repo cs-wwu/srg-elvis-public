@@ -1,6 +1,7 @@
 use crate::applications::{Capture, Router, SendMessage};
 use elvis_core::{
     machine::ProtocolMapBuilder,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
@@ -59,92 +60,59 @@ pub async fn router_multi() {
 
     let machines = vec![
         // send message
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(
-                    [(DESTINATION, Recipient::with_mac(0, 1))]
-                        .into_iter()
-                        .collect(),
-                ))
-                .with(Pci::new([networks[0].clone()]))
-                .with(
-                    SendMessage::new(
-                        vec![Message::new(b"Hello World!")],
-                        Endpoint {
-                            address: DESTINATION,
-                            port: 0xbeef,
-                        },
-                    )
-                    .process(),
-                )
-                .build(),
-        ),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(
+                [(DESTINATION, Recipient::with_mac(0, 1))]
+                    .into_iter()
+                    .collect(),
+            ),
+            Pci::new([networks[0].clone()]),
+            SendMessage::new(
+                vec![Message::new(b"Hello World!")],
+                Endpoint::new(DESTINATION, 0xbeef)
+            )
+            .process(),
+        ],
         // machine representing our router
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Pci::new([
-                    networks[0].clone(),
-                    networks[1].clone(),
-                    networks[2].clone(),
-                ]))
-                .with(Ipv4::new(ip_table1.clone()))
-                .with(Router::new(ip_table1).process())
-                .build(),
-        ),
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Pci::new([
-                    networks[1].clone(),
-                    networks[3].clone(),
-                    networks[4].clone(),
-                ]))
-                .with(Ipv4::new(ip_table2.clone()))
-                .with(Router::new(ip_table2).process())
-                .build(),
-        ),
+        new_machine![
+            Pci::new([
+                networks[0].clone(),
+                networks[1].clone(),
+                networks[2].clone(),
+            ]),
+            Ipv4::new(ip_table1.clone()),
+            Router::new(ip_table1).process(),
+        ],
+        new_machine![
+            Pci::new([
+                networks[1].clone(),
+                networks[3].clone(),
+                networks[4].clone(),
+            ]),
+            Ipv4::new(ip_table2.clone()),
+            Router::new(ip_table2).process(),
+        ],
         // capture for destination 1
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(dt1))
-                .with(Pci::new([networks[3].clone()]))
-                .build(),
-        ),
+        new_machine![Udp::new(), Ipv4::new(dt1), Pci::new([networks[3].clone()]),],
         // capture for destination 2
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(dt2))
-                .with(Pci::new([networks[4].clone()]))
-                .build(),
-        ),
+        new_machine![Udp::new(), Ipv4::new(dt2), Pci::new([networks[4].clone()]),],
         // capture for destination 3
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(dt3))
-                .with(Pci::new([networks[2].clone()]))
-                .build(),
-        ),
+        new_machine![Udp::new(), Ipv4::new(dt3), Pci::new([networks[2].clone()]),],
         // capture for destination 4
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(dt4))
-                .with(Pci::new([networks[2].clone()]))
-                .with(
-                    Capture::new(
-                        Endpoint {
-                            address: IP_ADDRESS_5,
-                            port: 0xbeef,
-                        },
-                        1,
-                    )
-                    .process(),
-                )
-                .build(),
-        ),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(dt4),
+            Pci::new([networks[2].clone()]),
+            Capture::new(
+                Endpoint {
+                    address: IP_ADDRESS_5,
+                    port: 0xbeef,
+                },
+                1,
+            )
+            .process(),
+        ],
     ];
 
     run_internet(&machines).await;
@@ -153,7 +121,6 @@ pub async fn router_multi() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    #[tracing_test::traced_test]
     async fn router_multi() {
         super::router_multi().await
     }

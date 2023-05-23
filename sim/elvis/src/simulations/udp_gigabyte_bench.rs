@@ -3,6 +3,7 @@ use elvis_core::{
     machine::ProtocolMapBuilder,
     message::Message,
     network::NetworkBuilder,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Recipient, Recipients},
         Endpoint, Pci, Udp,
@@ -31,26 +32,20 @@ pub async fn udp_gigabyte_bench() {
     }
     messages.push(remainder);
     let machines = vec![
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table.clone()))
-                .with(Pci::new([network.clone()]))
-                .with(SendMessage::new(messages, endpoint).process())
-                .build(),
-        ),
-        Machine::new(
-            ProtocolMapBuilder::new()
-                .with(Udp::new())
-                .with(Ipv4::new(ip_table))
-                .with(Pci::new([network.clone()]))
-                .with(
-                    WaitForMessage::new(endpoint, message)
-                        .disable_checking()
-                        .process(),
-                )
-                .build(),
-        ),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            SendMessage::new(messages, endpoint).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table),
+            Pci::new([network.clone()]),
+            WaitForMessage::new(endpoint, message)
+                .disable_checking()
+                .process(),
+        ],
     ];
 
     run_internet(&machines).await;
