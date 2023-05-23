@@ -114,3 +114,42 @@ impl Machine {
         self.protocols
     }
 }
+
+/// Creates a machine with the protocols given.
+///
+/// # Example
+///
+/// ```
+/// use elvis_core::{
+///     protocols::*,
+///     run_internet,
+///     machine::*,
+/// };
+/// 
+/// let machines = [
+///     new_machine!(
+///         Ipv4::new(std::iter::empty().collect()),
+///         Pci::new([]),
+///     ),
+///     new_machine!(
+///         Udp::new(),
+///         Ipv4::new(std::iter::empty().collect()),
+///         Pci::new([]),
+///     ),
+/// ];
+///
+/// run_internet(&machines);
+/// ```
+#[macro_export]
+macro_rules! new_machine {
+    ( $($x:expr),* $(,)? ) => {
+        {
+            let mut pmb = ProtocolMapBuilder::new()
+            $(
+                .with($x)
+            )*;
+            Machine::new(pmb.build())
+        }
+    };
+}
+pub use new_machine;
