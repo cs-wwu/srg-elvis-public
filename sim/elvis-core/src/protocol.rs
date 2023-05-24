@@ -11,16 +11,11 @@ use tokio::sync::Barrier;
 // TODO(hardint): Should add a str argument to the Other variant of errors so
 // that the reason for an error shows up in traces and such.
 
-/// A shared handle to a [`Protocol`].
-pub type SharedProtocol = Arc<dyn Protocol + Send + Sync + 'static>;
-
-// TODO(hardint): Use associated types for passing context information
-
 /// A member of a networking protocol stack.
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
-pub trait Protocol {
+pub trait Protocol: Send + Sync + 'static {
     fn id(&self) -> TypeId;
 
     /// Starts the protocol running. This gives protocols an opportunity to open

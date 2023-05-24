@@ -1,10 +1,10 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     machine::ProtocolMap,
-    protocol::{DemuxError, SharedProtocol},
+    protocol::DemuxError,
     protocols::tcp::tcb::AdvanceTimeResult,
     session::{SendError, SharedSession},
-    Control, Message, Session,
+    Control, Message, Protocol, Session,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -31,7 +31,7 @@ impl TcpSession {
     /// Create a new TCP session
     pub fn new(
         mut tcb: Tcb,
-        upstream: SharedProtocol,
+        upstream: Arc<dyn Protocol>,
         downstream: SharedSession,
         protocols: ProtocolMap,
     ) -> Arc<Self> {

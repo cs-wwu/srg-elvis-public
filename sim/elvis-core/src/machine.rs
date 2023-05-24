@@ -1,4 +1,4 @@
-use crate::{protocol::SharedProtocol, Protocol, Shutdown};
+use crate::{Protocol, Shutdown};
 use rustc_hash::FxHashMap;
 use std::{
     any::{Any, TypeId},
@@ -10,7 +10,7 @@ use tokio::sync::Barrier;
 pub(crate) type PciSlot = u32;
 
 type ArcAny = Arc<dyn Any + Send + Sync + 'static>;
-type AnyMap = FxHashMap<TypeId, (ArcAny, SharedProtocol)>;
+type AnyMap = FxHashMap<TypeId, (ArcAny, Arc<dyn Protocol>)>;
 
 #[derive(Default)]
 pub struct ProtocolMapBuilder {
@@ -29,7 +29,7 @@ impl ProtocolMapBuilder {
         let protocol = Arc::new(protocol);
         self.inner.insert(
             TypeId::of::<T>(),
-            (protocol.clone() as ArcAny, protocol as SharedProtocol),
+            (protocol.clone() as ArcAny, protocol as Arc<dyn Protocol>),
         );
         self
     }
@@ -50,18 +50,18 @@ pub struct ProtocolMap {
 impl ProtocolMap {
     pub fn protocol<T>(&self) -> Option<Arc<T>>
     where
-        T: Protocol + Send + Sync + 'static,
+        T: Protocol,
     {
         self.inner
             .get(&TypeId::of::<T>())
             .map(|t| t.0.clone().downcast().unwrap())
     }
 
-    pub fn get(&self, id: TypeId) -> Option<SharedProtocol> {
+    pub fn get(&self, id: TypeId) -> Option<Arc<dyn Protocol>> {
         self.inner.get(&id).map(|t| t.1.clone())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = SharedProtocol> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Arc<dyn Protocol>> + '_ {
         self.inner.values().map(|t| t.1.clone())
     }
 
