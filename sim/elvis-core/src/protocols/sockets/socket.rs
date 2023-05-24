@@ -156,9 +156,7 @@ impl Socket {
             *self.is_active.write().unwrap() = true;
             Ok(())
         } else {
-            // TODO(hardint): I don't know exactly what error to return here so I hope good sir
-            // Logan will revise it for me :)
-            Err(SocketError::Other)
+            Err(SocketError::ConnectError)
         }
     }
 
@@ -207,8 +205,7 @@ impl Socket {
                 Err(_) => Err(SocketError::ListenError),
             }
         } else {
-            // TODO(hardint): Pls mr giddins pick a better error
-            Err(SocketError::Other)
+            Err(SocketError::ListenError)
         }
     }
 
