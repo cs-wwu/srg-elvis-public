@@ -122,11 +122,3 @@ pub enum ReceiveError {
     #[error("{0}")]
     Demux(#[from] DemuxError),
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SendInfo {
-    /// The MAC address to send to or none to broadcast on the network
-    pub remote_mac: Option<Mac>,
-    /// The protocol to receive the packet
-    pub receiver: TypeId,
-}

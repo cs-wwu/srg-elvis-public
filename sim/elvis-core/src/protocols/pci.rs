@@ -12,7 +12,6 @@ use tokio::sync::Barrier;
 
 pub mod pci_session;
 pub(crate) use pci_session::PciSession;
-pub use pci_session::SendInfo;
 
 /// Represents something akin to an Ethernet tap or a network interface card.
 ///
