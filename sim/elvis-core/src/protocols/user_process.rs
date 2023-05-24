@@ -5,8 +5,8 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    session::{SendError, SharedSession},
-    Control, Protocol, Shutdown,
+    session::SendError,
+    Control, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -87,7 +87,7 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     fn demux(
         &self,
         message: Message,
-        _caller: SharedSession,
+        _caller: Arc<dyn Session>,
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {

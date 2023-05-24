@@ -6,8 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Endpoints, Udp,
     },
-    session::SharedSession,
-    Control, Shutdown, Transport,
+    Control, Session, Shutdown, Transport,
 };
 use std::{
     any::TypeId,
@@ -23,7 +22,7 @@ pub struct PingPong {
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
     /// The session we send messages on
-    session: RwLock<Option<SharedSession>>,
+    session: RwLock<Option<Arc<dyn Session>>>,
     is_initiator: bool,
     endpoints: Endpoints,
     /// The machine that will receive the message

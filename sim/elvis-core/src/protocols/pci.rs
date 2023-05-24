@@ -5,8 +5,7 @@ use crate::{
     message::Message,
     network::{Mac, Mtu},
     protocol::{DemuxError, StartError},
-    session::SharedSession,
-    Control, Network, Protocol, Shutdown,
+    Control, Network, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -65,7 +64,7 @@ impl Protocol for Pci {
     fn demux(
         &self,
         _message: Message,
-        _caller: SharedSession,
+        _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {

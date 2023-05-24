@@ -1,15 +1,10 @@
 use super::socket::Socket;
-use crate::{
-    machine::ProtocolMap,
-    protocol::DemuxError,
-    session::{SendError, SharedSession},
-    Message, Session,
-};
+use crate::{machine::ProtocolMap, protocol::DemuxError, session::SendError, Message, Session};
 use std::sync::{Arc, RwLock};
 
 pub(super) struct SocketSession {
     pub upstream: RwLock<Option<Arc<Socket>>>,
-    pub downstream: SharedSession,
+    pub downstream: Arc<dyn Session>,
     pub stored_msg: RwLock<Option<Message>>,
 }
 

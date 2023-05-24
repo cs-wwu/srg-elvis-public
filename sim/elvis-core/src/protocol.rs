@@ -2,8 +2,7 @@
 
 use super::message::Message;
 use crate::{
-    machine::ProtocolMap, protocols::user_process::ApplicationError, session::SharedSession,
-    Control, Shutdown,
+    machine::ProtocolMap, protocols::user_process::ApplicationError, Control, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -56,7 +55,7 @@ pub trait Protocol: Send + Sync + 'static {
     fn demux(
         &self,
         message: Message,
-        caller: SharedSession,
+        caller: Arc<dyn Session>,
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError>;

@@ -6,8 +6,7 @@ use crate::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::ipv4::Ipv4,
-    session::SharedSession,
-    Control, FxDashMap, Protocol, Shutdown,
+    Control, FxDashMap, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::{any::TypeId, sync::Arc};
@@ -42,7 +41,7 @@ impl Udp {
         upstream: TypeId,
         sockets: Endpoints,
         protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
+    ) -> Result<Arc<dyn Session>, OpenError> {
         match self.sessions.entry(sockets) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
@@ -95,7 +94,7 @@ impl Protocol for Udp {
     fn demux(
         &self,
         mut message: Message,
-        caller: SharedSession,
+        caller: Arc<dyn Session>,
         mut control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {

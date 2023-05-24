@@ -1,10 +1,7 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
-    machine::ProtocolMap,
-    protocol::DemuxError,
-    protocols::tcp::tcb::AdvanceTimeResult,
-    session::{SendError, SharedSession},
-    Control, Message, Protocol, Session,
+    machine::ProtocolMap, protocol::DemuxError, protocols::tcp::tcb::AdvanceTimeResult,
+    session::SendError, Control, Message, Protocol, Session,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -32,7 +29,7 @@ impl TcpSession {
     pub fn new(
         mut tcb: Tcb,
         upstream: Arc<dyn Protocol>,
-        downstream: SharedSession,
+        downstream: Arc<dyn Session>,
         protocols: ProtocolMap,
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);

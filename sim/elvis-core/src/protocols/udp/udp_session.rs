@@ -5,14 +5,14 @@ use crate::{
     message::Message,
     protocol::DemuxError,
     protocols::utility::Endpoints,
-    session::{SendError, SharedSession},
+    session::SendError,
     Control, Session,
 };
 use std::{any::TypeId, fmt::Debug, sync::Arc};
 
 pub(super) struct UdpSession {
     pub upstream: TypeId,
-    pub downstream: SharedSession,
+    pub downstream: Arc<dyn Session>,
     pub sockets: Endpoints,
 }
 

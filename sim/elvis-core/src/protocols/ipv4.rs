@@ -8,8 +8,7 @@ use crate::{
     network::Mac,
     protocol::{DemuxError, StartError},
     protocols::pci::Pci,
-    session::SharedSession,
-    Control, FxDashMap, Protocol, Shutdown,
+    Control, FxDashMap, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
@@ -115,7 +114,7 @@ impl Protocol for Ipv4 {
     fn demux(
         &self,
         mut message: Message,
-        _caller: SharedSession,
+        _caller: Arc<dyn Session>,
         mut control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {

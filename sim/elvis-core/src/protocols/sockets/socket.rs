@@ -7,8 +7,7 @@ use crate::{
         ipv4::Ipv4Address,
         utility::{Endpoint, Endpoints},
     },
-    session::SharedSession,
-    Message, Shutdown,
+    Message, Session, Shutdown,
 };
 use std::{
     collections::VecDeque,
@@ -31,7 +30,7 @@ pub struct Socket {
     is_blocking: RwLock<bool>,
     local_addr: RwLock<Option<SocketAddress>>,
     remote_addr: RwLock<Option<SocketAddress>>,
-    session: Arc<RwLock<Option<SharedSession>>>,
+    session: Arc<RwLock<Option<Arc<dyn Session>>>>,
     listen_addresses: Arc<RwLock<VecDeque<SocketAddress>>>,
     listen_backlog: RwLock<usize>,
     notify_listen: Notify,

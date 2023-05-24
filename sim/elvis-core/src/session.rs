@@ -2,13 +2,7 @@
 
 use super::Message;
 use crate::{machine::ProtocolMap, network::Mtu};
-use std::sync::Arc;
 use thiserror::Error as ThisError;
-
-// TODO(hardint): Query methods could take &self
-
-/// A shared handle to a [`Session`]
-pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 
 /// Holds the state for a particular connection.
 ///
@@ -18,7 +12,7 @@ pub type SharedSession = Arc<dyn Session + Send + Sync + 'static>;
 /// in charge of appending headers to outgoing messages, deciding which protocol
 /// to use for demuxing incoming messages, and keeping track of state such as
 /// TCP windows.
-pub trait Session {
+pub trait Session: Send + Sync + 'static {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
     fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError>;

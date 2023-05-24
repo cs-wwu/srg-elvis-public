@@ -8,8 +8,7 @@ use crate::{
     machine::ProtocolMap,
     protocol::{DemuxError, StartError},
     protocols::{ipv4::Ipv4Address, Udp},
-    session::SharedSession,
-    Control, FxDashMap, Message, Protocol, Shutdown,
+    Control, FxDashMap, Message, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::{
@@ -145,7 +144,7 @@ impl Sockets {
         fd: u64,
         socket_id: SocketId,
         protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
+    ) -> Result<Arc<dyn Session>, OpenError> {
         match self.socket_sessions.entry(socket_id) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
@@ -212,7 +211,7 @@ impl Protocol for Sockets {
     fn demux(
         &self,
         message: Message,
-        caller: SharedSession,
+        caller: Arc<dyn Session>,
         control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {

@@ -6,8 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Endpoints,
     },
-    session::SharedSession,
-    Control, Shutdown,
+    Control, Session, Shutdown,
 };
 use std::{
     any::TypeId,
@@ -18,7 +17,7 @@ use tokio::sync::Barrier;
 /// An application that forwards messages to `local_ip` to `remote_ip`.
 pub struct Forward {
     /// The session on which we send any messages we receive
-    outgoing: RwLock<Option<SharedSession>>,
+    outgoing: RwLock<Option<Arc<dyn Session>>>,
     endpoints: Endpoints,
 }
 

@@ -16,8 +16,7 @@ use crate::{
     machine::ProtocolMap,
     protocol::{DemuxError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
-    session::SharedSession,
-    Control, FxDashMap, Message, Protocol, Shutdown,
+    Control, FxDashMap, Message, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::{any::TypeId, sync::Arc};
@@ -51,7 +50,7 @@ impl Tcp {
         upstream: TypeId,
         endpoints: Endpoints,
         protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
+    ) -> Result<Arc<dyn Session>, OpenError> {
         match self.sessions.entry(endpoints) {
             Entry::Occupied(_) => Err(OpenError::Existing(endpoints)),
             Entry::Vacant(entry) => {
@@ -95,7 +94,7 @@ impl Protocol for Tcp {
     fn demux(
         &self,
         mut message: Message,
-        caller: SharedSession,
+        caller: Arc<dyn Session>,
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
