@@ -13,6 +13,7 @@ use elvis_core::{
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
+#[derive(Clone)]
 pub struct SocketServer {
     /// The Network API
     network_api: Arc<NetworkAPI>,

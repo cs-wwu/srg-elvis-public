@@ -26,6 +26,11 @@ pub use ping_pong::PingPong;
 mod query_tester;
 pub use query_tester::QueryTester;
 
+mod dhcp_client;
+pub use dhcp_client::DhcpClient;
+mod dhcp_server;
+pub use dhcp_server::DhcpServer;
+
 pub mod router;
 pub use router::Router;
 

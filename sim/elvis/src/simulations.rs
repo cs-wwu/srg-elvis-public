@@ -2,6 +2,8 @@
 
 mod basic;
 pub use basic::basic;
+mod dhcp_basic;
+pub use dhcp_basic::dhcp_basic;
 
 mod socket_basic;
 pub use socket_basic::socket_basic;
