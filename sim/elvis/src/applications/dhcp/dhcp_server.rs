@@ -1,18 +1,18 @@
+use super::dhcp_parsing::{DhcpMessage, MessageType};
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
-        dhcp_parsing::{DhcpMessage, MessageType},
         ipv4::Ipv4Address,
         sockets::{
             socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
             Sockets,
         },
-        user_process::{Application, ApplicationError, UserProcess},
+        user_process::{Application, ApplicationError},
+        UserProcess,
     },
-    Id, ProtocolMap, Shutdown,
+    Control, Shutdown,
 };
-
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
@@ -21,18 +21,15 @@ pub const PORT_NUM: u16 = 67;
 pub const BROADCAST: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
 
 /// A struct describing an implementation of a DHCP server
-pub struct DhcpServer {
-    // Sockets API
-    sockets: Arc<Sockets>,
-}
+pub struct DhcpServer;
 
 impl DhcpServer {
-    pub fn new(sockets: Arc<Sockets>) -> Self {
-        Self { sockets }
+    pub fn new() -> Self {
+        Self
     }
 
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
@@ -114,18 +111,8 @@ async fn communicate_with_client(
     }
 }
 
-impl Default for DhcpServer {
-    fn default() -> Self {
-        Self {
-            sockets: Sockets::new(Some(BROADCAST)).shared(),
-        }
-    }
-}
-
 // We should move this into application in the 'elvis' branch eventually
 impl Application for DhcpServer {
-    const ID: Id = Id::from_string("DHCP Server");
-
     /// Initialize the server and listen/respond to client requests
     fn start(
         &self,
@@ -134,7 +121,7 @@ impl Application for DhcpServer {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         // take ownership of struct fields
-        let sockets = self.sockets.clone();
+        let sockets = protocols.protocol::<Sockets>().unwrap();
 
         let current_ip = Arc::new(RwLock::new([0, 0, 0, 0]));
         let avail_ips = Arc::new(RwLock::new(Vec::<Ipv4Address>::new()));
@@ -181,7 +168,12 @@ impl Application for DhcpServer {
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

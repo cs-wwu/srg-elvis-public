@@ -1,58 +1,55 @@
+use crate::applications::dhcp::dhcp_parsing::DhcpMessage;
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
-        dhcp_parsing::DhcpMessage,
         ipv4::Ipv4Address,
-        sockets::{
-            socket::{ProtocolFamily, SocketAddress, SocketType},
-            Sockets,
-        },
+        sockets::socket::{ProtocolFamily, SocketAddress, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
+        Sockets,
     },
-    Id, ProtocolMap, Shutdown,
+    Control, Shutdown,
 };
-use std::sync::Arc;
-use tokio::sync::Barrier;
+use std::sync::{Arc, RwLock};
+use tokio::sync::{Barrier, Notify};
 
 // NOTE: THIS IS A TEMPORARY CLIENT
 // TO BE DELETED ONCE DHCP HAS BEEN FULLY IMPLEMENTED ON THE CLIENT SIDE
+#[derive(Default)]
 pub struct DhcpClient {
-    /// The Sockets API
-    sockets: Arc<Sockets>,
-    shutdown_bar: Arc<Barrier>,
-    chosen: bool,
+    notify: Arc<Notify>,
+    ip_address: Arc<RwLock<Option<Ipv4Address>>>,
 }
 
 impl DhcpClient {
-    pub fn new(sockets: Arc<Sockets>, shutdown_bar: Arc<Barrier>, chosen: bool) -> Self {
-        Self {
-            sockets,
-            shutdown_bar,
-            chosen,
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn ip_address(&self) -> Ipv4Address {
+        if let Some(ip_address) = *self.ip_address.read().unwrap() {
+            ip_address
+        } else {
+            self.notify.notified().await;
+            self.ip_address.read().unwrap().unwrap()
         }
     }
 
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
 impl Application for DhcpClient {
-    const ID: Id = Id::from_string("Socket Client");
-
     fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        // Take ownership of struct fields so they can be accessed within the
-        // tokio thread
-        let sockets = self.sockets.clone();
-        let chosen = self.chosen;
-        let shutdown_bar = self.shutdown_bar.clone();
-
+        let sockets = protocols.protocol::<Sockets>().unwrap();
+        let notify = self.notify.clone();
+        let ip_address = self.ip_address.clone();
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
             let socket = sockets
@@ -74,19 +71,20 @@ impl Application for DhcpClient {
             let resp = DhcpMessage::default();
             let resp_msg = DhcpMessage::to_message(resp).unwrap();
             socket.clone().send(resp_msg.to_vec()).unwrap();
-            println!("Client Discover sent");
             let msg = socket.clone().recv_msg().await.unwrap();
             let parsed_msg = DhcpMessage::from_bytes(msg.iter()).unwrap();
-            println!("Client IP received: {:?}", parsed_msg.your_ip);
-            shutdown_bar.wait().await;
-            if chosen {
-                shutdown.shut_down();
-            }
+            *ip_address.write().unwrap() = Some(parsed_msg.your_ip);
+            notify.notify_waiters();
         });
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

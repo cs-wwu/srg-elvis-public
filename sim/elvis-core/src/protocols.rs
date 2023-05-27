@@ -15,9 +15,6 @@ pub use sockets::Sockets;
 pub mod user_process;
 pub use user_process::UserProcess;
 
-pub mod dhcp_parsing;
-pub use dhcp_parsing::DhcpMessage;
-
 mod utility;
 pub use utility::{Endpoint, Endpoints};
 

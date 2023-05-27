@@ -1,6 +1,7 @@
-use crate::applications::{DhcpClient, DhcpServer};
+use crate::applications::dhcp::{dhcp_client::DhcpClient, dhcp_server::DhcpServer};
 use elvis_core::{
-    protocol::SharedProtocol,
+    machine::ProtocolMapBuilder,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
@@ -8,8 +9,6 @@ use elvis_core::{
     },
     run_internet, Machine, Network,
 };
-use std::sync::Arc;
-use tokio::sync::Barrier;
 
 pub async fn dhcp_basic() {
     let network = Network::basic();
@@ -26,45 +25,40 @@ pub async fn dhcp_basic() {
     .into_iter()
     .collect();
 
-    let server_socket = Sockets::new(Some(server_ip)).shared();
-    let client1_socket = Sockets::new(Some(client1_ip)).shared();
-    let client2_socket = Sockets::new(Some(client2_ip)).shared();
-    let client3_socket = Sockets::new(Some(client3_ip)).shared();
-    let shutdown_bar = Arc::new(Barrier::new(3));
     let machines = vec![
         // Server
-        Machine::new([
-            server_socket.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            DhcpServer::new(server_socket).shared(),
-        ]),
+        new_machine![
+            Sockets::new(Some(server_ip)),
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpServer::new().process(),
+        ],
         // Client
-        Machine::new([
-            client1_socket.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            DhcpClient::new(client1_socket, shutdown_bar.clone(), false).shared(),
-        ]),
-        Machine::new([
-            client2_socket.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            DhcpClient::new(client2_socket, shutdown_bar.clone(), false).shared(),
-        ]),
-        Machine::new([
-            client3_socket.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            DhcpClient::new(client3_socket, shutdown_bar.clone(), true).shared(),
-        ]),
+        new_machine![
+            Sockets::new(Some(client1_ip)),
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpClient::new().process(),
+        ],
+        new_machine![
+            Sockets::new(Some(client2_ip)),
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpClient::new().process(),
+        ],
+        new_machine![
+            Sockets::new(Some(client3_ip)),
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpClient::new().process(),
+        ],
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 }
 
 #[cfg(test)]
