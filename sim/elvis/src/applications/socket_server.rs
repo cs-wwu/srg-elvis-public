@@ -12,6 +12,7 @@ use elvis_core::{
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
+#[derive(Clone)]
 pub struct SocketServer {
     /// The port to capture a message on
     local_port: u16,
