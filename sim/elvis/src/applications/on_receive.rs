@@ -9,7 +9,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError},
         Endpoint, Tcp, Udp, UserProcess,
     },
-    Control, Message, Shutdown, Transport,
+    Control, Message, Session, Shutdown, Transport,
 };
 use tokio::sync::Barrier;
 
@@ -104,6 +104,7 @@ impl Application for OnReceive {
     fn receive(
         &self,
         message: Message,
+        _caller: Arc<dyn Session>,
         context: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

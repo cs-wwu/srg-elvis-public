@@ -6,7 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError},
         Ipv4, Pci, UserProcess,
     },
-    Control, Shutdown,
+    Control, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -52,6 +52,7 @@ impl Application for Router {
     fn receive(
         &self,
         mut message: Message,
+        _caller: Arc<dyn Session>,
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

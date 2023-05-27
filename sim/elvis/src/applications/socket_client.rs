@@ -7,7 +7,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Sockets,
     },
-    Control, Shutdown,
+    Control, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -88,6 +88,7 @@ impl Application for SocketClient {
     fn receive(
         &self,
         _message: Message,
+        _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

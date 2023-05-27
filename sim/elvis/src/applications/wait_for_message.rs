@@ -5,7 +5,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Endpoint, Tcp, Udp,
     },
-    Control, Shutdown, Transport,
+    Control, Session, Shutdown, Transport,
 };
 use std::{
     any::TypeId,
@@ -96,6 +96,7 @@ impl Application for WaitForMessage {
     fn receive(
         &self,
         message: Message,
+        _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

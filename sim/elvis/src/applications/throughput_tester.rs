@@ -5,7 +5,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Endpoint, Udp,
     },
-    Control, Shutdown,
+    Control, Session, Shutdown,
 };
 use std::{
     any::TypeId,
@@ -69,6 +69,7 @@ impl Application for ThroughputTester {
     fn receive(
         &self,
         _message: Message,
+        _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

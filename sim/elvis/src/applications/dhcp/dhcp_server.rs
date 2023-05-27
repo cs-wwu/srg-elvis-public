@@ -4,16 +4,15 @@ use elvis_core::{
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::{
-            socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
-            Sockets,
-        },
         user_process::{Application, ApplicationError},
-        UserProcess,
+        Endpoint, Udp, UserProcess,
     },
-    Control, Shutdown,
+    Control, Session, Shutdown,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
 
 // Port number & broadcast frequency used by DHCP servers
@@ -21,93 +20,21 @@ pub const PORT_NUM: u16 = 67;
 pub const BROADCAST: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
 
 /// A struct describing an implementation of a DHCP server
-pub struct DhcpServer;
+pub struct DhcpServer {
+    server_address: Ipv4Address,
+    ip_generator: RwLock<IpGenerator>,
+}
 
 impl DhcpServer {
-    pub fn new() -> Self {
-        Self
+    pub fn new(server_address: Ipv4Address, ip_range: IpRange) -> Self {
+        Self {
+            server_address,
+            ip_generator: RwLock::new(IpGenerator::new(ip_range)),
+        }
     }
 
     pub fn process(self) -> UserProcess<Self> {
         UserProcess::new(self)
-    }
-}
-
-/// Generate the next ip from curr_ip
-pub fn gen_ipv4(
-    curr_ip: Arc<RwLock<[u8; 4]>>,
-    avail_ips: Arc<RwLock<Vec<Ipv4Address>>>,
-) -> Ipv4Address {
-    // Read from the lock and check if any IPs have been returned to the server
-    if avail_ips.read().unwrap().is_empty() {
-        let index = 3;
-        get_next_ip(index, curr_ip.clone());
-    } else {
-        let client_addr = avail_ips.write().unwrap().remove(0);
-        return client_addr;
-    }
-    Ipv4Address::new(*curr_ip.read().unwrap())
-}
-
-fn get_next_ip(index: usize, curr_ip: Arc<RwLock<[u8; 4]>>) {
-    let c = *curr_ip.read().unwrap();
-    if c == [255, 255, 255, 254] {
-        return;
-    }
-    if index == 0 {
-        if c[index] == 255 {}
-    } else if c[index] == 255 {
-        //if index is at max value
-        curr_ip.write().unwrap()[index] = 0;
-        get_next_ip(index - 1, curr_ip);
-    } else if c[3] == 254 {
-        println!("Break");
-        curr_ip.write().unwrap()[index] = c[index] + 1;
-    } else {
-        curr_ip.write().unwrap()[index] = c[index] + 1;
-    }
-}
-
-/// Perform the dynamic IP allocation process
-/// As described in the DHCP RFC
-async fn communicate_with_client(
-    socket: Arc<Socket>,
-    curr_ip: Arc<RwLock<[u8; 4]>>,
-    avail_ips: Arc<RwLock<Vec<Ipv4Address>>>,
-) {
-    loop {
-        let client_msg = socket.clone().recv_msg().await.unwrap();
-        let parsed_client_msg = DhcpMessage::from_bytes(client_msg.iter()).unwrap();
-        // match based on message type and respond accordingly
-        match parsed_client_msg.msg_type {
-            MessageType::Discover => {
-                let new_addr = gen_ipv4(curr_ip, avail_ips);
-                let mut resp = DhcpMessage::default();
-                resp.your_ip = new_addr;
-                println!("Server generated IP: {:?}", resp.your_ip);
-                resp.op = 2;
-                resp.your_ip = new_addr;
-                resp.msg_type = MessageType::Offer;
-                let resp_msg = DhcpMessage::to_message(resp).unwrap();
-                let resp_msg = resp_msg.to_vec();
-                socket.clone().send(resp_msg).unwrap();
-                // this break to be removed when functionality is improved
-                break;
-            }
-            MessageType::Request => {
-                let new_addr = parsed_client_msg.your_ip;
-                let mut resp = DhcpMessage::default();
-                resp.op = 2;
-                resp.your_ip = new_addr;
-                resp.msg_type = MessageType::Offer;
-                let resp_msg = DhcpMessage::to_message(resp).unwrap();
-                let resp_msg = resp_msg.to_string();
-                socket.clone().send(resp_msg).unwrap();
-                break;
-            }
-            //invalid message type, send error
-            _ => println!("Invalid message type!"),
-        }
     }
 }
 
@@ -120,60 +47,133 @@ impl Application for DhcpServer {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        // take ownership of struct fields
-        let sockets = protocols.protocol::<Sockets>().unwrap();
+        // NOTE(hardint):
+        // Just the same as with the client side, I don't think that sockets works here. The
+        // problem is that every client requesting an IP address has the same set of endpoints so
+        // sockets interprets them as all belonging to the same connection and won't hand out
+        // addresses after the first. I'm modifying this to use UDP instead.
 
-        let current_ip = Arc::new(RwLock::new([0, 0, 0, 0]));
-        let avail_ips = Arc::new(RwLock::new(Vec::<Ipv4Address>::new()));
-
+        let udp = protocols.protocol::<Udp>().unwrap();
+        udp.listen(
+            TypeId::of::<UserProcess<Self>>(),
+            Endpoint::new(self.server_address, 67),
+            protocols,
+        )
+        .unwrap();
         tokio::spawn(async move {
-            // Create a new IPv4 Datagram Socket
-            let listen_socket = sockets
-                .clone()
-                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
-                .await
-                .unwrap();
-            // Bind the socket for listening
-            let local_sock_addr = SocketAddress::new_v4(BROADCAST, PORT_NUM);
-            listen_socket.clone().bind(local_sock_addr).unwrap();
-
-            // Listen for incoming connections, with an unlimited backlog
-            listen_socket.clone().listen(0).unwrap();
-            println!("SERVER: Listening for incoming connections");
-
-            // Wait for OK from barrier
             initialized.wait().await;
-
-            let mut tasks = Vec::new();
-
-            // Accept new tasks until shutdown
-            // With each task getting its own tokio thread
-            loop {
-                // Accept an incoming connection
-                let socket = match listen_socket.clone().accept().await {
-                    Ok(accepted) => accepted,
-                    Err(_) => break,
-                };
-                println!("SERVER: Connection accepted");
-
-                // Spawn a new tokio task for handling communication
-                // with the new client
-                let a = avail_ips.clone();
-                let c = current_ip.clone();
-                tasks.push(tokio::spawn(async move {
-                    communicate_with_client(socket, c, a).await;
-                }));
-            }
         });
         Ok(())
     }
 
     fn receive(
         &self,
-        _message: Message,
+        message: Message,
+        caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        Ok(())
+        // NOTE(hardint):
+        //
+        // The way this is implemented does not seem to be conformant. The code generates a new IP
+        // address for the client when it sends a discover message, but that should be what happens
+        // in response to a request message. ChatGPT summary:
+        //
+        // DHCP Discover:
+        //     The DHCP Discover message is broadcasted by a client when it first joins
+        //     a network or when it needs to renew its lease.
+        //
+        //     The client sends a DHCP Discover message to discover available DHCP servers in the
+        //     network.
+        //
+        //     The source IP address in the DHCP Discover message is typically set to 0.0.0.0, and
+        //     the destination IP address is set to the limited broadcast address
+        //     (255.255.255.255).
+        //
+        //     The client includes a list of requested parameters (such as IP address, subnet mask,
+        //     gateway, DNS servers, etc.) that it would like to receive from the DHCP server.
+        //
+        // DHCP Request:
+        //
+        //     After receiving DHCP Offer messages from one or more DHCP servers, the
+        //     client chooses a DHCP server and sends a DHCP Request message.
+        //
+        //     The DHCP Request message is used by the client to formally request the offered IP
+        //     address and other network configuration parameters from the selected DHCP server.
+        //
+        //     The source IP address in the DHCP Request message is typically set to 0.0.0.0, and
+        //     the destination IP address is set to the IP address of the selected DHCP server.
+        //
+        //     The client includes the specific IP address offered by the DHCP server within the
+        //     DHCP Request message. If multiple DHCP servers responded with offers, the client
+        //     includes the DHCP server's IP address in the DHCP Request message to identify the
+        //     server from which it is accepting the offer.
+
+        let message = DhcpMessage::from_bytes(message.iter()).unwrap();
+        match message.msg_type {
+            MessageType::Discover => {
+                let mut response = DhcpMessage::default();
+                // Todo: Gracefully handle the case of no addresses available
+                response.your_ip = self.ip_generator.write().unwrap().next().unwrap();
+                println!("Server generated IP: {:?}", response.your_ip);
+                response.op = 2;
+                response.msg_type = MessageType::Offer;
+                let response = DhcpMessage::to_message(response).unwrap();
+                caller.send(response, protocols).unwrap();
+                Ok(())
+            }
+            MessageType::Request => {
+                println!("Got request message");
+                let mut response = DhcpMessage::default();
+                response.op = 2;
+                response.your_ip = message.your_ip;
+                response.msg_type = MessageType::Offer;
+                let response = DhcpMessage::to_message(response).unwrap();
+                caller.send(response, protocols).unwrap();
+                Ok(())
+            }
+            //invalid message type, send error
+            _ => {
+                eprintln!("Invalid message type!");
+                Err(ApplicationError::Other)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IpRange {
+    pub start: Ipv4Address,
+    pub end: Ipv4Address,
+}
+
+impl IpRange {
+    pub fn new(start: Ipv4Address, end: Ipv4Address) -> Self {
+        Self { start, end }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IpGenerator {
+    pub current: u32,
+    pub end: u32,
+}
+
+impl IpGenerator {
+    pub fn new(range: IpRange) -> Self {
+        Self {
+            current: range.start.into(),
+            end: range.end.into(),
+        }
+    }
+
+    pub fn next(&mut self) -> Option<Ipv4Address> {
+        if self.current == self.end {
+            None
+        } else {
+            let out = self.current.into();
+            self.current += 1;
+            Some(out)
+        }
     }
 }

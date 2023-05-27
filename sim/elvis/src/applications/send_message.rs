@@ -6,7 +6,7 @@ use elvis_core::{
         user_process::{Application, ApplicationError, UserProcess},
         Endpoint, Endpoints, Tcp, Udp,
     },
-    Control, Shutdown, Transport,
+    Control, Session, Shutdown, Transport,
 };
 use std::{
     any::TypeId,
@@ -96,6 +96,7 @@ impl Application for SendMessage {
     fn receive(
         &self,
         _message: Message,
+        _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

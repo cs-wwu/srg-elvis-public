@@ -4,35 +4,41 @@ use elvis_core::{
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::socket::{ProtocolFamily, SocketAddress, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
-        Sockets,
+        Endpoint, Endpoints, Udp,
     },
-    Control, Shutdown,
+    Control, Session, Shutdown,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::{Barrier, Notify};
 
 // NOTE: THIS IS A TEMPORARY CLIENT
 // TO BE DELETED ONCE DHCP HAS BEEN FULLY IMPLEMENTED ON THE CLIENT SIDE
 #[derive(Default)]
 pub struct DhcpClient {
+    server_ip: Ipv4Address,
     notify: Arc<Notify>,
     ip_address: Arc<RwLock<Option<Ipv4Address>>>,
 }
 
 impl DhcpClient {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(server_ip: Ipv4Address) -> Self {
+        Self {
+            server_ip,
+            notify: Default::default(),
+            ip_address: Default::default(),
+        }
     }
 
     pub async fn ip_address(&self) -> Ipv4Address {
         if let Some(ip_address) = *self.ip_address.read().unwrap() {
-            ip_address
-        } else {
-            self.notify.notified().await;
-            self.ip_address.read().unwrap().unwrap()
+            return ip_address;
         }
+        self.notify.notified().await;
+        self.ip_address.read().unwrap().unwrap()
     }
 
     pub fn process(self) -> UserProcess<Self> {
@@ -47,44 +53,57 @@ impl Application for DhcpClient {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let sockets = protocols.protocol::<Sockets>().unwrap();
-        let notify = self.notify.clone();
-        let ip_address = self.ip_address.clone();
+        let server_ip = self.server_ip;
         tokio::spawn(async move {
-            // Create a new IPv4 Datagram Socket
-            let socket = sockets
-                .clone()
-                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
-                .await
-                .unwrap();
-
             // Wait on initialization before sending any message across the network
             initialized.wait().await;
 
-            socket
-                .clone()
-                .connect(SocketAddress::new_v4(
-                    Ipv4Address::new([255, 255, 255, 255]),
-                    67,
-                ))
+            // NOTE(hardint):
+            // The problem I'm having using sockets here at the moment is that the connect method
+            // expects that we already have a local address. The tests are specifying a local
+            // address for sockets in the constructor, but that doesn't really make sense for the
+            // test since that's what DHCP is supposed to be doing. I think that sockets will have
+            // to support opening a connection that doesn't have a local address before it is a
+            // viable interface for this protocol. According to ChatGPT, we should use UDP with a
+            // local address of 0.0.0.0, port 68 for the client, and port 67 for the server. Some
+            // unwraps in here can probably be handled better.
+
+            let sockets = Endpoints {
+                local: Endpoint {
+                    address: Ipv4Address::new([0, 0, 0, 0]),
+                    port: 68,
+                },
+                remote: Endpoint {
+                    address: server_ip,
+                    port: 67,
+                },
+            };
+            let udp = protocols
+                .protocol::<Udp>()
+                .unwrap()
+                .open(
+                    TypeId::of::<UserProcess<Self>>(),
+                    sockets,
+                    protocols.clone(),
+                )
                 .unwrap();
-            let resp = DhcpMessage::default();
-            let resp_msg = DhcpMessage::to_message(resp).unwrap();
-            socket.clone().send(resp_msg.to_vec()).unwrap();
-            let msg = socket.clone().recv_msg().await.unwrap();
-            let parsed_msg = DhcpMessage::from_bytes(msg.iter()).unwrap();
-            *ip_address.write().unwrap() = Some(parsed_msg.your_ip);
-            notify.notify_waiters();
+            let response = DhcpMessage::default();
+            let response_message = DhcpMessage::to_message(response).unwrap();
+            udp.send(response_message, protocols).unwrap();
         });
         Ok(())
     }
 
     fn receive(
         &self,
-        _message: Message,
+        message: Message,
+        _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
+        let parsed_msg = DhcpMessage::from_bytes(message.iter()).unwrap();
+        *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
+        self.notify.notify_waiters();
         Ok(())
     }
 }

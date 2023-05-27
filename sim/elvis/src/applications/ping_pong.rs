@@ -96,6 +96,7 @@ impl Application for PingPong {
     fn receive(
         &self,
         message: Message,
+        _caller: Arc<dyn Session>,
         _control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {

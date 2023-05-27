@@ -33,6 +33,7 @@ pub trait Application {
     fn receive(
         &self,
         message: Message,
+        caller: Arc<dyn Session>,
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError>;
@@ -87,11 +88,12 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     fn demux(
         &self,
         message: Message,
-        _caller: Arc<dyn Session>,
+        caller: Arc<dyn Session>,
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        self.application.receive(message, control, protocols)?;
+        self.application
+            .receive(message, caller, control, protocols)?;
         Ok(())
     }
 

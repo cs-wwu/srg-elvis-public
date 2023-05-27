@@ -70,6 +70,7 @@ impl Application for Forward {
     fn receive(
         &self,
         message: Message,
+        _caller: Arc<dyn Session>,
         _control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
