@@ -14,6 +14,8 @@ use std::{
 };
 use tokio::sync::Barrier;
 
+use super::dhcp::dhcp_client::DhcpClient;
+
 /// An application that sends a single message over the network.
 pub struct SendMessage {
     /// The body of the message to send
@@ -52,38 +54,46 @@ impl Application for SendMessage {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let endpoints = Endpoints {
-            local: Endpoint {
-                address: Ipv4Address::LOCALHOST,
-                port: 0,
-            },
-            remote: self.endpoint,
-        };
-
-        let session = match self.transport {
-            Transport::Tcp => protocols
-                .protocol::<Tcp>()
-                .unwrap()
-                .open(
-                    TypeId::of::<UserProcess<Self>>(),
-                    endpoints,
-                    protocols.clone(),
-                )
-                .unwrap(),
-            Transport::Udp => protocols
-                .protocol::<Udp>()
-                .unwrap()
-                .open(
-                    TypeId::of::<UserProcess<Self>>(),
-                    endpoints,
-                    protocols.clone(),
-                )
-                .unwrap(),
-        };
-
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
+        let endpoint = self.endpoint;
+        let transport = self.transport;
         tokio::spawn(async move {
             initialized.wait().await;
+
+            let local_address = match protocols.protocol::<UserProcess<DhcpClient>>() {
+                Some(dhcp) => dhcp.application().ip_address().await,
+                None => panic!("Need DHCP"),
+            };
+
+            let endpoints = Endpoints {
+                local: Endpoint {
+                    address: local_address,
+                    port: 0,
+                },
+                remote: endpoint,
+            };
+
+            let session = match transport {
+                Transport::Tcp => protocols
+                    .protocol::<Tcp>()
+                    .unwrap()
+                    .open(
+                        TypeId::of::<UserProcess<Self>>(),
+                        endpoints,
+                        protocols.clone(),
+                    )
+                    .unwrap(),
+                Transport::Udp => protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .open(
+                        TypeId::of::<UserProcess<Self>>(),
+                        endpoints,
+                        protocols.clone(),
+                    )
+                    .unwrap(),
+            };
+
             for message in messages {
                 session
                     .send(message, protocols.clone())
