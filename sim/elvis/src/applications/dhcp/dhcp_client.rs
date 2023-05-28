@@ -59,13 +59,13 @@ impl Application for DhcpClient {
             initialized.wait().await;
 
             // NOTE(hardint):
+            //
             // The problem I'm having using sockets here at the moment is that the connect method
-            // expects that we already have a local address. The tests are specifying a local
+            // expects that we already have a local address. The tests were specifying a local
             // address for sockets in the constructor, but that doesn't really make sense for the
-            // test since that's what DHCP is supposed to be doing. I think that sockets will have
-            // to support opening a connection that doesn't have a local address before it is a
-            // viable interface for this protocol. According to ChatGPT, we should use UDP with a
-            // local address of 0.0.0.0, port 68 for the client, and port 67 for the server. Some
+            // test since that's what DHCP is supposed to be doing. I don't think that sockets is
+            // the right interface for this protocol. According to ChatGPT, we should use UDP with
+            // a local address of 0.0.0.0, port 68 for the client, and port 67 for the server. Some
             // unwraps in here can probably be handled better.
 
             let sockets = Endpoints {
