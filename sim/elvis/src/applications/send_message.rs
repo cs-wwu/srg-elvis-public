@@ -65,6 +65,8 @@ impl Application for SendMessage {
                 None => panic!("Need DHCP"),
             };
 
+            println!("Got local address {local_address}");
+
             let endpoints = Endpoints {
                 local: Endpoint {
                     address: local_address,

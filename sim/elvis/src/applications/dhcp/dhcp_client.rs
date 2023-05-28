@@ -5,7 +5,7 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Endpoint, Endpoints, Udp,
+        Endpoint, Endpoints, Pci, Udp,
     },
     Control, Session, Shutdown,
 };
@@ -99,9 +99,15 @@ impl Application for DhcpClient {
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let parsed_msg = DhcpMessage::from_bytes(message.iter()).unwrap();
+        let macs: Vec<_> = protocols
+            .protocol::<Pci>()
+            .unwrap()
+            .mac_addresses()
+            .collect();
+        println!("DHCP Client got {} on MAC {}", parsed_msg.your_ip, macs[0]);
         *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
         self.notify.notify_waiters();
         Ok(())

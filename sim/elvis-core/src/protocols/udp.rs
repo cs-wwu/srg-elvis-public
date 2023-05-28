@@ -153,7 +153,7 @@ impl Protocol for Udp {
                     downstream: caller,
                     sockets: endpoints,
                 });
-                session_entry.insert(session.clone());
+                // session_entry.insert(session.clone());
                 session
             }
         };

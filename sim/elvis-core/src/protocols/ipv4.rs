@@ -72,7 +72,7 @@ impl Ipv4 {
                     upstream,
                     reassembly: Default::default(),
                     addresses: endpoints,
-                    destination: recipient,
+                    recipient,
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -171,10 +171,11 @@ impl Protocol for Ipv4 {
                         local: header.destination,
                         remote: header.source,
                     },
-                    destination: recipient,
+                    recipient,
                     reassembly: Default::default(),
                 });
-                entry.insert(session.clone());
+                println!("Ipv4: {recipient:?}");
+                // entry.insert(session.clone());
                 session
             }
         };

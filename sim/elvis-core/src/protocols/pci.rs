@@ -49,6 +49,10 @@ impl Pci {
         self.sessions.len()
     }
 
+    pub fn mac_addresses(&self) -> impl Iterator<Item = Mac> + '_ {
+        self.sessions.iter().map(|session| session.mac())
+    }
+
     /// Creates a new network tap.
     pub fn shared(self) -> Arc<Self> {
         Arc::new(self)

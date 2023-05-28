@@ -26,7 +26,7 @@ pub struct Ipv4Session {
     /// The identifying information for this session
     pub(super) addresses: AddressPair,
     /// Information about how and where to send packets
-    pub(super) destination: Recipient,
+    pub(super) recipient: Recipient,
     // TODO(hardint): Since this lock is held for a relatively long time, would
     // a Tokio lock or message passing be a better option?
     /// Used for reassembling fragmented packets
@@ -77,6 +77,7 @@ impl Ipv4Session {
 impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip_all)]
     fn send(&self, mut message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
+        println!("Ipv4 recipient: {:?}", self.recipient);
         let length = message.iter().count();
         let transport: Transport = self.upstream.try_into().or(Err(SendError::Other))?;
         let header = match Ipv4HeaderBuilder::new(
@@ -95,7 +96,7 @@ impl Session for Ipv4Session {
         };
         message.header(header);
         self.pci_session
-            .send_pci(message, self.destination.mac, TypeId::of::<Ipv4>())?;
+            .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
         Ok(())
     }
 }
