@@ -49,7 +49,7 @@ impl Application for Forward {
                 TypeId::of::<UserProcess<Self>>(),
                 // TODO(hardint): Can these clones be cheaper?
                 self.endpoints,
-                protocols.clone(),
+                protocols,
             )
             .unwrap(),
         );

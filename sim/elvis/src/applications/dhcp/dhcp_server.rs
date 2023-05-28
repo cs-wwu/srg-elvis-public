@@ -161,8 +161,12 @@ impl IpGenerator {
             end: range.end.into(),
         }
     }
+}
 
-    pub fn next(&mut self) -> Option<Ipv4Address> {
+impl Iterator for IpGenerator {
+    type Item = Ipv4Address;
+
+    fn next(&mut self) -> Option<Self::Item> {
         if self.current == self.end {
             None
         } else {
