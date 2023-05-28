@@ -323,10 +323,6 @@ impl Tcb {
             self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
         }
 
-        // for segment in out.iter() {
-        //     println!("{:?}, {}", segment.header, segment.text.len());
-        // }
-
         out
     }
 

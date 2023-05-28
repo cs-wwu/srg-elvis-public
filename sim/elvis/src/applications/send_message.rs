@@ -65,8 +65,6 @@ impl Application for SendMessage {
                 None => Ipv4Address::LOCALHOST,
             };
 
-            println!("Got local address {local_address}");
-
             let endpoints = Endpoints {
                 local: Endpoint {
                     address: local_address,

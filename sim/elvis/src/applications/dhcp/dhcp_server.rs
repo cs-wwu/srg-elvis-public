@@ -115,7 +115,6 @@ impl Application for DhcpServer {
                 let mut response = DhcpMessage::default();
                 // Todo: Gracefully handle the case of no addresses available
                 response.your_ip = self.ip_generator.write().unwrap().next().unwrap();
-                println!("Server generated IP: {:?}", response.your_ip);
                 response.op = 2;
                 response.msg_type = MessageType::Offer;
                 let response = DhcpMessage::to_message(response).unwrap();
@@ -123,7 +122,6 @@ impl Application for DhcpServer {
                 Ok(())
             }
             MessageType::Request => {
-                println!("Got request message");
                 let mut response = DhcpMessage::default();
                 response.op = 2;
                 response.your_ip = message.your_ip;
@@ -132,11 +130,8 @@ impl Application for DhcpServer {
                 caller.send(response, protocols).unwrap();
                 Ok(())
             }
-            //invalid message type, send error
-            _ => {
-                eprintln!("Invalid message type!");
-                Err(ApplicationError::Other)
-            }
+            // TODO: Invalid message type, send error
+            _ => Err(ApplicationError::Other),
         }
     }
 }
