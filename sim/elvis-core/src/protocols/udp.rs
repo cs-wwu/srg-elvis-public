@@ -19,7 +19,7 @@ mod udp_parsing;
 pub use udp_parsing::UdpHeader;
 
 use super::{
-    ipv4::{self, ipv4_parsing::Ipv4Header, Ipv4Address},
+    ipv4::{self, ipv4_parsing::Ipv4Header, Ipv4Address, Recipient},
     utility::{Endpoint, Endpoints},
 };
 
@@ -27,7 +27,6 @@ use super::{
 #[derive(Default, Clone)]
 pub struct Udp {
     listen_bindings: FxDashMap<Endpoint, TypeId>,
-    sessions: FxDashMap<Endpoints, Arc<UdpSession>>,
 }
 
 impl Udp {
@@ -36,33 +35,33 @@ impl Udp {
         Default::default()
     }
 
-    pub fn open(
+    pub fn open_and_listen(
+        &self,
+        upstream: TypeId,
+        sockets: Endpoints,
+        protocols: ProtocolMap,
+    ) -> Result<Arc<dyn Session>, OpenAndListenError> {
+        self.listen(upstream, sockets.local, protocols.clone())?;
+        Ok(self.open_for_sending(upstream, sockets, protocols)?)
+    }
+
+    pub fn open_for_sending(
         &self,
         upstream: TypeId,
         sockets: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenError> {
-        match self.sessions.entry(sockets) {
-            Entry::Occupied(_) => {
-                tracing::error!("Tried to create an existing session");
-                Err(OpenError::Existing(sockets))
-            }
-            Entry::Vacant(entry) => {
-                // Create the session and save it
-                let downstream = protocols.protocol::<Ipv4>().unwrap().open(
-                    TypeId::of::<Self>(),
-                    sockets.into(),
-                    protocols,
-                )?;
-                let session = Arc::new(UdpSession {
-                    upstream,
-                    downstream,
-                    sockets,
-                });
-                entry.insert(session.clone());
-                Ok(session)
-            }
-        }
+        let downstream = protocols.protocol::<Ipv4>().unwrap().open_for_sending(
+            TypeId::of::<Self>(),
+            sockets.into(),
+            protocols,
+        )?;
+        let session = Arc::new(UdpSession {
+            upstream,
+            downstream,
+            sockets,
+        });
+        Ok(session)
     }
 
     pub fn listen(
@@ -121,42 +120,32 @@ impl Protocol for Udp {
             Endpoint::new(ipv4_header.source, udp_header.source),
         );
 
-        let session = match self.sessions.entry(endpoints) {
-            Entry::Occupied(entry) => entry.get().clone(),
-
-            Entry::Vacant(session_entry) => {
-                // If the session does not exist, see if we have a listen
-                // binding for it
-                let binding = match self.listen_bindings.get(&endpoints.local) {
-                    Some(listen_entry) => listen_entry,
-                    None => {
-                        // If we don't have a normal listen binding, check for
-                        // a 0.0.0.0 binding
-                        let any_listen_id = Endpoint {
-                            address: Ipv4Address::CURRENT_NETWORK,
-                            port: endpoints.local.port,
-                        };
-                        match self.listen_bindings.get(&any_listen_id) {
-                            Some(any_listen_entry) => any_listen_entry,
-
-                            None => {
-                                tracing::error!(
-                                    "Tried to demux with a missing session and no listen bindings"
-                                );
-                                Err(DemuxError::MissingSession)?
-                            }
-                        }
-                    }
+        let binding = match self.listen_bindings.get(&endpoints.local) {
+            Some(listen_entry) => listen_entry,
+            None => {
+                // If we don't have a normal listen binding, check for
+                // a 0.0.0.0 binding
+                let any_listen_id = Endpoint {
+                    address: Ipv4Address::CURRENT_NETWORK,
+                    port: endpoints.local.port,
                 };
-                let session = Arc::new(UdpSession {
-                    upstream: *binding,
-                    downstream: caller,
-                    sockets: endpoints,
-                });
-                // session_entry.insert(session.clone());
-                session
+                match self.listen_bindings.get(&any_listen_id) {
+                    Some(any_listen_entry) => any_listen_entry,
+
+                    None => {
+                        tracing::error!(
+                            "Tried to demux with a missing session and no listen bindings"
+                        );
+                        Err(DemuxError::MissingSession)?
+                    }
+                }
             }
         };
+        let session = Arc::new(UdpSession {
+            upstream: *binding,
+            downstream: caller,
+            sockets: endpoints,
+        });
         session.receive(message, control, protocols)?;
         Ok(())
     }
@@ -174,6 +163,12 @@ impl Protocol for Udp {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct SessionId {
+    endpoints: Endpoints,
+    recipient: Recipient,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum OpenError {
     #[error("The socket pair already has an associated session: {0:?}")]
@@ -188,4 +183,12 @@ pub enum ListenError {
     Existing(Endpoint),
     #[error("{0}")]
     Ipv4(#[from] ipv4::ListenError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum OpenAndListenError {
+    #[error("{0}")]
+    Open(#[from] OpenError),
+    #[error("{0}")]
+    Listen(#[from] ListenError),
 }

@@ -81,7 +81,7 @@ impl Application for DhcpClient {
             let udp = protocols
                 .protocol::<Udp>()
                 .unwrap()
-                .open(
+                .open_and_listen(
                     TypeId::of::<UserProcess<Self>>(),
                     sockets,
                     protocols.clone(),

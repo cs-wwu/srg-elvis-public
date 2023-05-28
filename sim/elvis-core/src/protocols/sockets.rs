@@ -151,7 +151,7 @@ impl Sockets {
                 Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
-                let downstream = protocols.protocol::<Udp>().unwrap().open(
+                let downstream = protocols.protocol::<Udp>().unwrap().open_and_listen(
                     TypeId::of::<Self>(),
                     // TODO(hardint): Fix when IPv6 is supported
                     socket_id.try_into().unwrap(),
@@ -266,7 +266,7 @@ pub enum OpenError {
     #[error("There is already a session for {0:?}")]
     Existing(SocketId),
     #[error("{0}")]
-    Udp(#[from] udp::OpenError),
+    Udp(#[from] udp::OpenAndListenError),
     #[error("{0}")]
     Tcp(#[from] tcp::OpenError),
     #[error("There was no socket for the file descriptor {0}")]

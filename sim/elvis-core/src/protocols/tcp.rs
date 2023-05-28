@@ -55,7 +55,7 @@ impl Tcp {
             Entry::Occupied(_) => Err(OpenError::Existing(endpoints)),
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = protocols.protocol::<Ipv4>().unwrap().open(
+                let downstream = protocols.protocol::<Ipv4>().unwrap().open_and_listen(
                     TypeId::of::<Self>(),
                     endpoints.into(),
                     protocols.clone(),
@@ -205,7 +205,7 @@ pub enum OpenError {
     #[error("The socket pair already has an associated session: {0:?}")]
     Existing(Endpoints),
     #[error("{0}")]
-    Ipv4(#[from] ipv4::OpenError),
+    Ipv4(#[from] ipv4::OpenAndListenError),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]

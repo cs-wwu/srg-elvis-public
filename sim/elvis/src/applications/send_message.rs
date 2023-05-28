@@ -62,7 +62,7 @@ impl Application for SendMessage {
 
             let local_address = match protocols.protocol::<UserProcess<DhcpClient>>() {
                 Some(dhcp) => dhcp.application().ip_address().await,
-                None => panic!("Need DHCP"),
+                None => Ipv4Address::LOCALHOST,
             };
 
             println!("Got local address {local_address}");
@@ -88,7 +88,7 @@ impl Application for SendMessage {
                 Transport::Udp => protocols
                     .protocol::<Udp>()
                     .unwrap()
-                    .open(
+                    .open_for_sending(
                         TypeId::of::<UserProcess<Self>>(),
                         endpoints,
                         protocols.clone(),

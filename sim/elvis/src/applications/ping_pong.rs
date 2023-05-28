@@ -72,7 +72,7 @@ impl Application for PingPong {
         *self.shutdown.write().unwrap() = Some(shutdown);
         let protocol = protocols.protocol::<Udp>().expect("No such protocol");
         let session = protocol
-            .open(
+            .open_and_listen(
                 TypeId::of::<UserProcess<Self>>(),
                 self.endpoints,
                 protocols.clone(),
