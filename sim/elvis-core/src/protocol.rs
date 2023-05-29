@@ -1,33 +1,21 @@
 //! The [`Protocol`] trait and supporting types.
 
-use super::{message::Message, session::SharedSession, Control};
+use super::message::Message;
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
-    machine::ProtocolMap,
-    protocols::user_process::ApplicationError,
-    session::SendError,
-    Shutdown,
+    machine::ProtocolMap, protocols::user_process::ApplicationError, Control, Session, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
-
-mod context;
-pub use context::Context;
 
 // TODO(hardint): Should add a str argument to the Other variant of errors so
 // that the reason for an error shows up in traces and such.
-
-/// A shared handle to a [`Protocol`].
-pub type SharedProtocol = Arc<dyn Protocol + Send + Sync>;
 
 /// A member of a networking protocol stack.
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
-pub trait Protocol {
-    /// Returns a unique identifier for the protocol.
-    fn id(&self) -> Id;
+pub trait Protocol: Send + Sync + 'static {
+    fn id(&self) -> TypeId;
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
@@ -45,49 +33,6 @@ pub trait Protocol {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError>;
-
-    /// Actively open a new network connection.
-    ///
-    /// Called by the `upstream` protocol to create a new
-    /// [`Session`](super::Session) for a connection. Each protocol should, in
-    /// turn, `open` a session with some downstream protocol to establish a
-    /// chain of sessions with which to send and receive messages for the
-    /// requesting user program.
-    ///
-    /// The `participants` set contains key-value pairs that identify aspects of
-    /// a connection to facilitate [`demux`](Protocol::demux)ing. It should
-    /// contain all attributes needed to uniquely identify the connection. For
-    /// example, an IP protocol might require the attributes `{local_address,
-    /// remote_address}`. A UDP or TCP protocol might require the attributes
-    /// `{local_address, local_port, remote_address, remote_port}`.
-    fn open(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError>;
-
-    /// Listen for new connections.
-    ///
-    /// Requests that messages for which there is no existing session be sent to
-    /// the `upstream` protocol. Only messages that match the `participants` set
-    /// will be forwarded. See [`demux`](Protocol::demux) for more details.
-    ///
-    /// The participants set should contain all attributes needed to identify
-    /// the listening program. For example, an IP protocol might use the set of
-    /// attributes `{local_address}`. Since we are listening for connections
-    /// from any remote address, when the IP protocol sees a message it does not
-    /// have a session for, it will check whether the local address given in the
-    /// header is one it is listening for. If so, it will create the session
-    /// identified by `{local_address, remote_address}` and continue
-    /// demultiplexing the message. Similarly, a UDP or TCP protocol would want
-    /// its participant set to include {local_address, local_port}.
-    fn listen(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError>;
 
     /// Identifies the session that a message belongs to and forwards the
     /// message to it.
@@ -110,19 +55,13 @@ pub trait Protocol {
     fn demux(
         &self,
         message: Message,
-        caller: SharedSession,
-        context: Context,
+        caller: Arc<dyn Session>,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError>;
-
-    /// Gets a piece of information from the protocol
-    fn query(&self, key: Key) -> Result<Primitive, QueryError>;
 }
 
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
-pub enum QueryError {
-    #[error("The provided key cannot be queried on this protocol")]
-    NonexistentKey,
-}
+// TODO(hardint): Get rid of these error types and replace them with inline logging
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum DemuxError {
@@ -132,27 +71,13 @@ pub enum DemuxError {
     ClosedSession,
     #[error("Data expected through the context was missing")]
     MissingContext,
-    #[error("Could not find the given protocol: {0}")]
-    MissingProtocol(Id),
+    #[error("Could not find the given protocol: {0:?}")]
+    MissingProtocol(TypeId),
     #[error("Failed to parse a header during demux")]
     Header,
     #[error("Receive failed during the execution of an Application")]
     Application(#[from] ApplicationError),
-    #[error("Failed to open a session during demux")]
-    Open(#[from] OpenError),
-    #[error("Failed to send a message during demux")]
-    Send(#[from] SendError),
     #[error("Unspecified demux error")]
-    Other,
-}
-
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
-pub enum ListenError {
-    #[error("The listen binding already exists")]
-    Existing,
-    #[error("Data expected through the context was missing")]
-    MissingContext,
-    #[error("Unspecified error")]
     Other,
 }
 
@@ -160,20 +85,6 @@ pub enum ListenError {
 pub enum StartError {
     #[error("Protocol failed to start because an application failed to start")]
     Application(#[from] ApplicationError),
-    #[error("Unspecified error")]
-    Other,
-}
-
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
-pub enum OpenError {
-    #[error("Could not find the given protocol: {0}")]
-    MissingProtocol(Id),
-    #[error("The session already exists")]
-    Existing,
-    #[error("Data expected through the context was missing")]
-    MissingContext,
-    #[error("Send failed while opening a session: {0}")]
-    Send(#[from] SendError),
     #[error("Unspecified error")]
     Other,
 }

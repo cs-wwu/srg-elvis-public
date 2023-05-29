@@ -1,70 +1,68 @@
-use crate::applications::{DhcpClient, DhcpServer};
+use crate::applications::{
+    dhcp::{
+        dhcp_client::DhcpClient,
+        dhcp_server::{DhcpServer, IpRange},
+    },
+    Capture, SendMessage,
+};
 use elvis_core::{
-    protocol::SharedProtocol,
+    machine::ProtocolMapBuilder,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
-        Pci, Sockets,
+        Endpoint, Pci,
     },
-    run_internet, Machine, Network,
+    run_internet, Machine, Message, Network,
 };
-use std::sync::Arc;
-use tokio::sync::Barrier;
 
 pub async fn dhcp_basic() {
     let network = Network::basic();
-    let server_ip: Ipv4Address = [255, 255, 255, 255].into();
-    let client1_ip: Ipv4Address = [0, 0, 0, 0].into();
-    let client2_ip: Ipv4Address = [0, 0, 0, 1].into();
-    let client3_ip: Ipv4Address = [0, 0, 0, 2].into();
+    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
+    const CAPTURE_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 0]);
+    const CAPTURE_ENDPOINT: Endpoint = Endpoint::new(CAPTURE_IP, 0);
     let ip_table: Recipients = [
-        (server_ip, Recipient::with_mac(0, 0)),
-        (client1_ip, Recipient::with_mac(0, 1)),
-        (client2_ip, Recipient::with_mac(0, 2)),
-        (client3_ip, Recipient::with_mac(0, 3)),
+        (DHCP_SERVER_IP, Recipient::with_mac(0, 0)),
+        (CAPTURE_IP, Recipient::with_mac(0, 1)),
     ]
     .into_iter()
     .collect();
 
-    let server_socket = Sockets::new(Some(server_ip)).shared();
-    let client1_socket = Sockets::new(Some(client1_ip)).shared();
-    let client2_socket = Sockets::new(Some(client2_ip)).shared();
-    let client3_socket = Sockets::new(Some(client3_ip)).shared();
-    let shutdown_bar = Arc::new(Barrier::new(3));
     let machines = vec![
         // Server
-        Machine::new([
-            server_socket.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            DhcpServer::new(server_socket).shared(),
-        ]),
-        // Client
-        Machine::new([
-            client1_socket.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            DhcpClient::new(client1_socket, shutdown_bar.clone(), false).shared(),
-        ]),
-        Machine::new([
-            client2_socket.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            DhcpClient::new(client2_socket, shutdown_bar.clone(), false).shared(),
-        ]),
-        Machine::new([
-            client3_socket.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            DhcpClient::new(client3_socket, shutdown_bar.clone(), true).shared(),
-        ]),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpServer::new(DHCP_SERVER_IP, IpRange::new(0.into(), 255.into())).process(),
+        ],
+        // The capture machine has its IP address statically allocated because otherwise we would
+        // also need address resolution
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Capture::new(CAPTURE_ENDPOINT, 2).process(),
+        ],
+        // This machine and the next will get their IP addresses from the DHCP server and then send
+        // messages to the capture machine.
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpClient::new(DHCP_SERVER_IP).process(),
+            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT).process(),
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpClient::new(DHCP_SERVER_IP).process(),
+            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT).process(),
+        ],
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 }
 
 #[cfg(test)]

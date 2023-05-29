@@ -1,19 +1,22 @@
-use super::Pci;
 use crate::{
-    control::{Key, Primitive},
     machine::{PciSlot, ProtocolMap},
     message::Message,
-    network::{Delivery, Mac},
-    protocol::{Context, DemuxError},
-    session::{QueryError, SendError},
-    Id, Network, Session,
+    network::{Delivery, Mac, Mtu},
+    protocol::DemuxError,
+    session::SendError,
+    Control, Network, Session,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
+
+use super::DemuxInfo;
 
 /// The session type for a [`Tap`](super::Tap).
 pub struct PciSession {
     mac: Mac,
-    index: PciSlot,
+    slot: PciSlot,
     network: Arc<Network>,
     protocols: RwLock<Option<ProtocolMap>>,
 }
@@ -24,13 +27,25 @@ impl PciSession {
         let mac = network.next_mac();
         let this = Self {
             mac,
-            index,
+            slot: index,
             network: network.clone(),
             protocols: Default::default(),
         };
         let this = Arc::new(this);
         network.register_tap(mac, this.clone());
         this
+    }
+
+    pub fn mac(&self) -> Mac {
+        self.mac
+    }
+
+    pub fn slot(&self) -> PciSlot {
+        self.slot
+    }
+
+    pub fn mtu(&self) -> Mtu {
+        self.network.mtu
     }
 
     /// Called by the owning [`Pci`] protocol at the beginning of the simulation
@@ -45,46 +60,44 @@ impl PciSession {
     /// specialized arguments to pass a full network frame to this session is
     /// useful.
     pub(crate) fn receive(self: &Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
-        let mut context = Context::new(self.protocols.read().unwrap().as_ref().unwrap().clone());
-        Pci::set_pci_slot(self.index, &mut context.control);
-        Network::set_sender(delivery.sender, &mut context.control);
-        let protocol = match context.protocol(delivery.protocol) {
+        let mut control = Control::new();
+        let pci_demux_info = DemuxInfo {
+            slot: self.slot,
+            source: delivery.sender,
+            destination: delivery.destination,
+            mtu: self.network.mtu,
+        };
+        control.insert(pci_demux_info);
+        let protocols = self.protocols.read().unwrap().as_ref().unwrap().clone();
+        let protocol = match protocols.get(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
                 tracing::error!(
-                    "Could not find a protocol for the protocol ID {}",
+                    "Could not find a protocol for the protocol ID {0:?}",
                     delivery.protocol
                 );
                 Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
-        protocol.demux(delivery.message, self.clone(), context)?;
+        protocol.demux(delivery.message, self.clone(), control, protocols)?;
         Ok(())
     }
-}
 
-impl Session for PciSession {
-    #[tracing::instrument(name = "PciSession::send", skip_all)]
-    fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
-        let protocol = match Network::get_protocol(&context.control) {
-            Ok(protocol) => protocol,
-            Err(_) => {
-                tracing::error!("Protocol missing from context");
-                Err(SendError::MissingContext)?
-            }
-        };
-        let destination = Network::get_destination(&context.control).ok();
-
+    pub fn send_pci(
+        &self,
+        message: Message,
+        remote_mac: Option<Mac>,
+        receiver: TypeId,
+    ) -> Result<(), SendError> {
         if message.len() > self.network.mtu as usize {
-            tracing::error!("Attempted to send a message larger than the network can handle");
-            Err(SendError::Mtu(self.network.mtu))?
+            return Err(SendError::Mtu(self.network.mtu));
         }
 
         let delivery = Delivery {
             message,
             sender: self.mac,
-            destination,
-            protocol,
+            destination: remote_mac,
+            protocol: receiver,
         };
 
         let network = self.network.clone();
@@ -93,20 +106,19 @@ impl Session for PciSession {
         });
         Ok(())
     }
+}
 
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        match key {
-            Pci::MTU_QUERY_KEY => Ok(self.network.mtu.into()),
-            Pci::MAC_QUERY_KEY => Ok(self.mac.into()),
-            _ => Err(QueryError::MissingKey),
-        }
+// TODO(hardint): I think PCI sessions maybe just shouldn't implement to session type
+impl Session for PciSession {
+    fn send(&self, _message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
+        panic!("Should use PciSession::send_pci instead");
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveError {
-    #[error("Could not find a protocol for the given id: {0}")]
-    Protocol(Id),
+    #[error("Could not find a protocol for the given id: {0:?}")]
+    Protocol(TypeId),
     #[error("{0}")]
     Demux(#[from] DemuxError),
 }

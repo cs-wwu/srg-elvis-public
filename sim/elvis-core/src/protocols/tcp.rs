@@ -6,16 +6,20 @@ use self::{
     tcp_parsing::TcpHeader,
     tcp_session::TcpSession,
 };
-use super::{utility::Socket, Ipv4, Pci};
+use super::{
+    ipv4::{self, ipv4_parsing::Ipv4Header},
+    pci,
+    utility::{Endpoint, Endpoints},
+    Ipv4,
+};
 use crate::{
-    control::{ControlError, Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    machine::ProtocolMap,
+    protocol::{DemuxError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
-    session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
+    Control, FxDashMap, Message, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 mod tcb;
@@ -30,92 +34,35 @@ mod tcp_session;
 pub struct Tcp {
     /// A record of which protocol requested to listen for connections on
     /// particular sockets.
-    listen_bindings: FxDashMap<Socket, Id>,
+    listen_bindings: FxDashMap<Endpoint, TypeId>,
     /// A lookup table for sessions based on their endpoints.
-    sessions: FxDashMap<ConnectionId, Arc<TcpSession>>,
+    sessions: FxDashMap<Endpoints, Arc<TcpSession>>,
 }
 
 impl Tcp {
-    /// The simulation-unique ID for TCP.
-    pub const ID: Id = Id::new(6);
-
     /// Creates a new TCP protocol
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Converts the TCP into a shared protocol.
-    pub fn shared(self) -> Arc<Self> {
-        Arc::new(self)
-    }
-
-    /// Set the local port number on a control.
-    pub fn set_local_port(port: u16, control: &mut Control) {
-        control.insert((Self::ID, 0), port);
-    }
-
-    /// Get the local port number from a control.
-    pub fn get_local_port(control: &Control) -> Result<u16, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u16()?)
-    }
-
-    /// Set the remote port number on a control.
-    pub fn set_remote_port(port: u16, control: &mut Control) {
-        control.insert((Self::ID, 1), port);
-    }
-
-    /// Get the remote port number from a control.
-    pub fn get_remote_port(control: &Control) -> Result<u16, ControlError> {
-        Ok(control.get((Self::ID, 1))?.ok_u16()?)
-    }
-}
-
-impl Protocol for Tcp {
-    fn id(&self) -> Id {
-        Self::ID
-    }
-
-    fn open(
+    pub fn open(
         &self,
-        upstream: Id,
-        participants: Control,
+        upstream: TypeId,
+        endpoints: Endpoints,
         protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        // Identify the session based on the participants. If any of the
-        // identifying information we need is not provided, that is a bug in one
-        // of the higher-up protocols and we should crash. Therefore, unwrapping
-        // is appropriate here.
-
-        let local = Socket {
-            address: Ipv4::get_local_address(&participants).unwrap(),
-            port: Self::get_local_port(&participants).unwrap(),
-        };
-
-        let remote = Socket {
-            address: Ipv4::get_remote_address(&participants).unwrap(),
-            port: Self::get_remote_port(&participants).unwrap(),
-        };
-
-        let session_id = ConnectionId { local, remote };
-
-        match self.sessions.entry(session_id) {
-            Entry::Occupied(_) => Err(OpenError::Existing),
+    ) -> Result<Arc<dyn Session>, OpenError> {
+        match self.sessions.entry(endpoints) {
+            Entry::Occupied(_) => Err(OpenError::Existing(endpoints)),
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = protocols
-                    .protocol(Ipv4::ID)
-                    .expect("No such protocol")
-                    .open(Self::ID, participants, protocols.clone())?;
-                let mtu = downstream
-                    .query(Pci::MTU_QUERY_KEY)
-                    .map_err(|_| OpenError::Other)?
-                    .ok_u16()
-                    .map_err(|_| OpenError::Other)?;
+                let downstream = protocols.protocol::<Ipv4>().unwrap().open_and_listen(
+                    TypeId::of::<Self>(),
+                    endpoints.into(),
+                    protocols.clone(),
+                )?;
                 let session = TcpSession::new(
-                    Tcb::open(session_id, rand::random(), mtu),
-                    protocols
-                        .protocol(upstream)
-                        .ok_or(OpenError::MissingProtocol(upstream))?,
+                    Tcb::open(endpoints, rand::random(), downstream.pci_session().mtu()),
+                    protocols.get(upstream).unwrap(),
                     downstream,
                     protocols,
                 );
@@ -125,100 +72,95 @@ impl Protocol for Tcp {
         }
     }
 
-    fn listen(
+    pub fn listen(
         &self,
-        upstream: Id,
-        participants: Control,
+        upstream: TypeId,
+        endpoint: Endpoint,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
-        // Add the listen binding. If any of the identifying information is
-        // missing, that is a bug in the protocol that requested the listen and
-        // we should crash. Unwrapping serves the purpose.
-        let socket = Socket {
-            port: Self::get_local_port(&participants).unwrap(),
-            address: Ipv4::get_local_address(&participants).unwrap(),
-        };
-        self.listen_bindings.insert(socket, upstream);
-        // Ask lower-level protocols to add the binding as well
-        protocols
-            .protocol(Ipv4::ID)
-            .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+        self.listen_bindings.insert(endpoint, upstream);
+        Ok(protocols
+            .protocol::<Ipv4>()
+            .unwrap()
+            .listen(TypeId::of::<Self>(), endpoint.address)?)
+    }
+}
+
+impl Protocol for Tcp {
+    fn id(&self) -> TypeId {
+        TypeId::of::<Self>()
     }
 
     fn demux(
         &self,
         mut message: Message,
-        caller: SharedSession,
-        mut context: Context,
+        caller: Arc<dyn Session>,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        // Extract information from the context
-        let local_address = Ipv4::get_local_address(&context.control).unwrap();
-        let remote_address = Ipv4::get_remote_address(&context.control).unwrap();
+        let ipv4_header = control
+            .get::<Ipv4Header>()
+            .ok_or(DemuxError::MissingContext)?;
 
         // Parse the header
-        let header =
-            TcpHeader::from_bytes(message.iter(), message.len(), remote_address, local_address)
-                .map_err(|_| DemuxError::Header)?;
+        let tcp_header = TcpHeader::from_bytes(
+            message.iter(),
+            message.len(),
+            ipv4_header.source,
+            ipv4_header.destination,
+        )
+        .map_err(|_| DemuxError::Header)?;
         message.remove_front(20);
 
-        let local = Socket {
-            address: local_address,
-            port: header.dst_port,
+        let endpoints = Endpoints {
+            local: Endpoint {
+                address: ipv4_header.destination,
+                port: tcp_header.dst_port,
+            },
+            remote: Endpoint {
+                address: ipv4_header.source,
+                port: tcp_header.src_port,
+            },
         };
 
-        let remote = Socket {
-            address: remote_address,
-            port: header.src_port,
-        };
-
-        // Use the context and the header information to identify the session
-        let connection_id = ConnectionId { local, remote };
-
-        // Add the header information to the context
-        Tcp::set_local_port(local.port, &mut context.control);
-        Tcp::set_remote_port(remote.port, &mut context.control);
-
-        let segment = Segment::new(header, message);
-        match self.sessions.entry(connection_id) {
+        let segment = Segment::new(tcp_header, message);
+        match self.sessions.entry(endpoints) {
             Entry::Occupied(entry) => {
-                entry.get().receive(segment, context);
+                entry.get().receive(segment);
             }
 
             Entry::Vacant(session_entry) => {
-                match self.listen_bindings.entry(local) {
+                match self.listen_bindings.entry(endpoints.local) {
                     Entry::Occupied(listen_entry) => {
                         // TODO(hardint): Incomplete. See 3.10.7.2 for handling
                         // of segments in LISTEN state.
 
                         // If we have a listen binding, create the session and
                         // save it
-                        let mtu = caller
-                            .query(Pci::MTU_QUERY_KEY)
-                            .map_err(|_| DemuxError::Other)?
-                            .ok_u16()
-                            .map_err(|_| DemuxError::Other)?;
+                        let mtu = control.get::<pci::DemuxInfo>().unwrap().mtu;
                         let listen_result = segment_arrives_listen(
                             segment,
-                            local.address,
-                            remote.address,
+                            endpoints.local.address,
+                            endpoints.remote.address,
                             rand::random(),
                             mtu,
                         );
                         if let Some(listen_result) = listen_result {
                             match listen_result {
                                 ListenResult::Response(response) => {
-                                    caller.send(Message::new(response.serialize()), context)?;
+                                    caller
+                                        .send(Message::new(response.serialize()), protocols)
+                                        .map_err(|_| DemuxError::Other)?;
                                 }
                                 ListenResult::Tcb(tcb) => {
                                     let upstream = *listen_entry.get();
                                     let session = TcpSession::new(
                                         tcb,
-                                        context
-                                            .protocol(upstream)
-                                            .ok_or(OpenError::MissingProtocol(upstream))?,
+                                        protocols
+                                            .get(upstream)
+                                            .ok_or(DemuxError::MissingProtocol(upstream))?,
                                         caller,
-                                        context.protocols,
+                                        protocols.clone(),
                                     );
                                     session_entry.insert(session);
                                 }
@@ -230,10 +172,12 @@ impl Protocol for Tcp {
                         if let Some(response) = segment_arrives_closed(
                             segment.header,
                             segment.text.len() as u32,
-                            local.address,
-                            remote.address,
+                            endpoints.local.address,
+                            endpoints.remote.address,
                         ) {
-                            caller.send(Message::new(response.serialize()), context)?;
+                            caller
+                                .send(Message::new(response.serialize()), protocols)
+                                .map_err(|_| DemuxError::Other)?;
                         }
                         Err(DemuxError::MissingSession)?
                     }
@@ -254,33 +198,20 @@ impl Protocol for Tcp {
         });
         Ok(())
     }
-
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        tracing::error!("No such key on TCP");
-        Err(QueryError::NonexistentKey)
-    }
 }
 
-/// A pair of endpoints that uniquely identifies a TCP connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct ConnectionId {
-    /// The local endpoint
-    pub local: Socket,
-    /// The remote endpoint
-    pub remote: Socket,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum OpenError {
+    #[error("The socket pair already has an associated session: {0:?}")]
+    Existing(Endpoints),
+    #[error("{0}")]
+    Ipv4(#[from] ipv4::OpenAndListenError),
 }
 
-impl ConnectionId {
-    /// Create a new connection ID from a pair of endpoints
-    pub fn new(local: Socket, remote: Socket) -> Self {
-        Self { local, remote }
-    }
-
-    /// Get a matching connection ID for the remote TCP.
-    pub const fn reverse(self) -> Self {
-        Self {
-            local: self.remote,
-            remote: self.local,
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum ListenError {
+    #[error("The socket already has a listen binding: {0:?}")]
+    Existing(Endpoint),
+    #[error("{0}")]
+    Ipv4(#[from] ipv4::ListenError),
 }

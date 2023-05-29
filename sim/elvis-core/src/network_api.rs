@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use crate::{
+    machine::ProtocolMap,
     protocols::{
         ipv4::Ipv4Address,
         sockets::socket::{ProtocolFamily, Socket, SocketError, SocketType},
         Sockets,
     },
-    ProtocolMap,
 };
 
 pub struct NetworkAPI {

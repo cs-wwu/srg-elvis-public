@@ -118,6 +118,21 @@ impl Ipv4Header {
             destination,
         })
     }
+
+    pub fn serialize(self) -> Result<Vec<u8>, HeaderBuildError> {
+        Ipv4HeaderBuilder {
+            type_of_service: self.type_of_service,
+            payload_length: self.total_length - BASE_OCTETS,
+            identification: self.identification,
+            fragment_offset: self.fragment_offset,
+            flags: self.flags,
+            time_to_live: self.time_to_live,
+            protocol: self.protocol,
+            source: self.source,
+            destination: self.destination,
+        }
+        .build()
+    }
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]

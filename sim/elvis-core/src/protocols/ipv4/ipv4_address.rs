@@ -1,4 +1,3 @@
-use crate::control::{primitive::PrimitiveError, Primitive};
 use std::fmt::{self, Display};
 
 /// Represents an address used by the [`Ipv4`](super::Ipv4) protocol.
@@ -63,19 +62,5 @@ impl From<Ipv4Address> for u32 {
 impl From<Ipv4Address> for [u8; 4] {
     fn from(address: Ipv4Address) -> Self {
         address.0
-    }
-}
-
-impl TryFrom<Primitive> for Ipv4Address {
-    type Error = PrimitiveError;
-
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
-        Ok(value.ok_u32()?.into())
-    }
-}
-
-impl From<Ipv4Address> for Primitive {
-    fn from(address: Ipv4Address) -> Self {
-        Primitive::U32(address.into())
     }
 }

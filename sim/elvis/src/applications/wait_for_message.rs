@@ -1,17 +1,17 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp, Udp,
+        Endpoint, Tcp, Udp,
     },
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Session, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
-
-use super::Transport;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
@@ -19,10 +19,7 @@ use super::Transport;
 pub struct WaitForMessage {
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
-    /// The address we listen for a message on
-    ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    port: u16,
+    endpoint: Endpoint,
     /// The transport protocol to use
     transport: Transport,
     /// The message that was received, if any
@@ -36,10 +33,9 @@ pub struct WaitForMessage {
 
 impl WaitForMessage {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16, expected: Message) -> Self {
+    pub fn new(endpoint: Endpoint, expected: Message) -> Self {
         Self {
-            ip_address,
-            port,
+            endpoint,
             expected,
             transport: Transport::Udp,
             actual: Default::default(),
@@ -49,8 +45,8 @@ impl WaitForMessage {
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 
     /// Set the transport protocol to use
@@ -68,8 +64,6 @@ impl WaitForMessage {
 }
 
 impl Application for WaitForMessage {
-    const ID: Id = Id::from_string("Wait for message");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -77,23 +71,35 @@ impl Application for WaitForMessage {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-        let mut participants = Control::new();
-        Ipv4::set_local_address(self.ip_address, &mut participants);
         match self.transport {
-            Transport::Udp => Udp::set_local_port(self.port, &mut participants),
-            Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
+            Transport::Tcp => {
+                protocols
+                    .protocol::<Tcp>()
+                    .unwrap()
+                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .unwrap();
+            }
+            Transport::Udp => {
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .unwrap();
+            }
         }
-        protocols
-            .protocol(self.transport.id())
-            .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)?;
         tokio::spawn(async move {
             initialized.wait().await;
         });
         Ok(())
     }
 
-    fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        _caller: Arc<dyn Session>,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         let mut actual = self.actual.write().unwrap();
         actual.concatenate(message);
 

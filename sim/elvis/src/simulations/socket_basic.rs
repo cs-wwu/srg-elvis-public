@@ -1,12 +1,13 @@
 use crate::applications::{SocketClient, SocketServer};
 use elvis_core::{
-    protocol::SharedProtocol,
+    machine::ProtocolMapBuilder,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
-        Pci
+        Pci, Sockets,
     },
-    run_internet, Machine, Network, NetworkAPI,
+    run_internet, Machine, Network,
 };
 
 /// Runs a basic server-client simulation using sockets.
@@ -31,42 +32,38 @@ pub async fn socket_basic() {
     .into_iter()
     .collect();
 
-    let server_network_api = NetworkAPI::new(Some(server_ip_address)).shared();
-    let client1_network_api = NetworkAPI::new(Some(client1_ip_address)).shared();
-    let client2_network_api = NetworkAPI::new(Some(client2_ip_address)).shared();
-    let client3_network_api = NetworkAPI::new(Some(client3_ip_address)).shared();
     let machines = vec![
-        Machine::new([
-            server_network_api.socket_api(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SocketServer::new(server_network_api, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            client1_network_api.socket_api(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SocketClient::new(client1_network_api, 1, server_ip_address, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            client2_network_api.socket_api(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SocketClient::new(client2_network_api, 2, server_ip_address, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            client3_network_api.socket_api(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SocketClient::new(client3_network_api, 3, server_ip_address, 0xbeef).shared(),
-        ]),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Sockets::new(Some(server_ip_address)),
+            SocketServer::new(0xbeef).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Sockets::new(Some(client1_ip_address)),
+            SocketClient::new(1, server_ip_address, 0xbeef).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Sockets::new(Some(client2_ip_address)),
+            SocketClient::new(2, server_ip_address, 0xbeef).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Sockets::new(Some(client3_ip_address)),
+            SocketClient::new(3, server_ip_address, 0xbeef).process()
+        ],
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 }
 
 #[cfg(test)]

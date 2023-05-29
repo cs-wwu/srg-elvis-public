@@ -1,14 +1,14 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp,
+        Endpoint, Udp,
     },
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Session, Shutdown,
 };
 use std::{
+    any::TypeId,
     ops::Range,
     sync::{Arc, RwLock},
     time::{Duration, SystemTime},
@@ -21,10 +21,7 @@ use tokio::sync::Barrier;
 pub struct ThroughputTester {
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
-    /// The address we listen for a message on
-    ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    port: u16,
+    endpoint: Endpoint,
     message_count: u8,
     expected_delay: Range<Duration>,
     previous_receipt: Arc<RwLock<Option<SystemTime>>>,
@@ -33,16 +30,10 @@ pub struct ThroughputTester {
 
 impl ThroughputTester {
     /// Creates a new capture.
-    pub fn new(
-        ip_address: Ipv4Address,
-        port: u16,
-        message_count: u8,
-        expected_delay: Range<Duration>,
-    ) -> Self {
+    pub fn new(endpoint: Endpoint, message_count: u8, expected_delay: Range<Duration>) -> Self {
         Self {
             shutdown: Default::default(),
-            ip_address,
-            port,
+            endpoint,
             message_count,
             expected_delay,
             previous_receipt: Arc::new(RwLock::new(None)),
@@ -51,14 +42,12 @@ impl ThroughputTester {
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
 impl Application for ThroughputTester {
-    const ID: Id = Id::from_string("Capture");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -66,20 +55,24 @@ impl Application for ThroughputTester {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-        let mut participants = Control::new();
-        Ipv4::set_local_address(self.ip_address, &mut participants);
-        Udp::set_local_port(self.port, &mut participants);
         protocols
-            .protocol(Udp::ID)
+            .protocol::<Udp>()
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)?;
+            .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+            .unwrap();
         tokio::spawn(async move {
             initialized.wait().await;
         });
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _caller: Arc<dyn Session>,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         let now = SystemTime::now();
         if let Some(previous) = self.previous_receipt.write().unwrap().replace(now) {
             let elapsed = now.duration_since(previous).unwrap();

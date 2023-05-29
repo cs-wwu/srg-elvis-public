@@ -2,15 +2,13 @@
 //! protocol-oriented simulation.
 
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    session::{SendError, SharedSession},
-    Control, Protocol, Shutdown,
+    protocol::{DemuxError, StartError},
+    session::SendError,
+    Control, Protocol, Session, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 use tracing::error;
 
@@ -21,9 +19,6 @@ use tracing::error;
 /// network or when the containing machine awakens the
 /// application to give it time to run.
 pub trait Application {
-    /// A unique identifier for the application.
-    const ID: Id;
-
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
     fn start(
@@ -35,17 +30,21 @@ pub trait Application {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError>;
+    fn receive(
+        &self,
+        message: Message,
+        caller: Arc<dyn Session>,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError>;
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationError {
-    #[error("A listen call failed")]
-    Listen(#[from] ListenError),
-    #[error("An open call failed")]
-    Open(#[from] OpenError),
     #[error("A send call failed")]
     Send(#[from] SendError),
+    #[error("Missing protocol {0:?}")]
+    MissingProtocol(TypeId),
     #[error("Unspecified error")]
     Other,
 }
@@ -82,35 +81,19 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 }
 
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(&self) -> Id {
-        A::ID
-    }
-
-    fn open(
-        &self,
-        _upstream: Id,
-        _participants: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        panic!("Cannot active open on a user process")
-    }
-
-    fn listen(
-        &self,
-        _upstream: Id,
-        _participants: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
-        panic!("Cannot listen on a user process")
+    fn id(&self) -> TypeId {
+        TypeId::of::<Self>()
     }
 
     fn demux(
         &self,
         message: Message,
-        _caller: SharedSession,
-        context: Context,
+        caller: Arc<dyn Session>,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        self.application.receive(message, context)?;
+        self.application
+            .receive(message, caller, control, protocols)?;
         Ok(())
     }
 
@@ -122,9 +105,5 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     ) -> Result<(), StartError> {
         self.application.start(shutdown, initialized, protocols)?;
         Ok(())
-    }
-
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::NonexistentKey)
     }
 }

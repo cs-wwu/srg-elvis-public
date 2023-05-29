@@ -1,15 +1,10 @@
 use super::socket::Socket;
-use crate::{
-    control::{Key, Primitive},
-    protocol::{Context, DemuxError},
-    session::{QueryError, SendError, SharedSession},
-    Message, Session,
-};
+use crate::{machine::ProtocolMap, protocol::DemuxError, session::SendError, Message, Session};
 use std::sync::{Arc, RwLock};
 
 pub(super) struct SocketSession {
     pub upstream: RwLock<Option<Arc<Socket>>>,
-    pub downstream: SharedSession,
+    pub downstream: Arc<dyn Session>,
     pub stored_msg: RwLock<Option<Message>>,
 }
 
@@ -33,11 +28,7 @@ impl SocketSession {
 }
 
 impl Session for SocketSession {
-    fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
-        self.downstream.send(message, context)
-    }
-
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.query(key)
+    fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
+        self.downstream.send(message, protocols)
     }
 }

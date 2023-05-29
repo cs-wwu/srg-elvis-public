@@ -1,16 +1,16 @@
 //! This module contains several test simulations and examples of how to use the [`SubWrap`] protocol.
 
-use std::collections::HashSet;
-
 use elvis_core::{
+    machine::ProtocolMapBuilder,
     network::{Baud, NetworkBuilder, Throughput},
-    protocol::{Context, SharedProtocol},
+    protocol::Context,
     protocols::{
         ipv4::{Ipv4Address, Recipient, Recipients},
         Ipv4, Pci, SubWrap, Udp, UserProcess,
     },
     run_internet, Machine, Message, Network, Protocol,
 };
+use std::collections::HashSet;
 use tokio::sync::mpsc;
 
 use crate::applications::{Capture, PingPong, SendMessage};
@@ -52,18 +52,22 @@ pub async fn basic_with_1_subscribe() {
     let (pci, mut pci_recv) = sub_send(Pci::new([network.clone()]));
 
     let machines = vec![
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            pci.shared(),
-            SendMessage::new(vec![message], capture_ip_address, 0xfefe).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            Capture::new(capture_ip_address, 0xfefe, 1).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(pci)
+                .other(SendMessage::new(vec![message], capture_ip_address, 0xfefe).shared())
+                .build(),
+        ),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(Pci::new([network.clone()]))
+                .other(Capture::new(capture_ip_address, 0xfefe, 1).shared())
+                .build(),
+        ),
     ];
 
     run_internet(machines, vec![network]).await;
@@ -97,18 +101,22 @@ pub async fn basic_with_lots_of_subscribe() {
     let (capture, mut capture_recv) = sub_demux(capture);
 
     let machines = vec![
-        Machine::new([
-            udp.shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            pci.shared(),
-            SendMessage::new(vec![message], capture_ip_address, 0xfefe).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            ipv4.shared(),
-            Pci::new([network.clone()]).shared(),
-            capture.shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(udp)
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(pci)
+                .other(SendMessage::new(vec![message], capture_ip_address, 0xfefe).shared())
+                .build(),
+        ),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(ipv4)
+                .pci(Pci::new([network.clone()]))
+                .other(capture.shared())
+                .build(),
+        ),
     ];
 
     run_internet(machines, vec![network]).await;
@@ -155,19 +163,23 @@ pub async fn print_ping_pong() {
 
     let machines = vec![
         // Machine 1
-        Machine::new([
-            udp_1.shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xfefe, 0xface).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(udp_1)
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(Pci::new([network.clone()]))
+                .other(PingPong::new(true, IP_ADDRESS_1, IP_ADDRESS_2, 0xfefe, 0xface).shared())
+                .build(),
+        ),
         // Machine 2
-        Machine::new([
-            udp_2.shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xfefe).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(udp_2)
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(Pci::new([network.clone()]))
+                .other(PingPong::new(false, IP_ADDRESS_2, IP_ADDRESS_1, 0xface, 0xfefe).shared())
+                .build(),
+        ),
     ];
 
     tokio::spawn(run_internet(machines, vec![network]));
@@ -221,18 +233,22 @@ async fn subscribe_multiple_times() {
     drop(dead_stream);
 
     let machines = vec![
-        Machine::new([
-            udp.shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            PingPong::new(true, ip_addr1, ip_addr2, 0xfefe, 0xfefe).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            pci.shared(),
-            PingPong::new(false, ip_addr2, ip_addr1, 0xfefe, 0xfefe).shared(),
-        ]),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(udp)
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(Pci::new([network.clone()]))
+                .other(PingPong::new(true, ip_addr1, ip_addr2, 0xfefe, 0xfefe).shared())
+                .build(),
+        ),
+        Machine::new(
+            ProtocolMapBuilder::new()
+                .udp(Udp::new())
+                .ipv4(Ipv4::new(ip_table.clone()))
+                .pci(pci)
+                .other(PingPong::new(false, ip_addr2, ip_addr1, 0xfefe, 0xfefe).shared())
+                .build(),
+        ),
     ];
 
     // Assert the correct messages went through the machine

@@ -1,30 +1,72 @@
-use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id, Shutdown};
+use crate::{Protocol, Shutdown};
 use rustc_hash::FxHashMap;
-use std::{collections::hash_map::Entry, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+};
 use tokio::sync::Barrier;
 
 /// A tap's PCI slot index
-pub type PciSlot = u32;
+pub(crate) type PciSlot = u32;
+
+type ArcAny = Arc<dyn Any + Send + Sync + 'static>;
+type AnyMap = FxHashMap<TypeId, (ArcAny, Arc<dyn Protocol>)>;
+
+#[derive(Default)]
+pub struct ProtocolMapBuilder {
+    inner: AnyMap,
+}
+
+impl ProtocolMapBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with<T>(mut self, protocol: T) -> Self
+    where
+        T: Protocol + Send + Sync + 'static,
+    {
+        let protocol = Arc::new(protocol);
+        self.inner.insert(
+            TypeId::of::<T>(),
+            (protocol.clone() as ArcAny, protocol as Arc<dyn Protocol>),
+        );
+        self
+    }
+
+    pub fn build(self) -> ProtocolMap {
+        ProtocolMap {
+            inner: Arc::new(self.inner),
+        }
+    }
+}
 
 /// A mapping of protocol IDs to protocols
 #[derive(Clone)]
-pub struct ProtocolMap(Arc<FxHashMap<Id, SharedProtocol>>);
+pub struct ProtocolMap {
+    inner: Arc<AnyMap>,
+}
 
 impl ProtocolMap {
-    pub fn new(protocols: FxHashMap<Id, SharedProtocol>) -> Self {
-        Self(Arc::new(protocols))
+    pub fn protocol<T>(&self) -> Option<Arc<T>>
+    where
+        T: Protocol,
+    {
+        self.inner
+            .get(&TypeId::of::<T>())
+            .map(|t| t.0.clone().downcast().unwrap())
     }
 
-    pub fn protocol(&self, id: Id) -> Option<SharedProtocol> {
-        self.0.get(&id).cloned()
+    pub fn get(&self, id: TypeId) -> Option<Arc<dyn Protocol>> {
+        self.inner.get(&id).map(|t| t.1.clone())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &SharedProtocol> {
-        self.0.values()
+    pub fn iter(&self) -> impl Iterator<Item = Arc<dyn Protocol>> + '_ {
+        self.inner.values().map(|t| t.1.clone())
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.inner.len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -45,27 +87,13 @@ pub struct Machine {
 impl Machine {
     /// Creates a new machine containing the given `protocols`. Returns the
     /// machine and a channel which can be used to send messages to the machine.
-    pub fn new(protocols: impl IntoIterator<Item = SharedProtocol>) -> Machine {
-        let mut protocols_map = FxHashMap::default();
-        let mut protocol_ids = Vec::new();
-        for protocol in protocols.into_iter() {
-            match protocols_map.entry(protocol.id()) {
-                Entry::Occupied(_) => panic!("Only one of each protocol should be provided"),
-                Entry::Vacant(entry) => {
-                    protocol_ids.push(protocol.id());
-                    entry.insert(protocol);
-                }
-            }
-        }
-        machine_creation_event(protocol_ids);
-        Self {
-            protocols: ProtocolMap::new(protocols_map),
-        }
+    pub fn new(protocols: ProtocolMap) -> Machine {
+        Self { protocols }
     }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub(crate) fn start(self, shutdown: Shutdown, initialized: Arc<Barrier>) {
+    pub(crate) fn start(&self, shutdown: Shutdown, initialized: Arc<Barrier>) {
         for protocol in self.protocols.iter() {
             protocol
                 .start(
@@ -81,4 +109,48 @@ impl Machine {
     pub fn protocol_count(&self) -> usize {
         self.protocols.len()
     }
+
+    pub fn into_inner(self) -> ProtocolMap {
+        self.protocols
+    }
 }
+
+/// Creates a [`Machine`] with the protocols given.
+///
+/// # Example
+///
+/// ```
+/// use elvis_core::{
+///     protocols::*,
+///     run_internet,
+///     machine::*,
+/// };
+///
+/// let machines = [
+///     new_machine![
+///         Ipv4::new(std::iter::empty().collect()),
+///         Pci::new([]),
+///     ],
+///     new_machine![
+///         Udp::new(),
+///         Ipv4::new(std::iter::empty().collect()),
+///         Pci::new([]),
+///     ],
+///     new_machine![],
+/// ];
+///
+/// run_internet(&machines);
+/// ```
+#[macro_export]
+macro_rules! new_machine {
+    ( $($x:expr),* $(,)? ) => {
+        {
+            let mut pmb = ProtocolMapBuilder::new()
+            $(
+                .with($x)
+            )*;
+            Machine::new(pmb.build())
+        }
+    };
+}
+pub use new_machine;

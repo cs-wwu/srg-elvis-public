@@ -1,36 +1,30 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::{
-            socket::{ProtocolFamily, Socket, SocketAddress, SocketType}
-        },
+        sockets::socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
+        Sockets,
     },
-    Id, ProtocolMap, Shutdown, NetworkAPI,
+    Control, Session, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 #[derive(Clone)]
 pub struct SocketServer {
-    /// The Network API
-    network_api: Arc<NetworkAPI>,
     /// The port to capture a message on
     local_port: u16,
 }
 
 impl SocketServer {
-    pub fn new(network_api: Arc<NetworkAPI>, local_port: u16) -> Self {
-        Self {
-            network_api,
-            local_port,
-        }
+    pub fn new(local_port: u16) -> Self {
+        Self { local_port }
     }
 
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
@@ -53,8 +47,6 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 }
 
 impl Application for SocketServer {
-    const ID: Id = Id::from_string("Socket Server");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -63,12 +55,14 @@ impl Application for SocketServer {
     ) -> Result<(), ApplicationError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let network_api = self.network_api.clone();
+        let sockets = protocols
+            .protocol::<Sockets>()
+            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<Sockets>()))?;
         let local_port = self.local_port;
 
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
-            let listen_socket = network_api
+            let listen_socket = sockets
                 .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                 .await
                 .unwrap();
@@ -117,7 +111,13 @@ impl Application for SocketServer {
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _caller: Arc<dyn Session>,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }
