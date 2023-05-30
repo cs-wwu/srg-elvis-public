@@ -1,13 +1,14 @@
-use crate::applications::{SendMessage, Transport, WaitForMessage};
+use crate::applications::{SendMessage, WaitForMessage};
 use elvis_core::{
+    machine::ProtocolMapBuilder,
     message::Message,
     network::NetworkBuilder,
-    protocol::SharedProtocol,
+    new_machine,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
-        Pci, Tcp,
+        ipv4::{Ipv4, Recipient, Recipients},
+        Endpoint, Pci, Tcp,
     },
-    run_internet, Machine,
+    run_internet, Machine, Transport,
 };
 
 /// Runs a basic simulation.
@@ -16,32 +17,35 @@ use elvis_core::{
 /// single network. The simulation ends when the message is received.
 pub async fn tcp_gigabyte_bench() {
     let network = NetworkBuilder::new().mtu(1500).build();
-    let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
+    let endpoint = Endpoint {
+        address: [123, 45, 67, 89].into(),
+        port: 0xbeef,
+    };
+    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
     let message: Vec<_> = (0..1_000_000_000).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
-        Machine::new([
-            Tcp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SendMessage::new(vec![message.clone()], capture_ip_address, 0xbeef)
+        new_machine![
+            Tcp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            SendMessage::new(vec![message.clone()], endpoint)
                 .transport(Transport::Tcp)
-                .shared(),
-        ]),
-        Machine::new([
-            Tcp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table).shared(),
-            Pci::new([network.clone()]).shared(),
-            WaitForMessage::new(capture_ip_address, 0xbeef, message)
+                .process(),
+        ],
+        new_machine![
+            Tcp::new(),
+            Ipv4::new(ip_table),
+            Pci::new([network.clone()]),
+            WaitForMessage::new(endpoint, message)
                 .transport(Transport::Tcp)
                 .disable_checking()
-                .shared(),
-        ]),
+                .process(),
+        ],
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 }

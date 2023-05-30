@@ -5,13 +5,13 @@
 //! types so that it can be more easily tested outside of the full simulation
 //! environment.
 
-use super::{
-    tcp_parsing::{TcpHeader, TcpHeaderBuilder},
-    ConnectionId,
-};
+use super::tcp_parsing::{TcpHeader, TcpHeaderBuilder};
 use crate::{
     network::Mtu,
-    protocols::{ipv4::Ipv4Address, utility::Endpoint},
+    protocols::{
+        ipv4::Ipv4Address,
+        utility::{Endpoint, Endpoints},
+    },
     Message,
 };
 use std::{collections::BinaryHeap, mem, time::Duration};
@@ -50,7 +50,7 @@ const RETRANSMISSION_TIMEOUT: Duration = Duration::from_millis(100);
 #[derive(Debug)]
 pub struct Tcb {
     /// The pair of endpoints that identifies this connection
-    id: ConnectionId,
+    id: Endpoints,
     /// The maximum transmission unit of the network
     mtu: Mtu,
     /// How the connection was initiated locally
@@ -71,7 +71,7 @@ pub struct Tcb {
 impl Tcb {
     /// Creates a new TCB
     fn new(
-        id: ConnectionId,
+        id: Endpoints,
         mtu: Mtu,
         initiation: Initiation,
         state: State,
@@ -97,7 +97,7 @@ impl Tcb {
     /// 3.10.1](https://www.rfc-editor.org/rfc/rfc9293.html#name-open-call) for
     /// the case of an active open. Handling for packets in a passive open
     /// LISTEN state is provided by [`handle_listen`].
-    pub fn open(id: ConnectionId, iss: u32, mtu: Mtu) -> Self {
+    pub fn open(id: Endpoints, iss: u32, mtu: Mtu) -> Self {
         let mut tcb = Self::new(
             id,
             mtu,
@@ -199,6 +199,7 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.4](https://www.rfc-editor.org/rfc/rfc9293.html#name-close-call).
+    #[allow(unused)]
     pub fn close(&mut self) -> CloseResult {
         match self.state {
             State::SynReceived | State::Established => {
@@ -235,6 +236,7 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.5](https://www.rfc-editor.org/rfc/rfc9293.html#section-3.10.5).
+    #[allow(unused)]
     pub fn abort(&mut self) {
         // 3.10.5
         match self.state {
@@ -255,6 +257,7 @@ impl Tcb {
     ///
     /// Implements [section
     /// 3.10.6](https://www.rfc-editor.org/rfc/rfc9293.html#name-status-call).
+    #[allow(unused)]
     pub fn status(&self) -> State {
         // 3.10.6
         self.state
@@ -275,7 +278,7 @@ impl Tcb {
             State::SynSent | State::SynReceived | State::Established | State::CloseWait => {
                 // TODO(hardint): This could be incorrect for when optional
                 // headers are used. It also is not as efficient as possible.
-                const SPACE_FOR_HEADERS: u32 = 50;
+                const SPACE_FOR_HEADERS: u16 = 50;
                 let max_segment_length = (self.mtu - SPACE_FOR_HEADERS) as usize;
                 let mut queued_bytes = self.outgoing.queued_bytes();
                 loop {
@@ -512,7 +515,11 @@ impl Tcb {
                     self.snd.wl2 = seg.ack;
                     if mod_gt(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
-                        self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt).wnd(self.rcv.wnd));
+                        self.enqueue(
+                            self.header_builder(self.snd.nxt)
+                                .ack(self.rcv.nxt)
+                                .wnd(self.rcv.wnd),
+                        );
                     } else {
                         self.state = State::SynReceived;
                         self.enqueue(
@@ -804,7 +811,7 @@ pub fn segment_arrives_listen(
         // Third:
         let rcv_nxt = seg.seq + 1;
         let mut tcb = Tcb::new(
-            ConnectionId {
+            Endpoints {
                 local: Endpoint {
                     address: local,
                     port: seg.dst_port,
@@ -937,6 +944,7 @@ pub enum SegmentArrivesResult {
 
 /// The result of a call to send on the TCB
 #[must_use]
+#[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SendResult {
     /// The send completed successfully
@@ -947,6 +955,7 @@ pub enum SendResult {
 
 /// The result of a call to close on the TCB
 #[must_use]
+#[allow(unused)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CloseResult {
     /// The close was processed successfully
@@ -972,6 +981,7 @@ pub enum ListenResult {
 
 impl ListenResult {
     /// Gets the response header, if available
+    #[allow(unused)]
     fn response(self) -> Option<TcpHeader> {
         match self {
             ListenResult::Response(response) => Some(response),
@@ -980,6 +990,7 @@ impl ListenResult {
     }
 
     /// Gets the TCB, if available
+    #[allow(unused)]
     fn tcb(self) -> Option<Tcb> {
         match self {
             ListenResult::Response(_) => None,
@@ -1007,10 +1018,4 @@ struct Connection {
     pub snd: SendSequenceSpace,
     /// The receive sequence space
     pub rcv: ReceiveSequenceSpace,
-}
-
-impl Connection {
-    pub fn new(state: State, snd: SendSequenceSpace, rcv: ReceiveSequenceSpace) -> Self {
-        Self { state, snd, rcv }
-    }
 }

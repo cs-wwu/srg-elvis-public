@@ -2,12 +2,11 @@
 
 mod basic;
 pub use basic::basic;
+mod dhcp_basic;
+pub use dhcp_basic::dhcp_basic;
 
 mod socket_basic;
 pub use socket_basic::socket_basic;
-
-mod socket_ping_pong;
-pub use socket_ping_pong::socket_ping_pong;
 
 mod telephone_multi;
 pub use telephone_multi::telephone_multi;
@@ -17,12 +16,6 @@ pub use telephone_single::telephone_single;
 
 mod ping_pong;
 pub use ping_pong::ping_pong;
-
-mod ping_pong_multi;
-pub use ping_pong_multi::ping_pong_multi;
-
-mod query;
-pub use query::query;
 
 mod latency;
 pub use latency::latency;
@@ -42,7 +35,9 @@ pub use tcp_with_reliable::tcp_with_reliable;
 mod tcp_with_unreliable;
 pub use tcp_with_unreliable::tcp_with_unreliable;
 
-pub mod subscribing;
+// pub mod arp_sims;
+
+// pub mod subscribing;
 
 mod tcp_gigabyte_bench;
 pub use tcp_gigabyte_bench::tcp_gigabyte_bench;

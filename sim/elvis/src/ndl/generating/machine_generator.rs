@@ -3,13 +3,11 @@ use std::collections::HashMap;
 
 use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
+use elvis_core::machine::ProtocolMapBuilder;
 use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Pci;
-use elvis_core::{
-    protocol::SharedProtocol,
-    protocols::{ipv4::Ipv4, udp::Udp},
-};
+use elvis_core::protocols::{ipv4::Ipv4, udp::Udp};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 
@@ -116,7 +114,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
 
         for _count in 0..machine_count {
             let mut networks_to_be_added = Vec::new();
-            let mut protocols_to_be_added: Vec<SharedProtocol> = Vec::new();
+            let mut protocol_map = ProtocolMapBuilder::new();
             let mut ip_table = FxHashMap::default();
 
             for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
@@ -148,12 +146,12 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     ip_table.insert(*ip, Recipient::new(net_num, mac));
                 }
             }
-            protocols_to_be_added.push(Pci::new(networks_to_be_added).shared());
+            protocol_map = protocol_map.with(Pci::new(networks_to_be_added));
             for protocol in &machine.interfaces.protocols {
                 for option in &protocol.options {
                     match option.1.as_str() {
-                        "UDP" => protocols_to_be_added.push(Udp::new().shared() as SharedProtocol),
-                        "IPv4" => protocols_to_be_added.push(Ipv4::new(ip_table.clone()).shared()),
+                        "UDP" => protocol_map = protocol_map.with(Udp::new()),
+                        "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
                         _ => {
                             panic!(
                                 "Invalid Protocol found in machine. Found: {}",
@@ -171,23 +169,25 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 let app_name = app.options.get("name").unwrap().as_str();
                 match app_name {
                     "send_message" => {
-                        protocols_to_be_added.push(send_message_builder(app, &name_to_ip))
+                        protocol_map = protocol_map.with(send_message_builder(app, &name_to_ip))
                     }
 
                     "capture" => {
-                        protocols_to_be_added.push(capture_builder(app));
+                        protocol_map = protocol_map.with(capture_builder(app));
                     }
 
                     "forward" => {
-                        protocols_to_be_added.push(forward_message_builder(app, &name_to_ip))
+                        protocol_map = protocol_map.with(forward_message_builder(app, &name_to_ip))
                     }
 
-                    "ping_pong" => protocols_to_be_added.push(ping_pong_builder(
-                        app,
-                        &name_to_ip,
-                        &ip_to_mac,
-                        &name_to_mac,
-                    )),
+                    "ping_pong" => {
+                        protocol_map = protocol_map.with(ping_pong_builder(
+                            app,
+                            &name_to_ip,
+                            &ip_to_mac,
+                            &name_to_mac,
+                        ))
+                    }
 
                     _ => {
                         panic!("Invalid application in machine. Got application {app_name}");
@@ -195,7 +195,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 }
             }
 
-            machine_list.push(elvis_core::Machine::new(protocols_to_be_added));
+            machine_list.push(elvis_core::Machine::new(protocol_map.build()));
         }
     }
     machine_list

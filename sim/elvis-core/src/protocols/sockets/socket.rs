@@ -1,10 +1,10 @@
 use super::Sockets;
 use crate::{
+    machine::ProtocolMap,
     message::Chunk,
-    protocol::{Context, DemuxError, NotifyType},
-    protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp, utility::Endpoint},
-    session::SharedSession,
-    Control, Id, Message, ProtocolMap, Shutdown,
+    protocol::{DemuxError, NotifyType},
+    protocols::utility::{Endpoint, Endpoints},
+    Message, Session, Shutdown,
 };
 use std::{
     collections::VecDeque,
@@ -18,14 +18,14 @@ use tokio::{select, sync::Notify};
 pub struct Socket {
     pub family: ProtocolFamily,
     pub sock_type: SocketType,
-    pub fd: Id,
+    fd: u64,
     is_active: RwLock<bool>,
     is_bound: RwLock<bool>,
     is_listening: RwLock<bool>,
     is_blocking: RwLock<bool>,
     local_addr: RwLock<Option<Endpoint>>,
     remote_addr: RwLock<Option<Endpoint>>,
-    session: Arc<RwLock<Option<SharedSession>>>,
+    session: Arc<RwLock<Option<Arc<dyn Session>>>>,
     listen_addresses: Arc<RwLock<VecDeque<Endpoint>>>,
     listen_backlog: RwLock<usize>,
     notify_listen: Notify,
@@ -40,7 +40,7 @@ impl Socket {
     pub(super) fn new(
         domain: ProtocolFamily,
         sock_type: SocketType,
-        fd: Id,
+        fd: u64,
         protocols: ProtocolMap,
         socket_api: Arc<Sockets>,
         shutdown: Shutdown,
@@ -122,47 +122,29 @@ impl Socket {
         *self.remote_addr.write().unwrap() = Some(sock_addr);
         // Gather the necessary data to open a session and pass it on to the
         // Sockets API to retreive a socket_session
-        let mut participants = Control::new();
-        if let Some(local_addr) = *self.local_addr.read().unwrap() {
-            Ipv4::set_local_address(local_addr.address, &mut participants);
-            match self.sock_type {
-                SocketType::Datagram => {
-                    Udp::set_local_port(local_addr.port, &mut participants);
-                }
-                SocketType::Stream => {
-                    Tcp::set_local_port(local_addr.port, &mut participants);
-                }
-            }
+        if let (Some(local), Some(remote)) = (
+            *self.local_addr.read().unwrap(),
+            *self.remote_addr.read().unwrap(),
+        ) {
+            let session = match self
+                .protocols
+                .protocol::<Sockets>()
+                .expect("Sockets API not found")
+                .open_with_fd(
+                    self.fd,
+                    Endpoints::new(local, remote),
+                    self.protocols.clone(),
+                ) {
+                Ok(v) => v,
+                Err(_) => return Err(SocketError::ConnectError),
+            };
+            // Assign the socket_session to the socket
+            *self.session.write().unwrap() = Some(session);
+            *self.is_active.write().unwrap() = true;
+            Ok(())
+        } else {
+            Err(SocketError::ConnectError)
         }
-        if let Some(remote_addr) = *self.remote_addr.read().unwrap() {
-            Ipv4::set_remote_address(remote_addr.address, &mut participants);
-            match self.sock_type {
-                SocketType::Datagram => {
-                    Udp::set_remote_port(remote_addr.port, &mut participants);
-                }
-                SocketType::Stream => {
-                    Tcp::set_remote_port(remote_addr.port, &mut participants);
-                }
-            }
-        }
-        let session = match self
-            .protocols
-            .protocol(Sockets::ID)
-            .expect("Sockets API not found")
-            .open(self.fd, participants, self.protocols.clone())
-        {
-            Ok(v) => v,
-            Err(_) => return Err(SocketError::ConnectError),
-        };
-        // Assign the socket_session to the socket
-        *self.session.write().unwrap() = Some(session);
-        *self.is_active.write().unwrap() = true;
-        if self.sock_type == SocketType::Stream {
-            if self.wait_for_notify(NotifyType::NewConnection).await == NotifyResult::Shutdown {
-                return Err(SocketError::Shutdown);
-            }
-        }
-        Ok(())
     }
 
     /// Assigns a local ip address and port to a socket
@@ -171,8 +153,8 @@ impl Socket {
             ProtocolFamily::LOCAL => {
                 return Err(SocketError::BindError);
             }
-            ProtocolFamily::INET => { *self.local_addr.write().unwrap() = Some(sock_addr) },
-            ProtocolFamily::INET6 => { return Err(SocketError::BindError) },
+            ProtocolFamily::INET => *self.local_addr.write().unwrap() = Some(sock_addr),
+            ProtocolFamily::INET6 => return Err(SocketError::BindError),
         }
         *self.is_bound.write().unwrap() = true;
         Ok(())
@@ -188,30 +170,23 @@ impl Socket {
         {
             return Err(SocketError::AcceptError);
         }
-        let mut participants = Control::new();
+
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
-            Ipv4::set_local_address(local_addr.address, &mut participants);
-            match self.sock_type {
-                SocketType::Datagram => {
-                    Udp::set_local_port(local_addr.port, &mut participants);
+            match self
+                .protocols
+                .protocol::<Sockets>()
+                .expect("Sockets API not found")
+                .listen_with_fd(self.fd, local_addr, self.protocols.clone())
+            {
+                Ok(_) => {
+                    *self.is_listening.write().unwrap() = true;
+                    *self.listen_backlog.write().unwrap() = backlog;
+                    Ok(())
                 }
-                SocketType::Stream => {
-                    Tcp::set_local_port(local_addr.port, &mut participants);
-                }
+                Err(_) => Err(SocketError::ListenError),
             }
-        }
-        match self
-            .protocols
-            .protocol(Sockets::ID)
-            .expect("Sockets API not found")
-            .listen(self.fd, participants, self.protocols.clone())
-        {
-            Ok(_) => {
-                *self.is_listening.write().unwrap() = true;
-                *self.listen_backlog.write().unwrap() = backlog;
-                Ok(())
-            }
-            Err(_) => Err(SocketError::ListenError),
+        } else {
+            Err(SocketError::ListenError)
         }
     }
 
@@ -259,15 +234,15 @@ impl Socket {
         if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {
             return Err(SocketError::SendError);
         }
-        let context = Context::new(self.protocols.clone());
         let session = self.session.clone();
+        let protocols = self.protocols.clone();
         tokio::spawn(async move {
             session
                 .read()
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .send(Message::new(message), context)
+                .send(Message::new(message), protocols)
                 .unwrap();
         });
         Ok(())
@@ -400,8 +375,25 @@ pub enum SocketType {
 //     IPv6(),
 // }
 
+// impl From<Ipv4Address> for IpAddress {
+//     fn from(address: Ipv4Address) -> Self {
+//         Self::IPv4(address)
+//     }
+// }
+
+// impl TryFrom<IpAddress> for Ipv4Address {
+//     type Error = AddressConversionError;
+
+//     fn try_from(address: IpAddress) -> Result<Self, Self::Error> {
+//         match address {
+//             IpAddress::IPv4(address) => Ok(address),
+//             IpAddress::IPv6() => Err(AddressConversionError),
+//         }
+//     }
+// }
+
 // #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// pub struct Endpoint {
+// pub struct SocketAddress {
 //     pub address: IpAddress,
 //     pub port: u16,
 // }
@@ -429,65 +421,80 @@ pub enum SocketType {
 //     }
 // }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SocketId {
-    pub local_address: Endpoint,
-    pub remote_address: Endpoint,
-}
+// impl From<Endpoint> for SocketAddress {
+//     fn from(endpoint: Endpoint) -> Self {
+//         Self::new(endpoint.address.into(), endpoint.port)
+//     }
+// }
 
-impl SocketId {
-    pub fn new(
-        local_address: Ipv4Address,
-        local_port: u16,
-        remote_address: Ipv4Address,
-        remote_port: u16,
-    ) -> SocketId {
-        Self {
-            local_address: Endpoint::new(local_address, local_port),
-            remote_address: Endpoint::new(remote_address, remote_port),
-        }
-    }
+// impl TryFrom<SocketAddress> for Endpoint {
+//     type Error = AddressConversionError;
 
-    pub fn new_from_addresses(
-        local_address: Endpoint,
-        remote_address: Endpoint,
-    ) -> SocketId {
-        Self {
-            local_address,
-            remote_address,
-        }
-    }
+//     fn try_from(address: SocketAddress) -> Result<Self, Self::Error> {
+//         Ok(Endpoint {
+//             address: address.address.try_into()?,
+//             port: address.port,
+//         })
+//     }
+// }
 
-    pub fn new_from_context(context: Context) -> Result<SocketId, DemuxError> {
-        Ok(SocketId::new(
-            Ipv4::get_local_address(&context.control).map_err(|_| {
-                tracing::error!("Missing local address on context");
-                DemuxError::MissingContext
-            })?,
-            match Udp::get_local_port(&context.control) {
-                Ok(port) => port,
-                Err(_) => match Tcp::get_local_port(&context.control) {
-                    Ok(port) => port,
-                    Err(_) => {
-                        tracing::error!("Missing local port on context");
-                        return Err(DemuxError::MissingContext);
-                    }
-                },
-            },
-            Ipv4::get_remote_address(&context.control).map_err(|_| {
-                tracing::error!("Missing remote address on context");
-                DemuxError::MissingContext
-            })?,
-            match Udp::get_remote_port(&context.control) {
-                Ok(port) => port,
-                Err(_) => match Tcp::get_remote_port(&context.control) {
-                    Ok(port) => port,
-                    Err(_) => {
-                        tracing::error!("Missing local port on context");
-                        return Err(DemuxError::MissingContext);
-                    }
-                },
-            },
-        ))
-    }
-}
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// pub struct SocketId {
+//     pub local_address: Endpoint,
+//     pub remote_address: Endpoint,
+// }
+
+// impl SocketId {
+//     pub fn new(
+//         local_address: Ipv4Address,
+//         local_port: u16,
+//         remote_address: Ipv4Address,
+//         remote_port: u16,
+//     ) -> SocketId {
+//         Self {
+//             local_address: Endpoint::new(local_address, local_port),
+//             remote_address: Endpoint::new(remote_address, remote_port),
+//         }
+//     }
+
+//     pub fn new_from_addresses(
+//         local_address: Endpoint,
+//         remote_address: Endpoint,
+//     ) -> SocketId {
+//         Self {
+//             local_address,
+//             remote_address,
+//         }
+//     }
+// }
+
+// impl From<Endpoints> for SocketId {
+//     fn from(endpoints: Endpoints) -> Self {
+//         Self {
+//             local_address: endpoints.local.into(),
+//             remote_address: endpoints.remote.into(),
+//         }
+//     }
+// }
+
+// impl TryFrom<SocketId> for Endpoints {
+//     type Error = AddressConversionError;
+
+//     fn try_from(socket_id: SocketId) -> Result<Self, Self::Error> {
+//         Ok(Endpoints {
+//             local: socket_id.local_address.try_into()?,
+//             remote: socket_id.remote_address.try_into()?,
+//         })
+//     }
+// }
+
+// #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+// pub struct AddressConversionError;
+
+// impl Display for AddressConversionError {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+//         write!(f, "Expected IPv4, got IPv6")
+//     }
+// }
+
+// impl Error for AddressConversionError {}

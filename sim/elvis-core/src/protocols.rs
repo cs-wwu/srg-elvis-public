@@ -6,9 +6,6 @@ pub use ipv4::Ipv4;
 pub mod pci;
 pub use pci::Pci;
 
-pub mod subwrap;
-pub use subwrap::SubWrap;
-
 pub mod udp;
 pub use udp::Udp;
 
@@ -18,10 +15,8 @@ pub use sockets::Sockets;
 pub mod user_process;
 pub use user_process::UserProcess;
 
-pub mod utility;
-pub use utility::Endpoint;
+mod utility;
+pub use utility::{Endpoint, Endpoints};
 
-// TODO(hardint): Remove dead code allowance when possible
-#[allow(dead_code)]
 pub mod tcp;
 pub use tcp::Tcp;

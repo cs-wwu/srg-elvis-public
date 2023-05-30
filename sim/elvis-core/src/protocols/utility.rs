@@ -75,7 +75,47 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    pub fn new(address: Ipv4Address, port: u16) -> Self {
+    pub const fn new(address: Ipv4Address, port: u16) -> Self {
         Self { address, port }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Endpoints {
+    pub local: Endpoint,
+    pub remote: Endpoint,
+}
+
+impl Endpoints {
+    pub const fn new(local: Endpoint, remote: Endpoint) -> Self {
+        Self { local, remote }
+    }
+
+    pub const fn reverse(self) -> Self {
+        Self {
+            local: self.remote,
+            remote: self.local,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PortPair {
+    pub local: u16,
+    pub remote: u16,
+}
+
+impl PortPair {
+    #[allow(unused)]
+    pub const fn new(local: u16, remote: u16) -> Self {
+        Self { local, remote }
+    }
+
+    #[allow(unused)]
+    pub const fn reverse(self) -> Self {
+        Self {
+            local: self.remote,
+            remote: self.local,
+        }
     }
 }

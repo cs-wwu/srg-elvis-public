@@ -1,8 +1,9 @@
 #![allow(unused_must_use)]
 
 use super::*;
+use crate::protocols::utility::Endpoints;
 
-const PEER_A_ID: ConnectionId = ConnectionId {
+const PEER_A_ID: Endpoints = Endpoints {
     local: Endpoint {
         address: Ipv4Address::new([0, 0, 0, 0]),
         port: 0xcafe,
@@ -13,7 +14,10 @@ const PEER_A_ID: ConnectionId = ConnectionId {
     },
 };
 
-const PEER_B_ID: ConnectionId = PEER_A_ID.reverse();
+const PEER_B_ID: Endpoints = Endpoints {
+    local: PEER_A_ID.remote,
+    remote: PEER_A_ID.local,
+};
 
 #[test]
 fn basic_synchronization() {
@@ -144,7 +148,7 @@ fn old_duplicate_syn() {
     assert_eq!(peer_a_syn.header.seq, 100);
 
     // 3
-    const GHOST_ID: ConnectionId = ConnectionId {
+    const GHOST_ID: Endpoints = Endpoints {
         local: Endpoint {
             address: Ipv4Address::new([123, 45, 67, 89]),
             port: 0xbabe,

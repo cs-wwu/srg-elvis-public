@@ -1,19 +1,18 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::Context,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Udp,
+        Endpoints, Udp,
     },
-    session::SharedSession,
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Session, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
-
-use super::Transport;
 
 /// An application that sends a Time To Live (TTL) to
 /// another machine from the first machine.
@@ -23,14 +22,9 @@ pub struct PingPong {
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
     /// The session we send messages on
-    session: RwLock<Option<SharedSession>>,
+    session: RwLock<Option<Arc<dyn Session>>>,
     is_initiator: bool,
-    /// The address we listen for a message on
-    local_ip_address: Ipv4Address,
-    remote_ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    local_port: u16,
-    remote_port: u16,
+    endpoints: Endpoints,
     /// The machine that will receive the message
     remote_mac: Option<Mac>,
     /// The protocol to use in delivering the message
@@ -39,35 +33,28 @@ pub struct PingPong {
 
 impl PingPong {
     /// Creates a new capture.
-    pub fn new(
-        is_initiator: bool,
-        local_ip_address: Ipv4Address,
-        remote_ip_address: Ipv4Address,
-        local_port: u16,
-        remote_port: u16,
-    ) -> Self {
+    pub fn new(is_initiator: bool, endpoints: Endpoints) -> Self {
         Self {
             is_initiator,
             shutdown: Default::default(),
             session: Default::default(),
-            local_ip_address,
-            remote_ip_address,
-            local_port,
-            remote_port,
+            endpoints,
             remote_mac: None,
             transport: Transport::Udp,
         }
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
+
     /// Set the MAC address of the machine to send to
     pub fn remote_mac(mut self, mac: Mac) -> Self {
         self.remote_mac = Some(mac);
         self
     }
+
     /// The protocol to use in delivering the message
     pub fn transport(mut self, transport: Transport) -> Self {
         self.transport = transport;
@@ -76,8 +63,6 @@ impl PingPong {
 }
 
 impl Application for PingPong {
-    const ID: Id = Id::from_string("PingPong");
-
     fn start(
         &self,
         shutdown: Shutdown,
@@ -85,31 +70,36 @@ impl Application for PingPong {
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-
-        let mut participants = Control::new();
-        Ipv4::set_local_address(self.local_ip_address, &mut participants);
-        Ipv4::set_remote_address(self.remote_ip_address, &mut participants);
-        Udp::set_local_port(self.local_port, &mut participants);
-        Udp::set_remote_port(self.remote_port, &mut participants);
-        let protocol = protocols.protocol(Udp::ID).expect("No such protocol");
-        let session = protocol.open(Self::ID, participants, protocols.clone())?;
+        let protocol = protocols.protocol::<Udp>().expect("No such protocol");
+        let session = protocol
+            .open_and_listen(
+                TypeId::of::<UserProcess<Self>>(),
+                self.endpoints,
+                protocols.clone(),
+            )
+            .unwrap();
         *self.session.write().unwrap() = Some(session.clone());
 
-        let context = Context::new(protocols);
         let is_initiator = self.is_initiator;
         tokio::spawn(async move {
             initialized.wait().await;
             if is_initiator {
                 session
                     //Send the first "Ping" message with TTL of 255
-                    .send(Message::new(vec![255]), context)
+                    .send(Message::new(vec![255]), protocols)
                     .unwrap();
             }
         });
         Ok(())
     }
 
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        _caller: Arc<dyn Session>,
+        _control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {
@@ -131,7 +121,7 @@ impl Application for PingPong {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .send(Message::new(vec![ttl]), context)?;
+                .send(Message::new(vec![ttl]), protocols)?;
         }
         Ok(())
     }

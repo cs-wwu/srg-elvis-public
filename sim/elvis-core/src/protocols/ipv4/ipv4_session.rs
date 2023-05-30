@@ -1,60 +1,89 @@
-use super::{ipv4_parsing::Ipv4HeaderBuilder, Ipv4, Ipv4Address, Recipient};
-use crate::{
-    control::{Key, Primitive},
-    id::Id,
-    message::Message,
-    protocol::{Context, DemuxError},
-    protocols::pci::Pci,
-    session::{QueryError, SendError, SharedSession},
-    Network, Session,
+use super::{
+    ipv4_parsing::{Ipv4Header, Ipv4HeaderBuilder},
+    reassembly::{Reassembly, ReceivePacketResult},
+    Ipv4, Ipv4Address, Recipient,
 };
-use std::{fmt::Debug, sync::Arc};
+use crate::{
+    machine::ProtocolMap,
+    message::Message,
+    protocol::DemuxError,
+    protocols::{pci::PciSession, utility::Endpoints},
+    session::SendError,
+    Control, Session, Transport,
+};
+use std::{
+    any::TypeId,
+    fmt::{self, Debug, Formatter},
+    sync::{Arc, Mutex},
+};
 
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
     /// The protocol that we demux incoming messages to
-    upstream: Id,
+    pub(super) upstream: TypeId,
     /// The session we mux outgoing messages to
-    downstream: SharedSession,
+    pub(super) pci_session: Arc<PciSession>,
     /// The identifying information for this session
-    id: SessionId,
-    /// Inforamation about how and where to send packets
-    destination: Recipient,
+    pub(super) addresses: AddressPair,
+    /// Information about how and where to send packets
+    pub(super) recipient: Recipient,
+    // TODO(hardint): Since this lock is held for a relatively long time, would
+    // a Tokio lock or message passing be a better option?
+    /// Used for reassembling fragmented packets
+    pub(super) reassembly: Arc<Mutex<Reassembly>>,
 }
 
 impl Ipv4Session {
-    /// Creates a new IPv4 session
-    pub(super) fn new(
-        downstream: SharedSession,
-        upstream: Id,
-        identifier: SessionId,
-        destination: Recipient,
-    ) -> Self {
-        Self {
-            upstream,
-            downstream,
-            id: identifier,
-            destination,
+    pub fn receive(
+        self: Arc<Self>,
+        header: Ipv4Header,
+        message: Message,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), DemuxError> {
+        let result = self
+            .reassembly
+            .lock()
+            .unwrap()
+            .receive_packet(header, message);
+
+        match result {
+            ReceivePacketResult::Complete(_, message) => {
+                protocols
+                    .get(self.upstream)
+                    .expect("No such protocol")
+                    .demux(message, self, control, protocols)?;
+            }
+            ReceivePacketResult::Incomplete(timeout, buf_id, epoch) => {
+                let reassembly = self.reassembly.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(timeout).await;
+                    reassembly.lock().unwrap().maybe_cull_segment(buf_id, epoch);
+                });
+            }
         }
+        Ok(())
     }
 
-    pub fn receive(self: Arc<Self>, message: Message, context: Context) -> Result<(), DemuxError> {
-        context
-            .protocol(self.upstream)
-            .expect("No such protocol")
-            .demux(message, self, context)?;
-        Ok(())
+    pub fn pci_session(&self) -> &PciSession {
+        self.pci_session.as_ref()
+    }
+
+    pub fn addresses(&self) -> AddressPair {
+        self.addresses
     }
 }
 
 impl Session for Ipv4Session {
-    #[tracing::instrument(name = "Ipv4Session::send", skip(message, context))]
-    fn send(&self, mut message: Message, mut context: Context) -> Result<(), SendError> {
+    #[tracing::instrument(name = "Ipv4Session::send", skip_all)]
+    fn send(&self, mut message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
+        //println!("Ipv4 recipient: {:?}", self.recipient);
         let length = message.iter().count();
+        let transport: Transport = self.upstream.try_into().or(Err(SendError::Other))?;
         let header = match Ipv4HeaderBuilder::new(
-            self.id.local,
-            self.id.remote,
-            self.upstream.into_inner() as u8,
+            self.addresses.local,
+            self.addresses.remote,
+            transport as u8,
             length as u16,
         )
         .build()
@@ -65,40 +94,35 @@ impl Session for Ipv4Session {
                 Err(SendError::Header)?
             }
         };
-        Pci::set_pci_slot(self.destination.slot, &mut context.control);
-        Network::set_protocol(Ipv4::ID, &mut context.control);
-        if let Some(mac) = self.destination.mac {
-            Network::set_destination(mac, &mut context.control);
-        }
         message.header(header);
-        self.downstream.send(message, context)?;
+        self.pci_session
+            .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
         Ok(())
-    }
-
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        self.downstream.query(key)
     }
 }
 
 impl Debug for Ipv4Session {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Ipv4Session")
-            .field("identifier", &self.id)
+            .field("addresses", &self.addresses)
             .finish()
     }
 }
 
 /// A set that uniquely identifies a given session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct SessionId {
+pub struct AddressPair {
     /// The local address
     pub local: Ipv4Address,
     /// The remote address
     pub remote: Ipv4Address,
 }
 
-impl SessionId {
-    pub fn new(local: Ipv4Address, remote: Ipv4Address) -> Self {
-        Self { local, remote }
+impl From<Endpoints> for AddressPair {
+    fn from(value: Endpoints) -> Self {
+        Self {
+            local: value.local.address,
+            remote: value.remote.address,
+        }
     }
 }

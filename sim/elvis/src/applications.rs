@@ -1,7 +1,5 @@
 //! User-level applications used to test protocols and networks.
 
-use elvis_core::Id;
-
 mod capture;
 pub use capture::Capture;
 
@@ -14,23 +12,16 @@ pub use socket_client::SocketClient;
 mod socket_server;
 pub use socket_server::SocketServer;
 
-mod socket_ping_client;
-pub use socket_ping_client::SocketPingClient;
-
-mod socket_pong_server;
-pub use socket_pong_server::SocketPongServer;
-
 mod forward;
 pub use forward::Forward;
+
+mod on_receive;
+pub use on_receive::OnReceive;
 
 mod ping_pong;
 pub use ping_pong::PingPong;
 
-mod ping_pong_multi;
-pub use ping_pong_multi::PingPongMulti;
-
-mod query_tester;
-pub use query_tester::QueryTester;
+pub mod dhcp;
 
 pub mod router;
 pub use router::Router;
@@ -40,16 +31,3 @@ pub use throughput_tester::ThroughputTester;
 
 mod wait_for_message;
 pub use wait_for_message::WaitForMessage;
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum Transport {
-    #[default]
-    Udp = 17,
-    Tcp = 6,
-}
-
-impl Transport {
-    pub fn id(&self) -> Id {
-        Id::new(*self as u64)
-    }
-}

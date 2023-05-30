@@ -1,11 +1,12 @@
 use crate::applications::{SendMessage, ThroughputTester};
 use elvis_core::{
+    machine::ProtocolMapBuilder,
     network::{Baud, NetworkBuilder, Throughput},
-    protocol::SharedProtocol,
+    new_machine,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
+        ipv4::{Ipv4, Recipient, Recipients},
         udp::Udp,
-        Pci,
+        Endpoint, Pci,
     },
     run_internet, Machine, Message,
 };
@@ -23,35 +24,34 @@ pub async fn throughput() {
     let network = NetworkBuilder::new()
         .throughput(Throughput::constant(Baud::bytes_per_second(MESSAGE_LENGTH)))
         .build();
-    let capture_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let ip_table: Recipients = [(capture_ip_address, Recipient::with_mac(0, 1))]
+    let endpoint = Endpoint::new([123, 45, 67, 89].into(), 0xbeef);
+    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
     let message = Message::new("Hello!");
     let messages: Vec<_> = (0..3).map(|_| message.clone()).collect();
     let machines = vec![
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            SendMessage::new(messages, capture_ip_address, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table).shared(),
-            Pci::new([network.clone()]).shared(),
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            SendMessage::new(messages, endpoint).process()
+        ],
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table),
+            Pci::new([network.clone()]),
             ThroughputTester::new(
-                capture_ip_address,
-                0xbeef,
+                endpoint,
                 3,
                 Duration::from_millis(900)..Duration::from_millis(1100),
             )
-            .shared(),
-        ]),
+            .process(),
+        ],
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 }
 
 #[cfg(test)]
