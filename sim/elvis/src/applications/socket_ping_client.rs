@@ -4,10 +4,11 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         sockets::{
-            socket::{ProtocolFamily, SocketAddress, SocketType},
+            socket::{ProtocolFamily, SocketType},
             Sockets,
         },
         user_process::{Application, ApplicationError, UserProcess},
+        utility::Endpoint,
     },
     Id, ProtocolMap, Shutdown,
 };
@@ -24,11 +25,7 @@ pub struct SocketPingClient {
 }
 
 impl SocketPingClient {
-    pub fn new(
-        sockets: Arc<Sockets>,
-        remote_ip: Ipv4Address,
-        remote_port: u16,
-    ) -> Self {
+    pub fn new(sockets: Arc<Sockets>, remote_ip: Ipv4Address, remote_port: u16) -> Self {
         Self {
             sockets,
             remote_ip,
@@ -68,7 +65,7 @@ impl Application for SocketPingClient {
             initialized.wait().await;
 
             // "Connect" the socket to a remote address
-            let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
+            let remote_sock_addr = Endpoint::new(remote_ip, remote_port);
             socket.clone().connect(remote_sock_addr).await.unwrap();
 
             // Send a message

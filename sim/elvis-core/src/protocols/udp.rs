@@ -6,7 +6,7 @@ use crate::{
     id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyType},
+    protocol::{Context, DemuxError, ListenError, NotifyType, OpenError, QueryError, StartError},
     protocols::ipv4::Ipv4,
     session::SharedSession,
     Control, FxDashMap, Protocol, Shutdown,
@@ -21,12 +21,12 @@ use udp_session::{SessionId, UdpSession};
 mod udp_parsing;
 use self::udp_parsing::UdpHeader;
 
-use super::{ipv4::Ipv4Address, utility::Socket};
+use super::{ipv4::Ipv4Address, utility::Endpoint};
 
 /// An implementation of the User Datagram Protocol.
 #[derive(Default, Clone)]
 pub struct Udp {
-    listen_bindings: FxDashMap<Socket, Id>,
+    listen_bindings: FxDashMap<Endpoint, Id>,
     sessions: FxDashMap<SessionId, Arc<UdpSession>>,
 }
 
@@ -78,7 +78,7 @@ impl Protocol for Udp {
         // of the higher-up protocols and we should crash. Therefore, unwrapping
         // is appropriate here.
         let identifier = SessionId::new(
-            Socket::new(
+            Endpoint::new(
                 Ipv4::get_local_address(&participants).map_err(|_| {
                     tracing::error!("Missing local address on context");
                     OpenError::MissingContext
@@ -88,7 +88,7 @@ impl Protocol for Udp {
                     OpenError::MissingContext
                 })?,
             ),
-            Socket::new(
+            Endpoint::new(
                 Ipv4::get_remote_address(&participants).map_err(|_| {
                     tracing::error!("Missing remote address on context");
                     OpenError::MissingContext
@@ -131,7 +131,7 @@ impl Protocol for Udp {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
-        let identifier = Socket {
+        let identifier = Endpoint {
             port: Self::get_local_port(&participants).map_err(|_| {
                 tracing::error!("Missing local port on context");
                 ListenError::MissingContext
@@ -182,8 +182,8 @@ impl Protocol for Udp {
 
         // Use the context and the header information to identify the session
         let session_id = SessionId::new(
-            Socket::new(local_address, header.destination),
-            Socket::new(remote_address, header.source),
+            Endpoint::new(local_address, header.destination),
+            Endpoint::new(remote_address, header.source),
         );
 
         // Add the header information to the context
@@ -195,7 +195,7 @@ impl Protocol for Udp {
             Entry::Vacant(session_entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
-                let listen_id = Socket {
+                let listen_id = Endpoint {
                     address: local_address,
                     port: session_id.local.port,
                 };
@@ -204,7 +204,7 @@ impl Protocol for Udp {
                     None => {
                         // If we don't have a normal listen binding, check for
                         // a 0.0.0.0 binding
-                        let any_listen_id = Socket {
+                        let any_listen_id = Endpoint {
                             address: Ipv4Address::CURRENT_NETWORK,
                             port: session_id.local.port,
                         };
@@ -249,7 +249,5 @@ impl Protocol for Udp {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {
-        
-    }
+    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {}
 }

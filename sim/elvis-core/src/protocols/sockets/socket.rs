@@ -2,7 +2,7 @@ use super::Sockets;
 use crate::{
     message::Chunk,
     protocol::{Context, DemuxError, NotifyType},
-    protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
+    protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp, utility::Endpoint},
     session::SharedSession,
     Control, Id, Message, ProtocolMap, Shutdown,
 };
@@ -18,15 +18,15 @@ use tokio::{select, sync::Notify};
 pub struct Socket {
     pub family: ProtocolFamily,
     pub sock_type: SocketType,
-    fd: Id,
+    pub fd: Id,
     is_active: RwLock<bool>,
     is_bound: RwLock<bool>,
     is_listening: RwLock<bool>,
     is_blocking: RwLock<bool>,
-    local_addr: RwLock<Option<SocketAddress>>,
-    remote_addr: RwLock<Option<SocketAddress>>,
+    local_addr: RwLock<Option<Endpoint>>,
+    remote_addr: RwLock<Option<Endpoint>>,
     session: Arc<RwLock<Option<SharedSession>>>,
-    listen_addresses: Arc<RwLock<VecDeque<SocketAddress>>>,
+    listen_addresses: Arc<RwLock<VecDeque<Endpoint>>>,
     listen_backlog: RwLock<usize>,
     notify_listen: Notify,
     messages: Arc<RwLock<VecDeque<Message>>>,
@@ -34,12 +34,6 @@ pub struct Socket {
     protocols: ProtocolMap,
     socket_api: Arc<Sockets>,
     shutdown: Shutdown,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum NotifyResult {
-    Notified,
-    Shutdown,
 }
 
 impl Socket {
@@ -73,7 +67,7 @@ impl Socket {
         }
     }
 
-    pub(super) fn add_listen_address(&self, remote_address: SocketAddress) {
+    pub(super) fn add_listen_address(&self, remote_address: Endpoint) {
         let backlog = *self.listen_backlog.read().unwrap();
         if backlog == 0 || self.listen_addresses.read().unwrap().len() <= backlog {
             self.listen_addresses
@@ -113,7 +107,7 @@ impl Socket {
 
     /// Assigns a remote ip address and port to a socket and connects the socket
     /// to that endpoint
-    pub async fn connect(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub async fn connect(&self, sock_addr: Endpoint) -> Result<(), SocketError> {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected. Also, a listening
         // socket cannot connect to a remote endpoint
@@ -130,14 +124,7 @@ impl Socket {
         // Sockets API to retreive a socket_session
         let mut participants = Control::new();
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
-            match local_addr.address {
-                IpAddress::IPv4(addr) => {
-                    Ipv4::set_local_address(addr, &mut participants);
-                }
-                IpAddress::IPv6() => {
-                    todo!();
-                }
-            }
+            Ipv4::set_local_address(local_addr.address, &mut participants);
             match self.sock_type {
                 SocketType::Datagram => {
                     Udp::set_local_port(local_addr.port, &mut participants);
@@ -148,14 +135,7 @@ impl Socket {
             }
         }
         if let Some(remote_addr) = *self.remote_addr.read().unwrap() {
-            match remote_addr.address {
-                IpAddress::IPv4(addr) => {
-                    Ipv4::set_remote_address(addr, &mut participants);
-                }
-                IpAddress::IPv6() => {
-                    todo!();
-                }
-            }
+            Ipv4::set_remote_address(remote_addr.address, &mut participants);
             match self.sock_type {
                 SocketType::Datagram => {
                     Udp::set_remote_port(remote_addr.port, &mut participants);
@@ -186,19 +166,13 @@ impl Socket {
     }
 
     /// Assigns a local ip address and port to a socket
-    pub fn bind(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub fn bind(&self, sock_addr: Endpoint) -> Result<(), SocketError> {
         match self.family {
             ProtocolFamily::LOCAL => {
                 return Err(SocketError::BindError);
             }
-            ProtocolFamily::INET => match sock_addr.address {
-                IpAddress::IPv4(_v) => *self.local_addr.write().unwrap() = Some(sock_addr),
-                IpAddress::IPv6() => return Err(SocketError::BindError),
-            },
-            ProtocolFamily::INET6 => match sock_addr.address {
-                IpAddress::IPv4(_v) => return Err(SocketError::BindError),
-                IpAddress::IPv6() => *self.local_addr.write().unwrap() = Some(sock_addr),
-            },
+            ProtocolFamily::INET => { *self.local_addr.write().unwrap() = Some(sock_addr) },
+            ProtocolFamily::INET6 => { return Err(SocketError::BindError) },
         }
         *self.is_bound.write().unwrap() = true;
         Ok(())
@@ -216,14 +190,7 @@ impl Socket {
         }
         let mut participants = Control::new();
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
-            match local_addr.address {
-                IpAddress::IPv4(addr) => {
-                    Ipv4::set_local_address(addr, &mut participants);
-                }
-                IpAddress::IPv6() => {
-                    todo!();
-                }
-            }
+            Ipv4::set_local_address(local_addr.address, &mut participants);
             match self.sock_type {
                 SocketType::Datagram => {
                     Udp::set_local_port(local_addr.port, &mut participants);
@@ -264,8 +231,8 @@ impl Socket {
             .socket_api
             .new_socket(self.family, self.sock_type, self.protocols.clone())
             .await?;
-        let local_addr = SocketAddress {
-            address: self.socket_api.get_local_ipv4()?,
+        let local_addr = Endpoint {
+            address: self.socket_api.get_local_ip()?,
             port: self.local_addr.read().unwrap().unwrap().port,
         };
         new_sock.bind(local_addr)?;
@@ -376,6 +343,12 @@ impl Socket {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum NotifyResult {
+    Notified,
+    Shutdown,
+}
+
 #[derive(Debug, ThisError, Clone, PartialEq, Eq)]
 pub enum SocketError {
     #[error("Bind error")]
@@ -421,63 +394,63 @@ pub enum SocketType {
     Datagram,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum IpAddress {
-    IPv4(Ipv4Address),
-    IPv6(),
-}
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// pub enum IpAddress {
+//     IPv4(Ipv4Address),
+//     IPv6(),
+// }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SocketAddress {
-    pub address: IpAddress,
-    pub port: u16,
-}
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// pub struct Endpoint {
+//     pub address: IpAddress,
+//     pub port: u16,
+// }
 
-impl SocketAddress {
-    pub fn new(address: IpAddress, port: u16) -> SocketAddress {
-        match address {
-            IpAddress::IPv4(addr) => SocketAddress::new_v4(addr, port),
-            IpAddress::IPv6() => todo!(),
-        }
-    }
+// impl Endpoint {
+//     pub fn new(address: IpAddress, port: u16) -> Endpoint {
+//         match address {
+//             IpAddress::IPv4(addr) => Endpoint::new_v4(addr, port),
+//             IpAddress::IPv6() => todo!(),
+//         }
+//     }
 
-    pub fn new_v4(address: Ipv4Address, port: u16) -> SocketAddress {
-        Self {
-            address: IpAddress::IPv4(address),
-            port,
-        }
-    }
+//     pub fn new_v4(address: Ipv4Address, port: u16) -> Endpoint {
+//         Self {
+//             address: IpAddress::IPv4(address),
+//             port,
+//         }
+//     }
 
-    pub fn new_v6(port: u16) -> SocketAddress {
-        Self {
-            address: IpAddress::IPv6(),
-            port,
-        }
-    }
-}
+//     pub fn new_v6(port: u16) -> Endpoint {
+//         Self {
+//             address: IpAddress::IPv6(),
+//             port,
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SocketId {
-    pub local_address: SocketAddress,
-    pub remote_address: SocketAddress,
+    pub local_address: Endpoint,
+    pub remote_address: Endpoint,
 }
 
 impl SocketId {
     pub fn new(
-        local_address: IpAddress,
+        local_address: Ipv4Address,
         local_port: u16,
-        remote_address: IpAddress,
+        remote_address: Ipv4Address,
         remote_port: u16,
     ) -> SocketId {
         Self {
-            local_address: SocketAddress::new(local_address, local_port),
-            remote_address: SocketAddress::new(remote_address, remote_port),
+            local_address: Endpoint::new(local_address, local_port),
+            remote_address: Endpoint::new(remote_address, remote_port),
         }
     }
 
     pub fn new_from_addresses(
-        local_address: SocketAddress,
-        remote_address: SocketAddress,
+        local_address: Endpoint,
+        remote_address: Endpoint,
     ) -> SocketId {
         Self {
             local_address,
@@ -487,10 +460,10 @@ impl SocketId {
 
     pub fn new_from_context(context: Context) -> Result<SocketId, DemuxError> {
         Ok(SocketId::new(
-            IpAddress::IPv4(Ipv4::get_local_address(&context.control).map_err(|_| {
+            Ipv4::get_local_address(&context.control).map_err(|_| {
                 tracing::error!("Missing local address on context");
                 DemuxError::MissingContext
-            })?),
+            })?,
             match Udp::get_local_port(&context.control) {
                 Ok(port) => port,
                 Err(_) => match Tcp::get_local_port(&context.control) {
@@ -501,10 +474,10 @@ impl SocketId {
                     }
                 },
             },
-            IpAddress::IPv4(Ipv4::get_remote_address(&context.control).map_err(|_| {
+            Ipv4::get_remote_address(&context.control).map_err(|_| {
                 tracing::error!("Missing remote address on context");
                 DemuxError::MissingContext
-            })?),
+            })?,
             match Udp::get_remote_port(&context.control) {
                 Ok(port) => port,
                 Err(_) => match Tcp::get_remote_port(&context.control) {

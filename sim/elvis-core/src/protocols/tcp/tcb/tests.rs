@@ -3,11 +3,11 @@
 use super::*;
 
 const PEER_A_ID: ConnectionId = ConnectionId {
-    local: Socket {
+    local: Endpoint {
         address: Ipv4Address::new([0, 0, 0, 0]),
         port: 0xcafe,
     },
-    remote: Socket {
+    remote: Endpoint {
         address: Ipv4Address::new([0, 0, 0, 1]),
         port: 0xdead,
     },
@@ -145,7 +145,7 @@ fn old_duplicate_syn() {
 
     // 3
     const GHOST_ID: ConnectionId = ConnectionId {
-        local: Socket {
+        local: Endpoint {
             address: Ipv4Address::new([123, 45, 67, 89]),
             port: 0xbabe,
         },

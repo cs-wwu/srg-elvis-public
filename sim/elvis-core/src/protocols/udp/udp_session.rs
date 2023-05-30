@@ -5,7 +5,7 @@ use crate::{
     logging::{receive_message_event, send_message_event},
     message::Message,
     protocol::{Context, DemuxError},
-    protocols::utility::Socket,
+    protocols::utility::Endpoint,
     session::{QueryError, SendError, SharedSession},
     Session,
 };
@@ -79,12 +79,12 @@ impl Debug for UdpSession {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct SessionId {
-    pub local: Socket,
-    pub remote: Socket,
+    pub local: Endpoint,
+    pub remote: Endpoint,
 }
 
 impl SessionId {
-    pub fn new(local: Socket, remote: Socket) -> Self {
+    pub fn new(local: Endpoint, remote: Endpoint) -> Self {
         Self { local, remote }
     }
 }

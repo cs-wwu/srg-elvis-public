@@ -1,7 +1,7 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError, SharedProtocol, NotifyType},
+    protocol::{Context, DemuxError, NotifyType, SharedProtocol},
     protocols::tcp::tcb::{AdvanceTimeResult, State},
     session::{QueryError, SendError, SharedSession},
     Id, Message, Session,
@@ -100,7 +100,6 @@ impl TcpSession {
                 }
 
                 for mut segment in tcb.segments() {
-                    // println!("TcpSession Sending Segment: {:?}", segment.text.to_vec());
                     segment.text.header(segment.header.serialize());
                     match downstream.send(segment.text, context.clone()) {
                         Ok(_) => {}
@@ -116,7 +115,6 @@ impl TcpSession {
                     }
                 }
             }
-            println!("TcpSession Closing");
         });
         out
     }
@@ -153,7 +151,6 @@ enum InstructionResult {
 
 impl Session for TcpSession {
     fn send(&self, message: Message, _context: Context) -> Result<(), SendError> {
-        println!("TcpSession Send: {:?}", std::str::from_utf8(&message.to_vec()));
         let send = self.send.clone();
         tokio::spawn(async move {
             match send.send(Instruction::Outgoing(message)).await {

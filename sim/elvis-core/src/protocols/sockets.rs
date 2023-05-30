@@ -1,19 +1,24 @@
 use crate::{
     control::{Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyType},
+    protocol::{Context, DemuxError, ListenError, NotifyType, OpenError, QueryError, StartError},
     protocols::{ipv4::Ipv4Address, Ipv4, Tcp, Udp},
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::{sync::{Arc, RwLock}, collections::VecDeque};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::{Barrier, Notify};
 
 pub mod socket;
-use socket::{IpAddress, ProtocolFamily, Socket, SocketAddress, SocketError, SocketId, SocketType};
+use socket::{ProtocolFamily, Socket, SocketError, SocketId, SocketType};
 
 mod socket_session;
 use socket_session::SocketSession;
+
+use super::utility::Endpoint;
 
 /// An implementation of the Sockets API
 ///
@@ -26,15 +31,12 @@ use socket_session::SocketSession;
 /// make applications easier to write
 #[derive(Default)]
 pub struct Sockets {
-    // TODO(giddinl2): This will be used once I figure out how to dynamically hand out unused ports
-    local_ipv4_address: Option<Ipv4Address>,
+    local_address: Option<Ipv4Address>,
     local_ports: RwLock<u16>,
-    // TODO(giddinl2): This will be added once IPv6 is implemented
-    // local_ipv6_address: Option<Ipv6Address>,
     fds: RwLock<u64>,
     sockets: Arc<FxDashMap<Id, Arc<Socket>>>,
     socket_sessions: FxDashMap<SocketId, Arc<SocketSession>>,
-    listen_bindings: FxDashMap<SocketAddress, Id>,
+    listen_bindings: FxDashMap<Endpoint, Id>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
 }
@@ -44,9 +46,9 @@ impl Sockets {
     pub const ID: Id = Id::from_string("Sockets");
 
     /// Creates a new instance of the protocol
-    pub fn new(local_ipv4_address: Option<Ipv4Address>) -> Self {
+    pub fn new(local_address: Option<Ipv4Address>) -> Self {
         Self {
-            local_ipv4_address,
+            local_address,
             local_ports: RwLock::new(49152),
             fds: RwLock::new(0),
             sockets: Default::default(),
@@ -92,9 +94,9 @@ impl Sockets {
         Ok(socket)
     }
 
-    fn get_local_ipv4(&self) -> Result<IpAddress, SocketError> {
-        match self.local_ipv4_address {
-            Some(v) => Ok(IpAddress::IPv4(v)),
+    fn get_local_ip(&self) -> Result<Ipv4Address, SocketError> {
+        match self.local_address {
+            Some(v) => Ok(v),
             None => Err(SocketError::Other),
         }
     }
@@ -105,19 +107,19 @@ impl Sockets {
         Ok(port)
     }
 
-    fn get_ephemeral_endpoint(&self) -> Result<SocketAddress, SocketError> {
-        Ok(SocketAddress {
-            address: self.get_local_ipv4()?,
+    fn get_ephemeral_endpoint(&self) -> Result<Endpoint, SocketError> {
+        Ok(Endpoint {
+            address: self.get_local_ip()?,
             port: self.get_ephemeral_port()?,
         })
     }
 
     fn get_socket_session(
         &self,
-        local: SocketAddress,
-        remote: SocketAddress,
+        local: Endpoint,
+        remote: Endpoint,
     ) -> Result<Arc<SocketSession>, SocketError> {
-        let listen_local = SocketAddress::new_v4(self.local_ipv4_address.unwrap(), local.port);
+        let listen_local = Endpoint::new(self.local_address.unwrap(), local.port);
         let listen_identifier = SocketId::new_from_addresses(listen_local, remote);
         let session = match self.socket_sessions.entry(listen_identifier) {
             Entry::Occupied(entry) => entry.remove(),
@@ -163,10 +165,10 @@ impl Protocol for Sockets {
             Entry::Vacant(_) => return Err(OpenError::MissingContext),
         };
         let identifier = SocketId::new(
-            IpAddress::IPv4(Ipv4::get_local_address(&participants).map_err(|_| {
+            Ipv4::get_local_address(&participants).map_err(|_| {
                 tracing::error!("Missing local address on context");
                 OpenError::MissingContext
-            })?),
+            })?,
             match sock.sock_type {
                 SocketType::Datagram => Udp::get_local_port(&participants),
                 SocketType::Stream => Tcp::get_local_port(&participants),
@@ -175,10 +177,10 @@ impl Protocol for Sockets {
                 tracing::error!("Missing local port on context");
                 OpenError::MissingContext
             })?,
-            IpAddress::IPv4(Ipv4::get_remote_address(&participants).map_err(|_| {
+            Ipv4::get_remote_address(&participants).map_err(|_| {
                 tracing::error!("Missing remote address on context");
                 OpenError::MissingContext
-            })?),
+            })?,
             match sock.sock_type {
                 SocketType::Datagram => Udp::get_remote_port(&participants),
                 SocketType::Stream => Tcp::get_remote_port(&participants),
@@ -222,7 +224,7 @@ impl Protocol for Sockets {
             Entry::Occupied(sock) => sock.get().clone(),
             Entry::Vacant(_) => return Err(ListenError::MissingContext),
         };
-        let identifier = SocketAddress::new_v4(
+        let identifier = Endpoint::new(
             Ipv4::get_local_address(&participants).map_err(|_| {
                 tracing::error!("Missing local address on context");
                 ListenError::MissingContext
@@ -256,9 +258,8 @@ impl Protocol for Sockets {
         context: Context,
     ) -> Result<(), DemuxError> {
         let identifier = SocketId::new_from_context(context)?;
-        println!("Sockets Demux: {:?}", std::str::from_utf8(&message.to_vec()));
         let any_identifier =
-            SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
+            Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
         match self.socket_sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone().receive(message)?,
             Entry::Vacant(entry) => {
@@ -274,7 +275,6 @@ impl Protocol for Sockets {
                             tracing::error!(
                                 "Tried to demux with a missing session and no listen bindings"
                             );
-                            println!("Error 1");
                             return Err(DemuxError::MissingSession)?;
                         }
                     },
@@ -282,7 +282,6 @@ impl Protocol for Sockets {
                 let socket = match self.sockets.entry(*binding) {
                     Entry::Occupied(sock) => sock.get().clone(),
                     Entry::Vacant(_) => {
-                        println!("Error 2");
                         return Err(DemuxError::MissingSession);
                     }
                 };
@@ -311,7 +310,7 @@ impl Protocol for Sockets {
             NotifyType::NewMessage => Err(DemuxError::Other)
         }) else { return };
         let any_identifier =
-            SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
+            Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
         match self.socket_sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone().connection_established(),
             Entry::Vacant(entry) => {
@@ -323,12 +322,16 @@ impl Protocol for Sockets {
                     // a 0.0.0.0 binding
                     None => match self.listen_bindings.get(&any_identifier) {
                         Some(any_listen_entry) => any_listen_entry,
-                        None => { return; }
+                        None => {
+                            return;
+                        }
                     },
                 };
                 let socket = match self.sockets.entry(*binding) {
                     Entry::Occupied(sock) => sock.get().clone(),
-                    Entry::Vacant(_) => { return; }
+                    Entry::Vacant(_) => {
+                        return;
+                    }
                 };
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(None),

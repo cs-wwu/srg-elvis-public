@@ -4,10 +4,11 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         sockets::{
-            socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
+            socket::{ProtocolFamily, Socket, SocketType},
             Sockets,
         },
         user_process::{Application, ApplicationError, UserProcess},
+        utility::Endpoint,
     },
     Id, ProtocolMap, Shutdown,
 };
@@ -45,7 +46,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 
     // Send a message
     let resp = "Major Tom to Ground Control";
-    println!("\nSERVER: Sending Response: {:?}", resp);
+    println!("SERVER: Sending Response: {:?}", resp);
     socket.send(resp).unwrap();
 
     // Receive a message (Also example usage of recv_msg)
@@ -76,7 +77,7 @@ impl Application for SocketServer {
                 .unwrap();
 
             // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
-            let local_sock_addr = SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, local_port);
+            let local_sock_addr = Endpoint::new(Ipv4Address::CURRENT_NETWORK, local_port);
             listen_socket.bind(local_sock_addr).unwrap();
 
             // Listen for incoming connections, with a maximum backlog of 10
@@ -104,7 +105,7 @@ impl Application for SocketServer {
                 // served, stops accepting new connections after the third,
                 // and shuts down the simulation once communication with
                 // the third has ended
-                if tasks.len() >= 1 {
+                if tasks.len() >= 3 {
                     while !tasks.is_empty() {
                         tasks.pop().unwrap().await.unwrap()
                     }

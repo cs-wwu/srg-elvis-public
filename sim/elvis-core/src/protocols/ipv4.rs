@@ -8,7 +8,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyType},
+    protocol::{Context, DemuxError, ListenError, NotifyType, OpenError, QueryError, StartError},
     protocols::pci::Pci,
     session::SharedSession,
     Control, FxDashMap, Network, Protocol, Shutdown,
@@ -236,9 +236,7 @@ impl Protocol for Ipv4 {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {
-        
-    }
+    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {}
 }
 
 pub type Recipients = FxHashMap<Ipv4Address, Recipient>;

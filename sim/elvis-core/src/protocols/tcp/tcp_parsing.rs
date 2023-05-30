@@ -416,7 +416,7 @@ impl std::fmt::Debug for Control {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocols::{tcp::ConnectionId, utility::Socket};
+    use crate::protocols::{tcp::ConnectionId, utility::Endpoint};
 
     const PAYLOAD: &[u8] = b"Hello, world!";
     const SRC_ADDRESS: Ipv4Address = Ipv4Address::LOCALHOST;
@@ -492,11 +492,11 @@ mod tests {
     #[test]
     fn builds_packet() {
         let id = ConnectionId {
-            local: Socket {
+            local: Endpoint {
                 address: Ipv4Address::LOCALHOST,
                 port: 0xcafe,
             },
-            remote: Socket {
+            remote: Endpoint {
                 address: Ipv4Address::SUBNET,
                 port: 0xbabe,
             },

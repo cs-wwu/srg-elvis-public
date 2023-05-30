@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     network::Mtu,
-    protocols::{ipv4::Ipv4Address, utility::Socket},
+    protocols::{ipv4::Ipv4Address, utility::Endpoint},
     Message,
 };
 use std::{collections::BinaryHeap, mem, time::Duration};
@@ -61,7 +61,7 @@ pub struct Tcb {
     /// The receive sequence space
     rcv: ReceiveSequenceSpace,
     /// Data and segments to be delivered to the remote TCP
-    outgoing: Outgoing,
+    pub outgoing: Outgoing,
     /// Segments and segment text received from the remote TCP
     incoming: Incoming,
     /// Segments received from the remote TCP that have not been processed
@@ -148,12 +148,10 @@ impl Tcb {
     /// Implements [section
     /// 3.10.2](https://www.rfc-editor.org/rfc/rfc9293.html#name-send-call).
     pub fn send(&mut self, message: Message) {
-        println!("Tcb Send: {:?}", std::str::from_utf8(&message.to_vec()));
         // 3.10.2 (Not compliant, doing things differently. We don't have a
         // retransmission queue.)
         match self.state {
             State::SynSent | State::SynReceived | State::Established => {
-                println!("Tcb Concatenating");
                 self.outgoing.text.concatenate(message);
             }
 
@@ -320,13 +318,6 @@ impl Tcb {
 
         if !out.is_empty() {
             self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
-        }
-
-        for segment in out.iter() {
-            println!("{:?}, {}", segment.header, segment.text.len());
-            if segment.text.len() > 0 {
-                println!("Segment Text: {:?}", std::str::from_utf8(&segment.text.to_vec()));
-            }
         }
 
         out
@@ -521,7 +512,7 @@ impl Tcb {
                     self.snd.wl2 = seg.ack;
                     if mod_gt(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
-                        self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+                        self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt).wnd(self.rcv.wnd));
                     } else {
                         self.state = State::SynReceived;
                         self.enqueue(
@@ -814,11 +805,11 @@ pub fn segment_arrives_listen(
         let rcv_nxt = seg.seq + 1;
         let mut tcb = Tcb::new(
             ConnectionId {
-                local: Socket {
+                local: Endpoint {
                     address: local,
                     port: seg.dst_port,
                 },
-                remote: Socket {
+                remote: Endpoint {
                     address: remote,
                     port: seg.src_port,
                 },

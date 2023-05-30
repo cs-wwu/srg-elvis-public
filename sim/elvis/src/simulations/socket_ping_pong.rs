@@ -69,10 +69,10 @@ pub async fn socket_ping_pong() {
     run_internet(machines, vec![network]).await;
 }
 
-// #[cfg(test)]
-// mod tests {
-//     #[tokio::test]
-//     async fn socket_ping_pong() {
-//         super::socket_ping_pong().await;
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn socket_ping_pong() {
+        super::socket_ping_pong().await;
+    }
+}

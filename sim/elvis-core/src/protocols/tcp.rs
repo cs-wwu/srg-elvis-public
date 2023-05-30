@@ -6,10 +6,10 @@ use self::{
     tcp_parsing::TcpHeader,
     tcp_session::TcpSession,
 };
-use super::{ipv4::Ipv4Address, utility::Socket, Ipv4, Pci};
+use super::{ipv4::Ipv4Address, utility::Endpoint, Ipv4, Pci};
 use crate::{
     control::{ControlError, Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, NotifyType},
+    protocol::{Context, DemuxError, ListenError, NotifyType, OpenError, QueryError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     session::SharedSession,
     Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown,
@@ -30,7 +30,7 @@ mod tcp_session;
 pub struct Tcp {
     /// A record of which protocol requested to listen for connections on
     /// particular sockets.
-    listen_bindings: FxDashMap<Socket, Id>,
+    listen_bindings: FxDashMap<Endpoint, Id>,
     /// A lookup table for sessions based on their endpoints.
     sessions: FxDashMap<ConnectionId, Arc<TcpSession>>,
 }
@@ -86,12 +86,12 @@ impl Protocol for Tcp {
         // of the higher-up protocols and we should crash. Therefore, unwrapping
         // is appropriate here.
 
-        let local = Socket {
+        let local = Endpoint {
             address: Ipv4::get_local_address(&participants).unwrap(),
             port: Self::get_local_port(&participants).unwrap(),
         };
 
-        let remote = Socket {
+        let remote = Endpoint {
             address: Ipv4::get_remote_address(&participants).unwrap(),
             port: Self::get_remote_port(&participants).unwrap(),
         };
@@ -139,7 +139,7 @@ impl Protocol for Tcp {
         // Add the listen binding. If any of the identifying information is
         // missing, that is a bug in the protocol that requested the listen and
         // we should crash. Unwrapping serves the purpose.
-        let socket = Socket {
+        let socket = Endpoint {
             port: Self::get_local_port(&participants).unwrap(),
             address: Ipv4::get_local_address(&participants).unwrap(),
         };
@@ -157,7 +157,6 @@ impl Protocol for Tcp {
         caller: SharedSession,
         mut context: Context,
     ) -> Result<(), DemuxError> {
-        // println!("TCP Demux");
         // Extract information from the context
         let local_address = Ipv4::get_local_address(&context.control).unwrap();
         let remote_address = Ipv4::get_remote_address(&context.control).unwrap();
@@ -168,17 +167,17 @@ impl Protocol for Tcp {
                 .map_err(|_| DemuxError::Header)?;
         message.remove_front(20);
 
-        let local = Socket {
+        let local = Endpoint {
             address: local_address,
             port: header.dst_port,
         };
 
-        let any_local = Socket {
+        let any_local = Endpoint {
             address: Ipv4Address::CURRENT_NETWORK,
             port: header.dst_port,
         };
 
-        let remote = Socket {
+        let remote = Endpoint {
             address: remote_address,
             port: header.src_port,
         };
@@ -277,23 +276,21 @@ impl Protocol for Tcp {
         Err(QueryError::NonexistentKey)
     }
 
-    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {
-        
-    }
+    fn notify(&self, _notification: NotifyType, _caller: SharedSession, _context: Context) {}
 }
 
 /// A pair of endpoints that uniquely identifies a TCP connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct ConnectionId {
     /// The local endpoint
-    pub local: Socket,
+    pub local: Endpoint,
     /// The remote endpoint
-    pub remote: Socket,
+    pub remote: Endpoint,
 }
 
 impl ConnectionId {
     /// Create a new connection ID from a pair of endpoints
-    pub fn new(local: Socket, remote: Socket) -> Self {
+    pub fn new(local: Endpoint, remote: Endpoint) -> Self {
         Self { local, remote }
     }
 

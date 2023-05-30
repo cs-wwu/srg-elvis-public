@@ -1,6 +1,4 @@
 //use elvis::cli::initialize_from_arguments;
-//use elvis::simulations::ping_pong_multi;
-//use elvis::simulations::socket_ping_pong;
 use elvis::simulations::socket_basic;
 use std::env;
 

@@ -4,10 +4,11 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         sockets::{
-            socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
+            socket::{ProtocolFamily, Socket, SocketType},
             Sockets,
         },
         user_process::{Application, ApplicationError, UserProcess},
+        utility::Endpoint,
     },
     Id, ProtocolMap, Shutdown,
 };
@@ -77,7 +78,7 @@ impl Application for SocketPongServer {
                 .unwrap();
 
             // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
-            let local_sock_addr = SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, local_port);
+            let local_sock_addr = Endpoint::new(Ipv4Address::CURRENT_NETWORK, local_port);
             listen_socket.clone().bind(local_sock_addr).unwrap();
 
             // Listen for incoming connections, with a maximum backlog of 10

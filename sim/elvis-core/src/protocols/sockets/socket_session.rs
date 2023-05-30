@@ -5,7 +5,10 @@ use crate::{
     session::{QueryError, SendError, SharedSession},
     Message, Session,
 };
-use std::{sync::{Arc, RwLock}, collections::VecDeque};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 
 pub(super) struct SocketSession {
     pub upstream: RwLock<Option<Arc<Socket>>>,
@@ -32,9 +35,8 @@ impl SocketSession {
                     sock.receive(queue.pop_front().unwrap())?;
                 }
                 Ok(())
-            },
+            }
             None => {
-                println!("Error 4");
                 Err(DemuxError::MissingSession)
             }
         }
@@ -50,7 +52,6 @@ impl SocketSession {
 
 impl Session for SocketSession {
     fn send(&self, message: Message, context: Context) -> Result<(), SendError> {
-        println!("SocketSession Send: {:?}", std::str::from_utf8(&message.to_vec()));
         self.downstream.send(message, context)
     }
 

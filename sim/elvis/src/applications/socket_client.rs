@@ -4,10 +4,11 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         sockets::{
-            socket::{ProtocolFamily, SocketAddress, SocketType},
+            socket::{ProtocolFamily, SocketType},
             Sockets,
         },
         user_process::{Application, ApplicationError, UserProcess},
+        utility::Endpoint,
     },
     Id, ProtocolMap, Shutdown,
 };
@@ -72,14 +73,14 @@ impl Application for SocketClient {
             initialized.wait().await;
 
             // "Connect" the socket to a remote address
-            let remote_sock_addr = SocketAddress::new_v4(remote_ip, remote_port);
+            let remote_sock_addr = Endpoint::new(remote_ip, remote_port);
             println!("CLIENT {}: Attempting to connect...", client_id);
             socket.connect(remote_sock_addr).await.unwrap();
             println!("CLIENT {}: Connected", client_id);
 
             // Send a message
             let req = "Ground Control to Major Tom";
-            println!("\nCLIENT {}: Sending Request: {:?}", client_id, req);
+            println!("CLIENT {}: Sending Request: {:?}", client_id, req);
             socket.send(req).unwrap();
 
             // Receive a message

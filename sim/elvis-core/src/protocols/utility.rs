@@ -69,12 +69,12 @@ impl Checksum {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Socket {
+pub struct Endpoint {
     pub address: Ipv4Address,
     pub port: u16,
 }
 
-impl Socket {
+impl Endpoint {
     pub fn new(address: Ipv4Address, port: u16) -> Self {
         Self { address, port }
     }
