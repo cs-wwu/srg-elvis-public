@@ -1,6 +1,6 @@
 use super::{
     ipv4::ipv4_parsing::Ipv4Header,
-    tcp,
+    tcp::{self, TcpHeader},
     udp::{self, UdpHeader},
     utility::Endpoint,
     Endpoints, Tcp,
@@ -183,12 +183,21 @@ impl Sockets {
         address: Endpoint,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
+        let sock = match self.sockets.entry(fd) {
+            Entry::Occupied(sock) => sock.get().clone(),
+            Entry::Vacant(_) => return Err(ListenError::NoSocketForFd(fd)),
+        };
         self.listen_bindings.insert(address, fd);
-        Ok(protocols
-            .protocol::<Udp>()
-            .expect("No such protocol")
-            // TODO(hardint): Fix when IPv6 is supported
-            .listen(TypeId::of::<Self>(), address, protocols)?)
+        match sock.sock_type {
+            SocketType::Datagram => Ok(protocols
+                .protocol::<Udp>()
+                .expect("No such protocol")
+                .listen(TypeId::of::<Self>(), address, protocols)?),
+            SocketType::Stream => Ok(protocols
+                .protocol::<Tcp>()
+                .expect("No such protocol")
+                .listen(TypeId::of::<Self>(), address, protocols)?),
+        }
     }
 }
 
@@ -221,13 +230,20 @@ impl Protocol for Sockets {
         control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let ipv4_header = control.get::<Ipv4Header>().unwrap();
-        let udp_header = control.get::<UdpHeader>().unwrap();
-        let identifier = Endpoints::new(
-            Endpoint::new(ipv4_header.destination, udp_header.destination),
-            Endpoint::new(ipv4_header.source, udp_header.source),
-        );
-        let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, udp_header.destination);
+        let identifier = match control.get::<UdpHeader>() {
+            Some(udp_header) => {
+                let ipv4_header = control.get::<Ipv4Header>().unwrap();
+                Endpoints::new(
+                    Endpoint::new(ipv4_header.destination, udp_header.destination),
+                    Endpoint::new(ipv4_header.source, udp_header.source),
+                )
+            }
+            None => match control.get::<Endpoints>() {
+                Some(endpoints) => *endpoints,
+                None => return Err(DemuxError::Header),
+            },
+        };
+        let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
         match self.socket_sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().receive(message)?,
             Entry::Vacant(entry) => {
@@ -272,13 +288,18 @@ impl Protocol for Sockets {
         match notification {
             NotifyType::NewConnection => {
                 let ipv4_header = control.get::<Ipv4Header>().unwrap();
-                let udp_header = control.get::<UdpHeader>().unwrap();
+                let (destination, source) = match control.get::<UdpHeader>() {
+                    Some(udp_header) => (udp_header.destination, udp_header.source),
+                    None => match control.get::<TcpHeader>() {
+                        Some(tcp_header) => (tcp_header.dst_port, tcp_header.src_port),
+                        None => return,
+                    },
+                };
                 let identifier = Endpoints::new(
-                    Endpoint::new(ipv4_header.destination, udp_header.destination),
-                    Endpoint::new(ipv4_header.source, udp_header.source),
+                    Endpoint::new(ipv4_header.destination, destination),
+                    Endpoint::new(ipv4_header.source, source),
                 );
-                let any_identifier =
-                    Endpoint::new(Ipv4Address::CURRENT_NETWORK, udp_header.destination);
+                let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, destination);
                 match self.socket_sessions.entry(identifier) {
                     Entry::Occupied(entry) => entry.get().clone().connection_established(),
                     Entry::Vacant(entry) => {
@@ -336,4 +357,6 @@ pub enum ListenError {
     Udp(#[from] udp::ListenError),
     #[error("{0}")]
     Tcp(#[from] tcp::ListenError),
+    #[error("There was no socket for the file descriptor {0}")]
+    NoSocketForFd(u64),
 }

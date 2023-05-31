@@ -19,14 +19,22 @@ pub struct SocketClient {
     remote_ip: Ipv4Address,
     /// The port to send to
     remote_port: u16,
+    /// Whether to use UDP or TCP
+    transport: SocketType,
 }
 
 impl SocketClient {
-    pub fn new(client_id: u16, remote_ip: Ipv4Address, remote_port: u16) -> Self {
+    pub fn new(
+        client_id: u16,
+        remote_ip: Ipv4Address,
+        remote_port: u16,
+        transport: SocketType,
+    ) -> Self {
         Self {
             client_id,
             remote_ip,
             remote_port,
+            transport,
         }
     }
 
@@ -50,11 +58,12 @@ impl Application for SocketClient {
         let remote_ip = self.remote_ip;
         let remote_port = self.remote_port;
         let client_id = self.client_id;
+        let transport = self.transport;
 
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
             let socket = sockets
-                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                .new_socket(ProtocolFamily::INET, transport, protocols)
                 .await
                 .unwrap();
 

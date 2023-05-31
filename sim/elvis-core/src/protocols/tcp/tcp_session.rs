@@ -2,7 +2,10 @@ use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     machine::ProtocolMap,
     protocol::DemuxError,
-    protocols::tcp::tcb::{AdvanceTimeResult, State},
+    protocols::{
+        tcp::tcb::{AdvanceTimeResult, State},
+        Endpoints,
+    },
     session::SendError,
     Control, Message, Protocol, Session,
 };
@@ -34,6 +37,7 @@ impl TcpSession {
         upstream: Arc<dyn Protocol>,
         downstream: Arc<dyn Session>,
         protocols: ProtocolMap,
+        endpoints: Endpoints,
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);
         let me = Arc::new(Self { send });
@@ -104,7 +108,9 @@ impl TcpSession {
 
                 let received = tcb.receive();
                 if !received.is_empty() {
-                    match upstream.demux(received, me.clone(), Control::new(), protocols.clone()) {
+                    let mut control = Control::new();
+                    control.insert(endpoints);
+                    match upstream.demux(received, me.clone(), control, protocols.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Demux error: {}", e),
                     }

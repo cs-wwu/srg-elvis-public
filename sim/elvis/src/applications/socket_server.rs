@@ -16,11 +16,16 @@ use tokio::sync::Barrier;
 pub struct SocketServer {
     /// The port to capture a message on
     local_port: u16,
+    /// Whether to use UDP or TCP
+    transport: SocketType,
 }
 
 impl SocketServer {
-    pub fn new(local_port: u16) -> Self {
-        Self { local_port }
+    pub fn new(local_port: u16, transport: SocketType) -> Self {
+        Self {
+            local_port,
+            transport,
+        }
     }
 
     pub fn process(self) -> UserProcess<Self> {
@@ -61,11 +66,12 @@ impl Application for SocketServer {
             .protocol::<Sockets>()
             .ok_or(ApplicationError::MissingProtocol(TypeId::of::<Sockets>()))?;
         let local_port = self.local_port;
+        let transport = self.transport;
 
         tokio::spawn(async move {
             // Create a new IPv4 Datagram Socket
             let listen_socket = sockets
-                .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                .new_socket(ProtocolFamily::INET, transport, protocols)
                 .await
                 .unwrap();
 
