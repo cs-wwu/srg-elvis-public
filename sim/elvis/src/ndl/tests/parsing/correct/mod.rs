@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 #[test]
 fn basic() {
-    let result = core_parser(include_str!("basic.txt"));
+    let result = core_parser(include_str!("basic.ndl"));
     let s = Sim {
         networks: HashMap::from([
             (
@@ -90,7 +90,7 @@ fn basic() {
 
 #[test]
 fn new_line() {
-    let result = core_parser(include_str!("new_line.txt"));
+    let result = core_parser(include_str!("new_line.ndl"));
     let s = Sim {
         networks: HashMap::from([
             (

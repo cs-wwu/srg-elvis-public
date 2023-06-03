@@ -5,7 +5,7 @@ use crate::ndl::core_parser;
 
 #[test]
 fn duplicate_argument() {
-    let result = core_parser(include_str!("duplicate_argument.txt"));
+    let result = core_parser(include_str!("duplicate_argument.ndl"));
     match result {
         Ok(_s) => {
             panic!();
