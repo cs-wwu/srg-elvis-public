@@ -88,7 +88,7 @@ fn invalid_protocols_type() {
 }
 
 #[test]
-fn parsing_machine_fail_invalid_protocol_type() {
+fn invalid_protocol_type() {
     let result = core_parser(include_str!("invalid_protocol_type.txt"));
     let s = "Line 9: Unable to parse inside of Machines due to: \n\tLine 10: Unable to parse inside of Machine due to: \n\t\t\t\tLine 13: Unable to parse inside of Protocols due to: \n\t\t\tLine 14: expected type Protocol and got type Protocols instead.\n\n";
     match result {
@@ -158,7 +158,7 @@ fn invalid_protocol_args() {
 }
 
 #[test]
-fn machine_fail_invalid_application_args() {
+fn invalid_application_args() {
     let result = core_parser(include_str!("invalid_application_args.txt"));
     let s = "Line 8: Unable to parse inside of Machines due to: \n\tLine 9: Unable to parse inside of Machine due to: \n\t\tLine 16: Unable to parse inside of Applications due to: \n\t\t\tLine 17: extra argument at ' name='send_message'' message='Hello this is an awesome test message!' to='recv1' port='0xbeef''\n\n";
     match result {

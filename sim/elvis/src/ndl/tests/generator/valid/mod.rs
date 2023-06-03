@@ -11,30 +11,30 @@ async fn message() {
 
 #[tokio::test]
 #[ntest::timeout(100)]
-async fn basic_forward_valid_test() {
+async fn forward() {
     generate_and_run_sim(include_str!("forward.txt")).await;
 }
 
 #[tokio::test]
 #[ntest::timeout(100)]
-async fn basic_pingpong_valid_test() {
+async fn pingpong() {
     generate_and_run_sim(include_str!("pingpong.txt")).await;
 }
 
 #[tokio::test]
 #[ntest::timeout(100)]
-async fn basic_message_ip_valid_test() {
+async fn message_ip() {
     generate_and_run_sim(include_str!("message_ip.txt")).await;
 }
 
 #[tokio::test]
 #[ntest::timeout(100)]
-async fn basic_forward_ip_valid_test() {
+async fn forward_ip() {
     generate_and_run_sim(include_str!("forward_ip.txt")).await;
 }
 
 #[tokio::test]
 #[ntest::timeout(100)]
-async fn basic_pingpong_ip_valid_test() {
+async fn pingpong_ip() {
     generate_and_run_sim(include_str!("pingpong_ip.txt")).await;
 }
