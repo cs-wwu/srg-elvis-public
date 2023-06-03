@@ -1,6 +1,8 @@
 //! Tests for valid parsing
-use elvis::ndl::core_parser;
-use elvis::ndl::parsing::parsing_data::*;
+#![cfg(test)]
+
+use crate::ndl::core_parser;
+use crate::ndl::parsing::parsing_data::*;
 use std::collections::HashMap;
 
 /// main wrapper for parsing testing.

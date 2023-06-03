@@ -1,5 +1,7 @@
 //! Tests on generator machine functions
-use elvis::ndl::generate_and_run_sim;
+#![cfg(test)]
+
+use crate::ndl::generate_and_run_sim;
 
 /// Catches an intended panic
 /// used for when a test should fail as intended

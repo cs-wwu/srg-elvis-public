@@ -1,5 +1,7 @@
 //! Tests on the NDL generator, for valid tests
-use elvis::ndl::generate_and_run_sim;
+#![cfg(test)]
+
+use crate::ndl::generate_and_run_sim;
 
 #[tokio::test]
 #[ntest::timeout(100)]

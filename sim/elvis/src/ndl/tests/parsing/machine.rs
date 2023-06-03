@@ -1,10 +1,13 @@
 //! Tests for machine parsing
-use elvis::ndl::core_parser;
-use elvis::ndl::parsing::parsing_data::*;
+#![cfg(test)]
+
+use crate::ndl::core_parser;
+use crate::ndl::parsing::parsing_data::*;
 
 fn parser_testing(file_path: &str) -> Result<Sim, String> {
     core_parser(file_path.to_string())
 }
+
 #[test]
 fn parsing_machine_fail_no_applications() {
     let result = parser_testing("./tests/parsing_tests/machine_fail_no_applications.txt");
