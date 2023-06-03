@@ -3,18 +3,14 @@ use super::machines_parser;
 use super::networks_parser;
 use super::num_tabs_to_string;
 use super::parsing_data::*;
-use std::fs;
 
 /// This is the core parsing logic that runs through our input file.
 ///
 /// Takes in a string of the contents of the file and the file path of that file.
 /// Returns the resulting sim, or an error message.
 // TODO: make it so we only have to pass a file path through to this function
-pub fn core_parser(file_path: String) -> Result<Sim, String> {
-    let s = fs::read_to_string(&file_path)
-        .expect("Should have been able to read the file")
-        .replace('\r', "")
-        .replace("    ", "\t");
+pub fn core_parser(ndl: &str) -> Result<Sim, String> {
+    let s = ndl.replace('\r', "").replace("    ", "\t");
     let mut networks = Networks::new();
     let mut machines = Machines::new();
 
@@ -45,14 +41,14 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                                 remaining_string = n.1;
                                 for new_nets in n.0 {
                                     if networks.contains_key(&new_nets.0) {
-                                        return Err(format!("Errors at {}:\n\n{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", file_path, num_tabs_to_string(num_tabs), line_num, new_nets.0));
+                                        return Err(format!("{}Line {:?}: Unable to insert Network into Networks due to duplicate id: {}", num_tabs_to_string(num_tabs), line_num, new_nets.0));
                                     }
                                     networks.insert(new_nets.0, new_nets.1);
                                 }
                             }
 
                             Err(e) => {
-                                return Err(format!("Errors at {file_path}:\n\n{e}\n"));
+                                return Err(format!("{e}\n"));
                             }
                         }
                     }
@@ -73,14 +69,13 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
                             }
 
                             Err(e) => {
-                                return Err(format!("Errors at {file_path}:\n\n{e}\n"));
+                                return Err(format!("{e}\n"));
                             }
                         }
                     }
                     _ => {
                         return Err(format!(
-                            "Errors at {}:\n\nLine {}: Cannot declare {:?} here.\n\n",
-                            file_path,
+                            "Line {}: Cannot declare {:?} here.\n\n",
                             line_num - 1,
                             dectype
                         ));
@@ -89,7 +84,7 @@ pub fn core_parser(file_path: String) -> Result<Sim, String> {
             }
 
             Err(e) => {
-                return Err(format!("Errors at {file_path}:\n\n{e}"));
+                return Err(format!("{e}"));
             }
         }
     }

@@ -5,14 +5,9 @@ use crate::ndl::core_parser;
 use crate::ndl::parsing::parsing_data::*;
 use std::collections::HashMap;
 
-/// main wrapper for parsing testing.
-pub fn parser_testing(file_path: &str) -> Result<Sim, String> {
-    core_parser(file_path.to_string())
-}
-
 #[test]
-fn parsing_correct() {
-    let result = parser_testing("./tests/parsing_tests/basic_correct_1.txt");
+fn basic() {
+    let result = core_parser(include_str!("basic.txt"));
     let s = Sim {
         networks: HashMap::from([
             (
@@ -94,8 +89,8 @@ fn parsing_correct() {
 }
 
 #[test]
-fn parsing_correct_new_line() {
-    let result = parser_testing("./tests/parsing_tests/basic_correct_new_line.txt");
+fn new_line() {
+    let result = core_parser(include_str!("new_line.txt"));
     let s = Sim {
         networks: HashMap::from([
             (

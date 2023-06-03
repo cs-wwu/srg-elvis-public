@@ -37,7 +37,14 @@ pub async fn initialize_from_arguments() {
         if !file_path.ends_with(".ndl") {
             file_path += ".ndl";
         }
-        generate_and_run_sim(file_path).await;
+        let ndl = match std::fs::read_to_string(file_path) {
+            Ok(ndl) => ndl,
+            Err(e) => {
+                eprintln!("Failed to read NDL file: {e}");
+                return;
+            }
+        };
+        generate_and_run_sim(&ndl).await;
     }
 }
 

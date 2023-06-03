@@ -6,8 +6,8 @@ use super::parsing::parser::core_parser;
 /// Main wrapper for parsing and generating the sim.
 /// Currently accepts file paths in string form
 /// While this technically runs the sim, the sim is started and run inside [core_generator]
-pub async fn generate_and_run_sim(file_path: String) {
-    let res = core_parser(file_path);
+pub async fn generate_and_run_sim(ndl: &str) {
+    let res = core_parser(ndl);
     match res {
         Ok(s) => {
             core_generator(s).await;
