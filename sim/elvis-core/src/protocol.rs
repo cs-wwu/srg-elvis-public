@@ -14,7 +14,6 @@ use tokio::sync::Barrier;
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
-#[async_trait::async_trait]
 pub trait Protocol: Send + Sync + 'static {
     fn id(&self) -> TypeId;
 
@@ -28,7 +27,7 @@ pub trait Protocol: Send + Sync + 'static {
     /// are ready to receive the message. Implementors may also store the
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
-    async fn start(
+    fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,

@@ -186,13 +186,12 @@ impl Sockets {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Sockets {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
 
-    async fn start(
+    fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -200,7 +199,9 @@ impl Protocol for Sockets {
     ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
         self.notify_init.notify_one();
-        initialized.wait().await;
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
         Ok(())
     }
 

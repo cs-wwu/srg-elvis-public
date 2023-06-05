@@ -92,13 +92,13 @@ impl Ipv4 {
 
 // TODO(hardint): Add a static IP lookup table in the constructor so that
 // messages can be sent to the correct network
-#[async_trait::async_trait]
+
 impl Protocol for Ipv4 {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
 
-    async fn start(
+    fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,

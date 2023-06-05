@@ -85,7 +85,6 @@ impl Udp {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Udp {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
@@ -151,13 +150,15 @@ impl Protocol for Udp {
         Ok(())
     }
 
-    async fn start(
+    fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        initialized.wait().await;
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
         Ok(())
     }
 }

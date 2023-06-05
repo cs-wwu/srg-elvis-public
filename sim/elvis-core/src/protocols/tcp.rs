@@ -86,7 +86,6 @@ impl Tcp {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Tcp {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
@@ -188,13 +187,15 @@ impl Protocol for Tcp {
         Ok(())
     }
 
-    async fn start(
+    fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        initialized.wait().await;
+        tokio::spawn(async move {
+            initialized.wait().await;
+        });
         Ok(())
     }
 }
