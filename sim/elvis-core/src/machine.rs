@@ -93,15 +93,28 @@ impl Machine {
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub(crate) fn start(&self, shutdown: Shutdown, initialized: Arc<Barrier>) {
+    pub(crate) async fn start(&self, shutdown: Shutdown, initialized: Arc<Barrier>) {
+        let mut handles = Vec::new();
         for protocol in self.protocols.iter() {
-            protocol
-                .start(
-                    shutdown.clone(),
-                    initialized.clone(),
-                    self.protocols.clone(),
-                )
-                .expect("A protocol failed to start")
+            let shutdown_clone = shutdown.clone();
+            let initialized_clone = initialized.clone();
+            let protocols_clone = self.protocols.clone();
+            let future = async move {
+                protocol
+                    .start(shutdown_clone, initialized_clone, protocols_clone)
+                    .await
+            };
+
+            let future = tokio::spawn(future);
+            handles.push(future);
+        }
+
+        // wait for all starts to finish
+        for handle in handles.into_iter() {
+            handle
+                .await
+                .expect("start method should not panic!")
+                .expect("machines should be configured to start successfully");
         }
     }
 

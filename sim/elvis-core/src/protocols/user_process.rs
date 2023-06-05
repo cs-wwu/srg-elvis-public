@@ -18,10 +18,11 @@ use tracing::error;
 /// [`Session`](crate::Session). It runs when messages come in over the
 /// network or when the containing machine awakens the
 /// application to give it time to run.
+#[async_trait::async_trait]
 pub trait Application {
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialize: Arc<Barrier>,
@@ -80,6 +81,7 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
     }
 }
 
+#[async_trait::async_trait]
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
@@ -97,13 +99,15 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
         Ok(())
     }
 
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        self.application.start(shutdown, initialized, protocols)?;
+        self.application
+            .start(shutdown, initialized, protocols)
+            .await?;
         Ok(())
     }
 }
