@@ -46,17 +46,19 @@ impl Ipv4 {
         }
     }
 
-    pub fn open_and_listen(
+    pub async fn open_and_listen(
         &self,
         upstream: TypeId,
         endpoints: AddressPair,
         protocols: ProtocolMap,
     ) -> Result<Arc<Ipv4Session>, OpenAndListenError> {
         self.listen(upstream, endpoints.local)?;
-        Ok(self.open_for_sending(upstream, endpoints, protocols)?)
+        Ok(self
+            .open_for_sending(upstream, endpoints, protocols)
+            .await?)
     }
 
-    pub fn open_for_sending(
+    pub async fn open_for_sending(
         &self,
         upstream: TypeId,
         endpoints: AddressPair,
@@ -92,13 +94,13 @@ impl Ipv4 {
 
 // TODO(hardint): Add a static IP lookup table in the constructor so that
 // messages can be sent to the correct network
-
+#[async_trait::async_trait]
 impl Protocol for Ipv4 {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
 
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,

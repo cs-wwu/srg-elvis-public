@@ -139,7 +139,7 @@ impl Sockets {
 
     /// Called from Socket::connect() and Socket::accept()
     /// Creates a new socket_session based on IP address and port and returns it
-    pub fn open_with_fd(
+    pub async fn open_with_fd(
         &self,
         fd: u64,
         socket_id: SocketId,
@@ -151,12 +151,16 @@ impl Sockets {
                 Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
-                let downstream = protocols.protocol::<Udp>().unwrap().open_and_listen(
-                    TypeId::of::<Self>(),
-                    // TODO(hardint): Fix when IPv6 is supported
-                    socket_id.try_into().unwrap(),
-                    protocols,
-                )?;
+                let downstream = protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .open_and_listen(
+                        TypeId::of::<Self>(),
+                        // TODO(hardint): Fix when IPv6 is supported
+                        socket_id.try_into().unwrap(),
+                        protocols,
+                    )
+                    .await?;
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(Some(match self.sockets.entry(fd) {
                         Entry::Occupied(sock) => sock.get().clone(),
@@ -186,12 +190,13 @@ impl Sockets {
     }
 }
 
+#[async_trait::async_trait]
 impl Protocol for Sockets {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
 
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -199,9 +204,7 @@ impl Protocol for Sockets {
     ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
         self.notify_init.notify_one();
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
         Ok(())
     }
 

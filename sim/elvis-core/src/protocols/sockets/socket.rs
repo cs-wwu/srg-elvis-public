@@ -120,7 +120,7 @@ impl Socket {
 
     /// Assigns a remote ip address and port to a socket and connects the socket
     /// to that endpoint
-    pub fn connect(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub async fn connect(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected. Also, a listening
         // socket cannot connect to a remote endpoint
@@ -135,10 +135,9 @@ impl Socket {
         *self.remote_addr.write().unwrap() = Some(sock_addr);
         // Gather the necessary data to open a session and pass it on to the
         // Sockets API to retreive a socket_session
-        if let (Some(local), Some(remote)) = (
-            *self.local_addr.read().unwrap(),
-            *self.remote_addr.read().unwrap(),
-        ) {
+        let local_op = *self.local_addr.read().unwrap(); 
+        let remote_op = *self.remote_addr.read().unwrap();
+        if let (Some(local), Some(remote)) = (local_op, remote_op) {
             let session = match self
                 .protocols
                 .protocol::<Sockets>()
@@ -147,7 +146,9 @@ impl Socket {
                     self.fd,
                     SocketId::new_from_addresses(local, remote),
                     self.protocols.clone(),
-                ) {
+                )
+                .await
+            {
                 Ok(v) => v,
                 Err(_) => return Err(SocketError::ConnectError),
             };

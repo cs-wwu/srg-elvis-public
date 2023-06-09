@@ -46,51 +46,51 @@ impl DhcpClient {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for DhcpClient {
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
         let server_ip = self.server_ip;
-        tokio::spawn(async move {
-            // Wait on initialization before sending any message across the network
-            initialized.wait().await;
+        // Wait on initialization before sending any message across the network
+        initialized.wait().await;
 
-            // NOTE(hardint):
-            //
-            // The problem I'm having using sockets here at the moment is that the connect method
-            // expects that we already have a local address. The tests were specifying a local
-            // address for sockets in the constructor, but that doesn't really make sense for the
-            // test since that's what DHCP is supposed to be doing. I don't think that sockets is
-            // the right interface for this protocol. According to ChatGPT, we should use UDP with
-            // a local address of 0.0.0.0, port 68 for the client, and port 67 for the server. Some
-            // unwraps in here can probably be handled better.
+        // NOTE(hardint):
+        //
+        // The problem I'm having using sockets here at the moment is that the connect method
+        // expects that we already have a local address. The tests were specifying a local
+        // address for sockets in the constructor, but that doesn't really make sense for the
+        // test since that's what DHCP is supposed to be doing. I don't think that sockets is
+        // the right interface for this protocol. According to ChatGPT, we should use UDP with
+        // a local address of 0.0.0.0, port 68 for the client, and port 67 for the server. Some
+        // unwraps in here can probably be handled better.
 
-            let sockets = Endpoints {
-                local: Endpoint {
-                    address: Ipv4Address::new([0, 0, 0, 0]),
-                    port: 68,
-                },
-                remote: Endpoint {
-                    address: server_ip,
-                    port: 67,
-                },
-            };
-            let udp = protocols
-                .protocol::<Udp>()
-                .unwrap()
-                .open_and_listen(
-                    TypeId::of::<UserProcess<Self>>(),
-                    sockets,
-                    protocols.clone(),
-                )
-                .unwrap();
-            let response = DhcpMessage::default();
-            let response_message = DhcpMessage::to_message(response).unwrap();
-            udp.send(response_message, protocols).unwrap();
-        });
+        let sockets = Endpoints {
+            local: Endpoint {
+                address: Ipv4Address::new([0, 0, 0, 0]),
+                port: 68,
+            },
+            remote: Endpoint {
+                address: server_ip,
+                port: 67,
+            },
+        };
+        let udp = protocols
+            .protocol::<Udp>()
+            .unwrap()
+            .open_and_listen(
+                TypeId::of::<UserProcess<Self>>(),
+                sockets,
+                protocols.clone(),
+            )
+            .await
+            .unwrap();
+        let response = DhcpMessage::default();
+        let response_message = DhcpMessage::to_message(response).unwrap();
+        udp.send(response_message, protocols).unwrap();
         Ok(())
     }
 

@@ -63,8 +63,9 @@ impl WaitForMessage {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for WaitForMessage {
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -87,9 +88,8 @@ impl Application for WaitForMessage {
                     .unwrap();
             }
         }
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
+
         Ok(())
     }
 

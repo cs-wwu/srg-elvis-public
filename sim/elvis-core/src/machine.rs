@@ -4,7 +4,7 @@ use std::{
     any::{Any, TypeId},
     sync::Arc,
 };
-use tokio::sync::Barrier;
+use tokio::{sync::Barrier, task::JoinSet};
 
 /// A tap's PCI slot index
 pub(crate) type PciSlot = u32;
@@ -93,16 +93,34 @@ impl Machine {
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.
-    pub(crate) fn start(&self, shutdown: Shutdown, initialized: Arc<Barrier>) {
+    pub(crate) async fn start(&self, shutdown: Shutdown, initialized: Arc<Barrier>) {
+        let mut handles = JoinSet::new();
+
+        // Spawn tasks to start each protocol
         for protocol in self.protocols.iter() {
-            protocol
-                .start(
-                    shutdown.clone(),
-                    initialized.clone(),
-                    self.protocols.clone(),
-                )
-                .expect("A protocol failed to start")
+            let shutdown_clone = shutdown.clone();
+            let initialized_clone = initialized.clone();
+            let protocols_clone = self.protocols.clone();
+            let future = async move {
+                protocol
+                    .start(shutdown_clone, initialized_clone, protocols_clone)
+                    .await
+            };
+
+            handles.spawn(future);
         }
+
+        // wait for all starts to finish
+        while let Some(result) = handles.join_next().await {
+            result
+                .expect("start method should not panic!")
+                .expect("machines should be configured to start successfully");
+        }
+    }
+
+    /// Creates a copy of itself that points to the same protocols.
+    pub(crate) fn shallow_copy(&self) -> Self {
+        Self::new(self.protocols.clone())
     }
 
     /// The number of protocols in the machine.

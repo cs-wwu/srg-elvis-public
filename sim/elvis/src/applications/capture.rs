@@ -60,8 +60,9 @@ impl Capture {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for Capture {
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -85,9 +86,7 @@ impl Application for Capture {
         }
 
         *self.shutdown.write().unwrap() = Some(shutdown);
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
         Ok(())
     }
 

@@ -62,8 +62,9 @@ impl PingPong {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for PingPong {
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -77,19 +78,18 @@ impl Application for PingPong {
                 self.endpoints,
                 protocols.clone(),
             )
+            .await
             .unwrap();
         *self.session.write().unwrap() = Some(session.clone());
 
         let is_initiator = self.is_initiator;
-        tokio::spawn(async move {
-            initialized.wait().await;
-            if is_initiator {
-                session
-                    //Send the first "Ping" message with TTL of 255
-                    .send(Message::new(vec![255]), protocols)
-                    .unwrap();
-            }
-        });
+        initialized.wait().await;
+        if is_initiator {
+            session
+                //Send the first "Ping" message with TTL of 255
+                .send(Message::new(vec![255]), protocols)
+                .unwrap();
+        }
         Ok(())
     }
 

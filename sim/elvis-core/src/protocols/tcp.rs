@@ -45,7 +45,7 @@ impl Tcp {
         Self::default()
     }
 
-    pub fn open(
+    pub async fn open(
         &self,
         upstream: TypeId,
         endpoints: Endpoints,
@@ -55,11 +55,11 @@ impl Tcp {
             Entry::Occupied(_) => Err(OpenError::Existing(endpoints)),
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = protocols.protocol::<Ipv4>().unwrap().open_and_listen(
-                    TypeId::of::<Self>(),
-                    endpoints.into(),
-                    protocols.clone(),
-                )?;
+                let downstream = protocols
+                    .protocol::<Ipv4>()
+                    .unwrap()
+                    .open_and_listen(TypeId::of::<Self>(), endpoints.into(), protocols.clone())
+                    .await?;
                 let session = TcpSession::new(
                     Tcb::open(endpoints, rand::random(), downstream.pci_session().mtu()),
                     protocols.get(upstream).unwrap(),
@@ -86,6 +86,7 @@ impl Tcp {
     }
 }
 
+#[async_trait::async_trait]
 impl Protocol for Tcp {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
@@ -187,15 +188,13 @@ impl Protocol for Tcp {
         Ok(())
     }
 
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
         Ok(())
     }
 }

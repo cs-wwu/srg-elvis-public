@@ -47,8 +47,9 @@ impl ThroughputTester {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for ThroughputTester {
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -60,9 +61,9 @@ impl Application for ThroughputTester {
             .expect("No such protocol")
             .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
             .unwrap();
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+
+        initialized.wait().await;
+
         Ok(())
     }
 
