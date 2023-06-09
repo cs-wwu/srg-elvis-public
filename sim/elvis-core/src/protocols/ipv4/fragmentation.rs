@@ -128,7 +128,7 @@ mod tests {
         let body = Message::new(vec![0u8; LEN as usize]);
         let header = TestHeaderBuilder::new(LEN).ihl().build();
         assert_eq!(
-            fragment(header.clone(), body.clone(), MTU),
+            fragment(header, body.clone(), MTU),
             Fragments::DontFragment((header, body))
         )
     }

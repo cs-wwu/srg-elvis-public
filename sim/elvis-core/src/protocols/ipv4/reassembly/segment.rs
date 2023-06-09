@@ -131,14 +131,11 @@ mod tests {
         };
         let mut segment = Segment::new();
         for (header, body) in fragments.into_iter().rev() {
-            match segment.receive_packet(header, body) {
-                Some(actual) => {
-                    assert_eq!(actual.0, BASIC_HEADER);
-                    assert_eq!(actual.1.len(), expected.len());
-                    assert_eq!(actual.1, expected);
-                    return;
-                }
-                None => {}
+            if let Some(actual) = segment.receive_packet(header, body) {
+                assert_eq!(actual.0, BASIC_HEADER);
+                assert_eq!(actual.1.len(), expected.len());
+                assert_eq!(actual.1, expected);
+                return;
             }
         }
         panic!("Didn't get a finished message");
