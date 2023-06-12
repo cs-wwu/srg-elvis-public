@@ -1,5 +1,5 @@
 //! Implements section 3.2, An Example Fragmentation Procedure from page 26 of
-//! RFC 791 https://www.rfc-editor.org/rfc/rfc791
+//! RFC 791 <https://www.rfc-editor.org/rfc/rfc791>
 
 use super::ipv4_parsing::Ipv4Header;
 use crate::{network::Mtu, Message};

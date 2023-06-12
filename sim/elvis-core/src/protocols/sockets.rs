@@ -25,7 +25,7 @@ use socket_session::SocketSession;
 
 /// An implementation of the Sockets API
 ///
-/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`]
+/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`](crate::machine::Machine)
 ///
 /// Purpose:
 /// - To serve as an interface between the x-kernal-style protocol stack and a

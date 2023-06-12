@@ -1,5 +1,45 @@
 //! Utilities for running user-level programs in the context of a
 //! protocol-oriented simulation.
+//!
+//!
+//!
+//!
+//! Due to the nature of the [`async_trait::async_trait`] macro,
+//! this looks like a mess when viewed with `cargo doc`.
+//! When you create your own application, you can do it like so:
+//!
+//! ```
+//! use elvis_core::*;
+//! use elvis_core::machine::*;
+//! use elvis_core::session::Session;
+//! use elvis_core::protocols::user_process::*;
+//! use tokio::sync::Barrier;
+//! use std::sync::Arc;
+//!
+//! struct MyApp {}
+//!
+//! #[async_trait::async_trait]
+//! impl Application for MyApp {
+//!     async fn start(
+//!         &self,
+//!         shutdown: Shutdown,
+//!         initialize: Arc<Barrier>,
+//!         protocols: ProtocolMap,
+//!     ) -> Result<(), ApplicationError> {
+//!         Ok(())
+//!     }
+//!
+//!     fn receive(
+//!         &self,
+//!         message: Message,
+//!         caller: Arc<dyn Session>,
+//!         control: Control,
+//!         protocols: ProtocolMap,
+//!     ) -> Result<(), ApplicationError> {
+//!         Ok(())
+//!     }
+//! }
+//! ```
 
 use crate::{
     machine::ProtocolMap,

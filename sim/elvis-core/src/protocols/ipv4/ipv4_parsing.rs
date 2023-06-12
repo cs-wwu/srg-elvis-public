@@ -16,7 +16,6 @@ const BASE_OCTETS: u16 = BASE_WORDS as u16 * 4;
 const FRAGMENT_OFFSET_MASK: u16 = 0x1fff;
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
-/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ipv4Header {
     /// Internet Header Length, the number of `u32` words in the IPv4 header

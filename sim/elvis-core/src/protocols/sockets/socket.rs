@@ -135,7 +135,7 @@ impl Socket {
         *self.remote_addr.write().unwrap() = Some(sock_addr);
         // Gather the necessary data to open a session and pass it on to the
         // Sockets API to retreive a socket_session
-        let local_op = *self.local_addr.read().unwrap(); 
+        let local_op = *self.local_addr.read().unwrap();
         let remote_op = *self.remote_addr.read().unwrap();
         if let (Some(local), Some(remote)) = (local_op, remote_op) {
             let session = match self

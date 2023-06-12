@@ -1,4 +1,48 @@
 //! The [`Protocol`] trait and supporting types.
+//!
+//!
+//! # Async trait
+//!
+//! Due to the nature of the [`async_trait::async_trait`] macro,
+//! this looks like a mess when viewed with `cargo doc`.
+//! When you create your own application, you can do it like so:
+//!
+//! ```
+//! use elvis_core::*;
+//! use elvis_core::machine::*;
+//! use elvis_core::session::Session;
+//! use elvis_core::protocol::*;
+//! use tokio::sync::Barrier;
+//! use std::sync::Arc;
+//! use std::any::*;
+//!
+//! struct MyApp {}
+//!
+//! #[async_trait::async_trait]
+//! impl Protocol for MyApp {
+//!     fn id(&self) -> TypeId {
+//!         self.type_id()
+//!     }
+//!     async fn start(
+//!         &self,
+//!         shutdown: Shutdown,
+//!         initialize: Arc<Barrier>,
+//!         protocols: ProtocolMap,
+//!     ) -> Result<(), StartError> {
+//!         Ok(())
+//!     }
+//!
+//!     fn demux(
+//!         &self,
+//!         message: Message,
+//!         caller: Arc<dyn Session>,
+//!         control: Control,
+//!         protocols: ProtocolMap,
+//!     ) -> Result<(), DemuxError> {
+//!         Ok(())
+//!     }
+//! }
+//! ```
 
 use super::message::Message;
 use crate::{
@@ -50,8 +94,10 @@ pub trait Protocol: Send + Sync + 'static {
     /// - Select a session to respond to the message. This is done by looking at
     ///   information extracted from the header. If there is no matching
     ///   session, the protocol should check to see whether any protocol has
-    ///   asked to receive the message by calling [`listen`](Protocol::listen)
-    ///   at an earlier time. If so, a new session should be created.
+    ///   asked to receive the message by calling `listen` at an earlier time.
+    ///   (Most protocols, such as `Ipv4` and `Udp`, have a `listen` or
+    ///   `open_and_listen` function.)
+    ///   If so, a new session should be created.
     /// - Call `receive` on the selected session.
     fn demux(
         &self,

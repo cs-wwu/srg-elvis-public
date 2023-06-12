@@ -1,4 +1,4 @@
-//! References page 28 of RFC 791: https://www.rfc-editor.org/rfc/rfc791
+//! References page 28 of RFC 791: <https://www.rfc-editor.org/rfc/rfc791>
 
 use super::{bitvec::BitVec, fragment::Fragment};
 use crate::{protocols::ipv4::ipv4_parsing::Ipv4Header, Message};

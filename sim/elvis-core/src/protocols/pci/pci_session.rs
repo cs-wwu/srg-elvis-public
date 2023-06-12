@@ -13,7 +13,8 @@ use std::{
 
 use super::DemuxInfo;
 
-/// The session type for a [`Tap`](super::Tap).
+/// The session type associated with [`Pci`](super::Pci).
+/// Contains information about a connection between this MAC address and the network.
 pub struct PciSession {
     mac: Mac,
     slot: PciSlot,
