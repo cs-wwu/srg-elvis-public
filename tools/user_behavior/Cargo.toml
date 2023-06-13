@@ -10,9 +10,9 @@ edition = "2021"
 
 rand = "0.8"
 rand_distr = "0.4.3"
-
+clap = { version = "3.1.6", features = ["derive"] }
 timer = "0.2.0"
+serde = {version = "1.0.144", features = ["derive", "rc"]}
 chrono = "0.4"
-select = "0.5.0"
+select = "0.6.0"
 url = "2.2.2"
-reqwest = {version = "0.11", features = ["blocking"]}
