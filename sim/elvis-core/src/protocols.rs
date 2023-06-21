@@ -3,6 +3,9 @@
 pub mod ipv4;
 pub use ipv4::Ipv4;
 
+pub mod arp;
+pub use arp::Arp;
+
 pub mod pci;
 pub use pci::Pci;
 

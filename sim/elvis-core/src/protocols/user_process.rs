@@ -123,10 +123,6 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
 
 #[async_trait::async_trait]
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
     fn demux(
         &self,
         message: Message,

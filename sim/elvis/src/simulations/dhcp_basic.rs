@@ -6,14 +6,13 @@ use crate::applications::{
     Capture, SendMessage,
 };
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, Machine, Message, Network,
+    run_internet, Message, Network,
 };
 
 pub async fn dhcp_basic() {

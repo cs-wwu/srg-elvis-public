@@ -25,7 +25,7 @@ mod ipv4_session;
 pub use ipv4_session::AddressPair;
 use ipv4_session::Ipv4Session;
 
-use super::pci;
+use super::{pci, Arp};
 
 pub mod fragmentation;
 mod reassembly;
@@ -52,7 +52,7 @@ impl Ipv4 {
         endpoints: AddressPair,
         protocols: ProtocolMap,
     ) -> Result<Arc<Ipv4Session>, OpenAndListenError> {
-        self.listen(upstream, endpoints.local)?;
+        self.listen(upstream, endpoints.local, protocols.clone())?;
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
             .await?)
@@ -64,12 +64,24 @@ impl Ipv4 {
         endpoints: AddressPair,
         protocols: ProtocolMap,
     ) -> Result<Arc<Ipv4Session>, OpenError> {
-        let recipient = match self.recipients.get(&endpoints.remote) {
+        let mut recipient = match self.recipients.get(&endpoints.remote) {
             Some(recipient) => *recipient,
             None => {
                 return Err(OpenError::UnknownRecipient(endpoints.remote));
             }
         };
+
+        // if ARP exists, and recipient does not specify a destination MAC, then try to figure out a destination MAC
+        if recipient.mac.is_none() {
+            if let Some(arp) = protocols.protocol::<Arp>() {
+                arp.listen(endpoints.local);
+                let resolved_mac = arp
+                    .resolve(endpoints, recipient.slot, protocols.clone())
+                    .await?;
+                recipient.mac = Some(resolved_mac);
+            }
+        }
+
         let pci_session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
         let session = Arc::new(Ipv4Session {
             pci_session,
@@ -81,7 +93,15 @@ impl Ipv4 {
         Ok(session)
     }
 
-    pub fn listen(&self, upstream: TypeId, address: Ipv4Address) -> Result<(), ListenError> {
+    pub fn listen(
+        &self,
+        upstream: TypeId,
+        address: Ipv4Address,
+        protocols: ProtocolMap,
+    ) -> Result<(), ListenError> {
+        if let Some(arp) = protocols.protocol::<Arp>() {
+            arp.listen(address);
+        }
         match self.listen_bindings.entry(address) {
             Entry::Occupied(_) => Err(ListenError::Exists(address)),
             Entry::Vacant(entry) => {
@@ -96,19 +116,13 @@ impl Ipv4 {
 // messages can be sent to the correct network
 #[async_trait::async_trait]
 impl Protocol for Ipv4 {
-    fn id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
     async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
         Ok(())
     }
 
@@ -203,6 +217,8 @@ impl Recipient {
 pub enum OpenError {
     #[error("The IP table is missing an entry for {0}")]
     UnknownRecipient(Ipv4Address),
+    #[error("Arp was unable to resolve MAC address")]
+    ArpFailure(#[from] crate::protocols::arp::NoResponseError),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]

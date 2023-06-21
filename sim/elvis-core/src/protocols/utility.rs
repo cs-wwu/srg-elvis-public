@@ -119,3 +119,111 @@ impl PortPair {
         }
     }
 }
+
+/// An extension trait for Iterator<Item = u8>. This should make it easier to parse bytes.
+/// This adds methods for reading numbers from the iterator, such as u64s.
+///
+/// # Example
+///
+/// ```ignore
+/// # use elvis_core::protocols::utility::BytesExt;
+/// let arr: [u8] = [0xFF, 0x01, 0x09, 0x69];
+/// let iter = arr.iter();
+/// assert_eq!(iter.next_u16_be(), Some(0xFF01)); // 0xFF01 is 65281
+/// assert_eq!(iter.next_u8(), Some(0x09));
+/// assert_eq!(iter.next_u64_be(), None); // There are not enough bytes to make a u64
+/// ```
+pub trait BytesExt: Iterator<Item = u8> {
+    /// Advances the iterator and returns the next value.
+    /// Functions identically to `Iterator<Item = u8>::next`.
+    fn next_u8(&mut self) -> Option<u8> {
+        self.next()
+    }
+
+    /// Advances the iterator by 2 bytes.
+    /// Combines these 2 bytes in big-endian order into a u16.
+    /// Returns None if there were fewer than 2 bytes left in the iterator.
+    fn next_u16_be(&mut self) -> Option<u16> {
+        let arr = [self.next()?, self.next()?];
+        Some(u16::from_be_bytes(arr))
+    }
+
+    /// Advances the iterator by 4 bytes.
+    /// Combines these 4 bytes in big-endian order into a u32.
+    /// Returns None if there were fewer than 4 bytes left in the iterator.
+    fn next_u32_be(&mut self) -> Option<u32> {
+        let arr = [self.next()?, self.next()?, self.next()?, self.next()?];
+        Some(u32::from_be_bytes(arr))
+    }
+
+    /// Advances the iterator by 6 bytes.
+    /// Combines these 6 bytes in big-endian order into a u64. The first 2 bytes of this number will be 0,
+    /// the next 6 will be the ones that were read from the iterator.
+    /// Returns None if there were fewer than 6 bytes left in the iterator.
+    fn next_u48_be(&mut self) -> Option<u64> {
+        let arr = [
+            0,
+            0,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+        ];
+        Some(u64::from_be_bytes(arr))
+    }
+
+    /// Advances the iterator by 8 bytes.
+    /// Combines these 8 bytes in big-endian order into a u64.
+    /// Returns None if there were fewer than 8 bytes left in the iterator.
+    fn next_u64_be(&mut self) -> Option<u64> {
+        let arr = [
+            self.next()?,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+            self.next()?,
+        ];
+        Some(u64::from_be_bytes(arr))
+    }
+}
+
+impl<T: Iterator<Item = u8>> BytesExt for T {
+    // yippee
+}
+
+/// The doc tests don't work because utility is a private module!
+/// so I'm putting this here
+#[cfg(test)]
+mod tests {
+    use crate::protocols::utility::BytesExt;
+    #[test]
+    fn test_bytes_ext() {
+        let arr = [0xFF, 0x01, 0x09, 0x69];
+        // cloned is necessary so that we can iterate over u8 instead of &u8
+        let mut iter = arr.iter().cloned();
+        assert_eq!(iter.next_u16_be(), Some(0xFF01)); // 0xFF01 is 65281
+        assert_eq!(iter.next_u8(), Some(0x09));
+        assert_eq!(iter.next_u64_be(), None); // There are not enough bytes to make a u64
+    }
+
+    #[test]
+    fn bytes_ext_u48() {
+        let arr = [
+            0x00, 0x12, 0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78,
+        ];
+        let mut iter = arr.iter().cloned();
+        assert_eq!(iter.next_u8(), Some(0x00));
+        assert_eq!(iter.next_u48_be(), Some(0x123456781234));
+        assert_eq!(iter.next_u48_be(), Some(0x567812345678));
+        assert_eq!(iter.next_u48_be(), None);
+
+        let arr2 = [0x01, 0x02, 0x03, 0x04, 0x05];
+        let mut iter = arr2.iter().cloned();
+        assert_eq!(iter.next_u48_be(), None);
+    }
+}

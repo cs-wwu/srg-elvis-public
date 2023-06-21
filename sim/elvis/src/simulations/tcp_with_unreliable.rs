@@ -1,6 +1,5 @@
 use crate::applications::{SendMessage, WaitForMessage};
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     message::Message,
     network::{Latency, NetworkBuilder},
     new_machine,
@@ -8,7 +7,7 @@ use elvis_core::{
         ipv4::{Ipv4, Recipient, Recipients},
         Endpoint, Pci, Tcp,
     },
-    run_internet, Machine, Transport,
+    run_internet, Transport,
 };
 use std::time::Duration;
 

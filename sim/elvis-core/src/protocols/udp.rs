@@ -80,17 +80,13 @@ impl Udp {
         protocols
             .protocol::<Ipv4>()
             .expect("No such protocol")
-            .listen(TypeId::of::<Self>(), socket.address)?;
+            .listen(TypeId::of::<Self>(), socket.address, protocols)?;
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl Protocol for Udp {
-    fn id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
     fn demux(
         &self,
         mut message: Message,

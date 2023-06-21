@@ -163,12 +163,22 @@ impl Machine {
 macro_rules! new_machine {
     ( $($x:expr),* $(,)? ) => {
         {
-            let mut pmb = ProtocolMapBuilder::new()
+
+            let pmb = $crate::machine::ProtocolMapBuilder::new()
             $(
                 .with($x)
             )*;
-            Machine::new(pmb.build())
+            $crate::Machine::new(pmb.build())
         }
     };
 }
 pub use new_machine;
+
+#[cfg(test)]
+mod tests {
+    use crate::protocols::{Ipv4, Pci};
+    #[test]
+    fn test() {
+        let _machine = new_machine![Ipv4::new(std::iter::empty().collect()), Pci::new([]),];
+    }
+}

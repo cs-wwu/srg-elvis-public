@@ -48,7 +48,10 @@ use super::message::Message;
 use crate::{
     machine::ProtocolMap, protocols::user_process::ApplicationError, Control, Session, Shutdown,
 };
-use std::{any::TypeId, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+};
 use tokio::sync::Barrier;
 
 // TODO(hardint): Should add a str argument to the Other variant of errors so
@@ -60,7 +63,9 @@ use tokio::sync::Barrier;
 /// demultiplexing requests to the correct session.
 #[async_trait::async_trait]
 pub trait Protocol: Send + Sync + 'static {
-    fn id(&self) -> TypeId;
+    fn id(&self) -> TypeId {
+        self.type_id()
+    }
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.

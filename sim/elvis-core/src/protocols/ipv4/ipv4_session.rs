@@ -77,7 +77,6 @@ impl Ipv4Session {
 impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip_all)]
     fn send(&self, mut message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
-        println!("Ipv4 recipient: {:?}", self.recipient);
         let length = message.iter().count();
         let transport: Transport = self.upstream.try_into().or(Err(SendError::Other))?;
         let header = match Ipv4HeaderBuilder::new(

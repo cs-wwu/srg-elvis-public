@@ -79,19 +79,16 @@ impl Tcp {
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         self.listen_bindings.insert(endpoint, upstream);
-        Ok(protocols
-            .protocol::<Ipv4>()
-            .unwrap()
-            .listen(TypeId::of::<Self>(), endpoint.address)?)
+        Ok(protocols.protocol::<Ipv4>().unwrap().listen(
+            TypeId::of::<Self>(),
+            endpoint.address,
+            protocols,
+        )?)
     }
 }
 
 #[async_trait::async_trait]
 impl Protocol for Tcp {
-    fn id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
     fn demux(
         &self,
         mut message: Message,

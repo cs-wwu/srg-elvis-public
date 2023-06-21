@@ -5,18 +5,22 @@
 use std::{sync::Arc, time::Duration};
 
 use elvis_core::{
-    protocol::SharedProtocol,
+    new_machine,
     protocols::{
         ipv4::{Ipv4Address, Recipient, Recipients},
-        Arp, Ipv4, Pci, SubWrap, Udp,
+        Arp, Endpoint, Endpoints, Ipv4, Pci, Udp, UserProcess,
     },
     run_internet, Machine, Message, Network,
 };
 
 use crate::applications::{Capture, PingPong, SendMessage};
 
+use tokio::sync::watch;
+
 const SENDER_IP: Ipv4Address = Ipv4Address::new([123, 45, 67, 8]);
+const SENDER_ENDPOINT: Endpoint = Endpoint::new(SENDER_IP, 0xfefe);
 const RECEIVER_IP: Ipv4Address = Ipv4Address::new([67, 8, 9, 10]);
+const RECEIVER_ENDPOINT: Endpoint = Endpoint::new(RECEIVER_IP, 0xfefe);
 
 /// generates a Recipients to work with the simulations
 fn ip_table() -> Recipients {
@@ -31,26 +35,26 @@ fn ip_table() -> Recipients {
 
 /// generates a sender machine
 fn sender_machine(network: &Arc<Network>, message: Message) -> Machine {
-    Machine::new([
-        SendMessage::new(vec![message], RECEIVER_IP, 0xfefe).shared() as SharedProtocol,
+    new_machine!(
+        SendMessage::new(vec![message], RECEIVER_ENDPOINT).process(),
         // Used to set local IP
-        Capture::new(SENDER_IP, 0x0000, 1).shared(),
-        Udp::new().shared(),
-        Ipv4::new(ip_table()).shared(),
-        Arp::new().shared(),
-        Pci::new([network.clone()]).shared(),
-    ])
+        Capture::new(SENDER_ENDPOINT, 1).process(),
+        Udp::new(),
+        Ipv4::new(ip_table()),
+        Arp::basic(),
+        Pci::new([network.clone()]),
+    )
 }
 
 /// generates a receiver machine
 fn receiver_machine(network: &Arc<Network>) -> Machine {
-    Machine::new([
-        Capture::new(RECEIVER_IP, 0xfefe, 1).shared() as SharedProtocol,
-        Udp::new().shared(),
-        Ipv4::new(ip_table()).shared(),
-        Arp::new().shared(),
-        Pci::new([network.clone()]).shared(),
-    ])
+    new_machine!(
+        Capture::new(RECEIVER_ENDPOINT, 1).process(),
+        Udp::new(),
+        Ipv4::new(ip_table()),
+        Arp::basic(),
+        Pci::new([network.clone()]),
+    )
 }
 
 pub async fn simple() {
@@ -65,7 +69,7 @@ pub async fn simple() {
         sender_machine(&network, message),
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
 }
 
 /// A simulation/test to make sure that the ARP protocol is actually
@@ -75,11 +79,14 @@ pub async fn test_no_broadcast() {
     let network = Network::basic();
     let message = Message::new(b"super secret message that should not be broadcasted");
 
-    let mut evil_arp = SubWrap::new(Arp::new());
-    let mut evil_ipv4 = SubWrap::new(Ipv4::new(ip_table()));
-
-    let mut evil_arp_recv = evil_arp.subscribe_demux();
-    let mut evil_ipv4_recv = evil_ipv4.subscribe_demux();
+    let (send, mut recv) = tokio::sync::watch::channel(());
+    recv.borrow_and_update();
+    let evil_arp = Arp::debug(
+        |_, _| {},
+        move |_| {
+            send.send_replace(());
+        },
+    );
 
     let machines = vec![
         // Receiver
@@ -87,35 +94,28 @@ pub async fn test_no_broadcast() {
         // Sender
         sender_machine(&network, message),
         // Evil guy who should not receive the message
-        Machine::new([
-            evil_arp.shared() as SharedProtocol,
-            evil_ipv4.shared(),
-            Pci::new([network.clone()]).shared(),
-        ]),
+        // TODO(sudobeans): when swappable protocols are supported, I would like to make sure that
+        // the evil machine does not receive ipv4 messages.
+        new_machine!(evil_arp, Ipv4::new(ip_table()), Pci::new([network.clone()]),),
     ];
 
-    run_internet(machines, vec![network]).await;
+    run_internet(&machines).await;
     tokio::time::sleep(Duration::from_millis(2)).await;
-    evil_arp_recv
-        .recv()
+    recv.changed()
         .await
         .expect("Evil machine should have received ARP request");
-    if let Ok((_message, context)) = evil_ipv4_recv.try_recv() {
-        let control = context.control;
-        panic!("Evil machine should not have received IPv4 message. Control: {control:?}");
-    }
 }
 
 mod wait_to_send {
-    use std::sync::Arc;
+    use std::{any::TypeId, sync::Arc};
 
     use elvis_core::{
-        protocol::Context,
+        machine::ProtocolMap,
         protocols::{
             user_process::{Application, ApplicationError},
             Ipv4, UserProcess,
         },
-        Control, Id, Message,
+        Control, Message, Session,
     };
 
     use super::*;
@@ -123,40 +123,34 @@ mod wait_to_send {
     /// An application which doesn't set its local IP until 300 ms have passed.
     pub struct WaitToListen();
 
+    #[async_trait::async_trait]
     impl Application for WaitToListen {
-        const ID: Id = Id::from_string("wait to send");
-
-        fn start(
+        async fn start(
             &self,
             _shutdown: elvis_core::Shutdown,
             initialize: Arc<tokio::sync::Barrier>,
-            protocols: elvis_core::ProtocolMap,
+            protocols: elvis_core::machine::ProtocolMap,
         ) -> Result<(), ApplicationError> {
-            tokio::spawn(async move {
-                initialize.wait().await;
+            initialize.wait().await;
 
-                tokio::time::sleep(Duration::from_millis(300)).await;
+            tokio::time::sleep(Duration::from_millis(300)).await;
 
-                let mut participants = Control::new();
-                Ipv4::set_local_address(RECEIVER_IP, &mut participants);
-                Ipv4::set_remote_address(SENDER_IP, &mut participants);
-                protocols
-                    .protocol(Ipv4::ID)
-                    .unwrap()
-                    .listen(Self::ID, participants, protocols)
-                    .expect("listen should work");
-            });
+            protocols
+                .protocol::<Ipv4>()
+                .unwrap()
+                .listen(TypeId::of::<UserProcess<Self>>(), RECEIVER_IP, protocols)
+                .expect("listen should work");
             Ok(())
         }
 
-        fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+        fn receive(
+            &self,
+            _: Message,
+            _: Arc<dyn Session>,
+            _: Control,
+            _: ProtocolMap,
+        ) -> Result<(), ApplicationError> {
             Ok(())
-        }
-    }
-
-    impl WaitToListen {
-        pub fn shared(self) -> Arc<UserProcess<Self>> {
-            Arc::new(UserProcess::new(self))
         }
     }
 }
@@ -166,8 +160,13 @@ pub async fn test_resend() {
     let network = Network::basic();
 
     let make_arp = || {
-        let mut arp = SubWrap::new(Arp::new());
-        let recv = arp.subscribe_demux();
+        let (send, recv) = watch::channel(());
+        let arp = Arp::debug(
+            |_, _| {},
+            move |_| {
+                send.send_replace(());
+            },
+        );
         (arp, recv)
     };
 
@@ -178,38 +177,41 @@ pub async fn test_resend() {
     let message = Message::new(b"hello");
     let machines = vec![
         // Receiver
-        Machine::new([
-            wait_to_send::WaitToListen().shared() as SharedProtocol,
-            Ipv4::new(ip_table()).shared(),
-            receiver_arp.shared(),
-            Pci::new([network.clone()]).shared(),
-        ]),
+        new_machine!(
+            UserProcess::new(wait_to_send::WaitToListen()),
+            Ipv4::new(ip_table()),
+            receiver_arp,
+            Pci::new([network.clone()]),
+        ),
         // Sender
-        Machine::new([
-            SendMessage::new(vec![message], RECEIVER_IP, 0xfefe).shared() as SharedProtocol,
+        new_machine!(
+            SendMessage::new(vec![message], RECEIVER_ENDPOINT).process(),
             // Used to set local IP
-            Capture::new(SENDER_IP, 0x0000, 1).shared(),
-            Udp::new().shared(),
-            Ipv4::new(ip_table()).shared(),
-            sender_arp.shared(),
-            Pci::new([network.clone()]).shared(),
-        ]),
+            Capture::new(SENDER_ENDPOINT, 1).process(),
+            Udp::new(),
+            Ipv4::new(ip_table()),
+            sender_arp,
+            Pci::new([network.clone()]),
+        ),
     ];
 
-    tokio::spawn(run_internet(machines, vec![network]));
+    tokio::spawn(async move {
+        let m = machines;
+        run_internet(&m).await
+    });
 
     // Make sure ARP request gets resent
     receiver_arp_recv
-        .recv()
+        .changed()
         .await
         .expect("receiver did not get 1st arp request");
     receiver_arp_recv
-        .recv()
+        .changed()
         .await
         .expect("receiver did not get 2nd arp request");
     // make sure ARP reply is sent
     sender_arp_recv
-        .recv()
+        .changed()
         .await
         .expect("sender did not receive ARP reply");
 }
@@ -217,36 +219,25 @@ pub async fn test_resend() {
 /// A version of the ping_pong simulation that uses Arp.
 pub async fn ping_pong() {
     let network = Network::basic();
-    let mut evil_ipv4 = SubWrap::new(Ipv4::new(ip_table()));
-    let mut evil_listener = evil_ipv4.subscribe_demux();
 
     let machines = vec![
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table()).shared(),
-            Arp::new().shared(),
-            Pci::new([network.clone()]).shared(),
-            PingPong::new(true, SENDER_IP, RECEIVER_IP, 0xbeef, 0xface).shared(),
-        ]),
-        Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table()).shared(),
-            Arp::new().shared(),
-            Pci::new([network.clone()]).shared(),
-            PingPong::new(false, RECEIVER_IP, SENDER_IP, 0xface, 0xbeef).shared(),
-        ]),
-        Machine::new([
-            evil_ipv4.shared() as SharedProtocol,
-            Pci::new([network.clone()]).shared(),
-        ]),
+        new_machine!(
+            Udp::new(),
+            Ipv4::new(ip_table()),
+            Arp::basic(),
+            Pci::new([network.clone()]),
+            PingPong::new(true, Endpoints::new(SENDER_ENDPOINT, RECEIVER_ENDPOINT)).process(),
+        ),
+        new_machine!(
+            Udp::new(),
+            Ipv4::new(ip_table()),
+            Arp::basic(),
+            Pci::new([network.clone()]),
+            PingPong::new(false, Endpoints::new(RECEIVER_ENDPOINT, SENDER_ENDPOINT)).process(),
+        ),
     ];
 
-    run_internet(machines, vec![network]).await;
-
-    assert!(
-        evil_listener.try_recv().is_err(),
-        "evil machine should not have received message"
-    );
+    run_internet(&machines).await;
 }
 
 #[cfg(test)]

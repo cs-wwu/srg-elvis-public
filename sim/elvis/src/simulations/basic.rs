@@ -1,6 +1,5 @@
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     message::Message,
     new_machine,
     protocols::{
@@ -8,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Pci, UserProcess,
     },
-    run_internet, Machine, Network,
+    run_internet, Network,
 };
 
 /// Runs a basic simulation.

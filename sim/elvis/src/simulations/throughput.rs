@@ -1,6 +1,5 @@
 use crate::applications::{SendMessage, ThroughputTester};
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     network::{Baud, NetworkBuilder, Throughput},
     new_machine,
     protocols::{
@@ -8,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, Machine, Message,
+    run_internet, Message,
 };
 use std::time::Duration;
 

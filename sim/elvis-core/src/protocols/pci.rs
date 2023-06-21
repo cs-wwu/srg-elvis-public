@@ -7,7 +7,7 @@ use crate::{
     protocol::{DemuxError, StartError},
     Control, Network, Protocol, Session, Shutdown,
 };
-use std::{any::TypeId, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 pub mod pci_session;
@@ -61,10 +61,6 @@ impl Pci {
 
 #[async_trait::async_trait]
 impl Protocol for Pci {
-    fn id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
     fn demux(
         &self,
         _message: Message,

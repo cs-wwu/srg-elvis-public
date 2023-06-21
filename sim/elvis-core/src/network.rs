@@ -55,6 +55,8 @@ impl Default for Network {
 }
 
 impl Network {
+    pub const BROADCAST_MAC: Mac = 0xFF_FF_FF_FF_FF_FF;
+
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
         let throughput_permit = Arc::new(Notify::new());
@@ -107,6 +109,17 @@ impl Network {
             sleep(latency).await;
         }
         match delivery.destination {
+            None | Some(Self::BROADCAST_MAC) => {
+                for tap in self.taps.iter() {
+                    match tap.receive(delivery.clone()) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("Failed to deliver a message: {}", e)
+                        }
+                    }
+                }
+            }
+
             Some(destination) => {
                 let tap = {
                     match self.taps.get(&destination) {
@@ -122,17 +135,6 @@ impl Network {
                     Ok(_) => {}
                     Err(e) => {
                         tracing::error!("Failed to deliver a message: {}", e)
-                    }
-                }
-            }
-
-            None => {
-                for tap in self.taps.iter() {
-                    match tap.receive(delivery.clone()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!("Failed to deliver a message: {}", e)
-                        }
                     }
                 }
             }

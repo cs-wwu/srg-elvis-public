@@ -1,6 +1,5 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     network::Mac,
     new_machine,
     protocols::{
@@ -8,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Endpoints, Pci, UserProcess,
     },
-    run_internet, Machine, Message, Network,
+    run_internet, Message, Network,
 };
 
 /// Simulates a message being repeatedly forwarded on a single network.

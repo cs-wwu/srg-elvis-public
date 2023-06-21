@@ -1,13 +1,12 @@
 use crate::applications::{SocketClient, SocketServer};
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Pci, Sockets,
     },
-    run_internet, Machine, Network,
+    run_internet, Network,
 };
 
 /// Runs a basic server-client simulation using sockets.

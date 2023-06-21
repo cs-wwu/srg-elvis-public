@@ -1,13 +1,12 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     new_machine,
     protocols::{
         ipv4::{Ipv4, Recipient},
         udp::Udp,
         Endpoint, Endpoints, Pci, UserProcess,
     },
-    run_internet, Machine, Message, Network,
+    run_internet, Message, Network,
 };
 
 /// Simulates a message being forwarded along across many networks.

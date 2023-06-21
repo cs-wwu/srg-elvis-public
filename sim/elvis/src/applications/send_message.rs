@@ -23,6 +23,8 @@ pub struct SendMessage {
     endpoint: Endpoint,
     /// The protocol to use in delivering the message
     transport: Transport,
+    /// the application's local address
+    local_ip: Ipv4Address,
 }
 
 impl SendMessage {
@@ -32,7 +34,15 @@ impl SendMessage {
             messages: RwLock::new(messages),
             endpoint,
             transport: Transport::Udp,
+            local_ip: Ipv4Address::LOCALHOST,
         }
+    }
+
+    /// Set the local IP address of this protocol.
+    /// (By default, its local IP is `127.0.0.1`)
+    pub fn local_ip(mut self, local_ip: Ipv4Address) -> Self {
+        self.local_ip = local_ip;
+        self
     }
 
     /// Wrap the SendMessage in a user process
@@ -62,7 +72,7 @@ impl Application for SendMessage {
 
         let local_address = match protocols.protocol::<UserProcess<DhcpClient>>() {
             Some(dhcp) => dhcp.application().ip_address().await,
-            None => Ipv4Address::LOCALHOST,
+            None => self.local_ip,
         };
 
         let endpoints = Endpoints {
