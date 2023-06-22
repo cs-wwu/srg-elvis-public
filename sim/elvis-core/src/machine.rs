@@ -81,7 +81,7 @@ impl ProtocolMap {
 /// set of [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
-    pub network_api: NetworkAPI,
+    // pub network_api: NetworkAPI,
     pub protocols: ProtocolMap,
 }
 
@@ -95,22 +95,25 @@ impl Machine {
 
     /// Creates a new machine containing the given `protocols`. Returns the
     /// machine and a channel which can be used to send messages to the machine.
-    pub fn new_auth_dns(
-        auth_ip: Ipv4Address,
-        network: Arc<Network>,
-        ip_table: Recipients,
-    ) -> Machine {
-        let socket_api = Sockets::new(Some(auth_ip)).shared();
-        Machine::new([
-            socket_api.clone(),
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(ip_table.clone()).shared(),
-            Pci::new([network.clone()]).shared(),
-            Dns::new(DnsType::AUT, auth_ip).shared(),
-            // TODO(zachd9757): DnsServer app for doing auth server stuff (wait/listen/etc.)
-            // DnsServer::new();
-        ])
-    }
+    
+    /// Further Iteration needed: (github@) HenryEricksonIV
+
+    // pub fn new_auth_dns(
+    //     auth_ip: Ipv4Address,
+    //     network: Arc<Network>,
+    //     ip_table: Recipients,
+    // ) -> Machine {
+    //     let socket_api = Sockets::new(Some(auth_ip)).shared();
+    //     Machine::new([
+    //         socket_api.clone(),
+    //         Udp::new().shared() as SharedProtocol,
+    //         Ipv4::new(ip_table.clone()).shared(),
+    //         Pci::new([network.clone()]).shared(),
+    //         Dns::new(DnsType::AUT, auth_ip).shared(),
+    //         // TODO(zachd9757): DnsServer app for doing auth server stuff (wait/listen/etc.)
+    //         // DnsServer::new();
+    //     ])
+    // }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
     /// protocols and begin participating in the simulation.

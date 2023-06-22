@@ -1,22 +1,25 @@
 use crate::{
-    control::{ControlError, Key, Primitive},
-    Id,
+    // control::{ControlError, Key, Primitive},
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
     network::Mac,
     protocols::ipv4::Ipv4Address,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, StartError},
     protocols::pci::Pci,
-    session::SharedSession,
     Control, Network, Protocol, Shutdown, Session
+};
+
+use std::{
+    any::TypeId,
+    sync::Arc,
 };
 
 pub struct DnsSession {
     /// The protocol that we demux incoming messages to
-    upstream: Id,
+    upstream: TypeId,
     /// The session we mux outgoing messages to
-    downstream: SharedSession,
+    downstream: Arc<dyn Session>,
     /// The identifying information for this session
     id: SessionId,
 }

@@ -2,18 +2,18 @@
 
 pub mod dns_session;
 
+use std::any::Any;
+
 use crate::{
-    control::{ControlError, Key, Primitive},
-    Id,
+    // control::{ControlError, Key, Primitive},
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
     network::Mac,
     protocols::ipv4::Ipv4Address,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
+    protocol::{DemuxError, StartError},
     protocols::pci::Pci,
     protocols::dns::dns_session::{DnsSession, SessionId},
-    session::SharedSession,
     Control, Network, Protocol, Shutdown, Session,
 };
 
@@ -21,6 +21,7 @@ use {
     dashmap::{mapref::entry::Entry, DashMap},
     std::sync::Arc,
     std::collections::HashMap,
+    std::any::TypeId,
     tokio::sync::Barrier,
 };
 
@@ -45,8 +46,6 @@ pub struct Dns {
 }
 
 impl Dns {
-    /// A unique identifier for the protocol.
-    pub const ID: Id = Id::new(16);  // 16 is the unique ID for DNS
 
     /// Creates a new instance of the protocol.
     pub fn new(dns_type: DnsType, auth_ip: Ipv4Address) -> Self {
@@ -106,57 +105,32 @@ impl Dns {
     }
 }
 
+#[async_trait::async_trait]
 impl Protocol for Dns {
-    fn id(&self) -> Id {
-        Self::ID
+    fn id(&self) -> TypeId {
+        self.type_id()
     }
 
-    fn start(
+    async fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        //TODO
-        Err(StartError::Other)
-    }
-
-    fn open(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        //TODO
-        Err(OpenError::Other)
-    }
-
-    fn listen(
-        &self,
-        upstream: Id,
-        participants: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
-        //TODO
-        Err(ListenError::Other)
+        initialized.wait().await;
+        Ok(())
     }
 
     fn demux(
         &self,
         message: Message,
-        caller: SharedSession,
-        context: Context,
+        caller: Arc<dyn Session>,
+        // context: Context,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         //TODO
         Err(DemuxError::Other)
-    }
-
-    fn query(
-        &self,
-        key: Key
-    ) -> Result<Primitive, QueryError> {
-        //TODO
-        Err(QueryError::NonexistentKey)
     }
 }
 

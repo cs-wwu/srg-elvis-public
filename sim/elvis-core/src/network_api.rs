@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use crate::{
-    machine::ProtocolMap,
+    shutdown::Shutdown,
+    machine::{
+        ProtocolMap,
+        Machine,
+    },
     protocols::{
         ipv4::Ipv4Address,
         sockets::socket::{ProtocolFamily, Socket, SocketError, SocketType},
@@ -81,6 +85,8 @@ impl NetworkAPI {
 #[cfg(test)]
 mod tests {
 
+    use crate::new_machine;
+
     use super::*;
 
     #[tokio::test]
@@ -89,10 +95,9 @@ mod tests {
         // let sockets = Sockets::new(None).shared();
         let network_api = NetworkAPI::new(Some(Ipv4Address::CURRENT_NETWORK)).shared();
 
-        let machine: Machine = 
-            Machine::new([
-                network_api.clone() as SharedProtocol,
-            ]);
+        let machine: Machine = new_machine![
+            Dns::new(DnsType::CLI, Ipv4Address::CURRENT_NETWORK)
+        ];
 
         let shutdown = Shutdown::new();
         let total_protocols: usize = machine.protocol_count();
@@ -102,7 +107,7 @@ mod tests {
         machine.start(shutdown.clone(), initialized.clone());
         
         let ip: Result<Ipv4Address, SocketError> =
-            self.get_host_by_name("DNE".to_string(), protocols);
+            network_api.get_host_by_name("DNE".to_string());
 
         assert_eq!(ip, Err(SocketError::Other));
 
