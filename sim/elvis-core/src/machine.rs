@@ -2,6 +2,7 @@ use crate::{logging::machine_creation_event, protocol::SharedProtocol, Id, Shutd
 
 use crate::protocols::ipv4::Ipv4Address;
 use crate::Network;
+use::NetworkAPI;
 use crate::protocols::{
     ipv4::Recipients,
     Sockets, Udp, Ipv4, Pci, Dns,
@@ -48,6 +49,7 @@ impl ProtocolMap {
 /// set of [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
+    pub network_api: NetworkAPI,
     pub protocols: ProtocolMap,
 }
 
@@ -69,6 +71,7 @@ impl Machine {
         machine_creation_event(protocol_ids);
         Self {
             protocols: ProtocolMap::new(protocols_map),
+            network_api: ,
         }
     }
 

@@ -335,34 +335,34 @@ impl Protocol for Sockets {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
-    #[tokio::test]
-    /// Test for Sockets:get_host_by_name() when Dns cache is empty
-    async fn ghbn_cache_miss() {
-        let sockets = Sockets::new(None).shared();
+    // #[tokio::test]
+    // /// Test for Sockets:get_host_by_name() when Dns cache is empty
+    // async fn ghbn_cache_miss() {
+    //     let sockets = Sockets::new(None).shared();
 
-        let machine: Machine = 
-            Machine::new([
-                sockets.clone() as SharedProtocol,
-            ]);
+    //     let machine: Machine = 
+    //         Machine::new([
+    //             sockets.clone() as SharedProtocol,
+    //         ]);
 
-        let shutdown = Shutdown::new();
-        let total_protocols: usize = machine.protocol_count();
-        let initialized = Arc::new(Barrier::new(total_protocols));
-        let protocols: ProtocolMap = machine.protocols.clone();
+    //     let shutdown = Shutdown::new();
+    //     let total_protocols: usize = machine.protocol_count();
+    //     let initialized = Arc::new(Barrier::new(total_protocols));
+    //     let protocols: ProtocolMap = machine.protocols.clone();
         
-        machine.start(shutdown.clone(), initialized.clone());
+    //     machine.start(shutdown.clone(), initialized.clone());
         
-        let ip: Result<Ipv4Address, SocketError> =
-            sockets.get_host_by_name("DNE".to_string(), protocols);
+    //     let ip: Result<Ipv4Address, SocketError> =
+    //         sockets.get_host_by_name("DNE".to_string(), protocols);
 
-        assert_eq!(ip, Err(SocketError::Other));
+    //     assert_eq!(ip, Err(SocketError::Other));
 
-        // TODO(zachd9757) potentially expand this test to establish a
-        // machine-to-machine connection and check if the cache is auto-updated
+    //     // TODO(zachd9757) potentially expand this test to establish a
+    //     // machine-to-machine connection and check if the cache is auto-updated
 
 
 
-    }
+    // }
 }

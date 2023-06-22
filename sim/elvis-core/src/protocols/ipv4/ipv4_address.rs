@@ -18,6 +18,9 @@ impl Ipv4Address {
     /// The address `255.255.255.255`.
     pub const SUBNET: Self = Self([255u8, 255, 255, 255]);
 
+    /// The authoritative DNS server Ipv4 Address '1.3.3.7'
+    pub const DNS_AUTH: Self = Self([1u8, 3, 3, 7]);
+
     /// Creates a new address. The number can be provided as a `[u8; 4]` or a
     /// `u32`.
     pub const fn new(address: [u8; 4]) -> Self {

@@ -177,7 +177,7 @@ mod tests {
     /// Checks HashMap functionality
     fn add_and_lookup_mapping() {
         // Initialize struct
-        let dns: Dns = Dns::new();
+        let dns: Dns = Dns::new(DnsType::CLI, Ipv4Address::CURRENT_NETWORK);
 
         // Create and add mapping
         let name: String = String::from("Name");
