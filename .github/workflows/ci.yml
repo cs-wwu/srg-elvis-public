@@ -1,54 +1,63 @@
-# name: basic-ci
-# # program runs every time there is a push to the repository
-# on: push
-#
-# jobs:
-#   build-and-test:
-#     runs-on: ubuntu-latest
-#     # set the default working directory to sim so it can find the Cargo.toml file
-#     defaults:
-#       run:
-#         working-directory: ./sim
-#
-#     steps:
-#     - uses: actions/checkout@v3
-#     - name: Update local toolchain
-#       run: |
-#         rustup update
-#         rustc --version
-#     - name: Run tests
-#       run: cargo test --verbose
-#     - name: Run clippy
-#       run: cargo clippy --all-targets -- -D warnings
-#     - name: Check formatting
-#       run: cargo fmt --all -- --check
-#     - name: Check documentation
-#       run: RUSTDOCFLAGS="-D warnings" cargo doc --all-features --document-private-items
-#   # build and test on mac to check for bugs that only show up on that OS
-#   test-on-mac:
-#     runs-on: macos-latest
-#     defaults:
-#       run:
-#         working-directory: ./sim
-#     steps:
-#     - uses: actions/checkout@v3
-#     - name: Update local toolchain
-#       run: |
-#         rustup update
-#         rustc --version
-#     - name: Run tests
-#       run: cargo test --verbose
-#   # build and test on windows to check for bugs that only show up on windows
-#   test-on-win:
-#     runs-on: windows-latest
-#     defaults:
-#       run:
-#         working-directory: ./sim
-#     steps:
-#     - uses: actions/checkout@v3
-#     - name: Update local toolchain
-#       run: |
-#         rustup update
-#         rustc --version
-#     - name: Run tests
-#       run: cargo test --verbose
+name: basic-ci
+# program runs every time there is a push to the repository
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # set the default working directory to sim so it can find the Cargo.toml file
+    defaults:
+      run:
+        working-directory: ./sim
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Update local toolchain
+      run: |
+        rustup update
+        rustc --version
+    - name: Run tests
+      timeout-minutes: 5
+      run: cargo test --verbose
+    - name: Run clippy
+      run: cargo clippy --all-targets -- -D warnings
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+    - name: Check documentation
+      run: RUSTDOCFLAGS="-D warnings" cargo doc --all-features --document-private-items
+  # build and test on mac to check for bugs that only show up on that OS
+  # test-on-mac:
+  #   runs-on: macos-latest
+  #   timeout-minutes: 10
+  #   defaults:
+  #     run:
+  #       working-directory: ./sim
+  #   steps:
+  #   - uses: actions/checkout@v3
+  #   - name: Update local toolchain
+  #     run: |
+  #       rustup update
+  #       rustc --version
+  #   - name: Run tests
+  #     timeout-minutes: 5
+  #     run: cargo test --verbose
+  # build and test on windows to check for bugs that only show up on windows
+  # test-on-win:
+  #   runs-on: windows-latest
+  #   timeout-minutes: 10
+  #   defaults:
+  #     run:
+  #       working-directory: ./sim
+  #   steps:
+  #   - uses: actions/checkout@v3
+  #   - name: Update local toolchain
+  #     run: |
+  #       rustup update
+  #       rustc --version
+  #   - name: Run tests
+  #     timeout-minutes: 5
+  #     run: cargo test --verbose

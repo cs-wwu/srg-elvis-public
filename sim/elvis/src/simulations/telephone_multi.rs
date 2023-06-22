@@ -1,12 +1,12 @@
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    protocol::SharedProtocol,
+    new_machine,
     protocols::{
         ipv4::{Ipv4, Recipient},
         udp::Udp,
-        Pci,
+        Endpoint, Endpoints, Pci, UserProcess,
     },
-    run_internet, Machine, Message, Network,
+    run_internet, Message, Network,
 };
 
 /// Simulates a message being forwarded along across many networks.
@@ -21,41 +21,59 @@ pub async fn telephone_multi() {
 
     let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
-    let mut machines = vec![Machine::new([
-        Udp::new().shared() as SharedProtocol,
-        Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect()).shared(),
-        Pci::new([networks[0].clone()]).shared(),
-        SendMessage::new(vec![message.clone()], remote, 0xbeef).shared(),
-    ])];
+    let mut machines = vec![new_machine![
+        Udp::new(),
+        Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect(),),
+        Pci::new([networks[0].clone()]),
+        SendMessage::new(
+            vec![message.clone()],
+            Endpoint {
+                address: remote,
+                port: 0xbeef,
+            },
+        )
+        .process(),
+    ]];
 
     for i in 0u32..(END - 1) {
         let local = i.to_be_bytes().into();
         let remote = (i + 1).to_be_bytes().into();
         let table = [(remote, Recipient::with_mac(1, 1))].into_iter().collect();
-        machines.push(Machine::new([
-            Udp::new().shared() as SharedProtocol,
-            Ipv4::new(table).shared(),
-            Forward::new(local, remote, 0xbeef, 0xbeef).shared(),
+        machines.push(new_machine![
+            Udp::new(),
+            Ipv4::new(table),
             Pci::new([
                 networks[i as usize].clone(),
                 networks[i as usize + 1].clone(),
-            ])
-            .shared(),
-        ]));
+            ]),
+            Forward::new(Endpoints::new(
+                Endpoint::new(local, 0xbeef),
+                Endpoint::new(remote, 0xbeef),
+            ))
+            .process(),
+        ]);
     }
 
     let last_network = END - 1;
     let local = last_network.to_be_bytes().into();
-    let capture = Capture::new(local, 0xbeef, 1).shared();
-    machines.push(Machine::new([
-        Udp::new().shared() as SharedProtocol,
-        Ipv4::new(Default::default()).shared(),
-        Pci::new([networks[last_network as usize].clone()]).shared(),
-        capture.clone(),
-    ]));
+    machines.push(new_machine![
+        Udp::new(),
+        Ipv4::new(Default::default()),
+        Pci::new([networks[last_network as usize].clone()]),
+        Capture::new(Endpoint::new(local, 0xbeef), 1).process()
+    ]);
 
-    run_internet(machines, networks).await;
-    assert_eq!(capture.application().message(), Some(message));
+    run_internet(&machines).await;
+    let received = machines
+        .into_iter()
+        .last()
+        .unwrap()
+        .into_inner()
+        .protocol::<UserProcess<Capture>>()
+        .unwrap()
+        .application()
+        .message();
+    assert_eq!(received, Some(message));
 }
 
 #[cfg(test)]

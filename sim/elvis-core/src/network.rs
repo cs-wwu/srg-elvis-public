@@ -8,20 +8,21 @@
 //!
 //! - Create the network with the desired properties using the
 //!   [`NetworkBuilder`]
-//! - Call [`Network::tap`] on the the network to get a [`Tap`]. A tap is a an
-//!   access point to the network that can be used to send and receive messages.
-//!   Each tap also acts as an identifier so that peers on the network can
-//!   exchange messages directly.
 //! - Add a [`Pci`](crate::protocols::Pci) protocol to the machine that wants to
-//!   access the network and include the new tap in its constructor. This is
-//!   similar to adding a networking card to computer. This way, a machine can
-//!   add multiple taps to attach to different networks.
+//!   access the network and place a pointer to a network in its constructor
+//!   (using `my_network.clone()`). This is similar to adding a networking card
+//!   to a computer. This way, a machine can attach to multiple different networks.
+//! - When [`Pci::start`](crate::protocols::Pci) is called,
+//!   a new [`PciSession`] will be created for each network in the Pci's constructor.
+//!   Also called "taps", these sessions are access points to the network that can be
+//!   used to send and receive messages.
+//!   Each session also acts as an identifier so that peers on the network can
+//!   exchange messages directly.
 
-use crate::{
-    control::ControlError, id::Id, protocols::pci::PciSession, Control, FxDashMap, Message,
-};
+use crate::{protocols::pci::PciSession, FxDashMap, Message};
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
+    any::TypeId,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -54,10 +55,6 @@ impl Default for Network {
 }
 
 impl Network {
-    /// An identifier for the network type
-    pub const ID: Id = Id::from_string("Network");
-
-    /// The broadcast MAC address FF:FF:FF:FF:FF:FF
     pub const BROADCAST_MAC: Mac = 0xFF_FF_FF_FF_FF_FF;
 
     /// Create a new network with the given properties
@@ -112,6 +109,17 @@ impl Network {
             sleep(latency).await;
         }
         match delivery.destination {
+            None | Some(Self::BROADCAST_MAC) => {
+                for tap in self.taps.iter() {
+                    match tap.receive(delivery.clone()) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("Failed to deliver a message: {}", e)
+                        }
+                    }
+                }
+            }
+
             Some(destination) => {
                 let tap = {
                     match self.taps.get(&destination) {
@@ -130,48 +138,7 @@ impl Network {
                     }
                 }
             }
-
-            None => {
-                for tap in self.taps.iter() {
-                    match tap.receive(delivery.clone()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!("Failed to deliver a message: {}", e)
-                        }
-                    }
-                }
-            }
         }
-    }
-
-    /// Set the destination MAC address on a [`Control`]
-    pub fn set_destination(mac: Mac, control: &mut Control) {
-        control.insert((Self::ID, 0), mac);
-    }
-
-    /// Get the destination MAC address on a [`Control`]
-    pub fn get_destination(control: &Control) -> Result<Mac, ControlError> {
-        Ok(control.get((Self::ID, 0))?.ok_u64()?)
-    }
-
-    /// Set the source MAC address on a [`Control`]
-    pub fn set_sender(mac: Mac, control: &mut Control) {
-        control.insert((Self::ID, 1), mac);
-    }
-
-    /// Get the source MAC address on a [`Control`]
-    pub fn get_sender(control: &Control) -> Result<Mac, ControlError> {
-        Ok(control.get((Self::ID, 1))?.ok_u64()?)
-    }
-
-    /// Set the protocol that should respond to a network frame on a [`Control`]
-    pub fn set_protocol(protocol: Id, control: &mut Control) {
-        control.insert((Self::ID, 2), protocol.into_inner());
-    }
-
-    /// Get the protocol that should respond to a network frame on a [`Control`]
-    pub fn get_protocol(control: &Control) -> Result<Id, ControlError> {
-        Ok(control.get((Self::ID, 2))?.ok_u64()?.into())
     }
 }
 
@@ -248,7 +215,7 @@ pub(crate) struct Delivery {
     /// destination is `None`, the message should be broadcast.
     pub destination: Option<Mac>,
     /// The protocol that should respond to the packet, usually an IP protocol
-    pub protocol: Id,
+    pub protocol: TypeId,
 }
 
 /// A network maximum transmission unit.
@@ -256,7 +223,7 @@ pub(crate) struct Delivery {
 /// The largest number of bytes that can be sent over the network at once.
 pub type Mtu = u16;
 
-/// A MAC address that uniquely identifies a [`Tap`] on a network.
+/// A MAC address that uniquely identifies a [`PciSession`] on a network.
 pub type Mac = u64;
 
 /// A data transfer rate

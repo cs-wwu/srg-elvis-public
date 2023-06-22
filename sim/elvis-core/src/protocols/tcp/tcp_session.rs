@@ -1,10 +1,7 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
-    control::{Key, Primitive},
-    protocol::{Context, DemuxError, SharedProtocol},
-    protocols::tcp::tcb::AdvanceTimeResult,
-    session::{QueryError, SendError, SharedSession},
-    Id, Message, ProtocolMap, Session,
+    machine::ProtocolMap, protocol::DemuxError, protocols::tcp::tcb::AdvanceTimeResult,
+    session::SendError, Control, Message, Protocol, Session,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -25,24 +22,19 @@ use tokio::{
 /// The session part of the TCP protocol.
 pub struct TcpSession {
     send: Sender<Instruction>,
-    downstream: SharedSession,
 }
 
 impl TcpSession {
     /// Create a new TCP session
     pub fn new(
         mut tcb: Tcb,
-        upstream: SharedProtocol,
-        downstream: SharedSession,
+        upstream: Arc<dyn Protocol>,
+        downstream: Arc<dyn Session>,
         protocols: ProtocolMap,
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);
-        let me = Arc::new(Self {
-            send,
-            downstream: downstream.clone(),
-        });
+        let me = Arc::new(Self { send });
         let out = me.clone();
-        let context = Context::new(protocols);
         tokio::spawn(async move {
             'outer: loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
@@ -95,7 +87,7 @@ impl TcpSession {
 
                 for mut segment in tcb.segments() {
                     segment.text.header(segment.header.serialize());
-                    match downstream.send(segment.text, context.clone()) {
+                    match downstream.send(segment.text, protocols.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Send error: {}", e),
                     }
@@ -103,7 +95,7 @@ impl TcpSession {
 
                 let received = tcb.receive();
                 if !received.is_empty() {
-                    match upstream.demux(received, me.clone(), context.clone()) {
+                    match upstream.demux(received, me.clone(), Control::new(), protocols.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Demux error: {}", e),
                     }
@@ -114,7 +106,7 @@ impl TcpSession {
     }
 
     /// Receive an incoming message from the TCP as part of the demux flow
-    pub fn receive(&self, segment: Segment, _context: Context) {
+    pub fn receive(&self, segment: Segment) {
         let send = self.send.clone();
         tokio::spawn(async move {
             match send.send(Instruction::Incoming(segment)).await {
@@ -144,7 +136,7 @@ enum InstructionResult {
 }
 
 impl Session for TcpSession {
-    fn send(&self, message: Message, _context: Context) -> Result<(), SendError> {
+    fn send(&self, message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
         let send = self.send.clone();
         tokio::spawn(async move {
             match send.send(Instruction::Outgoing(message)).await {
@@ -154,20 +146,11 @@ impl Session for TcpSession {
         });
         Ok(())
     }
-
-    fn query(&self, key: Key) -> Result<Primitive, QueryError> {
-        // TODO(hardint): Add queries
-        self.downstream.query(key)
-    }
 }
 
 /// An error that occurred during `TcpSession::receive`
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveError {
-    #[error("Attempted to receive on a closing connection")]
-    Closing,
-    #[error("Could not get a protocol for the ID {0}")]
-    Protocol(Id),
     #[error("{0}")]
     Demux(#[from] DemuxError),
     #[error("{0}")]

@@ -1,41 +1,38 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    any::TypeId,
+    sync::{Arc, Mutex},
+};
 
 use elvis_core::{
-    protocol::Context,
+    machine::ProtocolMap,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError},
-        Ipv4, Tcp, Udp, UserProcess,
+        Endpoint, Tcp, Udp, UserProcess,
     },
-    Control, Id, Message, ProtocolMap, Shutdown,
+    Control, Message, Session, Shutdown, Transport,
 };
 use tokio::sync::Barrier;
-
-use super::Transport;
 
 /// An application that runs a Fn every time it receives a message.
 ///
 /// # Example
 /// ```
-/// # use elvis_core::{Machine, protocols::{ipv4::{Ipv4Address, Ipv4}, Udp, Pci}, protocol::SharedProtocol};
+/// # use elvis_core::{protocols::*, machine::*};
 /// # use elvis::applications::OnReceive;
 /// let fn_to_run = |message, _context| println!("received message: {message}");
-///
-/// let _puter = Machine::new([
-///    OnReceive::new(fn_to_run, Ipv4Address::from(0), 0xfefe).shared() as SharedProtocol,
-///    Udp::new().shared(),
-///    Ipv4::new(Default::default()).shared(),
-///    Pci::new([]).shared(),
-/// ]);
+/// let _puter = Machine::new(
+///     ProtocolMapBuilder::new()
+/// .with(OnReceive::new(fn_to_run, Endpoint::new(0.into(), 0xfefe)))
+/// .with(Udp::new())
+/// .with(Ipv4::new(std::iter::empty().collect()))
+/// .with(Pci::new([]))
+/// .build());
 /// ```
 pub struct OnReceive {
     /// The function to run when a message is received.
-    fn_to_run: Mutex<Box<dyn FnMut(Message, Context) + Send>>,
+    fn_to_run: Mutex<Box<dyn FnMut(Message, Control) + Send>>,
     /// The address we listen for a message on
-    ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    port: u16,
-    /// The transport protocol to use
+    local_endpoint: Endpoint,
     transport: Transport,
 }
 
@@ -44,16 +41,15 @@ impl OnReceive {
     ///
     /// `fn_to_run` will be run whenever a message is received.
     /// The received message and context will be passed to the Fn.
-    pub fn new<F>(fn_to_run: F, ip_address: Ipv4Address, port: u16) -> OnReceive
+    pub fn new<F>(fn_to_run: F, local_endpoint: Endpoint) -> UserProcess<Self>
     where
-        F: FnMut(Message, Context) + Send + 'static,
+        F: FnMut(Message, Control) + Send + 'static,
     {
-        OnReceive {
+        UserProcess::new(OnReceive {
             fn_to_run: Mutex::new(Box::new(fn_to_run)),
-            ip_address,
-            port,
+            local_endpoint,
             transport: Transport::Udp,
-        }
+        })
     }
 
     /// Creates a new OnReceive behind a shared handle.
@@ -68,33 +64,49 @@ impl OnReceive {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for OnReceive {
-    const ID: Id = Id::from_string("OnReceive");
-
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        // This code was copy and pasted from [`Capture`](elvis::applications::Capture). Haha.
-        let mut participants = Control::new();
-        Ipv4::set_local_address(self.ip_address, &mut participants);
         match self.transport {
-            Transport::Udp => Udp::set_local_port(self.port, &mut participants),
-            Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
+            Transport::Tcp => {
+                protocols
+                    .protocol::<Tcp>()
+                    .unwrap()
+                    .listen(
+                        TypeId::of::<UserProcess<Self>>(),
+                        self.local_endpoint,
+                        protocols,
+                    )
+                    .unwrap();
+            }
+            Transport::Udp => {
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .listen(
+                        TypeId::of::<UserProcess<Self>>(),
+                        self.local_endpoint,
+                        protocols,
+                    )
+                    .unwrap();
+            }
         }
-        protocols
-            .protocol(self.transport.id())
-            .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)?;
-        tokio::spawn(async move {
-            initialize.wait().await;
-        });
+        initialize.wait().await;
         Ok(())
     }
 
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        _caller: Arc<dyn Session>,
+        context: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         // Run the function of this OnReceive
         let result = self.fn_to_run.lock();
         match result {
@@ -112,25 +124,18 @@ impl Application for OnReceive {
 
 #[cfg(test)]
 mod tests {
-    use elvis_core::{
-        protocol::SharedProtocol,
-        protocols::{
-            ipv4::{Ipv4, Ipv4Address},
-            Pci, Udp,
-        },
-        Machine,
-    };
+    use elvis_core::{machine::*, protocols::*};
 
     use crate::applications::OnReceive;
 
     #[tokio::test]
     async fn doctest() {
         let fn_to_run = |message, _context| println!("received message: {message}");
-        let _puter = Machine::new([
-            OnReceive::new(fn_to_run, Ipv4Address::from(0), 0xfefe).shared() as SharedProtocol,
-            Udp::new().shared(),
-            Ipv4::new(Default::default()).shared(),
-            Pci::new([]).shared(),
-        ]);
+        let _puter = new_machine![
+            OnReceive::new(fn_to_run, Endpoint::new(0.into(), 0xfefe)),
+            Udp::new(),
+            Ipv4::new(std::iter::empty().collect()),
+            Pci::new([])
+        ];
     }
 }

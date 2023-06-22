@@ -1,17 +1,17 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
-        ipv4::Ipv4Address,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp, Udp,
+        Endpoint, Tcp, Udp,
     },
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Session, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
-
-use super::Transport;
 
 /// An application that stores the first message it receives and then exits the
 /// simulation.
@@ -21,10 +21,7 @@ pub struct Capture {
     message: RwLock<Option<Message>>,
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
-    /// The address we listen for a message on
-    ip_address: Ipv4Address,
-    /// The port we listen for a message on
-    port: u16,
+    endpoint: Endpoint,
     /// The number of messages it will receive before stopping
     message_count: u32,
     /// The number of messages currently recieved
@@ -35,12 +32,11 @@ pub struct Capture {
 
 impl Capture {
     /// Creates a new capture.
-    pub fn new(ip_address: Ipv4Address, port: u16, message_count: u32) -> Self {
+    pub fn new(endpoint: Endpoint, message_count: u32) -> Self {
         Self {
             message: Default::default(),
             shutdown: Default::default(),
-            ip_address,
-            port,
+            endpoint,
             message_count,
             cur_count: RwLock::new(0),
             transport: Transport::Udp,
@@ -48,8 +44,8 @@ impl Capture {
     }
 
     /// Creates a new capture behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 
     /// Gets the message that was received.
@@ -64,33 +60,43 @@ impl Capture {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for Capture {
-    const ID: Id = Id::from_string("Capture");
-
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        *self.shutdown.write().unwrap() = Some(shutdown);
-        let mut participants = Control::new();
-        Ipv4::set_local_address(self.ip_address, &mut participants);
         match self.transport {
-            Transport::Udp => Udp::set_local_port(self.port, &mut participants),
-            Transport::Tcp => Tcp::set_local_port(self.port, &mut participants),
+            Transport::Tcp => {
+                protocols
+                    .protocol::<Tcp>()
+                    .unwrap()
+                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .unwrap();
+            }
+            Transport::Udp => {
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .unwrap();
+            }
         }
-        protocols
-            .protocol(self.transport.id())
-            .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)?;
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+
+        *self.shutdown.write().unwrap() = Some(shutdown);
+        initialized.wait().await;
         Ok(())
     }
 
-    fn receive(&self, message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        message: Message,
+        _caller: Arc<dyn Session>,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
         if *self.cur_count.read().unwrap() >= self.message_count {

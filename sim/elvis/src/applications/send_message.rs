@@ -1,45 +1,53 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
-    protocol::Context,
     protocols::{
         ipv4::Ipv4Address,
-        udp::Udp,
         user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Tcp,
+        Endpoint, Endpoints, Tcp, Udp,
     },
-    Control, Id, ProtocolMap, Shutdown,
+    Control, Session, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
 
-use super::Transport;
+use super::dhcp::dhcp_client::DhcpClient;
 
 /// An application that sends a single message over the network.
 pub struct SendMessage {
     /// The body of the message to send
     messages: RwLock<Vec<Message>>,
-    /// The IP address to send to
-    remote_ip: Ipv4Address,
-    /// The port to send on
-    remote_port: u16,
+    endpoint: Endpoint,
     /// The protocol to use in delivering the message
     transport: Transport,
+    /// the application's local address
+    local_ip: Ipv4Address,
 }
 
 impl SendMessage {
     /// Creates a new send message application.
-    pub fn new(messages: Vec<Message>, remote_ip: Ipv4Address, remote_port: u16) -> Self {
+    pub fn new(messages: Vec<Message>, endpoint: Endpoint) -> Self {
         Self {
             messages: RwLock::new(messages),
-            remote_ip,
-            remote_port,
+            endpoint,
             transport: Transport::Udp,
+            local_ip: Ipv4Address::LOCALHOST,
         }
     }
 
+    /// Set the local IP address of this protocol.
+    /// (By default, its local IP is `127.0.0.1`)
+    pub fn local_ip(mut self, local_ip: Ipv4Address) -> Self {
+        self.local_ip = local_ip;
+        self
+    }
+
     /// Wrap the SendMessage in a user process
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 
     /// The protocol to use in delivering the message
@@ -49,46 +57,70 @@ impl SendMessage {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for SendMessage {
-    const ID: Id = Id::from_string("Send Message");
-
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        let mut participants = Control::new();
-        Ipv4::set_local_address(Ipv4Address::LOCALHOST, &mut participants);
-        Ipv4::set_remote_address(self.remote_ip, &mut participants);
-        match self.transport {
-            Transport::Udp => {
-                Udp::set_local_port(0, &mut participants);
-                Udp::set_remote_port(self.remote_port, &mut participants);
-            }
-            Transport::Tcp => {
-                Tcp::set_local_port(0, &mut participants);
-                Tcp::set_remote_port(self.remote_port, &mut participants);
-            }
-        }
-        let protocol = protocols
-            .protocol(self.transport.id())
-            .expect("No such protocol");
-        let session = protocol.open(Self::ID, participants, protocols.clone())?;
-        let context = Context::new(protocols);
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
-        tokio::spawn(async move {
-            initialized.wait().await;
-            for message in messages {
-                session
-                    .send(message, context.clone())
-                    .expect("SendMessage failed to send");
-            }
-        });
+        let endpoint = self.endpoint;
+        let transport = self.transport;
+        initialized.wait().await;
+
+        let local_address = match protocols.protocol::<UserProcess<DhcpClient>>() {
+            Some(dhcp) => dhcp.application().ip_address().await,
+            None => self.local_ip,
+        };
+
+        let endpoints = Endpoints {
+            local: Endpoint {
+                address: local_address,
+                port: 0,
+            },
+            remote: endpoint,
+        };
+
+        let session = match transport {
+            Transport::Tcp => protocols
+                .protocol::<Tcp>()
+                .unwrap()
+                .open(
+                    TypeId::of::<UserProcess<Self>>(),
+                    endpoints,
+                    protocols.clone(),
+                )
+                .await
+                .unwrap(),
+            Transport::Udp => protocols
+                .protocol::<Udp>()
+                .unwrap()
+                .open_for_sending(
+                    TypeId::of::<UserProcess<Self>>(),
+                    endpoints,
+                    protocols.clone(),
+                )
+                .await
+                .unwrap(),
+        };
+
+        for message in messages {
+            session
+                .send(message, protocols.clone())
+                .expect("SendMessage failed to send");
+        }
         Ok(())
     }
 
-    fn receive(&self, _message: Message, _context: Context) -> Result<(), ApplicationError> {
+    fn receive(
+        &self,
+        _message: Message,
+        _caller: Arc<dyn Session>,
+        _control: Control,
+        _protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
         Ok(())
     }
 }

@@ -1,16 +1,54 @@
 //! Utilities for running user-level programs in the context of a
 //! protocol-oriented simulation.
+//!
+//!
+//!
+//!
+//! Due to the nature of the [`async_trait::async_trait`] macro,
+//! this looks like a mess when viewed with `cargo doc`.
+//! When you create your own application, you can do it like so:
+//!
+//! ```
+//! use elvis_core::*;
+//! use elvis_core::machine::*;
+//! use elvis_core::session::Session;
+//! use elvis_core::protocols::user_process::*;
+//! use tokio::sync::Barrier;
+//! use std::sync::Arc;
+//!
+//! struct MyApp {}
+//!
+//! #[async_trait::async_trait]
+//! impl Application for MyApp {
+//!     async fn start(
+//!         &self,
+//!         shutdown: Shutdown,
+//!         initialize: Arc<Barrier>,
+//!         protocols: ProtocolMap,
+//!     ) -> Result<(), ApplicationError> {
+//!         Ok(())
+//!     }
+//!
+//!     fn receive(
+//!         &self,
+//!         message: Message,
+//!         caller: Arc<dyn Session>,
+//!         control: Control,
+//!         protocols: ProtocolMap,
+//!     ) -> Result<(), ApplicationError> {
+//!         Ok(())
+//!     }
+//! }
+//! ```
 
 use crate::{
-    control::{Key, Primitive},
-    id::Id,
     machine::ProtocolMap,
     message::Message,
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError},
-    session::{SendError, SharedSession},
-    Control, Protocol, Shutdown,
+    protocol::{DemuxError, StartError},
+    session::SendError,
+    Control, Protocol, Session, Shutdown,
 };
-use std::sync::Arc;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 use tracing::error;
 
@@ -20,13 +58,11 @@ use tracing::error;
 /// [`Session`](crate::Session). It runs when messages come in over the
 /// network or when the containing machine awakens the
 /// application to give it time to run.
+#[async_trait::async_trait]
 pub trait Application {
-    /// A unique identifier for the application.
-    const ID: Id;
-
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialize: Arc<Barrier>,
@@ -35,17 +71,21 @@ pub trait Application {
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(&self, message: Message, context: Context) -> Result<(), ApplicationError>;
+    fn receive(
+        &self,
+        message: Message,
+        caller: Arc<dyn Session>,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError>;
 }
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationError {
-    #[error("A listen call failed")]
-    Listen(#[from] ListenError),
-    #[error("An open call failed")]
-    Open(#[from] OpenError),
     #[error("A send call failed")]
     Send(#[from] SendError),
+    #[error("Missing protocol {0:?}")]
+    MissingProtocol(TypeId),
     #[error("Unspecified error")]
     Other,
 }
@@ -81,50 +121,29 @@ impl<A: Application + Send + Sync + 'static> UserProcess<A> {
     }
 }
 
+#[async_trait::async_trait]
 impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
-    fn id(&self) -> Id {
-        A::ID
-    }
-
-    fn open(
-        &self,
-        _upstream: Id,
-        _participants: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        panic!("Cannot active open on a user process")
-    }
-
-    fn listen(
-        &self,
-        _upstream: Id,
-        _participants: Control,
-        _protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
-        panic!("Cannot listen on a user process")
-    }
-
     fn demux(
         &self,
         message: Message,
-        _caller: SharedSession,
-        context: Context,
+        caller: Arc<dyn Session>,
+        control: Control,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        self.application.receive(message, context)?;
+        self.application
+            .receive(message, caller, control, protocols)?;
         Ok(())
     }
 
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        self.application.start(shutdown, initialized, protocols)?;
+        self.application
+            .start(shutdown, initialized, protocols)
+            .await?;
         Ok(())
-    }
-
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::NonexistentKey)
     }
 }

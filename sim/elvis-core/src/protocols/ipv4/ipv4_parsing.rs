@@ -16,7 +16,6 @@ const BASE_OCTETS: u16 = BASE_WORDS as u16 * 4;
 const FRAGMENT_OFFSET_MASK: u16 = 0x1fff;
 
 /// An IPv4 header, as described in RFC791 p11 s3.1
-/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ipv4Header {
     /// Internet Header Length, the number of `u32` words in the IPv4 header
@@ -117,6 +116,21 @@ impl Ipv4Header {
             source,
             destination,
         })
+    }
+
+    pub fn serialize(self) -> Result<Vec<u8>, HeaderBuildError> {
+        Ipv4HeaderBuilder {
+            type_of_service: self.type_of_service,
+            payload_length: self.total_length - BASE_OCTETS,
+            identification: self.identification,
+            fragment_offset: self.fragment_offset,
+            flags: self.flags,
+            time_to_live: self.time_to_live,
+            protocol: self.protocol,
+            source: self.source,
+            destination: self.destination,
+        }
+        .build()
     }
 }
 

@@ -1,5 +1,5 @@
 //! Implements section 3.2, An Example Fragmentation Procedure from page 26 of
-//! RFC 791 https://www.rfc-editor.org/rfc/rfc791
+//! RFC 791 <https://www.rfc-editor.org/rfc/rfc791>
 
 use super::ipv4_parsing::Ipv4Header;
 use crate::{network::Mtu, Message};
@@ -128,7 +128,7 @@ mod tests {
         let body = Message::new(vec![0u8; LEN as usize]);
         let header = TestHeaderBuilder::new(LEN).ihl().build();
         assert_eq!(
-            fragment(header.clone(), body.clone(), MTU),
+            fragment(header, body.clone(), MTU),
             Fragments::DontFragment((header, body))
         )
     }

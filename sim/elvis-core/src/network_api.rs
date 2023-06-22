@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
+    machine::ProtocolMap,
     protocols::{
         ipv4::Ipv4Address,
         sockets::socket::{ProtocolFamily, Socket, SocketError, SocketType},
@@ -8,11 +9,6 @@ use crate::{
         Dns,
         dns::DnsType,
     },
-    ProtocolMap,
-    Machine,
-    protocol::SharedProtocol,
-    Shutdown,
-    
 };
 use tokio::sync::Barrier;
 

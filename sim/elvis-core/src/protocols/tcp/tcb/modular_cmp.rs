@@ -26,6 +26,7 @@ pub fn mod_gt(a: u32, b: u32) -> bool {
 }
 
 /// Is a > b under modular arithmetic?
+#[allow(unused)]
 pub fn mod_geq(a: u32, b: u32) -> bool {
     mod_lt(b.wrapping_sub(1), a)
 }

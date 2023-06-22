@@ -1,12 +1,20 @@
+use super::{
+    ipv4::ipv4_parsing::Ipv4Header,
+    tcp,
+    udp::{self, UdpHeader},
+    utility::Endpoint,
+};
 use crate::{
-    control::{Key, Primitive},
-    protocol::{Context, DemuxError, ListenError, OpenError, QueryError, StartError, SharedProtocol},
-    protocols::{ipv4::Ipv4Address, Ipv4, Udp, Dns},
-    session::SharedSession,
-    Control, FxDashMap, Id, Message, Protocol, ProtocolMap, Shutdown, Machine
+    machine::ProtocolMap,
+    protocol::{DemuxError, StartError},
+    protocols::{ipv4::Ipv4Address, Udp},
+    Control, FxDashMap, Message, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::{Barrier, Notify};
 
 pub mod socket;
@@ -17,7 +25,7 @@ use socket_session::SocketSession;
 
 /// An implementation of the Sockets API
 ///
-/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`]
+/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`](crate::machine::Machine)
 ///
 /// Purpose:
 /// - To serve as an interface between the x-kernal-style protocol stack and a
@@ -31,25 +39,22 @@ pub struct Sockets {
     local_ports: RwLock<u16>,
     // TODO(giddinl2): This will be added once IPv6 is implemented
     // local_ipv6_address: Option<Ipv6Address>,
-    fds: RwLock<u64>,
-    sockets: Arc<FxDashMap<Id, Arc<Socket>>>,
+    next_fd: RwLock<u64>,
+    sockets: Arc<FxDashMap<u64, Arc<Socket>>>,
     socket_sessions: FxDashMap<SocketId, Arc<SocketSession>>,
-    listen_bindings: FxDashMap<SocketAddress, Id>,
+    listen_bindings: FxDashMap<SocketAddress, u64>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
     // TODO(zachd9757): A reference to the ELVIS API once it exists
 }
 
 impl Sockets {
-    /// A unique identifier for the protocol
-    pub const ID: Id = Id::from_string("Sockets");
-
     /// Creates a new instance of the protocol
     pub fn new(local_ipv4_address: Option<Ipv4Address>) -> Self {
         Self {
             local_ipv4_address,
             local_ports: RwLock::new(49152),
-            fds: RwLock::new(0),
+            next_fd: RwLock::new(0),
             sockets: Default::default(),
             socket_sessions: Default::default(),
             listen_bindings: Default::default(),
@@ -70,7 +75,12 @@ impl Sockets {
         sock_type: SocketType,
         protocols: ProtocolMap,
     ) -> Result<Arc<Socket>, SocketError> {
-        let fd = Id::new(*self.fds.read().unwrap());
+        let fd = {
+            let mut lock = self.next_fd.write().unwrap();
+            let fd = *lock;
+            *lock += 1;
+            fd
+        };
         self.notify_init.notified().await;
         let socket = Arc::new(Socket::new(
             domain,
@@ -87,9 +97,6 @@ impl Sockets {
             }
             Entry::Vacant(entry) => entry.insert(socket.clone()),
         };
-        // Currently, mock "file descriptors" are distrubuted on an incremental
-        // basis and not reused
-        *self.fds.write().unwrap() += 1;
         Ok(socket)
     }
 
@@ -131,104 +138,34 @@ impl Sockets {
         Ok(session)
     }
 
-    pub(crate) fn forward_to_socket(
-        self: Arc<Self>,
-        fd: Id,
-        message: Message,
-        _context: Context,
-    ) -> Result<(), DemuxError> {
-        match self.sockets.entry(fd) {
-            Entry::Occupied(entry) => entry.get().receive(message),
-            Entry::Vacant(_) => Err(DemuxError::MissingSession),
-        }
-    }
-    
-    // /// Finds the IP associated with the given domain name.
-    // fn get_host_by_name(
-    //     &self,
-    //     name: String,
-    //     protocols: ProtocolMap,
-    // ) -> Result<Ipv4Address, SocketError> {
-    //     // Get DNS protocol from this socket protocol's machine
-    //     // let dns: Dns =  match protocols.protocol(Dns::ID) {
-    //     //     Some(p) => p,
-    //     //     None => {
-    //     //         return Err(SocketError::Other);
-    //     //     }
-    //     // };
-
-    //     match get_mapping(name) {
-    //         // Cache hit
-    //         Ok(ip) => Ok(ip),
-
-    //         // Cache miss
-    //         Err(DnsError) => {
-    //             // TODO(zachd9757): Check authoritative server
-    //             Err(SocketError::Other)
-    //         },
-    //     }
-    // }
-}
-
-impl Protocol for Sockets {
-    fn id(&self) -> Id {
-        Self::ID
-    }
-
-    fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        *self.shutdown.write().unwrap() = Some(shutdown);
-        self.notify_init.notify_one();
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
-        Ok(())
-    }
-
     /// Called from Socket::connect() and Socket::accept()
     /// Creates a new socket_session based on IP address and port and returns it
-    fn open(
+    pub async fn open_with_fd(
         &self,
-        upstream: Id,
-        participants: Control,
+        fd: u64,
+        socket_id: SocketId,
         protocols: ProtocolMap,
-    ) -> Result<SharedSession, OpenError> {
-        let identifier = SocketId::new(
-            IpAddress::IPv4(Ipv4::get_local_address(&participants).map_err(|_| {
-                tracing::error!("Missing local address on context");
-                OpenError::MissingContext
-            })?),
-            Udp::get_local_port(&participants).map_err(|_| {
-                tracing::error!("Missing local port on context");
-                OpenError::MissingContext
-            })?,
-            IpAddress::IPv4(Ipv4::get_remote_address(&participants).map_err(|_| {
-                tracing::error!("Missing remote address on context");
-                OpenError::MissingContext
-            })?),
-            Udp::get_remote_port(&participants).map_err(|_| {
-                tracing::error!("Missing remote port on context");
-                OpenError::MissingContext
-            })?,
-        );
-        match self.socket_sessions.entry(identifier) {
+    ) -> Result<Arc<dyn Session>, OpenError> {
+        match self.socket_sessions.entry(socket_id) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
-                Err(OpenError::Existing)?
+                Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
                 let downstream = protocols
-                    .protocol(Udp::ID)
-                    .expect("No such protocol")
-                    .open(Self::ID, participants, protocols)?;
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .open_and_listen(
+                        TypeId::of::<Self>(),
+                        // TODO(hardint): Fix when IPv6 is supported
+                        socket_id.try_into().unwrap(),
+                        protocols,
+                    )
+                    .await?;
                 let session = Arc::new(SocketSession {
-                    upstream: RwLock::new(Some(match self.sockets.entry(upstream) {
+                    upstream: RwLock::new(Some(match self.sockets.entry(fd) {
                         Entry::Occupied(sock) => sock.get().clone(),
-                        Entry::Vacant(_) => return Err(OpenError::MissingProtocol(upstream)),
+                        Entry::Vacant(_) => return Err(OpenError::NoSocketForFd(fd)),
                     })),
                     downstream,
                     stored_msg: RwLock::new(None),
@@ -239,27 +176,37 @@ impl Protocol for Sockets {
         }
     }
 
-    fn listen(
+    fn listen_with_fd(
         &self,
-        upstream: Id,
-        participants: Control,
+        fd: u64,
+        address: SocketAddress,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
-        let identifier = SocketAddress::new_v4(
-            Ipv4::get_local_address(&participants).map_err(|_| {
-                tracing::error!("Missing local address on context");
-                ListenError::MissingContext
-            })?,
-            Udp::get_local_port(&participants).map_err(|_| {
-                tracing::error!("Missing local port on context");
-                ListenError::MissingContext
-            })?,
-        );
-        self.listen_bindings.insert(identifier, upstream);
-        protocols
-            .protocol(Udp::ID)
+        self.listen_bindings.insert(address, fd);
+        Ok(protocols
+            .protocol::<Udp>()
             .expect("No such protocol")
-            .listen(Self::ID, participants, protocols)
+            // TODO(hardint): Fix when IPv6 is supported
+            .listen(TypeId::of::<Self>(), address.try_into().unwrap(), protocols)?)
+    }
+}
+
+#[async_trait::async_trait]
+impl Protocol for Sockets {
+    fn id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
+
+    async fn start(
+        &self,
+        shutdown: Shutdown,
+        initialized: Arc<Barrier>,
+        _protocols: ProtocolMap,
+    ) -> Result<(), StartError> {
+        *self.shutdown.write().unwrap() = Some(shutdown);
+        self.notify_init.notify_one();
+        initialized.wait().await;
+        Ok(())
     }
 
     /// When the Sockets API receives a message from a Udp or Tcp session, it is
@@ -268,29 +215,18 @@ impl Protocol for Sockets {
     fn demux(
         &self,
         message: Message,
-        caller: SharedSession,
-        context: Context,
+        caller: Arc<dyn Session>,
+        control: Control,
+        _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let identifier = SocketId::new(
-            IpAddress::IPv4(Ipv4::get_local_address(&context.control).map_err(|_| {
-                tracing::error!("Missing local address on context");
-                DemuxError::MissingContext
-            })?),
-            Udp::get_local_port(&context.control).map_err(|_| {
-                tracing::error!("Missing local port on context");
-                DemuxError::MissingContext
-            })?,
-            IpAddress::IPv4(Ipv4::get_remote_address(&context.control).map_err(|_| {
-                tracing::error!("Missing remote address on context");
-                DemuxError::MissingContext
-            })?),
-            Udp::get_remote_port(&context.control).map_err(|_| {
-                tracing::error!("Missing remote port on context");
-                DemuxError::MissingContext
-            })?,
+        let ipv4_header = control.get::<Ipv4Header>().unwrap();
+        let udp_header = control.get::<UdpHeader>().unwrap();
+        let identifier = SocketId::new_from_addresses(
+            SocketAddress::new_v4(ipv4_header.destination, udp_header.destination),
+            SocketAddress::new_v4(ipv4_header.source, udp_header.source),
         );
         let any_identifier =
-            SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, identifier.local_address.port);
+            SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, udp_header.destination);
         let session = match self.socket_sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
@@ -327,10 +263,28 @@ impl Protocol for Sockets {
         session.receive(message)?;
         Ok(())
     }
+}
 
-    fn query(&self, _key: Key) -> Result<Primitive, QueryError> {
-        Err(QueryError::NonexistentKey)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum OpenError {
+    #[error("There is already a session for {0:?}")]
+    Existing(SocketId),
+    #[error("{0}")]
+    Udp(#[from] udp::OpenAndListenError),
+    #[error("{0}")]
+    Tcp(#[from] tcp::OpenError),
+    #[error("There was no socket for the file descriptor {0}")]
+    NoSocketForFd(u64),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum ListenError {
+    #[error("There is already a session for {0:?}")]
+    Existing(Endpoint),
+    #[error("{0}")]
+    Udp(#[from] udp::ListenError),
+    #[error("{0}")]
+    Tcp(#[from] tcp::ListenError),
 }
 
 #[cfg(test)]

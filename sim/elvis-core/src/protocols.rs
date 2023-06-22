@@ -3,11 +3,11 @@
 pub mod ipv4;
 pub use ipv4::Ipv4;
 
+pub mod arp;
+pub use arp::Arp;
+
 pub mod pci;
 pub use pci::Pci;
-
-pub mod subwrap;
-pub use subwrap::SubWrap;
 
 pub mod udp;
 pub use udp::Udp;
@@ -22,11 +22,7 @@ pub mod dns;
 pub use dns::Dns;
 
 mod utility;
+pub use utility::{Endpoint, Endpoints};
 
-pub mod arp;
-pub use arp::Arp;
-
-// TODO(hardint): Remove dead code allowance when possible
-#[allow(dead_code)]
 pub mod tcp;
 pub use tcp::Tcp;

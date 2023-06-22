@@ -1,108 +1,74 @@
 use elvis_core::{
+    machine::ProtocolMap,
     message::Message,
-    protocol::Context,
-    protocols::ipv4::{ipv4_parsing::Ipv4Header, Recipients},
     protocols::{
-        user_process::{Application, ApplicationError, UserProcess},
-        Ipv4, Pci,
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipients},
+        user_process::{Application, ApplicationError},
+        Ipv4, Pci, UserProcess,
     },
-    session::SharedSession,
-    Control, Id, Network, ProtocolMap, Shutdown,
+    Control, Session, Shutdown,
 };
-use std::sync::{Arc, RwLock};
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Router {
-    outgoing: RwLock<Vec<SharedSession>>,
-    recipients: Recipients,
+    ip_table: Recipients,
 }
 
 impl Router {
-    pub fn new(recipients: Recipients) -> Self {
-        Self {
-            outgoing: Default::default(),
-            recipients,
-        }
+    pub fn new(ip_table: Recipients) -> Self {
+        Self { ip_table }
     }
 
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+    pub fn process(self) -> UserProcess<Self> {
+        UserProcess::new(self)
     }
 }
 
+#[async_trait::async_trait]
 impl Application for Router {
-    /// A unique identifier for the application used by controls and the protocol map
-    const ID: Id = Ipv4::ID;
-
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), ApplicationError> {
-        // get the pci protocol
-        let pci = protocols.protocol(Pci::ID).expect("No such protocol");
-
-        // query the number of taps in our pci session
-        let number_taps = pci
-            .query(Pci::SLOT_COUNT_QUERY_KEY)
-            .expect("could not get slot count")
-            .to_u64()
-            .expect("could not unwrap u32");
-
-        let mut sessions = Vec::with_capacity(number_taps as usize);
-
-        for i in 0..number_taps {
-            let mut participants = Control::new();
-            Pci::set_pci_slot(i as u32, &mut participants);
-            let val = pci
-                .open(Self::ID, participants.clone(), protocols.clone())
-                .expect("could not open session");
-            sessions.push(val);
-        }
-
-        *self
-            .outgoing
-            .write()
-            .expect("could not put array in outgoing") = sessions;
-
-        tokio::spawn(async move {
-            initialize.wait().await;
-        });
+        let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
+        ipv4.listen(
+            TypeId::of::<UserProcess<Self>>(),
+            Ipv4Address::CURRENT_NETWORK,
+            protocols,
+        )
+        .unwrap();
+        initialize.wait().await;
         Ok(())
     }
 
     /// Called when the containing [`UserProcess`] receives a message over the
     /// network and gives the application time to handle it.
-    fn receive(&self, message: Message, mut context: Context) -> Result<(), ApplicationError> {
-        // obtain destination address of the message
-        // cant use this as we dont have an ipv4 protocol in the router
-        // should probably extract it from the message object somehow
-
-        // if the header cant parse drop the packet
-        let header: Ipv4Header =
-            Ipv4Header::from_bytes(message.iter()).or(Err(ApplicationError::Other))?;
-
-        let address = header.destination;
-
-        let recipient = match self.recipients.get(&address) {
-            Some(recipient) => recipient,
-            None => return Ok(()),
-        };
-        Network::set_protocol(Ipv4::ID, &mut context.control);
-        if let Some(mac) = recipient.mac {
-            Network::set_destination(mac, &mut context.control);
+    fn receive(
+        &self,
+        mut message: Message,
+        _caller: Arc<dyn Session>,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), ApplicationError> {
+        let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(ApplicationError::Other)?;
+        ipv4_header.time_to_live -= 1;
+        if ipv4_header.time_to_live == 0 {
+            return Ok(());
         }
-
-        self.outgoing
-            .read()
-            .expect("could not get outgoing as reference")
-            .get(recipient.slot as usize)
-            .expect("Could not send message")
-            .send(message, context)?;
-
+        // TODO(hardint): Fragmentation
+        message.header(ipv4_header.serialize().or(Err(ApplicationError::Other))?);
+        let recipient = self
+            .ip_table
+            .get(&ipv4_header.destination)
+            .ok_or(ApplicationError::Other)?;
+        let session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
+        session.send_pci(message, recipient.mac, TypeId::of::<Ipv4>())?;
         Ok(())
     }
 }

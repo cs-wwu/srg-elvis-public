@@ -1,7 +1,6 @@
 //! Generates applications from parsing data for machines
 //! Future applications can go here for easy import to the machine generator
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::applications::{Forward, PingPong};
 use crate::ndl::generating::generator_utils::ip_or_name;
@@ -12,14 +11,14 @@ use crate::{
 };
 use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::Ipv4Address;
-use elvis_core::protocols::UserProcess;
+use elvis_core::protocols::{Endpoint, Endpoints, UserProcess};
 use elvis_core::Message;
 
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-) -> Arc<UserProcess<SendMessage>> {
+) -> UserProcess<SendMessage> {
     assert!(
         app.options.contains_key("port"),
         "Send_Message application doesn't contain port."
@@ -44,21 +43,28 @@ pub fn send_message_builder(
         let to = ip_string_to_ip(to, "Send_Message declaration");
 
         // case where ip to mac doesn't have a mac
-        SendMessage::new(messages, to.into(), port).shared()
-    } else {
-        return SendMessage::new(
+        UserProcess::new(SendMessage::new(
             messages,
-            *name_to_ip
-                .get(&to)
-                .unwrap_or_else(|| panic!("Invalid name for 'to' in send_message, found: {to}")),
-            port,
-        )
-        .shared();
+            Endpoint {
+                address: to.into(),
+                port,
+            },
+        ))
+    } else {
+        UserProcess::new(SendMessage::new(
+            messages,
+            Endpoint {
+                address: *name_to_ip.get(&to).unwrap_or_else(|| {
+                    panic!("Invalid name for 'to' in send_message, found: {to}")
+                }),
+                port,
+            },
+        ))
     }
 }
 
 /// Builds the [Capture] application for a machine
-pub fn capture_builder(app: &Application) -> Arc<UserProcess<Capture>> {
+pub fn capture_builder(app: &Application) -> UserProcess<Capture> {
     assert!(
         app.options.contains_key("port"),
         "Capture application doesn't contain port."
@@ -82,7 +88,13 @@ pub fn capture_builder(app: &Application) -> Arc<UserProcess<Capture>> {
         .unwrap()
         .parse::<u32>()
         .expect("Invalid u32 found in Capture for message count");
-    Capture::new(ip.into(), port, message_count).shared()
+    UserProcess::new(Capture::new(
+        Endpoint {
+            address: ip.into(),
+            port,
+        },
+        message_count,
+    ))
 }
 
 /// Builds the [Forward] application for a machine
@@ -90,7 +102,7 @@ pub fn capture_builder(app: &Application) -> Arc<UserProcess<Capture>> {
 pub fn forward_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-) -> Arc<UserProcess<Forward>> {
+) -> UserProcess<Forward> {
     assert!(
         app.options.contains_key("local_port"),
         "Forward application doesn't contain local port."
@@ -117,17 +129,29 @@ pub fn forward_message_builder(
     let remote_port = string_to_port(app.options.get("remote_port").unwrap().to_string());
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Forward declaration");
-        Forward::new(ip.into(), to.into(), local_port, remote_port).shared()
+        UserProcess::new(Forward::new(Endpoints {
+            local: Endpoint {
+                address: ip.into(),
+                port: local_port,
+            },
+            remote: Endpoint {
+                address: to.into(),
+                port: remote_port,
+            },
+        }))
     } else {
-        Forward::new(
-            ip.into(),
-            *name_to_ip
-                .get(&to)
-                .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
-            local_port,
-            remote_port,
-        )
-        .shared()
+        UserProcess::new(Forward::new(Endpoints {
+            local: Endpoint {
+                address: ip.into(),
+                port: local_port,
+            },
+            remote: Endpoint {
+                address: *name_to_ip
+                    .get(&to)
+                    .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
+                port: remote_port,
+            },
+        }))
     }
 }
 
@@ -140,7 +164,7 @@ pub fn ping_pong_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
     ip_to_mac: &HashMap<Ipv4Address, Mac>,
     name_to_mac: &HashMap<String, u64>,
-) -> Arc<UserProcess<PingPong>> {
+) -> UserProcess<PingPong> {
     assert!(
         app.options.contains_key("local_port"),
         "Forward application doesn't contain local port."
@@ -178,30 +202,44 @@ pub fn ping_pong_builder(
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Forward declaration");
         // case where ip to mac doesn't have a mac
+        let endpoints = Endpoints {
+            local: Endpoint {
+                address: ip.into(),
+                port: local_port,
+            },
+            remote: Endpoint {
+                address: to.into(),
+                port: remote_port,
+            },
+        };
         if !ip_to_mac.contains_key(&to.into()) {
-            PingPong::new(starter, ip.into(), to.into(), local_port, remote_port).shared()
+            PingPong::new(starter, endpoints).process()
         }
         // case where ip to mac does have a mac
         else {
-            PingPong::new(starter, ip.into(), to.into(), local_port, remote_port)
+            PingPong::new(starter, endpoints)
                 .remote_mac(*ip_to_mac.get(&to.into()).unwrap())
-                .shared()
+                .process()
         }
     } else {
-        PingPong::new(
-            starter,
-            ip.into(),
-            *name_to_ip
-                .get(&to)
-                .unwrap_or_else(|| panic!("Invalid name for 'to' in PingPong, found: {to}")),
-            local_port,
-            remote_port,
+        let endpoints = Endpoints {
+            local: Endpoint {
+                address: ip.into(),
+                port: local_port,
+            },
+            remote: Endpoint {
+                address: *name_to_ip
+                    .get(&to)
+                    .unwrap_or_else(|| panic!("Invalid name for 'to' in PingPong, found: {to}")),
+                port: remote_port,
+            },
+        };
+        UserProcess::new(
+            PingPong::new(starter, endpoints).remote_mac(
+                *name_to_mac
+                    .get(&to)
+                    .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
+            ),
         )
-        .remote_mac(
-            *name_to_mac
-                .get(&to)
-                .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
-        )
-        .shared()
     }
 }

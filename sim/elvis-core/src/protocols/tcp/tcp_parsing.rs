@@ -119,6 +119,7 @@ impl TcpHeader {
     }
 
     /// Size of the header in bytes
+    #[allow(unused)]
     pub fn bytes(&self) -> u8 {
         // Safe to do because data offset is only 4 bits
         self.data_offset * 4
@@ -192,6 +193,7 @@ impl TcpHeaderBuilder {
     }
 
     /// Set the psh bit up
+    #[allow(unused)]
     pub fn psh(mut self) -> Self {
         self.0.ctl.set_psh(true);
         self
@@ -216,6 +218,7 @@ impl TcpHeaderBuilder {
     }
 
     /// Set urgent pointer
+    #[allow(unused)]
     pub fn urg(mut self, urg: u16) -> Self {
         self.0.ctl.set_urg(true);
         self.0.urg = urg;
@@ -417,7 +420,7 @@ impl Debug for Control {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocols::{tcp::ConnectionId, utility::Socket};
+    use crate::protocols::utility::{Endpoint, Endpoints};
 
     const PAYLOAD: &[u8] = b"Hello, world!";
     const SRC_ADDRESS: Ipv4Address = Ipv4Address::LOCALHOST;
@@ -427,7 +430,6 @@ mod tests {
     const SEQUENCE: u32 = 123456789;
     const WINDOW: u16 = 1024;
     const ACKNOWLEDGEMENT: u32 = 10;
-    const TTL: u8 = 30;
 
     fn build_expected() -> (etherparse::TcpHeader, Vec<u8>) {
         let expected = {
@@ -439,7 +441,7 @@ mod tests {
             {
                 let ip_header = etherparse::Ipv4Header::new(
                     PAYLOAD.len().try_into().unwrap(),
-                    TTL,
+                    30,
                     etherparse::IpNumber::Tcp,
                     SRC_ADDRESS.into(),
                     DST_ADDRESS.into(),
@@ -492,12 +494,12 @@ mod tests {
 
     #[test]
     fn builds_packet() {
-        let id = ConnectionId {
-            local: Socket {
+        let id = Endpoints {
+            local: Endpoint {
                 address: Ipv4Address::LOCALHOST,
                 port: 0xcafe,
             },
-            remote: Socket {
+            remote: Endpoint {
                 address: Ipv4Address::SUBNET,
                 port: 0xbabe,
             },
