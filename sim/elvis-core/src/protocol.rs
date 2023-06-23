@@ -1,10 +1,65 @@
 //! The [`Protocol`] trait and supporting types.
+//!
+//!
+//! # Async trait
+//!
+//! Due to the nature of the [`async_trait::async_trait`] macro,
+//! this looks like a mess when viewed with `cargo doc`.
+//! When you create your own application, you can do it like so:
+//!
+//! ```
+//! use elvis_core::*;
+//! use elvis_core::machine::*;
+//! use elvis_core::session::Session;
+//! use elvis_core::protocol::*;
+//! use tokio::sync::Barrier;
+//! use std::sync::Arc;
+//! use std::any::*;
+//!
+//! struct MyApp {}
+//!
+//! #[async_trait::async_trait]
+//! impl Protocol for MyApp {
+//!     fn id(&self) -> TypeId {
+//!         self.type_id()
+//!     }
+//!     async fn start(
+//!         &self,
+//!         shutdown: Shutdown,
+//!         initialize: Arc<Barrier>,
+//!         protocols: ProtocolMap,
+//!     ) -> Result<(), StartError> {
+//!         Ok(())
+//!     }
+//!
+//!     fn demux(
+//!         &self,
+//!         message: Message,
+//!         caller: Arc<dyn Session>,
+//!         control: Control,
+//!         protocols: ProtocolMap,
+//!     ) -> Result<(), DemuxError> {
+//!         Ok(())
+//!     }
+//! 
+//!     fn notify(
+//!         &self, notification: NotifyType,
+//!         caller: Arc<dyn Session>,
+//!         control: Control
+//!     ) {
+//! 
+//!     }
+//! }
+//! ```
 
 use super::message::Message;
 use crate::{
     machine::ProtocolMap, protocols::user_process::ApplicationError, Control, Session, Shutdown,
 };
-use std::{any::TypeId, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+};
 use tokio::sync::Barrier;
 
 // TODO(hardint): Should add a str argument to the Other variant of errors so
@@ -14,8 +69,11 @@ use tokio::sync::Barrier;
 ///
 /// A protocol is responsible for creating new [`Session`](super::Session)s and
 /// demultiplexing requests to the correct session.
+#[async_trait::async_trait]
 pub trait Protocol: Send + Sync + 'static {
-    fn id(&self) -> TypeId;
+    fn id(&self) -> TypeId {
+        self.type_id()
+    }
 
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
@@ -27,7 +85,7 @@ pub trait Protocol: Send + Sync + 'static {
     /// are ready to receive the message. Implementors may also store the
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -49,8 +107,10 @@ pub trait Protocol: Send + Sync + 'static {
     /// - Select a session to respond to the message. This is done by looking at
     ///   information extracted from the header. If there is no matching
     ///   session, the protocol should check to see whether any protocol has
-    ///   asked to receive the message by calling [`listen`](Protocol::listen)
-    ///   at an earlier time. If so, a new session should be created.
+    ///   asked to receive the message by calling `listen` at an earlier time.
+    ///   (Most protocols, such as `Ipv4` and `Udp`, have a `listen` or
+    ///   `open_and_listen` function.)
+    ///   If so, a new session should be created.
     /// - Call `receive` on the selected session.
     fn demux(
         &self,

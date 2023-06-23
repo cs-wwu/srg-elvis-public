@@ -1,13 +1,12 @@
 use crate::applications::PingPong;
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    run_internet, Machine, Network,
+    run_internet, Network,
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);

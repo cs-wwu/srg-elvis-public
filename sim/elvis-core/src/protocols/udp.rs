@@ -35,27 +35,27 @@ impl Udp {
         Default::default()
     }
 
-    pub fn open_and_listen(
+    pub async fn open_and_listen(
         &self,
         upstream: TypeId,
         endpoints: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
         self.listen(upstream, endpoints.local, protocols.clone())?;
-        Ok(self.open_for_sending(upstream, endpoints, protocols)?)
+        Ok(self.open_for_sending(upstream, endpoints, protocols).await?)
     }
 
-    pub fn open_for_sending(
+    pub async fn open_for_sending(
         &self,
         upstream: TypeId,
         endpoints: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenError> {
-        let downstream = protocols.protocol::<Ipv4>().unwrap().open_for_sending(
-            TypeId::of::<Self>(),
-            endpoints.into(),
-            protocols,
-        )?;
+        let downstream = protocols
+            .protocol::<Ipv4>()
+            .unwrap()
+            .open_for_sending(TypeId::of::<Self>(), endpoints.into(), protocols)
+            .await?;
         let session = Arc::new(UdpSession {
             upstream,
             downstream,
@@ -80,16 +80,13 @@ impl Udp {
         protocols
             .protocol::<Ipv4>()
             .expect("No such protocol")
-            .listen(TypeId::of::<Self>(), socket.address)?;
+            .listen(TypeId::of::<Self>(), socket.address, protocols)?;
         Ok(())
     }
 }
 
+#[async_trait::async_trait]
 impl Protocol for Udp {
-    fn id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
     fn demux(
         &self,
         mut message: Message,
@@ -150,15 +147,13 @@ impl Protocol for Udp {
         Ok(())
     }
 
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
         Ok(())
     }
 

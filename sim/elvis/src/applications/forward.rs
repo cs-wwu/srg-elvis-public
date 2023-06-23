@@ -36,8 +36,9 @@ impl Forward {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for Forward {
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -51,11 +52,10 @@ impl Application for Forward {
                 self.endpoints,
                 protocols,
             )
+            .await
             .unwrap(),
         );
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
 
         Ok(())
     }

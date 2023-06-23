@@ -26,10 +26,11 @@ impl Router {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for Router {
     /// Gives the application an opportunity to set up before the simulation
     /// begins.
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
@@ -39,11 +40,10 @@ impl Application for Router {
         ipv4.listen(
             TypeId::of::<UserProcess<Self>>(),
             Ipv4Address::CURRENT_NETWORK,
+            protocols,
         )
         .unwrap();
-        tokio::spawn(async move {
-            initialize.wait().await;
-        });
+        initialize.wait().await;
         Ok(())
     }
 

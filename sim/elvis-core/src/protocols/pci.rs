@@ -7,7 +7,7 @@ use crate::{
     protocol::{DemuxError, NotifyType, StartError},
     Control, Network, Protocol, Session, Shutdown,
 };
-use std::{any::TypeId, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 pub mod pci_session;
@@ -59,11 +59,8 @@ impl Pci {
     }
 }
 
+#[async_trait::async_trait]
 impl Protocol for Pci {
-    fn id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
     fn demux(
         &self,
         _message: Message,
@@ -74,7 +71,7 @@ impl Protocol for Pci {
         panic!("Cannot demux on a Pci")
     }
 
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -83,10 +80,7 @@ impl Protocol for Pci {
         for session in self.sessions.iter() {
             session.start(protocols.clone());
         }
-        tokio::spawn(async move {
-            // Wait until all the taps have started before starting the sim
-            initialized.wait().await;
-        });
+        initialized.wait().await;
         Ok(())
     }
 

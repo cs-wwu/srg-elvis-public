@@ -27,7 +27,7 @@ use socket_session::SocketSession;
 
 /// An implementation of the Sockets API
 ///
-/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`]
+/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`](crate::machine::Machine)
 ///
 /// Purpose:
 /// - To serve as an interface between the x-kernal-style protocol stack and a
@@ -138,7 +138,7 @@ impl SocketAPI {
 
     /// Called from Socket::connect() and Socket::accept()
     /// Creates a new socket_session based on IP address and port and returns it
-    pub fn open_with_fd(
+    pub async fn open_with_fd(
         &self,
         fd: u64,
         socket_id: Endpoints,
@@ -157,14 +157,14 @@ impl SocketAPI {
                 let downstream = match sock.sock_type {
                     SocketType::Datagram => protocols.protocol::<Udp>().unwrap().open_and_listen(
                         TypeId::of::<Self>(),
-                        socket_id,
+                        socket_id.try_into().unwrap(),
                         protocols,
-                    )?,
+                    ).await?,
                     SocketType::Stream => protocols.protocol::<Tcp>().unwrap().open(
                         TypeId::of::<Self>(),
-                        socket_id,
+                        socket_id.try_into().unwrap(),
                         protocols,
-                    )?,
+                    ).await?,
                 };
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(Some(sock)),
@@ -201,12 +201,13 @@ impl SocketAPI {
     }
 }
 
+#[async_trait::async_trait]
 impl Protocol for SocketAPI {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
 
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -214,9 +215,7 @@ impl Protocol for SocketAPI {
     ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
         self.notify_init.notify_one();
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
         Ok(())
     }
 

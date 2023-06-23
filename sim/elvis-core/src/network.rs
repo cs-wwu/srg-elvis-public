@@ -8,14 +8,16 @@
 //!
 //! - Create the network with the desired properties using the
 //!   [`NetworkBuilder`]
-//! - Call [`Network::tap`] on the the network to get a [`Tap`]. A tap is a an
-//!   access point to the network that can be used to send and receive messages.
-//!   Each tap also acts as an identifier so that peers on the network can
-//!   exchange messages directly.
 //! - Add a [`Pci`](crate::protocols::Pci) protocol to the machine that wants to
-//!   access the network and include the new tap in its constructor. This is
-//!   similar to adding a networking card to computer. This way, a machine can
-//!   add multiple taps to attach to different networks.
+//!   access the network and place a pointer to a network in its constructor
+//!   (using `my_network.clone()`). This is similar to adding a networking card
+//!   to a computer. This way, a machine can attach to multiple different networks.
+//! - When [`Pci::start`](crate::protocols::Pci) is called,
+//!   a new [`PciSession`] will be created for each network in the Pci's constructor.
+//!   Also called "taps", these sessions are access points to the network that can be
+//!   used to send and receive messages.
+//!   Each session also acts as an identifier so that peers on the network can
+//!   exchange messages directly.
 
 use crate::{protocols::pci::PciSession, FxDashMap, Message};
 use rand::{distributions::Uniform, prelude::Distribution};
@@ -53,6 +55,8 @@ impl Default for Network {
 }
 
 impl Network {
+    pub const BROADCAST_MAC: Mac = 0xFF_FF_FF_FF_FF_FF;
+
     /// Create a new network with the given properties
     fn new(mtu: Option<Mtu>, latency: Latency, throughput: Throughput, loss_rate: f32) -> Self {
         let throughput_permit = Arc::new(Notify::new());
@@ -105,6 +109,17 @@ impl Network {
             sleep(latency).await;
         }
         match delivery.destination {
+            None | Some(Self::BROADCAST_MAC) => {
+                for tap in self.taps.iter() {
+                    match tap.receive(delivery.clone()) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("Failed to deliver a message: {}", e)
+                        }
+                    }
+                }
+            }
+
             Some(destination) => {
                 let tap = {
                     match self.taps.get(&destination) {
@@ -120,17 +135,6 @@ impl Network {
                     Ok(_) => {}
                     Err(e) => {
                         tracing::error!("Failed to deliver a message: {}", e)
-                    }
-                }
-            }
-
-            None => {
-                for tap in self.taps.iter() {
-                    match tap.receive(delivery.clone()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!("Failed to deliver a message: {}", e)
-                        }
                     }
                 }
             }
@@ -219,7 +223,7 @@ pub(crate) struct Delivery {
 /// The largest number of bytes that can be sent over the network at once.
 pub type Mtu = u16;
 
-/// A MAC address that uniquely identifies a [`Tap`] on a network.
+/// A MAC address that uniquely identifies a [`PciSession`] on a network.
 pub type Mac = u64;
 
 /// A data transfer rate

@@ -23,6 +23,8 @@ pub struct SendMessage {
     endpoint: Endpoint,
     /// The protocol to use in delivering the message
     transport: Transport,
+    /// the application's local address
+    local_ip: Ipv4Address,
 }
 
 impl SendMessage {
@@ -32,7 +34,15 @@ impl SendMessage {
             messages: RwLock::new(messages),
             endpoint,
             transport: Transport::Udp,
+            local_ip: Ipv4Address::LOCALHOST,
         }
+    }
+
+    /// Set the local IP address of this protocol.
+    /// (By default, its local IP is `127.0.0.1`)
+    pub fn local_ip(mut self, local_ip: Ipv4Address) -> Self {
+        self.local_ip = local_ip;
+        self
     }
 
     /// Wrap the SendMessage in a user process
@@ -47,8 +57,9 @@ impl SendMessage {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for SendMessage {
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -57,49 +68,49 @@ impl Application for SendMessage {
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         let endpoint = self.endpoint;
         let transport = self.transport;
-        tokio::spawn(async move {
-            initialized.wait().await;
+        initialized.wait().await;
 
-            let local_address = match protocols.protocol::<UserProcess<DhcpClient>>() {
-                Some(dhcp) => dhcp.application().ip_address().await,
-                None => Ipv4Address::LOCALHOST,
-            };
+        let local_address = match protocols.protocol::<UserProcess<DhcpClient>>() {
+            Some(dhcp) => dhcp.application().ip_address().await,
+            None => self.local_ip,
+        };
 
-            let endpoints = Endpoints {
-                local: Endpoint {
-                    address: local_address,
-                    port: 0,
-                },
-                remote: endpoint,
-            };
+        let endpoints = Endpoints {
+            local: Endpoint {
+                address: local_address,
+                port: 0,
+            },
+            remote: endpoint,
+        };
 
-            let session = match transport {
-                Transport::Tcp => protocols
-                    .protocol::<Tcp>()
-                    .unwrap()
-                    .open(
-                        TypeId::of::<UserProcess<Self>>(),
-                        endpoints,
-                        protocols.clone(),
-                    )
-                    .unwrap(),
-                Transport::Udp => protocols
-                    .protocol::<Udp>()
-                    .unwrap()
-                    .open_for_sending(
-                        TypeId::of::<UserProcess<Self>>(),
-                        endpoints,
-                        protocols.clone(),
-                    )
-                    .unwrap(),
-            };
+        let session = match transport {
+            Transport::Tcp => protocols
+                .protocol::<Tcp>()
+                .unwrap()
+                .open(
+                    TypeId::of::<UserProcess<Self>>(),
+                    endpoints,
+                    protocols.clone(),
+                )
+                .await
+                .unwrap(),
+            Transport::Udp => protocols
+                .protocol::<Udp>()
+                .unwrap()
+                .open_for_sending(
+                    TypeId::of::<UserProcess<Self>>(),
+                    endpoints,
+                    protocols.clone(),
+                )
+                .await
+                .unwrap(),
+        };
 
-            for message in messages {
-                session
-                    .send(message, protocols.clone())
-                    .expect("SendMessage failed to send");
-            }
-        });
+        for message in messages {
+            session
+                .send(message, protocols.clone())
+                .expect("SendMessage failed to send");
+        }
         Ok(())
     }
 

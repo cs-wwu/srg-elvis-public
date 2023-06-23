@@ -1,6 +1,6 @@
 //! Implements the reassembly procedure from RFC791, section 3.2, page 27: An Example
 //! Reassembly Procedure
-//! https://www.rfc-editor.org/rfc/rfc791
+//! <https://www.rfc-editor.org/rfc/rfc791>
 
 mod bitvec;
 mod buf_id;

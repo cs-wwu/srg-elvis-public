@@ -39,9 +39,10 @@ impl DhcpServer {
 }
 
 // We should move this into application in the 'elvis' branch eventually
+#[async_trait::async_trait]
 impl Application for DhcpServer {
     /// Initialize the server and listen/respond to client requests
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
@@ -60,9 +61,7 @@ impl Application for DhcpServer {
             protocols,
         )
         .unwrap();
-        tokio::spawn(async move {
-            initialized.wait().await;
-        });
+        initialized.wait().await;
         Ok(())
     }
 

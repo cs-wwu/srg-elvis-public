@@ -1,13 +1,12 @@
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     message::Message,
     new_machine,
     protocols::{
         ipv4::{Ipv4, Recipient, Recipients},
         Endpoint, Pci, Tcp, UserProcess,
     },
-    run_internet, Machine, Network, Transport,
+    run_internet, Network, Transport,
 };
 
 // TODO(hardint): There is a lot of redundant code with addresses and such. Consolidate.

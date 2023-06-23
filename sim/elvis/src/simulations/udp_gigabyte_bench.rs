@@ -1,6 +1,5 @@
 use crate::applications::{SendMessage, WaitForMessage};
 use elvis_core::{
-    machine::ProtocolMapBuilder,
     message::Message,
     network::NetworkBuilder,
     new_machine,
@@ -8,7 +7,7 @@ use elvis_core::{
         ipv4::{Ipv4, Recipient, Recipients},
         Endpoint, Pci, Udp,
     },
-    run_internet, Machine,
+    run_internet,
 };
 
 /// Runs a basic simulation.

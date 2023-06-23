@@ -64,8 +64,9 @@ impl OnReceive {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for OnReceive {
-    fn start(
+    async fn start(
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
@@ -95,9 +96,7 @@ impl Application for OnReceive {
                     .unwrap();
             }
         }
-        tokio::spawn(async move {
-            initialize.wait().await;
-        });
+        initialize.wait().await;
         Ok(())
     }
 
