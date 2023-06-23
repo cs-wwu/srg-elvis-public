@@ -159,22 +159,14 @@ impl SocketAPI {
                         protocols
                             .protocol::<Udp>()
                             .unwrap()
-                            .open_and_listen(
-                                TypeId::of::<Self>(),
-                                socket_id,
-                                protocols,
-                            )
+                            .open_and_listen(TypeId::of::<Self>(), socket_id, protocols)
                             .await?
                     }
                     SocketType::Stream => {
                         protocols
                             .protocol::<Tcp>()
                             .unwrap()
-                            .open(
-                                TypeId::of::<Self>(),
-                                socket_id,
-                                protocols,
-                            )
+                            .open(TypeId::of::<Self>(), socket_id, protocols)
                             .await?
                     }
                 };
