@@ -1,4 +1,4 @@
-use super::Sockets;
+use super::SocketAPI;
 use crate::{
     machine::ProtocolMap,
     message::Chunk,
@@ -32,7 +32,7 @@ pub struct Socket {
     messages: Arc<RwLock<VecDeque<Message>>>,
     notify_recv: Notify,
     protocols: ProtocolMap,
-    socket_api: Arc<Sockets>,
+    socket_api: Arc<SocketAPI>,
     shutdown: Shutdown,
 }
 
@@ -42,7 +42,7 @@ impl Socket {
         sock_type: SocketType,
         fd: u64,
         protocols: ProtocolMap,
-        socket_api: Arc<Sockets>,
+        socket_api: Arc<SocketAPI>,
         shutdown: Shutdown,
     ) -> Socket {
         Self {
@@ -128,7 +128,7 @@ impl Socket {
         ) {
             let session = match self
                 .protocols
-                .protocol::<Sockets>()
+                .protocol::<SocketAPI>()
                 .expect("Sockets API not found")
                 .open_with_fd(
                     self.fd,
@@ -174,7 +174,7 @@ impl Socket {
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
             match self
                 .protocols
-                .protocol::<Sockets>()
+                .protocol::<SocketAPI>()
                 .expect("Sockets API not found")
                 .listen_with_fd(self.fd, local_addr, self.protocols.clone())
             {

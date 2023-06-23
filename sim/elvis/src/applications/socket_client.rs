@@ -3,9 +3,9 @@ use elvis_core::{
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::socket::{ProtocolFamily, SocketType},
+        socket_api::socket::{ProtocolFamily, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
-        Endpoint, Sockets,
+        Endpoint, SocketAPI,
     },
     Control, Session, Shutdown,
 };
@@ -53,8 +53,8 @@ impl Application for SocketClient {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
         let sockets = protocols
-            .protocol::<Sockets>()
-            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<Sockets>()))?;
+            .protocol::<SocketAPI>()
+            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let remote_ip = self.remote_ip;
         let remote_port = self.remote_port;
         let client_id = self.client_id;

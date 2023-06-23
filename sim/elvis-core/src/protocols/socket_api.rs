@@ -35,7 +35,7 @@ use socket_session::SocketSession;
 /// - To simplify the process of making connections via the protocol stack to
 /// make applications easier to write
 #[derive(Default)]
-pub struct Sockets {
+pub struct SocketAPI {
     local_address: Option<Ipv4Address>,
     local_ports: RwLock<u16>,
     next_fd: RwLock<u64>,
@@ -46,7 +46,7 @@ pub struct Sockets {
     shutdown: RwLock<Option<Shutdown>>,
 }
 
-impl Sockets {
+impl SocketAPI {
     /// Creates a new instance of the protocol
     pub fn new(local_address: Option<Ipv4Address>) -> Self {
         Self {
@@ -201,7 +201,7 @@ impl Sockets {
     }
 }
 
-impl Protocol for Sockets {
+impl Protocol for SocketAPI {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
     }

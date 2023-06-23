@@ -3,9 +3,9 @@ use elvis_core::{
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::socket::{ProtocolFamily, Socket, SocketType},
+        socket_api::socket::{ProtocolFamily, Socket, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
-        Endpoint, Sockets,
+        Endpoint, SocketAPI,
     },
     Control, Session, Shutdown,
 };
@@ -63,8 +63,8 @@ impl Application for SocketServer {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
         let sockets = protocols
-            .protocol::<Sockets>()
-            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<Sockets>()))?;
+            .protocol::<SocketAPI>()
+            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = self.local_port;
         let transport = self.transport;
 

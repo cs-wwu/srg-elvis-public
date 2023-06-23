@@ -4,10 +4,10 @@ use elvis_core::{
     new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
-        sockets::socket::SocketType,
+        socket_api::socket::SocketType,
         tcp::Tcp,
         udp::Udp,
-        Pci, Sockets,
+        Pci, SocketAPI,
     },
     run_internet, Machine, Network,
 };
@@ -40,7 +40,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Sockets::new(Some(server_ip_address)),
+            SocketAPI::new(Some(server_ip_address)),
             SocketServer::new(0xbeef, SocketType::Stream).process()
         ],
         new_machine![
@@ -48,7 +48,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Sockets::new(Some(client1_ip_address)),
+            SocketAPI::new(Some(client1_ip_address)),
             SocketClient::new(1, server_ip_address, 0xbeef, SocketType::Stream).process()
         ],
         new_machine![
@@ -56,7 +56,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Sockets::new(Some(client2_ip_address)),
+            SocketAPI::new(Some(client2_ip_address)),
             SocketClient::new(2, server_ip_address, 0xbeef, SocketType::Stream).process()
         ],
         new_machine![
@@ -64,7 +64,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Sockets::new(Some(client3_ip_address)),
+            SocketAPI::new(Some(client3_ip_address)),
             SocketClient::new(3, server_ip_address, 0xbeef, SocketType::Stream).process()
         ],
     ];
