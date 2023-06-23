@@ -1,7 +1,7 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
     machine::ProtocolMap,
-    protocol::DemuxError,
+    protocol::{DemuxError, NotifyType},
     protocols::{
         tcp::tcb::{AdvanceTimeResult, State},
         Endpoints,
@@ -55,7 +55,9 @@ impl TcpSession {
 
                 if !connected && tcb.status() == State::Established {
                     connected = true;
-                    //TODO(giddinl2): upstream.notify(NotifyType::NewConnection, me.clone(), me.control);
+                    let mut control = Control::new();
+                    control.insert(endpoints);
+                    upstream.notify(NotifyType::NewConnection, me.clone(), control);
                 }
 
                 loop {

@@ -41,13 +41,13 @@
 //!     ) -> Result<(), DemuxError> {
 //!         Ok(())
 //!     }
-//! 
+//!
 //!     fn notify(
 //!         &self, notification: NotifyType,
 //!         caller: Arc<dyn Session>,
 //!         control: Control
 //!     ) {
-//! 
+//!
 //!     }
 //! }
 //! ```

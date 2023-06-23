@@ -14,7 +14,7 @@ use std::sync::Arc;
 use tokio::sync::Barrier;
 
 use crate::machine::ProtocolMap;
-use crate::protocol::{DemuxError, StartError, NotifyType};
+use crate::protocol::{DemuxError, NotifyType, StartError};
 use crate::protocols::ipv4::*;
 use crate::session::SendError;
 use crate::{machine::PciSlot, network::Mac, Control, Message, Protocol, Session, Shutdown};

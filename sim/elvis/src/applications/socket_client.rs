@@ -58,13 +58,9 @@ impl Application for SocketClient {
         let sockets = protocols
             .protocol::<SocketAPI>()
             .ok_or(ApplicationError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
-        let remote_ip = self.remote_ip;
-        let remote_port = self.remote_port;
-        let client_id = self.client_id;
-        let transport = self.transport;
 
         let socket = sockets
-            .new_socket(ProtocolFamily::INET, transport, protocols)
+            .new_socket(ProtocolFamily::INET, self.transport, protocols)
             .await
             .unwrap();
 
@@ -72,26 +68,25 @@ impl Application for SocketClient {
         initialized.wait().await;
 
         // "Connect" the socket to a remote address
-        let remote_sock_addr = Endpoint::new(remote_ip, remote_port);
-        println!("CLIENT {}: Attempting to connect...", client_id);
+        let remote_sock_addr = Endpoint::new(self.remote_ip, self.remote_port);
         socket.connect(remote_sock_addr).await.unwrap();
-        println!("CLIENT {}: Connected", client_id);
+        println!("CLIENT {}: Connected", self.client_id);
 
         // Send a message
         let req = "Ground Control to Major Tom";
-        println!("CLIENT {}: Sending Request: {:?}", client_id, req);
+        println!("CLIENT {}: Sending Request: {:?}", self.client_id, req);
         socket.send(req).unwrap();
 
         // Receive a message
         let resp = socket.recv(32).await.unwrap();
         println!(
             "CLIENT {}: Response Received: {:?}",
-            client_id,
+            self.client_id,
             String::from_utf8(resp).unwrap()
         );
 
         // Send a message
-        println!("CLIENT {}: Sending Ackowledgement", client_id);
+        println!("CLIENT {}: Sending Ackowledgement", self.client_id);
         socket.send("Ackowledged").unwrap();
         Ok(())
     }

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use elvis_core::{
     machine::ProtocolMap,
-    protocol::{DemuxError, StartError, NotifyType},
+    protocol::{DemuxError, NotifyType, StartError},
     protocols::{
         arp::{
             arp_parsing::ArpPacket,

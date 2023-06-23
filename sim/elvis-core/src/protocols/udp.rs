@@ -42,7 +42,9 @@ impl Udp {
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
         self.listen(upstream, endpoints.local, protocols.clone())?;
-        Ok(self.open_for_sending(upstream, endpoints, protocols).await?)
+        Ok(self
+            .open_for_sending(upstream, endpoints, protocols)
+            .await?)
     }
 
     pub async fn open_for_sending(

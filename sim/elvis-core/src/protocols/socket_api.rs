@@ -1,6 +1,6 @@
 use super::{
     ipv4::ipv4_parsing::Ipv4Header,
-    tcp::{self, TcpHeader},
+    tcp,
     udp::{self, UdpHeader},
     utility::Endpoint,
     Endpoints, Tcp,
@@ -155,16 +155,28 @@ impl SocketAPI {
                     Entry::Vacant(_) => return Err(OpenError::NoSocketForFd(fd)),
                 };
                 let downstream = match sock.sock_type {
-                    SocketType::Datagram => protocols.protocol::<Udp>().unwrap().open_and_listen(
-                        TypeId::of::<Self>(),
-                        socket_id.try_into().unwrap(),
-                        protocols,
-                    ).await?,
-                    SocketType::Stream => protocols.protocol::<Tcp>().unwrap().open(
-                        TypeId::of::<Self>(),
-                        socket_id.try_into().unwrap(),
-                        protocols,
-                    ).await?,
+                    SocketType::Datagram => {
+                        protocols
+                            .protocol::<Udp>()
+                            .unwrap()
+                            .open_and_listen(
+                                TypeId::of::<Self>(),
+                                socket_id,
+                                protocols,
+                            )
+                            .await?
+                    }
+                    SocketType::Stream => {
+                        protocols
+                            .protocol::<Tcp>()
+                            .unwrap()
+                            .open(
+                                TypeId::of::<Self>(),
+                                socket_id,
+                                protocols,
+                            )
+                            .await?
+                    }
                 };
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(Some(sock)),
@@ -276,29 +288,29 @@ impl Protocol for SocketAPI {
                 session.stored_messages.write().unwrap().push_back(message);
                 socket.add_listen_address(identifier.remote);
                 entry.insert(session);
-                //session
             }
         };
-        //session.receive(message)?;
         Ok(())
     }
 
     fn notify(&self, notification: NotifyType, caller: Arc<dyn Session>, control: Control) {
         match notification {
             NotifyType::NewConnection => {
-                let ipv4_header = control.get::<Ipv4Header>().unwrap();
-                let (destination, source) = match control.get::<UdpHeader>() {
-                    Some(udp_header) => (udp_header.destination, udp_header.source),
-                    None => match control.get::<TcpHeader>() {
-                        Some(tcp_header) => (tcp_header.dst_port, tcp_header.src_port),
+                let identifier = match control.get::<UdpHeader>() {
+                    Some(udp_header) => {
+                        let ipv4_header = control.get::<Ipv4Header>().unwrap();
+                        Endpoints::new(
+                            Endpoint::new(ipv4_header.destination, udp_header.destination),
+                            Endpoint::new(ipv4_header.source, udp_header.source),
+                        )
+                    }
+                    None => match control.get::<Endpoints>() {
+                        Some(endpoints) => *endpoints,
                         None => return,
                     },
                 };
-                let identifier = Endpoints::new(
-                    Endpoint::new(ipv4_header.destination, destination),
-                    Endpoint::new(ipv4_header.source, source),
-                );
-                let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, destination);
+                let any_identifier =
+                    Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
                 match self.socket_sessions.entry(identifier) {
                     Entry::Occupied(entry) => entry.get().clone().connection_established(),
                     Entry::Vacant(entry) => {

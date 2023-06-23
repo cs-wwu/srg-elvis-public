@@ -35,7 +35,7 @@ impl SocketServer {
 
 async fn communicate_with_client(socket: Arc<Socket>) {
     // Receive a message
-    // println!("SERVER: Waiting for request...");
+    println!("SERVER: Waiting for request...");
     let req = socket.recv(32).await.unwrap();
     println!(
         "SERVER: Request Received: {:?}",
