@@ -41,14 +41,6 @@
 //!     ) -> Result<(), DemuxError> {
 //!         Ok(())
 //!     }
-//!
-//!     fn notify(
-//!         &self, notification: NotifyType,
-//!         caller: Arc<dyn Session>,
-//!         control: Control
-//!     ) {
-//!
-//!     }
 //! }
 //! ```
 
@@ -122,7 +114,7 @@ pub trait Protocol: Send + Sync + 'static {
 
     /// Allows for notifying a protocol about an occurrence,
     /// Eg. a new connection being established
-    fn notify(&self, notification: NotifyType, caller: Arc<dyn Session>, control: Control);
+    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

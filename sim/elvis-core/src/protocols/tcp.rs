@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{
     machine::ProtocolMap,
-    protocol::{DemuxError, NotifyType, StartError},
+    protocol::{DemuxError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
     Control, FxDashMap, Message, Protocol, Session, Shutdown,
 };
@@ -199,8 +199,6 @@ impl Protocol for Tcp {
         initialized.wait().await;
         Ok(())
     }
-
-    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]

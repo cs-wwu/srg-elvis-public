@@ -4,7 +4,7 @@ use crate::{
     machine::{PciSlot, ProtocolMap},
     message::Message,
     network::{Mac, Mtu},
-    protocol::{DemuxError, NotifyType, StartError},
+    protocol::{DemuxError, StartError},
     Control, Network, Protocol, Session, Shutdown,
 };
 use std::sync::Arc;
@@ -83,8 +83,6 @@ impl Protocol for Pci {
         initialized.wait().await;
         Ok(())
     }
-
-    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

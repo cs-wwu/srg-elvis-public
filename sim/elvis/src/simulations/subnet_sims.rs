@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use elvis_core::{
     machine::ProtocolMap,
-    protocol::{DemuxError, NotifyType, StartError},
+    protocol::{DemuxError, StartError},
     protocols::{
         arp::{
             arp_parsing::ArpPacket,
@@ -93,8 +93,6 @@ impl Protocol for MockGateway {
         self.send.send(message).unwrap();
         Ok(())
     }
-
-    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
 }
 
 /// Creates Jack's machine

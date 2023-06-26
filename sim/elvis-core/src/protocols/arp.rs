@@ -14,7 +14,7 @@ use std::sync::Arc;
 use tokio::sync::Barrier;
 
 use crate::machine::ProtocolMap;
-use crate::protocol::{DemuxError, NotifyType, StartError};
+use crate::protocol::{DemuxError, StartError};
 use crate::protocols::ipv4::*;
 use crate::session::SendError;
 use crate::{machine::PciSlot, network::Mac, Control, Message, Protocol, Session, Shutdown};
@@ -163,8 +163,6 @@ impl Protocol for Arp {
     ) -> Result<(), DemuxError> {
         self.inner.demux(message, caller, control, protocols)
     }
-
-    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
 }
 
 impl<I: ArpInner> From<I> for Arp {

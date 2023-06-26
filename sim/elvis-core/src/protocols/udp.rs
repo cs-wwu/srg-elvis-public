@@ -4,7 +4,7 @@
 use crate::{
     machine::ProtocolMap,
     message::Message,
-    protocol::{DemuxError, NotifyType, StartError},
+    protocol::{DemuxError, StartError},
     protocols::ipv4::Ipv4,
     Control, FxDashMap, Protocol, Session, Shutdown,
 };
@@ -158,8 +158,6 @@ impl Protocol for Udp {
         initialized.wait().await;
         Ok(())
     }
-
-    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

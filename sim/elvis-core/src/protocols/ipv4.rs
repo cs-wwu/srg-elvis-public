@@ -6,7 +6,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocol::{DemuxError, NotifyType, StartError},
+    protocol::{DemuxError, StartError},
     protocols::pci::Pci,
     Control, FxDashMap, Protocol, Session, Shutdown,
 };
@@ -188,8 +188,6 @@ impl Protocol for Ipv4 {
         session.receive(header, message, control, protocols)?;
         Ok(())
     }
-
-    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
 }
 
 pub type Recipients = FxHashMap<Ipv4Address, Recipient>;
