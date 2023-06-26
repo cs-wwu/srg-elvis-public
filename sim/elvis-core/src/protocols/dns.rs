@@ -78,7 +78,8 @@ impl Dns {
         }
     }
 
-    /// Finds the IP associated with the given domain name.
+    /// Finds the IP associated with the given domain name. Usuable by external
+    /// callers. Specifically intended for use by sockets.rs.
     fn get_host_by_name(
         &self,
         name: String,
@@ -161,6 +162,19 @@ mod tests {
         // Verify that lookup matches what was added
         let check = dns.get_mapping(name);
         assert_eq!(Ok(ip), check);
+    }
+
+    #[test]
+    // Checks appropriate behaviour on cache miss.
+    fn cache_miss() {
+        let dns: Dns = Dns::new(DnsType::CLI, Ipv4Address::CURRENT_NETWORK);
+
+        // Create and do NOT add mapping
+        let name: String = String::from("Arbitrary");
+
+        // Verify that lookup returns dns cache miss error.
+        let check = dns.get_mapping(name);
+        assert_eq!(Err(DnsError::Cache), check);
     }
 }
 
