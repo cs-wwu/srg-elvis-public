@@ -1,6 +1,7 @@
 //! An implementation of the Domain Name Structure
 
 pub mod dns_session;
+pub mod dns_parsing;
 
 use std::any::Any;
 
