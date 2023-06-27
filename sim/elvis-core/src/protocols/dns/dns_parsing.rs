@@ -1,5 +1,8 @@
+// pub mod dns_parsing;
+
 use super::Dns;
-use crate::bit;
+// use crate::bit;
+use thiserror::Error as ThisError;
 
 
 
@@ -15,9 +18,10 @@ pub(super) struct DnsHeader {
     /// the corresponding reply and can be used by the requester
     ///  to match up replies to outstanding queries.
     pub id: u16,
-    /// the 16 bit wrapper that holds the following fields:
+    /// the 16 bit string that holds the following fields:
     /// QR, Opcode, AA, TC, RD, RA, Z, RCODE
-    pub properties: DnsHeaderProperties,
+    /// in the format 0 0000 0 0 0 0 000 0000
+    pub properties: u16,
     /// the number of entries in the question section.
     pub qdcount: u16,
     /// the number of resource records in the answer section.
@@ -28,6 +32,13 @@ pub(super) struct DnsHeader {
     pub arcount: u16,
 }
 
+pub enum DnsMessageType {
+    // Indicates the message is a request for information.
+    QUERY,
+    // Indicates the message is responding to a request.
+    RESPONSE,
+}
+
 impl DnsHeader {
     /// Parses a header from a byte iterator.
     pub fn from_bytes(mut bytes: impl Iterator<Item = u16>) -> Result<Self, ParseError> {
@@ -35,14 +46,65 @@ impl DnsHeader {
             || -> Result<u16, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
 
         let id = next()?;
-        let properties: DnsHeaderProperties = next()?;
-        let qr = properties.get_QR();
-        let opcode = properties.get_Opcode();
-        let aa = properties.get_AA();
-        let tc = properties.get_TC();
-        let rd = properties.get_RD();
-        let ra = properties.get_RA();
-        let rcode = properties.get_RCODE();
+        let properties = next()?;
+        let qdcount = next()?;
+        let ancount = next()?;
+        let nscount = next()?;
+        let arcount = next()?;
+
+        Ok(
+            Self {
+                id,
+                properties,
+                qdcount,
+                ancount,
+                nscount,
+                arcount,
+            }
+        )
+    }
+
+    pub fn new(
+        message_id: u16,
+        message_type: DnsMessageType
+    ) -> DnsHeader {
+        // Set to nothing for now
+        let id = message_id;
+
+        // as binary: 0 0000 0 0 0 0 000 0000
+        // Leading bit denotes query or response, remaining fields present for 
+        // completeness
+        let mut properties = 0x0;
+        match message_type {
+            DnsMessageType::QUERY       => properties |= 0x0,
+            DnsMessageType::RESPONSE    => properties |= 0x8000,
+        }
+
+        // Remaining fields of header left as 0x0. Included for completeness.
+        let qdcount = 0x0;
+        let ancount = 0x0;
+        let nscount = 0x0;
+        let arcount = 0x0;
+
+        DnsHeader {
+            id,
+            properties,
+            qdcount,
+            ancount,
+            nscount,
+            arcount,
+        }
+    }
+
+    pub fn build(header: DnsHeader) -> Vec<u16> {
+            vec![
+                header.id,
+                header.properties,
+                header.qdcount,
+                header.ancount,
+                header.nscount,
+                header.arcount,
+            ]
     }
 }
 
@@ -52,87 +114,62 @@ pub enum ParseError {
     HeaderTooShort,
 }
 
-/// Wrapper struct for holding the QR, Opcode, AA, TC, RD, RA, Z, and RCODE
-/// fields of a DNS Header.
-pub(super) struct DnsHeaderProperties(u16);
-
-impl DnsHeaderProperties {
-    fn get_QR() -> bool {
-        self.bit(0)
-    }
-
-    fn get_Opcode() -> Self {
-        let opcode_range = std::ops::Range {start: 1, end: 5};
-        bit_range(opcode_range)
-    }
-
-    fn get_AA() -> bool {
-        self.bit(5)
-    }
-
-    fn get_TC() -> bool {
-        self.bit(6)
-    }
-
-    fn get_RD() -> bool {
-        self.bit(7)
-    }
-
-    fn get_RA() -> bool {
-        self.bit(8)
-    }
-
-    fn get_RCODE() -> Self {
-        let rcode_range = std::ops::Range {start: 12, end: 16};
-        bit_range(rcode_range)
-    }
-}
-
-impl BitIndex for DnsHeaderProperties {
-    /// DnsHeaderProperties are defined by 2 bytes, 16 bits
-    fn bit_length() -> usize {
-        2
-    }
-
-    fn bit(&self, pos: usize) -> bool {
-        self << pos >> self.bit_length()
-    }
-
-    fn bit_range(&self, pos: Range<usize>) -> Self {
-
-    }
-
-    fn set_bit(&mut self, pos: usize, val: bool) -> &mut Self {
-
-    }
-
-    fn set_bit_range(&mut self, pos: Range<usize>, val: Self) -> &mut Self {
-
-    }
-
-}
-
-pub(super) struct DnsHeaderBuilder {
-    id: u16,
-    properties: DnsHeaderProperties,
-    qdcount: u16,
-    ancount: u16,
-    nscount: u16,
-    arcount: u16,
-}
-
-impl DnsHeaderBuilder {
-    // Creates a new builder
-    pub fn new(
-
-    ) -> self {
-        self {
-            
-        }
-    }
+#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
+pub enum BuildError {
+    #[error("The DNS header is invalid")]
+    HeaderBadFormat,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn build_dns_header() {
+        let head: DnsHeader = DnsHeader::new(
+            1337,
+            DnsMessageType::RESPONSE,
+        );
+
+        println!("{:?}", head.id);
+        println!("{:?}", head.properties);
+        println!("{:?}", head.qdcount);
+        println!("{:?}", head.ancount);
+        println!("{:?}", head.nscount);
+        println!("{:?}", head.arcount);
+
+        assert_eq!(head.id, 1337);
+        assert_eq!(head.properties, 32768);
+        assert_eq!(head.qdcount, 0);
+        assert_eq!(head.ancount, 0);
+        assert_eq!(head.nscount, 0);
+        assert_eq!(head.arcount, 0);
+    }
+
+    #[test]
+    fn read_dns_header() {
+        let head_init: DnsHeader = DnsHeader::new(
+            1337,
+            DnsMessageType::QUERY,
+        );
+
+        let head_as_bytes: Vec<u16> = DnsHeader::build(head_init);
+
+        let head_final: DnsHeader = 
+            DnsHeader::from_bytes(head_as_bytes.iter().cloned()).unwrap();
+
+            println!("{:?}", head_final.id);
+            println!("{:?}", head_final.properties);
+            println!("{:?}", head_final.qdcount);
+            println!("{:?}", head_final.ancount);
+            println!("{:?}", head_final.nscount);
+            println!("{:?}", head_final.arcount);
+    
+            assert_eq!(head_final.id, 1337);
+            assert_eq!(head_final.properties, 0);
+            assert_eq!(head_final.qdcount, 0);
+            assert_eq!(head_final.ancount, 0);
+            assert_eq!(head_final.nscount, 0);
+            assert_eq!(head_final.arcount, 0);
+    }
 }
