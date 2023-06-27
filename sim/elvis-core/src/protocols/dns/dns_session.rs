@@ -4,10 +4,10 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocols::ipv4::Ipv4Address,
+    protocols::{ipv4::Ipv4Address, self},
     protocol::{DemuxError, StartError},
     protocols::pci::Pci,
-    Control, Network, Protocol, Shutdown, Session
+    Control, Network, Protocol, Shutdown, Session, session::SendError,
 };
 
 use std::{
@@ -24,15 +24,20 @@ pub struct DnsSession {
     id: SessionId,
 }
 
-// impl Session for DnsSession {
-//     fn send(self: Arc<Self>, mut message: Message, mut context: Context) -> Result<(), SendError> {
+impl DnsSession {
+    fn receive(
+        self: Arc<Self>,
+        message: Message,
+    ) {
 
-//     }
+    }
+}
 
-//     fn query(self: Arc<Self>, key: Key) -> Result<Primitive, QueryError> {
-
-//     }
-// }
+impl Session for DnsSession {
+    fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
+        self.downstream.send(message, protocols)
+    }
+}
 
 /// A set that uniquely identifies a given session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
