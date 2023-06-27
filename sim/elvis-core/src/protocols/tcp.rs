@@ -3,11 +3,10 @@
 
 use self::{
     tcb::{segment_arrives_closed, ListenResult, Segment, Tcb},
-    tcp_parsing::TcpHeader,
     tcp_session::TcpSession,
 };
 use super::{
-    ipv4::{self, ipv4_parsing::Ipv4Header},
+    ipv4::{self, ipv4_parsing::Ipv4Header, Ipv4Address},
     pci,
     utility::{Endpoint, Endpoints},
     Ipv4,
@@ -25,6 +24,7 @@ use tokio::sync::Barrier;
 mod tcb;
 mod tcp_parsing;
 mod tcp_session;
+pub use tcp_parsing::TcpHeader;
 
 // Problem: TCP packets don't use MAC addresses
 
@@ -65,6 +65,7 @@ impl Tcp {
                     protocols.get(upstream).unwrap(),
                     downstream,
                     protocols,
+                    endpoints,
                 );
                 entry.insert(session.clone());
                 Ok(session)
@@ -122,62 +123,66 @@ impl Protocol for Tcp {
         };
 
         let segment = Segment::new(tcp_header, message);
+        // TODO(hardint): Incomplete. See 3.10.7.2 for handling
+        // of segments in LISTEN state.
         match self.sessions.entry(endpoints) {
-            Entry::Occupied(entry) => {
-                entry.get().receive(segment);
-            }
-
+            Entry::Occupied(entry) => entry.get().receive(segment),
             Entry::Vacant(session_entry) => {
-                match self.listen_bindings.entry(endpoints.local) {
-                    Entry::Occupied(listen_entry) => {
-                        // TODO(hardint): Incomplete. See 3.10.7.2 for handling
-                        // of segments in LISTEN state.
-
-                        // If we have a listen binding, create the session and
-                        // save it
-                        let mtu = control.get::<pci::DemuxInfo>().unwrap().mtu;
-                        let listen_result = segment_arrives_listen(
-                            segment,
-                            endpoints.local.address,
-                            endpoints.remote.address,
-                            rand::random(),
-                            mtu,
-                        );
-                        if let Some(listen_result) = listen_result {
-                            match listen_result {
-                                ListenResult::Response(response) => {
+                let binding = match self.listen_bindings.entry(endpoints.local) {
+                    Entry::Occupied(listen_entry) => listen_entry,
+                    Entry::Vacant(_) => {
+                        let any_listen_id = Endpoint {
+                            address: Ipv4Address::CURRENT_NETWORK,
+                            port: endpoints.local.port,
+                        };
+                        match self.listen_bindings.entry(any_listen_id) {
+                            Entry::Occupied(any_listen_entry) => any_listen_entry,
+                            Entry::Vacant(_) => {
+                                if let Some(response) = segment_arrives_closed(
+                                    segment.header,
+                                    segment.text.len() as u32,
+                                    endpoints.local.address,
+                                    endpoints.remote.address,
+                                ) {
                                     caller
                                         .send(Message::new(response.serialize()), protocols)
                                         .map_err(|_| DemuxError::Other)?;
                                 }
-                                ListenResult::Tcb(tcb) => {
-                                    let upstream = *listen_entry.get();
-                                    let session = TcpSession::new(
-                                        tcb,
-                                        protocols
-                                            .get(upstream)
-                                            .ok_or(DemuxError::MissingProtocol(upstream))?,
-                                        caller,
-                                        protocols.clone(),
-                                    );
-                                    session_entry.insert(session);
-                                }
+                                return Err(DemuxError::MissingSession)?;
                             }
                         }
                     }
-
-                    Entry::Vacant(_) => {
-                        if let Some(response) = segment_arrives_closed(
-                            segment.header,
-                            segment.text.len() as u32,
-                            endpoints.local.address,
-                            endpoints.remote.address,
-                        ) {
+                };
+                // If we have a listen binding, create the session and
+                // save it
+                let mtu = control.get::<pci::DemuxInfo>().unwrap().mtu;
+                let listen_result = segment_arrives_listen(
+                    segment,
+                    endpoints.local.address,
+                    endpoints.remote.address,
+                    rand::random(),
+                    mtu,
+                );
+                if let Some(listen_result) = listen_result {
+                    match listen_result {
+                        ListenResult::Response(response) => {
                             caller
                                 .send(Message::new(response.serialize()), protocols)
                                 .map_err(|_| DemuxError::Other)?;
                         }
-                        Err(DemuxError::MissingSession)?
+                        ListenResult::Tcb(tcb) => {
+                            let upstream = *binding.get();
+                            let session = TcpSession::new(
+                                tcb,
+                                protocols
+                                    .get(upstream)
+                                    .ok_or(DemuxError::MissingProtocol(upstream))?,
+                                caller,
+                                protocols.clone(),
+                                endpoints,
+                            );
+                            session_entry.insert(session);
+                        }
                     }
                 }
             }

@@ -3,9 +3,9 @@ use elvis_core::{
     message::Message,
     protocols::{
         ipv4::Ipv4Address,
-        sockets::socket::{ProtocolFamily, Socket, SocketAddress, SocketType},
+        socket_api::socket::{ProtocolFamily, Socket, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
-        Sockets,
+        Endpoint, SocketAPI,
     },
     Control, Session, Shutdown,
 };
@@ -16,11 +16,16 @@ use tokio::sync::Barrier;
 pub struct SocketServer {
     /// The port to capture a message on
     local_port: u16,
+    /// Whether to use UDP or TCP
+    transport: SocketType,
 }
 
 impl SocketServer {
-    pub fn new(local_port: u16) -> Self {
-        Self { local_port }
+    pub fn new(local_port: u16, transport: SocketType) -> Self {
+        Self {
+            local_port,
+            transport,
+        }
     }
 
     pub fn process(self) -> UserProcess<Self> {
@@ -30,6 +35,7 @@ impl SocketServer {
 
 async fn communicate_with_client(socket: Arc<Socket>) {
     // Receive a message
+    println!("SERVER: Waiting for request...");
     let req = socket.recv(32).await.unwrap();
     println!(
         "SERVER: Request Received: {:?}",
@@ -42,6 +48,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
     socket.send(resp).unwrap();
 
     // Receive a message (Also example usage of recv_msg)
+    // println!("SERVER: Waiting for awkowledgement...");
     let _ack = socket.recv_msg().await.unwrap();
     println!("SERVER: Ackowledgement Received");
 }
@@ -57,22 +64,23 @@ impl Application for SocketServer {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
         let sockets = protocols
-            .protocol::<Sockets>()
-            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<Sockets>()))?;
+            .protocol::<SocketAPI>()
+            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = self.local_port;
+        let transport = self.transport;
 
         let listen_socket = sockets
-            .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+            .new_socket(ProtocolFamily::INET, transport, protocols)
             .await
             .unwrap();
 
         // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
-        let local_sock_addr = SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, local_port);
+        let local_sock_addr = Endpoint::new(Ipv4Address::CURRENT_NETWORK, local_port);
         listen_socket.bind(local_sock_addr).unwrap();
 
         // Listen for incoming connections, with a maximum backlog of 10
         listen_socket.listen(10).unwrap();
-        println!("SERVER: Listening for incoming connections");
+        println!("\nSERVER: Listening for incoming connections");
 
         // Wait on ititialization before sending or receiving any message from the network
         initialized.wait().await;

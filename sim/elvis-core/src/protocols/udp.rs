@@ -38,28 +38,30 @@ impl Udp {
     pub async fn open_and_listen(
         &self,
         upstream: TypeId,
-        sockets: Endpoints,
+        endpoints: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
-        self.listen(upstream, sockets.local, protocols.clone())?;
-        Ok(self.open_for_sending(upstream, sockets, protocols).await?)
+        self.listen(upstream, endpoints.local, protocols.clone())?;
+        Ok(self
+            .open_for_sending(upstream, endpoints, protocols)
+            .await?)
     }
 
     pub async fn open_for_sending(
         &self,
         upstream: TypeId,
-        sockets: Endpoints,
+        endpoints: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenError> {
         let downstream = protocols
             .protocol::<Ipv4>()
             .unwrap()
-            .open_for_sending(TypeId::of::<Self>(), sockets.into(), protocols)
+            .open_for_sending(TypeId::of::<Self>(), endpoints.into(), protocols)
             .await?;
         let session = Arc::new(UdpSession {
             upstream,
             downstream,
-            sockets,
+            endpoints,
         });
         Ok(session)
     }
@@ -141,7 +143,7 @@ impl Protocol for Udp {
         let session = Arc::new(UdpSession {
             upstream: *binding,
             downstream: caller,
-            sockets: endpoints,
+            endpoints,
         });
         session.receive(message, control, protocols)?;
         Ok(())

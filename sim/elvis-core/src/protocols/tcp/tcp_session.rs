@@ -1,7 +1,13 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
-    machine::ProtocolMap, protocol::DemuxError, protocols::tcp::tcb::AdvanceTimeResult,
-    session::SendError, Control, Message, Protocol, Session,
+    machine::ProtocolMap,
+    protocol::{DemuxError, NotifyType},
+    protocols::{
+        tcp::tcb::{AdvanceTimeResult, State},
+        Endpoints,
+    },
+    session::SendError,
+    Control, Message, Protocol, Session,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -31,11 +37,13 @@ impl TcpSession {
         upstream: Arc<dyn Protocol>,
         downstream: Arc<dyn Session>,
         protocols: ProtocolMap,
+        endpoints: Endpoints,
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);
         let me = Arc::new(Self { send });
         let out = me.clone();
         tokio::spawn(async move {
+            let mut connected = false;
             'outer: loop {
                 const TIMEOUT: Duration = Duration::from_millis(5);
 
@@ -44,6 +52,13 @@ impl TcpSession {
                 // any ready instructions without setting up a timeout and then
                 // maybe do the timeout if there were no instructions ready.
                 let mut needs_timeout = true;
+
+                if !connected && tcb.status() == State::Established {
+                    connected = true;
+                    let mut control = Control::new();
+                    control.insert(endpoints);
+                    upstream.notify(NotifyType::NewConnection, me.clone(), control);
+                }
 
                 loop {
                     match recv.try_recv() {
@@ -95,7 +110,9 @@ impl TcpSession {
 
                 let received = tcb.receive();
                 if !received.is_empty() {
-                    match upstream.demux(received, me.clone(), Control::new(), protocols.clone()) {
+                    let mut control = Control::new();
+                    control.insert(endpoints);
+                    match upstream.demux(received, me.clone(), control, protocols.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Demux error: {}", e),
                     }
