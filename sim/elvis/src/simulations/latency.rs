@@ -32,13 +32,13 @@ pub async fn latency() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![Message::new("Hello!")], endpoint).process()
+            SendMessage::new(vec![Message::new("Hello!")], endpoint)
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            Capture::new(endpoint, 1).process()
+            Capture::new(endpoint, 1)
         ],
     ];
 

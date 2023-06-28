@@ -15,9 +15,6 @@ pub use udp::Udp;
 pub mod socket_api;
 pub use socket_api::SocketAPI;
 
-pub mod user_process;
-pub use user_process::UserProcess;
-
 mod utility;
 pub use utility::{Endpoint, Endpoints};
 

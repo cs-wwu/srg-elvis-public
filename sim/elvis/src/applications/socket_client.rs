@@ -1,13 +1,13 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
+    protocol::{DemuxError, StartError},
     protocols::{
         ipv4::Ipv4Address,
         socket_api::socket::{ProtocolFamily, SocketType},
-        user_process::{Application, ApplicationError, UserProcess},
         Endpoint, SocketAPI,
     },
-    Control, Session, Shutdown,
+    Control, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -37,27 +37,23 @@ impl SocketClient {
             transport,
         }
     }
-
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
 }
 
 #[async_trait::async_trait]
-impl Application for SocketClient {
+impl Protocol for SocketClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         drop(_shutdown);
 
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
         let sockets = protocols
             .protocol::<SocketAPI>()
-            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
+            .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
 
         let socket = sockets
             .new_socket(ProtocolFamily::INET, self.transport, protocols)
@@ -91,13 +87,13 @@ impl Application for SocketClient {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         Ok(())
     }
 }

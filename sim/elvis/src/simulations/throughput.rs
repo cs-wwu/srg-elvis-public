@@ -35,7 +35,7 @@ pub async fn throughput() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(messages, endpoint).process()
+            SendMessage::new(messages, endpoint)
         ],
         new_machine![
             Udp::new(),
@@ -45,8 +45,7 @@ pub async fn throughput() {
                 endpoint,
                 3,
                 Duration::from_millis(900)..Duration::from_millis(1100),
-            )
-            .process(),
+            ),
         ],
     ];
 

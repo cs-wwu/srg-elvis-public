@@ -1,15 +1,10 @@
-use std::{
-    any::TypeId,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use elvis_core::{
     machine::ProtocolMap,
-    protocols::{
-        user_process::{Application, ApplicationError},
-        Endpoint, Tcp, Udp, UserProcess,
-    },
-    Control, Message, Session, Shutdown, Transport,
+    protocol::{DemuxError, StartError},
+    protocols::{Endpoint, Tcp, Udp},
+    Control, Message, Protocol, Session, Shutdown, Transport,
 };
 use tokio::sync::Barrier;
 
@@ -41,20 +36,15 @@ impl OnReceive {
     ///
     /// `fn_to_run` will be run whenever a message is received.
     /// The received message and context will be passed to the Fn.
-    pub fn new<F>(fn_to_run: F, local_endpoint: Endpoint) -> UserProcess<Self>
+    pub fn new<F>(fn_to_run: F, local_endpoint: Endpoint) -> Self
     where
         F: FnMut(Message, Control) + Send + 'static,
     {
-        UserProcess::new(OnReceive {
+        OnReceive {
             fn_to_run: Mutex::new(Box::new(fn_to_run)),
             local_endpoint,
             transport: Transport::Udp,
-        })
-    }
-
-    /// Creates a new OnReceive behind a shared handle.
-    pub fn shared(self) -> Arc<UserProcess<Self>> {
-        UserProcess::new(self).shared()
+        }
     }
 
     /// Set the transport protocol to use
@@ -65,34 +55,26 @@ impl OnReceive {
 }
 
 #[async_trait::async_trait]
-impl Application for OnReceive {
+impl Protocol for OnReceive {
     async fn start(
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         match self.transport {
             Transport::Tcp => {
                 protocols
                     .protocol::<Tcp>()
                     .unwrap()
-                    .listen(
-                        TypeId::of::<UserProcess<Self>>(),
-                        self.local_endpoint,
-                        protocols,
-                    )
+                    .listen(self.id(), self.local_endpoint, protocols)
                     .unwrap();
             }
             Transport::Udp => {
                 protocols
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(
-                        TypeId::of::<UserProcess<Self>>(),
-                        self.local_endpoint,
-                        protocols,
-                    )
+                    .listen(self.id(), self.local_endpoint, protocols)
                     .unwrap();
             }
         }
@@ -100,13 +82,13 @@ impl Application for OnReceive {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         message: Message,
         _caller: Arc<dyn Session>,
         context: Control,
         _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         // Run the function of this OnReceive
         let result = self.fn_to_run.lock();
         match result {
@@ -116,7 +98,7 @@ impl Application for OnReceive {
             }
             Err(_) => {
                 tracing::error!("Attempted to run function which panicked earlier");
-                Err(ApplicationError::Other)
+                Err(DemuxError::Other)
             }
         }
     }

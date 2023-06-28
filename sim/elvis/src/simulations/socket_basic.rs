@@ -40,7 +40,7 @@ pub async fn socket_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
-            SocketServer::new(0xbeef, SocketType::Stream).process()
+            SocketServer::new(0xbeef, SocketType::Stream)
         ],
         new_machine![
             Udp::new(),
@@ -48,7 +48,7 @@ pub async fn socket_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client1_ip_address)),
-            SocketClient::new(1, server_ip_address, 0xbeef, SocketType::Stream).process()
+            SocketClient::new(1, server_ip_address, 0xbeef, SocketType::Stream)
         ],
         new_machine![
             Udp::new(),
@@ -56,7 +56,7 @@ pub async fn socket_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client2_ip_address)),
-            SocketClient::new(2, server_ip_address, 0xbeef, SocketType::Stream).process()
+            SocketClient::new(2, server_ip_address, 0xbeef, SocketType::Stream)
         ],
         new_machine![
             Udp::new(),
@@ -64,7 +64,7 @@ pub async fn socket_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client3_ip_address)),
-            SocketClient::new(3, server_ip_address, 0xbeef, SocketType::Stream).process()
+            SocketClient::new(3, server_ip_address, 0xbeef, SocketType::Stream)
         ],
     ];
 

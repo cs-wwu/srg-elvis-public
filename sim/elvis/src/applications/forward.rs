@@ -1,17 +1,11 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocols::{
-        udp::Udp,
-        user_process::{Application, ApplicationError, UserProcess},
-        Endpoints,
-    },
-    Control, Session, Shutdown,
+    protocol::{DemuxError, StartError},
+    protocols::{udp::Udp, Endpoints},
+    Control, Protocol, Session, Shutdown,
 };
-use std::{
-    any::TypeId,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
 /// An application that forwards messages to `local_ip` to `remote_ip`.
@@ -29,25 +23,20 @@ impl Forward {
             endpoints,
         }
     }
-
-    /// Creates a new forwarding application behind a shared handle.
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
 }
 
 #[async_trait::async_trait]
-impl Application for Forward {
+impl Protocol for Forward {
     async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         let udp = protocols.protocol::<Udp>().expect("No such protocol");
         *self.outgoing.write().unwrap() = Some(
             udp.open_and_listen(
-                TypeId::of::<UserProcess<Self>>(),
+                self.id(),
                 // TODO(hardint): Can these clones be cheaper?
                 self.endpoints,
                 protocols,
@@ -60,13 +49,13 @@ impl Application for Forward {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         self.outgoing
             .read()
             .unwrap()

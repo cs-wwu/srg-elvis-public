@@ -5,7 +5,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Recipient, Recipients},
         udp::Udp,
-        Endpoint, Pci, UserProcess,
+        Endpoint, Pci,
     },
     run_internet, Network,
 };
@@ -30,14 +30,14 @@ pub async fn basic() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![message.clone()], endpoint).process(),
+            SendMessage::new(vec![message.clone()], endpoint),
             Udp::new(),
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            Capture::new(endpoint, 1).process(),
+            Capture::new(endpoint, 1),
         ],
     ];
 
@@ -47,9 +47,8 @@ pub async fn basic() {
         .nth(1)
         .unwrap()
         .into_inner()
-        .protocol::<UserProcess<Capture>>()
+        .protocol::<Capture>()
         .unwrap()
-        .application()
         .message();
     assert_eq!(received, Some(message));
 }
