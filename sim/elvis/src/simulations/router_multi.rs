@@ -70,8 +70,7 @@ pub async fn router_multi() {
             SendMessage::new(
                 vec![Message::new(b"Hello World!")],
                 Endpoint::new(DESTINATION, 0xbeef)
-            )
-            .process(),
+            ),
         ],
         // machine representing our router
         new_machine![
@@ -81,7 +80,7 @@ pub async fn router_multi() {
                 networks[2].clone(),
             ]),
             Ipv4::new(ip_table1.clone()),
-            Router::new(ip_table1).process(),
+            Router::new(ip_table1),
         ],
         new_machine![
             Pci::new([
@@ -90,7 +89,7 @@ pub async fn router_multi() {
                 networks[4].clone(),
             ]),
             Ipv4::new(ip_table2.clone()),
-            Router::new(ip_table2).process(),
+            Router::new(ip_table2),
         ],
         // capture for destination 1
         new_machine![Udp::new(), Ipv4::new(dt1), Pci::new([networks[3].clone()]),],
@@ -109,8 +108,7 @@ pub async fn router_multi() {
                     port: 0xbeef,
                 },
                 1,
-            )
-            .process(),
+            ),
         ],
     ];
 

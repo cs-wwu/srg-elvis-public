@@ -39,17 +39,13 @@ pub async fn tcp_with_unreliable() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![message.clone()], endpoint)
-                .transport(Transport::Tcp)
-                .process(),
+            SendMessage::new(vec![message.clone()], endpoint).transport(Transport::Tcp)
         ],
         new_machine![
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            WaitForMessage::new(endpoint, message)
-                .transport(Transport::Tcp)
-                .process(),
+            WaitForMessage::new(endpoint, message).transport(Transport::Tcp)
         ],
     ];
 

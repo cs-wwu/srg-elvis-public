@@ -2,17 +2,11 @@ use super::dhcp_parsing::{DhcpMessage, MessageType};
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocols::{
-        ipv4::Ipv4Address,
-        user_process::{Application, ApplicationError},
-        Endpoint, Udp, UserProcess,
-    },
-    Control, Session, Shutdown,
+    protocol::{DemuxError, StartError},
+    protocols::{ipv4::Ipv4Address, Endpoint, Udp},
+    Control, Protocol, Session, Shutdown,
 };
-use std::{
-    any::TypeId,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
 // Port number & broadcast frequency used by DHCP servers
@@ -32,22 +26,18 @@ impl DhcpServer {
             ip_generator: RwLock::new(IpGenerator::new(ip_range)),
         }
     }
-
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
 }
 
 // We should move this into application in the 'elvis' branch eventually
 #[async_trait::async_trait]
-impl Application for DhcpServer {
+impl Protocol for DhcpServer {
     /// Initialize the server and listen/respond to client requests
     async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         // NOTE(hardint):
         // Just the same as with the client side, I don't think that sockets works here. The
         // problem is that every client requesting an IP address has the same set of endpoints so
@@ -55,23 +45,19 @@ impl Application for DhcpServer {
         // addresses after the first. I'm modifying this to use UDP instead.
 
         let udp = protocols.protocol::<Udp>().unwrap();
-        udp.listen(
-            TypeId::of::<UserProcess<Self>>(),
-            Endpoint::new(self.server_address, 67),
-            protocols,
-        )
-        .unwrap();
+        udp.listen(self.id(), Endpoint::new(self.server_address, 67), protocols)
+            .unwrap();
         initialized.wait().await;
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         message: Message,
         caller: Arc<dyn Session>,
         _control: Control,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         // NOTE(hardint):
         //
         // The way this is implemented does not seem to be conformant. The code generates a new IP
@@ -130,7 +116,7 @@ impl Application for DhcpServer {
                 Ok(())
             }
             // TODO: Invalid message type, send error
-            _ => Err(ApplicationError::Other),
+            _ => Err(DemuxError::Other),
         }
     }
 }

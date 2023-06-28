@@ -3,22 +3,24 @@ use super::{
     tcp,
     udp::{self, UdpHeader},
     utility::Endpoint,
+    Endpoints, Tcp,
 };
 use crate::{
     machine::ProtocolMap,
-    protocol::{DemuxError, StartError},
+    protocol::{DemuxError, NotifyType, StartError},
     protocols::{ipv4::Ipv4Address, Udp},
     Control, FxDashMap, Message, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::{
     any::TypeId,
+    collections::VecDeque,
     sync::{Arc, RwLock},
 };
 use tokio::sync::{Barrier, Notify};
 
 pub mod socket;
-use socket::{IpAddress, ProtocolFamily, Socket, SocketAddress, SocketError, SocketId, SocketType};
+use socket::{ProtocolFamily, Socket, SocketError, SocketType};
 
 mod socket_session;
 use socket_session::SocketSession;
@@ -33,26 +35,23 @@ use socket_session::SocketSession;
 /// - To simplify the process of making connections via the protocol stack to
 /// make applications easier to write
 #[derive(Default)]
-pub struct Sockets {
-    // TODO(giddinl2): This will be used once I figure out how to dynamically hand out unused ports
-    local_ipv4_address: Option<Ipv4Address>,
+pub struct SocketAPI {
+    local_address: Option<Ipv4Address>,
     local_ports: RwLock<u16>,
-    // TODO(giddinl2): This will be added once IPv6 is implemented
-    // local_ipv6_address: Option<Ipv6Address>,
     next_fd: RwLock<u64>,
     sockets: Arc<FxDashMap<u64, Arc<Socket>>>,
-    socket_sessions: FxDashMap<SocketId, Arc<SocketSession>>,
-    listen_bindings: FxDashMap<SocketAddress, u64>,
+    socket_sessions: FxDashMap<Endpoints, Arc<SocketSession>>,
+    listen_bindings: FxDashMap<Endpoint, u64>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
     // TODO(zachd9757): A reference to the ELVIS API once it exists
 }
 
-impl Sockets {
+impl SocketAPI {
     /// Creates a new instance of the protocol
-    pub fn new(local_ipv4_address: Option<Ipv4Address>) -> Self {
+    pub fn new(local_address: Option<Ipv4Address>) -> Self {
         Self {
-            local_ipv4_address,
+            local_address,
             local_ports: RwLock::new(49152),
             next_fd: RwLock::new(0),
             sockets: Default::default(),
@@ -100,9 +99,9 @@ impl Sockets {
         Ok(socket)
     }
 
-    fn get_local_ipv4(&self) -> Result<IpAddress, SocketError> {
-        match self.local_ipv4_address {
-            Some(v) => Ok(IpAddress::IPv4(v)),
+    fn get_local_ip(&self) -> Result<Ipv4Address, SocketError> {
+        match self.local_address {
+            Some(v) => Ok(v),
             None => Err(SocketError::Other),
         }
     }
@@ -113,27 +112,27 @@ impl Sockets {
         Ok(port)
     }
 
-    fn get_ephemeral_endpoint(&self) -> Result<SocketAddress, SocketError> {
-        Ok(SocketAddress {
-            address: self.get_local_ipv4()?,
+    fn get_ephemeral_endpoint(&self) -> Result<Endpoint, SocketError> {
+        Ok(Endpoint {
+            address: self.get_local_ip()?,
             port: self.get_ephemeral_port()?,
         })
     }
 
     fn get_socket_session(
         &self,
-        local: SocketAddress,
-        remote: SocketAddress,
+        local: Endpoint,
+        remote: Endpoint,
     ) -> Result<Arc<SocketSession>, SocketError> {
-        let listen_local = SocketAddress::new_v4(self.local_ipv4_address.unwrap(), local.port);
-        let listen_identifier = SocketId::new_from_addresses(listen_local, remote);
+        let listen_local = Endpoint::new(self.local_address.unwrap(), local.port);
+        let listen_identifier = Endpoints::new(listen_local, remote);
         let session = match self.socket_sessions.entry(listen_identifier) {
             Entry::Occupied(entry) => entry.remove(),
             Entry::Vacant(_) => {
                 return Err(SocketError::AcceptError);
             }
         };
-        let identifier = SocketId::new(local.address, local.port, remote.address, remote.port);
+        let identifier = Endpoints::new(local, remote);
         self.socket_sessions.insert(identifier, session.clone());
         Ok(session)
     }
@@ -143,7 +142,7 @@ impl Sockets {
     pub async fn open_with_fd(
         &self,
         fd: u64,
-        socket_id: SocketId,
+        socket_id: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenError> {
         match self.socket_sessions.entry(socket_id) {
@@ -152,23 +151,30 @@ impl Sockets {
                 Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
-                let downstream = protocols
-                    .protocol::<Udp>()
-                    .unwrap()
-                    .open_and_listen(
-                        TypeId::of::<Self>(),
-                        // TODO(hardint): Fix when IPv6 is supported
-                        socket_id.try_into().unwrap(),
-                        protocols,
-                    )
-                    .await?;
+                let sock = match self.sockets.entry(fd) {
+                    Entry::Occupied(sock) => sock.get().clone(),
+                    Entry::Vacant(_) => return Err(OpenError::NoSocketForFd(fd)),
+                };
+                let downstream = match sock.sock_type {
+                    SocketType::Datagram => {
+                        protocols
+                            .protocol::<Udp>()
+                            .unwrap()
+                            .open_and_listen(TypeId::of::<Self>(), socket_id, protocols)
+                            .await?
+                    }
+                    SocketType::Stream => {
+                        protocols
+                            .protocol::<Tcp>()
+                            .unwrap()
+                            .open(TypeId::of::<Self>(), socket_id, protocols)
+                            .await?
+                    }
+                };
                 let session = Arc::new(SocketSession {
-                    upstream: RwLock::new(Some(match self.sockets.entry(fd) {
-                        Entry::Occupied(sock) => sock.get().clone(),
-                        Entry::Vacant(_) => return Err(OpenError::NoSocketForFd(fd)),
-                    })),
+                    upstream: RwLock::new(Some(sock)),
                     downstream,
-                    stored_msg: RwLock::new(None),
+                    stored_messages: RwLock::new(VecDeque::new()),
                 });
                 entry.insert(session.clone());
                 Ok(session)
@@ -179,20 +185,29 @@ impl Sockets {
     fn listen_with_fd(
         &self,
         fd: u64,
-        address: SocketAddress,
+        address: Endpoint,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
+        let sock = match self.sockets.entry(fd) {
+            Entry::Occupied(sock) => sock.get().clone(),
+            Entry::Vacant(_) => return Err(ListenError::NoSocketForFd(fd)),
+        };
         self.listen_bindings.insert(address, fd);
-        Ok(protocols
-            .protocol::<Udp>()
-            .expect("No such protocol")
-            // TODO(hardint): Fix when IPv6 is supported
-            .listen(TypeId::of::<Self>(), address.try_into().unwrap(), protocols)?)
+        match sock.sock_type {
+            SocketType::Datagram => Ok(protocols
+                .protocol::<Udp>()
+                .expect("No such protocol")
+                .listen(TypeId::of::<Self>(), address, protocols)?),
+            SocketType::Stream => Ok(protocols
+                .protocol::<Tcp>()
+                .expect("No such protocol")
+                .listen(TypeId::of::<Self>(), address, protocols)?),
+        }
     }
 }
 
 #[async_trait::async_trait]
-impl Protocol for Sockets {
+impl Protocol for SocketAPI {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
@@ -219,20 +234,26 @@ impl Protocol for Sockets {
         control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let ipv4_header = control.get::<Ipv4Header>().unwrap();
-        let udp_header = control.get::<UdpHeader>().unwrap();
-        let identifier = SocketId::new_from_addresses(
-            SocketAddress::new_v4(ipv4_header.destination, udp_header.destination),
-            SocketAddress::new_v4(ipv4_header.source, udp_header.source),
-        );
-        let any_identifier =
-            SocketAddress::new_v4(Ipv4Address::CURRENT_NETWORK, udp_header.destination);
-        let session = match self.socket_sessions.entry(identifier) {
-            Entry::Occupied(entry) => entry.get().clone(),
+        let identifier = match control.get::<UdpHeader>() {
+            Some(udp_header) => {
+                let ipv4_header = control.get::<Ipv4Header>().unwrap();
+                Endpoints::new(
+                    Endpoint::new(ipv4_header.destination, udp_header.destination),
+                    Endpoint::new(ipv4_header.source, udp_header.source),
+                )
+            }
+            None => match control.get::<Endpoints>() {
+                Some(endpoints) => *endpoints,
+                None => return Err(DemuxError::Header),
+            },
+        };
+        let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
+        match self.socket_sessions.entry(identifier) {
+            Entry::Occupied(entry) => entry.get().receive(message)?,
             Entry::Vacant(entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
-                let binding = match self.listen_bindings.get(&identifier.local_address) {
+                let binding = match self.listen_bindings.get(&identifier.local) {
                     Some(listen_entry) => listen_entry,
                     // If we don't have a normal listen binding, check for
                     // a 0.0.0.0 binding
@@ -242,33 +263,88 @@ impl Protocol for Sockets {
                             tracing::error!(
                                 "Tried to demux with a missing session and no listen bindings"
                             );
-                            Err(DemuxError::MissingSession)?
+                            return Err(DemuxError::MissingSession);
                         }
                     },
                 };
                 let socket = match self.sockets.entry(*binding) {
-                    Entry::Occupied(entry) => entry.get().clone(),
-                    Entry::Vacant(_) => return Err(DemuxError::MissingSession),
+                    Entry::Occupied(sock) => sock.get().clone(),
+                    Entry::Vacant(_) => {
+                        return Err(DemuxError::MissingSession);
+                    }
                 };
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(None),
                     downstream: caller,
-                    stored_msg: RwLock::new(Some(message.clone())),
+                    stored_messages: RwLock::new(VecDeque::new()),
                 });
-                socket.add_listen_address(identifier.remote_address);
-                entry.insert(session.clone());
-                session
+                session.stored_messages.write().unwrap().push_back(message);
+                socket.add_listen_address(identifier.remote);
+                entry.insert(session);
             }
         };
-        session.receive(message)?;
         Ok(())
+    }
+
+    fn notify(&self, notification: NotifyType, caller: Arc<dyn Session>, control: Control) {
+        match notification {
+            NotifyType::NewConnection => {
+                let identifier = match control.get::<UdpHeader>() {
+                    Some(udp_header) => {
+                        let ipv4_header = control.get::<Ipv4Header>().unwrap();
+                        Endpoints::new(
+                            Endpoint::new(ipv4_header.destination, udp_header.destination),
+                            Endpoint::new(ipv4_header.source, udp_header.source),
+                        )
+                    }
+                    None => match control.get::<Endpoints>() {
+                        Some(endpoints) => *endpoints,
+                        None => return,
+                    },
+                };
+                let any_identifier =
+                    Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
+                match self.socket_sessions.entry(identifier) {
+                    Entry::Occupied(entry) => entry.get().clone().connection_established(),
+                    Entry::Vacant(entry) => {
+                        // If the session does not exist, see if we have a listen
+                        // binding for it
+                        let binding = match self.listen_bindings.get(&identifier.local) {
+                            Some(listen_entry) => listen_entry,
+                            // If we don't have a normal listen binding, check for
+                            // a 0.0.0.0 binding
+                            None => match self.listen_bindings.get(&any_identifier) {
+                                Some(any_listen_entry) => any_listen_entry,
+                                None => {
+                                    return;
+                                }
+                            },
+                        };
+                        let socket = match self.sockets.entry(*binding) {
+                            Entry::Occupied(sock) => sock.get().clone(),
+                            Entry::Vacant(_) => {
+                                return;
+                            }
+                        };
+                        let session = Arc::new(SocketSession {
+                            upstream: RwLock::new(None),
+                            downstream: caller,
+                            stored_messages: RwLock::new(VecDeque::new()),
+                        });
+                        socket.add_listen_address(identifier.remote);
+                        entry.insert(session);
+                    }
+                };
+            }
+            NotifyType::NewMessage => {}
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum OpenError {
     #[error("There is already a session for {0:?}")]
-    Existing(SocketId),
+    Existing(Endpoints),
     #[error("{0}")]
     Udp(#[from] udp::OpenAndListenError),
     #[error("{0}")]
@@ -285,6 +361,8 @@ pub enum ListenError {
     Udp(#[from] udp::ListenError),
     #[error("{0}")]
     Tcp(#[from] tcp::ListenError),
+    #[error("There was no socket for the file descriptor {0}")]
+    NoSocketForFd(u64),
 }
 
 #[cfg(test)]

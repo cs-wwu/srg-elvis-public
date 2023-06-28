@@ -13,7 +13,7 @@ use std::{any::TypeId, fmt::Debug, sync::Arc};
 pub(super) struct UdpSession {
     pub upstream: TypeId,
     pub downstream: Arc<dyn Session>,
-    pub sockets: Endpoints,
+    pub endpoints: Endpoints,
 }
 
 impl UdpSession {
@@ -24,10 +24,10 @@ impl UdpSession {
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         receive_message_event(
-            self.sockets.local.address,
-            self.sockets.remote.address,
-            self.sockets.local.port,
-            self.sockets.remote.port,
+            self.endpoints.local.address,
+            self.endpoints.remote.address,
+            self.endpoints.local.port,
+            self.endpoints.remote.port,
             message.clone(),
         );
         protocols
@@ -40,13 +40,13 @@ impl UdpSession {
 
 impl Session for UdpSession {
     fn send(&self, mut message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
-        let id = self.sockets;
+        let id = self.endpoints;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
         let header = match build_udp_header(
-            self.sockets.local.address,
+            self.endpoints.local.address,
             id.local.port,
-            self.sockets.remote.address,
+            self.endpoints.remote.address,
             id.remote.port,
             message.iter(),
             message.len(),
@@ -58,8 +58,8 @@ impl Session for UdpSession {
             }
         };
         send_message_event(
-            self.sockets.local.address,
-            self.sockets.remote.address,
+            self.endpoints.local.address,
+            self.endpoints.remote.address,
             id.local.port,
             id.remote.port,
             message.clone(),
@@ -73,7 +73,7 @@ impl Session for UdpSession {
 impl Debug for UdpSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UdpSession")
-            .field("id", &self.sockets)
+            .field("id", &self.endpoints)
             .finish()
     }
 }

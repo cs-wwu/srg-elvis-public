@@ -61,7 +61,7 @@ pub struct Tcb {
     /// The receive sequence space
     rcv: ReceiveSequenceSpace,
     /// Data and segments to be delivered to the remote TCP
-    outgoing: Outgoing,
+    pub outgoing: Outgoing,
     /// Segments and segment text received from the remote TCP
     incoming: Incoming,
     /// Segments received from the remote TCP that have not been processed
@@ -515,7 +515,11 @@ impl Tcb {
                     self.snd.wl2 = seg.ack;
                     if mod_gt(self.snd.una, self.snd.iss) {
                         self.state = State::Established;
-                        self.enqueue(self.header_builder(self.snd.nxt).ack(self.rcv.nxt));
+                        self.enqueue(
+                            self.header_builder(self.snd.nxt)
+                                .ack(self.rcv.nxt)
+                                .wnd(self.rcv.wnd),
+                        );
                     } else {
                         self.state = State::SynReceived;
                         self.enqueue(

@@ -33,7 +33,7 @@ pub async fn dhcp_basic() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            DhcpServer::new(DHCP_SERVER_IP, IpRange::new(0.into(), 255.into())).process(),
+            DhcpServer::new(DHCP_SERVER_IP, IpRange::new(0.into(), 255.into())),
         ],
         // The capture machine has its IP address statically allocated because otherwise we would
         // also need address resolution
@@ -41,7 +41,7 @@ pub async fn dhcp_basic() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Capture::new(CAPTURE_ENDPOINT, 2).process(),
+            Capture::new(CAPTURE_ENDPOINT, 2),
         ],
         // This machine and the next will get their IP addresses from the DHCP server and then send
         // messages to the capture machine.
@@ -49,15 +49,15 @@ pub async fn dhcp_basic() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            DhcpClient::new(DHCP_SERVER_IP).process(),
-            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT).process(),
+            DhcpClient::new(DHCP_SERVER_IP),
+            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            DhcpClient::new(DHCP_SERVER_IP).process(),
-            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT).process(),
+            DhcpClient::new(DHCP_SERVER_IP),
+            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
         ],
     ];
 

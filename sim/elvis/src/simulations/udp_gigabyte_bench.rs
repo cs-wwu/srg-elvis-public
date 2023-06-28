@@ -35,15 +35,13 @@ pub async fn udp_gigabyte_bench() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(messages, endpoint).process()
+            SendMessage::new(messages, endpoint)
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            WaitForMessage::new(endpoint, message)
-                .disable_checking()
-                .process(),
+            WaitForMessage::new(endpoint, message).disable_checking()
         ],
     ];
 
