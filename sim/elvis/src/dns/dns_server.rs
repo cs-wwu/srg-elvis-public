@@ -18,7 +18,7 @@ impl DnsServer {
     }
 }
 
-impl Application for DnsServer {
+impl Protocol for DnsServer {
     const ID: Id = Id::from_string("DNS Server");
 
     fn start(

@@ -50,7 +50,7 @@ impl DnsClient {
     }
 }
 
-impl Application for DnsClient {
+impl Protocol for DnsClient {
     const ID: Id = Id::from_string("Dns Client");
 
     fn start(

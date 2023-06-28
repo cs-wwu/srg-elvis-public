@@ -16,8 +16,6 @@ use std::{
 };
 
 pub struct DnsSession {
-    /// The protocol that we demux incoming messages to
-    upstream: TypeId,
     /// The session we mux outgoing messages to
     downstream: Arc<dyn Session>,
     /// The identifying information for this session
