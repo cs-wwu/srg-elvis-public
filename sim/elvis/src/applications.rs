@@ -23,6 +23,8 @@ pub use ping_pong::PingPong;
 
 pub mod dhcp;
 
+pub mod dns_server;
+
 pub mod router;
 pub use router::Router;
 

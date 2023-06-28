@@ -1,3 +1,25 @@
+
+use elvis_core::{
+    machine::ProtocolMap,
+    message::Message,
+    protocol::{DemuxError, StartError},
+    protocols::{
+        ipv4::Ipv4Address,
+        Endpoint,
+        Udp,
+        Dns,
+        dns::DnsHeader,
+        socket_api::socket::{ProtocolFamily, Socket, SocketType},
+        Endpoint, SocketAPI,
+    },
+    Control, Protocol, Session, Shutdown,
+};
+use std::sync::{Arc, RwLock};
+use tokio::sync::Barrier;
+
+
+pub const PORT_NUM: u16 = 53;
+
 pub struct DnsServer {
     /// The Sockets API
     sockets: Arc<Sockets>,
@@ -6,7 +28,11 @@ pub struct DnsServer {
 }
 
 impl DnsServer {
-    pub fn new(sockets: Arc<Sockets>, local_port: u16) -> Self {
+    pub fn new(
+            sockets: Arc<Sockets>,
+            local_port: u16,
+            remote_ip: Ipv4Address,
+        ) -> Self {
         Self {
             sockets,
             local_port,
@@ -19,9 +45,9 @@ impl DnsServer {
 }
 
 impl Protocol for DnsServer {
-    const ID: Id = Id::from_string("DNS Server");
+    // const ID: Id = Id::from_string("DNS Server");
 
-    fn start(
+    async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
