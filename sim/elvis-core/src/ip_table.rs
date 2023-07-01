@@ -1,17 +1,16 @@
 use std::collections::BTreeMap;
 
-use crate::protocols::ipv4::Recipient;
 use crate::protocols::ipv4::Ipv4Address;
 use crate::protocols::arp::subnetting::*;
 
 type Entry = (Ipv4Address, Ipv4Mask);
 
-pub struct IpTable {
-    table: BTreeMap<Entry, Recipient>,
+pub struct IpTable<T: Copy> {
+    table: BTreeMap<Entry, T>,
     masks: BTreeMap<Ipv4Mask, u32>
 }
 
-impl IpTable {
+impl<T: Copy> IpTable<T> {
     pub fn new() -> Self {
         IpTable {
             table: Default::default(),
@@ -19,7 +18,7 @@ impl IpTable {
         }
     }
 
-    pub fn default_gateway(recipient: Recipient) -> Self {
+    pub fn default_gateway(recipient: T) -> Self {
         let mut table = IpTable::new();
         table.add( cidr_to_ip("0.0.0.0/0").unwrap(), recipient);
         table
@@ -28,7 +27,7 @@ impl IpTable {
     // get recipient associated with provided ipv4 address.
     // searches through list of masks and checks if the masked ip and mask pair
     // is on the table and returns the first matching recipient
-    pub fn get_recipient(&mut self, address: Ipv4Address) -> Result<Recipient, ()> {
+    pub fn get_recipient(&mut self, address: Ipv4Address) -> Result<T, ()> {
         for entry in self.masks.keys().rev() {
             let masked_address = get_network_id(address, *entry);
             if let Some(recipient) = self.table.get(&(masked_address, *entry)) {
@@ -59,7 +58,7 @@ impl IpTable {
         }
     }
 
-    pub fn add(&mut self, key: Entry, value: Recipient) {
+    pub fn add(&mut self, key: Entry, value: T) {
         let masked_key = (get_network_id(key.0, key.1), key.1);
     
         if let Some(_) = self.table.insert(masked_key, value) {
@@ -79,53 +78,23 @@ mod test {
     use super::*;
 
     #[allow(dead_code)]
-    fn setup() -> IpTable {
+    fn setup() -> IpTable<u32> {
         let mut table = IpTable::new();
 
-        table.add(cidr_to_ip("1.0.0.0/8").unwrap(), Recipient::new(20, None));
-        table.add(cidr_to_ip("1.1.0.0/16").unwrap(), Recipient::new(0, None));
-        table.add(cidr_to_ip("1.1.1.0/24").unwrap(), Recipient::new(1, None));
-        table.add(cidr_to_ip("1.1.2.0/24").unwrap(), Recipient::new(2, None));
-        table.add(cidr_to_ip("1.1.3.0/24").unwrap(), Recipient::new(3, None));
-        table.add(cidr_to_ip("1.2.3.0/24").unwrap(), Recipient::new(4, None));
-        table.add(cidr_to_ip("1.1.1.2/32").unwrap(), Recipient::new(5, None));
-        table.add(cidr_to_ip("1.2.3.4/32").unwrap(), Recipient::new(6, None));
+        table.add(cidr_to_ip("1.0.0.0/8").unwrap(), 0);
+        table.add(cidr_to_ip("1.1.0.0/16").unwrap(), 1);
+        table.add(cidr_to_ip("1.1.1.0/24").unwrap(), 2);
+        table.add(cidr_to_ip("1.1.2.0/24").unwrap(), 3);
+        table.add(cidr_to_ip("1.1.3.0/24").unwrap(), 4);
+        table.add(cidr_to_ip("1.2.3.0/24").unwrap(), 5);
+        table.add(cidr_to_ip("1.1.1.2/32").unwrap(), 6);
+        table.add(cidr_to_ip("1.2.3.4/32").unwrap(), 7);
 
         table
     }
-
-    #[test]
-    fn test_add() {
-        let mut table = setup();
-
-        let ip1 = Ipv4Address::new([1,1,1,2]);
-        let ip2 = Ipv4Address::new([1,1,0,1]);
-
-        assert_eq!(table.get_recipient(ip1), Ok(Recipient::new(5, None)));
-        assert_eq!(table.get_recipient(ip2), Ok(Recipient::new(0, None)));
-
-        table.add(cidr_to_ip("1.1.0.0/24").unwrap(), Recipient::new(20, None));
-
-        assert_eq!(table.get_recipient(ip2), Ok(Recipient::new(20, None)));
-    }
-
-    #[test]
-    fn test_remove() {
-         let mut table = setup();
-
-         let ip1 = Ipv4Address::new([1,2,3,4]);
-
-         assert_eq!(table.get_recipient(ip1), Ok(Recipient::new(6, None)));
-
-         table.remove(cidr_to_ip("1.2.3.4/32").unwrap());
-
-         assert_eq!(table.get_recipient(ip1), Ok(Recipient::new(4, None)));
-
-         print_table(&table);
-    }
-
+    
     #[allow(dead_code)]
-    pub fn print_table(table: &IpTable) {
+    pub fn print_table(table: &IpTable<u32>) {
         for entry in table.table.iter() {
             println!("{:?}", entry);
         }
@@ -136,6 +105,37 @@ mod test {
             println!("{:?}", entry);
         }
     }
+    
+    #[test]
+    fn test_add() {
+        let mut table = setup();
+
+        let ip1 = Ipv4Address::new([1,1,1,2]);
+        let ip2 = Ipv4Address::new([1,1,0,1]);
+
+        assert_eq!(table.get_recipient(ip1), Ok(6));
+        assert_eq!(table.get_recipient(ip2), Ok(1));
+
+        table.add(cidr_to_ip("1.1.0.0/24").unwrap(), 20);
+
+        assert_eq!(table.get_recipient(ip2), Ok(20));
+    }
+
+    #[test]
+    fn test_remove() {
+         let mut table = setup();
+
+         let ip1 = Ipv4Address::new([1,2,3,4]);
+
+         assert_eq!(table.get_recipient(ip1), Ok(7));
+
+         table.remove(cidr_to_ip("1.2.3.4/32").unwrap());
+         table.remove(cidr_to_ip("1.1.1.2/32").unwrap());
+
+         assert_eq!(table.get_recipient(ip1), Ok(5));
+
+    }
+
 
 
 }
