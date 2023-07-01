@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::protocols::arp::subnetting::*;
-use crate::protocols::ipv4::Ipv4Address;
+use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
 
 type Entry = (Ipv4Address, Ipv4Mask);
 
@@ -34,15 +34,15 @@ impl<T: Copy> IpTable<T> {
     /// returns the destination associated with that mask. If no subnet is found,
     /// the recipient linked to the default gateway is returned. If no default gateway is 
     /// specified an error is returned.
-    pub fn get_recipient(&mut self, address: Ipv4Address) -> Result<T, ()> {
+    pub fn get_recipient(&mut self, address: Ipv4Address) -> Option<T> {
         for entry in self.masks.keys().rev() {
             let masked_address = get_network_id(address, *entry);
 
             if let Some(recipient) = self.table.get(&(masked_address, *entry)) {
-                return Ok(*recipient);
+                return Some(*recipient);
             }
         }
-        Err(())
+        None
     }
 
     /// Removes subnet associated with given key from the table
@@ -114,6 +114,16 @@ impl<T: Copy> IpTable<T> {
     }
 }
 
+impl From<Recipients> for IpTable<Recipient> {
+    fn from(other: Recipients) -> Self {
+        let mut table = Self::new();
+        for pair in other.iter() {
+            table.add_direct(*pair.0, *pair.1);
+        }
+        table
+    }   
+}
+
 // TODO (eulerfrog) add macro to support creating ip table from a variety of
 // different input types
 #[macro_export]
@@ -142,7 +152,7 @@ mod test {
     }
 
     #[allow(dead_code)]
-    pub fn print_table(table: &IpTable<u32>) {
+    pub fn print_table(table: &IpTable<Recipient>) {
         for entry in table.table.iter() {
             println!("{:?}", entry);
         }
@@ -161,12 +171,12 @@ mod test {
         let ip1 = Ipv4Address::new([1, 1, 1, 2]);
         let ip2 = Ipv4Address::new([1, 1, 0, 1]);
 
-        assert_eq!(table.get_recipient(ip1), Ok(6));
-        assert_eq!(table.get_recipient(ip2), Ok(1));
+        assert_eq!(table.get_recipient(ip1), Some(6));
+        assert_eq!(table.get_recipient(ip2), Some(1));
 
         table.add(cidr_to_ip("1.1.0.0/24").unwrap(), 20);
 
-        assert_eq!(table.get_recipient(ip2), Ok(20));
+        assert_eq!(table.get_recipient(ip2), Some(20));
     }
 
     #[test]
@@ -175,15 +185,33 @@ mod test {
 
         let ip1 = Ipv4Address::new([1, 2, 3, 4]);
 
-        assert_eq!(table.get_recipient(ip1), Ok(7));
+        assert_eq!(table.get_recipient(ip1), Some(7));
 
         table.remove(cidr_to_ip("1.2.3.4/32").unwrap());
 
-        assert_eq!(table.get_recipient(ip1), Ok(5));
+        assert_eq!(table.get_recipient(ip1), Some(5));
 
         table.remove(cidr_to_ip("1.1.1.2/32").unwrap());
 
         // all 32 bit mask addresses should now be removed from the table 
         assert_eq!(table.masks.get(&Ipv4Mask::from_bitcount(32)), None);
+    }
+
+    #[test]
+    fn test_into() {
+        let ip_table: Recipients = [
+            (Ipv4Address::new([1,1,1,1]), Recipient::new(0, None)),
+            (Ipv4Address::new([1,1,1,2]), Recipient::new(1, None)),
+            (Ipv4Address::new([1,1,1,3]), Recipient::new(2, None)),
+            (Ipv4Address::new([1,1,1,4]), Recipient::new(3, None)),
+        ]
+        .into_iter()
+        .collect();
+
+        let mut new_table: IpTable<Recipient> = ip_table.clone().into();
+
+        for ip in ip_table.keys() {
+            assert_eq!(new_table.get_recipient(*ip).unwrap(), *ip_table.get(ip).unwrap());
+        }
     }
 }
