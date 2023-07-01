@@ -12,6 +12,7 @@ pub struct IpTable<T: Copy> {
     masks: BTreeMap<Ipv4Mask, u32>,
 }
 
+// TODO (eulerfrog) add examples for each fn
 impl<T: Copy> IpTable<T> {
     pub fn new() -> Self {
         IpTable {
@@ -22,11 +23,6 @@ impl<T: Copy> IpTable<T> {
 
     /// Specifies the default recipient to send packets to if no other subnet
     /// is found in the table.
-    /// 
-    /// # Examples
-    /// ```
-    /// 
-    /// ```
     pub fn default_gateway(recipient: T) -> Self {
         let mut table = IpTable::new();
         table.add(cidr_to_ip("0.0.0.0/0").unwrap(), recipient);
@@ -38,14 +34,10 @@ impl<T: Copy> IpTable<T> {
     /// returns the destination associated with that mask. If no subnet is found,
     /// the recipient linked to the default gateway is returned. If no default gateway is 
     /// specified an error is returned.
-    /// 
-    /// # Examples
-    /// ```
-    /// 
-    /// ```
     pub fn get_recipient(&mut self, address: Ipv4Address) -> Result<T, ()> {
         for entry in self.masks.keys().rev() {
             let masked_address = get_network_id(address, *entry);
+
             if let Some(recipient) = self.table.get(&(masked_address, *entry)) {
                 return Ok(*recipient);
             }
@@ -54,11 +46,6 @@ impl<T: Copy> IpTable<T> {
     }
 
     /// Removes subnet associated with given key from the table
-    /// 
-    /// # Examples
-    /// ```
-    /// 
-    /// ```
     pub fn remove(&mut self, key: Entry) {
         let masked_key = (get_network_id(key.0, key.1), key.1);
 
@@ -81,11 +68,6 @@ impl<T: Copy> IpTable<T> {
 
     /// Removes address associated with given ip address using
     /// 32 bit mask length as second part of the key. 
-    /// 
-    /// # Examples
-    /// ```
-    /// 
-    /// ```
     pub fn remove_direct(&mut self, address: Ipv4Address) {
         self.remove((address, Ipv4Mask::from_bitcount(32)));
     }
@@ -93,30 +75,18 @@ impl<T: Copy> IpTable<T> {
     /// Removes address associated with given ip address using
     /// cidr notation. If notation is invalid the table
     /// is left unchanged
-    /// 
-    /// # Examples
-    /// ```
-    /// 
-    /// ```
     pub fn remove_cidr(&mut self, cidr: &str) {
-        match cidr_to_ip(cidr) {
-            Ok(key) => {
-                self.remove(key);
-            }
-            Err(_) => (),
+        if let Ok(key) = cidr_to_ip(cidr) {
+            self.remove(key);
         }
     }
 
     /// Maps subnet associated with (Ipv4Address, Ipv4Mask) pair
     /// to provided value. 
-    /// 
-    /// # Examples
-    /// ```
-    /// 
-    /// ```
     pub fn add(&mut self, key: Entry, value: T) {
         let masked_key = (get_network_id(key.0, key.1), key.1);
 
+        // if we replaced an entry in the table don't update the mask count
         if let Some(_) = self.table.insert(masked_key, value) {
             return;
         }
@@ -129,33 +99,28 @@ impl<T: Copy> IpTable<T> {
         self.masks.insert(key.1, total + 1);
     }
 
-    /// Maps ipv4 address associated with address/32
+    /// Maps ipv4 address associated with the subnet: address/32
     /// to provided value. 
-    /// 
-    /// # Examples
-    /// ```
-    /// 
-    /// ```
     pub fn add_direct(&mut self, address: Ipv4Address, value: T) {
         self.add((address, Ipv4Mask::from_bitcount(32)), value);
     }
 
     /// Maps subnet associated with given cidr notation to
     /// to provided value. 
-    /// 
-    /// # Examples
-    /// ```
-    /// 
-    /// ```
     pub fn add_cidr(&mut self, cidr: &str, value: T) {
-        match cidr_to_ip(cidr) {
-            Ok(key) => {
-                self.add(key, value);
-            }
-            Err(_) => (),
+        if let Ok(key) = cidr_to_ip(cidr) {
+            self.add(key, value);
         }
     }
 }
+
+// TODO (eulerfrog) add macro to support creating ip table from a variety of
+// different input types
+#[macro_export]
+macro_rules! ip_table {
+    () => {}
+}
+pub use ip_table;
 
 mod test {
     use super::*;
@@ -220,9 +185,5 @@ mod test {
 
         // all 32 bit mask addresses should now be removed from the table 
         assert_eq!(table.masks.get(&Ipv4Mask::from_bitcount(32)), None);
-    }
-
-    fn test_create() {
-        vec![2];
     }
 }
