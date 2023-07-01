@@ -114,6 +114,8 @@ impl<T: Copy> IpTable<T> {
     }
 }
 
+/// Allows conversion of Recipients into IpTable
+/// 
 impl From<Recipients> for IpTable<Recipient> {
     fn from(other: Recipients) -> Self {
         let mut table = Self::new();
@@ -124,6 +126,43 @@ impl From<Recipients> for IpTable<Recipient> {
     }   
 }
 
+/// Allows creation of an ip table from (Ipv4Adress, Ipv4Mask) pairs
+/// 
+impl<T: Copy> FromIterator<((Ipv4Address, Ipv4Mask) , T)> for IpTable<T> {
+    fn from_iter<I: IntoIterator<Item = ((Ipv4Address, Ipv4Mask) , T)>>(iter: I) -> Self {
+        let mut table = Self::new();
+        for pair in iter {
+            table.add(pair.0, pair.1);
+        }
+        table
+    }
+}
+
+/// Allows creation of a table from an iterator of (Ipv4Adress, T) pairs
+/// 
+impl<T: Copy> FromIterator<(Ipv4Address, T)> for IpTable<T> {
+    fn from_iter<I: IntoIterator<Item = (Ipv4Address , T)>>(iter: I) -> Self {
+        let mut table = Self::new();
+        for pair in iter {
+            table.add_direct(pair.0, pair.1);
+        }
+        table
+    }
+}
+
+/// Allows creation of a table from an into iterator of string slices
+/// each string slice must be a valid cidr string to be added to the table
+/// 
+impl<'a, T: Copy> FromIterator<(&'a str , T)> for IpTable<T> {
+    fn from_iter<I: IntoIterator<Item = (&'a str , T)>>(iter: I) -> Self {
+        let mut table = Self::new();
+        for pair in iter {
+            table.add_cidr(pair.0, pair.1);
+        }
+        table
+    }
+}
+ 
 // TODO (eulerfrog) add macro to support creating ip table from a variety of
 // different input types
 #[macro_export]
@@ -151,19 +190,7 @@ mod test {
         table
     }
 
-    #[allow(dead_code)]
-    pub fn print_table(table: &IpTable<Recipient>) {
-        for entry in table.table.iter() {
-            println!("{:?}", entry);
-        }
-
-        println!();
-
-        for entry in table.masks.iter() {
-            println!("{:?}", entry);
-        }
-    }
-
+    
     #[test]
     fn test_add() {
         let mut table = setup();
@@ -207,11 +234,38 @@ mod test {
         ]
         .into_iter()
         .collect();
-
-        let mut new_table: IpTable<Recipient> = ip_table.clone().into();
+    
+    let mut new_table: IpTable<Recipient> = ip_table.clone().into();
 
         for ip in ip_table.keys() {
             assert_eq!(new_table.get_recipient(*ip).unwrap(), *ip_table.get(ip).unwrap());
+        }
+
+    }
+
+    #[test]
+    fn test_into_iter() {
+        let ip_table: IpTable<u32> = [
+            ("0.0.0.0/0", 0),
+            ("1.0.0.0/8", 1),
+            ("1.1.0.0/16", 2),
+            ("1.1.1.0/24", 3),
+            ("1.1.1.1/32", 4),
+        ].into_iter().collect();
+
+        print_table(&ip_table);
+    }
+
+    #[allow(dead_code)]
+    pub fn print_table(table: &IpTable<u32>) {
+        for entry in table.table.iter() {
+            println!("{:?}", entry);
+        }
+    
+        println!();
+    
+        for entry in table.masks.iter() {
+            println!("{:?}", entry);
         }
     }
 }
