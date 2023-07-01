@@ -40,6 +40,9 @@ mod logging;
 pub mod message;
 pub mod protocols;
 
+pub mod ip_table;
+pub use ip_table::IpTable;
+
 use dashmap::DashMap;
 pub use message::Message;
 
