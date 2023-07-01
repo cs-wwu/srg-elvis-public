@@ -126,7 +126,7 @@ impl From<Recipients> for IpTable<Recipient> {
     }   
 }
 
-/// Allows creation of an ip table from (Ipv4Adress, Ipv4Mask) pairs
+/// Allows creation of an ip table from ((Ipv4Adress, Ipv4Mask), T) pairs
 /// 
 impl<T: Copy> FromIterator<((Ipv4Address, Ipv4Mask) , T)> for IpTable<T> {
     fn from_iter<I: IntoIterator<Item = ((Ipv4Address, Ipv4Mask) , T)>>(iter: I) -> Self {
@@ -138,7 +138,7 @@ impl<T: Copy> FromIterator<((Ipv4Address, Ipv4Mask) , T)> for IpTable<T> {
     }
 }
 
-/// Allows creation of a table from an iterator of (Ipv4Adress, T) pairs
+/// Allows creation of a table from an iterator of (Ipv4Adress, T) 
 /// 
 impl<T: Copy> FromIterator<(Ipv4Address, T)> for IpTable<T> {
     fn from_iter<I: IntoIterator<Item = (Ipv4Address , T)>>(iter: I) -> Self {
