@@ -1,11 +1,13 @@
 use std::collections::BTreeMap;
+use std::fmt;
 
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
+use std::fmt::Debug;
 
 type Entry = (Ipv4Address, Ipv4Mask);
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct IpTable<T: Copy> {
     table: BTreeMap<Entry, T>,
     // mapping to keep track of number of num of unique subnets associated with
@@ -167,7 +169,14 @@ impl<T: Copy> Default for IpTable<T> {
     }
 }
 
-
+impl<T: Copy + Debug> Debug for IpTable<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for entry in self.table.iter() {
+            write!(f, "{}/{} : {:?}\n", entry.0.0, entry.0.1.count_ones(), entry.1).unwrap();
+        }   
+        Ok(())
+    }
+}
 
 // TODO (eulerfrog) add macro to support creating ip table from a variety of
 // different input types
@@ -252,29 +261,16 @@ mod test {
 
     #[test]
     fn test_into_iter() {
-        let ip_table: IpTable<u32> = [
-            ("0.0.0.0/0", 0),
-            ("1.0.0.0/8", 1),
-            ("1.1.0.0/16", 2),
-            ("1.1.1.0/24", 3),
-            ("1.1.1.1/32", 4),
+        let ip_table: IpTable<Recipient> = [
+            ("0.0.0.0/0", Recipient::new(0, None)),
+            ("1.0.0.0/8", Recipient::new(0, None)),
+            ("1.1.0.0/16", Recipient::new(0, None)),
+            ("1.1.1.0/24", Recipient::new(0, None)),
+            ("1.1.1.1/32", Recipient::new(0, None)),
         ]
         .into_iter()
         .collect();
 
-        print_table(&ip_table);
-    }
-
-    #[allow(dead_code)]
-    pub fn print_table(table: &IpTable<u32>) {
-        for entry in table.table.iter() {
-            println!("{:?}", entry);
-        }
-
-        println!();
-
-        for entry in table.masks.iter() {
-            println!("{:?}", entry);
-        }
+        println!("{:?}", ip_table);
     }
 }
