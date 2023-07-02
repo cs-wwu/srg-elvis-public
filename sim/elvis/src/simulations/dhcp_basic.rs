@@ -8,11 +8,11 @@ use crate::applications::{
 use elvis_core::{
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, Message, Network,
+    run_internet, IpTable, Message, Network,
 };
 
 pub async fn dhcp_basic() {
@@ -20,7 +20,7 @@ pub async fn dhcp_basic() {
     const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
     const CAPTURE_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 0]);
     const CAPTURE_ENDPOINT: Endpoint = Endpoint::new(CAPTURE_IP, 0);
-    let ip_table: Recipients = [
+    let ip_table: IpTable<Recipient> = [
         (DHCP_SERVER_IP, Recipient::with_mac(0, 0)),
         (CAPTURE_IP, Recipient::with_mac(0, 1)),
     ]

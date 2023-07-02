@@ -43,4 +43,3 @@ pub async fn run_internet(machines: &[Machine]) {
     // will return with an error. We ignore the error.
     let _ = shutdown_receiver.recv().await;
 }
-

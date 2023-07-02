@@ -3,21 +3,21 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipients},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipient},
         Ipv4, Pci,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, IpTable, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Router {
-    ip_table: Recipients,
+    ip_table: IpTable<Recipient>,
 }
 
 impl Router {
-    pub fn new(ip_table: Recipients) -> Self {
+    pub fn new(ip_table: IpTable<Recipient>) -> Self {
         Self { ip_table }
     }
 }
@@ -53,7 +53,7 @@ impl Protocol for Router {
         message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
         let recipient = self
             .ip_table
-            .get(&ipv4_header.destination)
+            .get_recipient(ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
         let session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
         session.send_pci(message, recipient.mac, TypeId::of::<Ipv4>())?;

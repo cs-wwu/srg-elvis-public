@@ -14,12 +14,13 @@ use tokio::sync::Barrier;
 /// ```
 /// # use elvis_core::{protocols::*, machine::*};
 /// # use elvis::applications::OnReceive;
+/// # use elvis_core::IpTable;
 /// let fn_to_run = |message, _context| println!("received message: {message}");
 /// let _puter = Machine::new(
 ///     ProtocolMapBuilder::new()
 /// .with(OnReceive::new(fn_to_run, Endpoint::new(0.into(), 0xfefe)))
 /// .with(Udp::new())
-/// .with(Ipv4::new(std::iter::empty().collect()))
+/// .with(Ipv4::new(IpTable::new()))
 /// .with(Pci::new([]))
 /// .build());
 /// ```
@@ -106,7 +107,7 @@ impl Protocol for OnReceive {
 
 #[cfg(test)]
 mod tests {
-    use elvis_core::{machine::*, protocols::*};
+    use elvis_core::{machine::*, protocols::*, IpTable};
 
     use crate::applications::OnReceive;
 
@@ -116,7 +117,7 @@ mod tests {
         let _puter = new_machine![
             OnReceive::new(fn_to_run, Endpoint::new(0.into(), 0xfefe)),
             Udp::new(),
-            Ipv4::new(std::iter::empty().collect()),
+            Ipv4::new(IpTable::new()),
             Pci::new([])
         ];
     }
