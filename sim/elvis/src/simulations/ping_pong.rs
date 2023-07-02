@@ -40,13 +40,13 @@ pub async fn ping_pong() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            PingPong::new(true, endpoints).process()
+            PingPong::new(true, endpoints)
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            PingPong::new(false, endpoints.reverse()).process()
+            PingPong::new(false, endpoints.reverse())
         ],
     ];
 

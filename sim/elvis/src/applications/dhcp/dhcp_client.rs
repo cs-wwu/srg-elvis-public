@@ -2,17 +2,11 @@ use crate::applications::dhcp::dhcp_parsing::DhcpMessage;
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocols::{
-        ipv4::Ipv4Address,
-        user_process::{Application, ApplicationError, UserProcess},
-        Endpoint, Endpoints, Udp,
-    },
-    Control, Session, Shutdown,
+    protocol::{DemuxError, StartError},
+    protocols::{ipv4::Ipv4Address, Endpoint, Endpoints, Udp},
+    Control, Protocol, Session, Shutdown,
 };
-use std::{
-    any::TypeId,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{Barrier, Notify};
 
 // NOTE: THIS IS A TEMPORARY CLIENT
@@ -40,20 +34,16 @@ impl DhcpClient {
         self.notify.notified().await;
         self.ip_address.read().unwrap().unwrap()
     }
-
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
 }
 
 #[async_trait::async_trait]
-impl Application for DhcpClient {
+impl Protocol for DhcpClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         let server_ip = self.server_ip;
         // Wait on initialization before sending any message across the network
         initialized.wait().await;
@@ -81,11 +71,7 @@ impl Application for DhcpClient {
         let udp = protocols
             .protocol::<Udp>()
             .unwrap()
-            .open_and_listen(
-                TypeId::of::<UserProcess<Self>>(),
-                sockets,
-                protocols.clone(),
-            )
+            .open_and_listen(self.id(), sockets, protocols.clone())
             .await
             .unwrap();
         let response = DhcpMessage::default();
@@ -94,13 +80,13 @@ impl Application for DhcpClient {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         let parsed_msg = DhcpMessage::from_bytes(message.iter()).unwrap();
         *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
         self.notify.notify_waiters();

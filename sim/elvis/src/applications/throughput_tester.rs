@@ -1,14 +1,11 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocols::{
-        user_process::{Application, ApplicationError, UserProcess},
-        Endpoint, Udp,
-    },
-    Control, Session, Shutdown,
+    protocol::{DemuxError, StartError},
+    protocols::{Endpoint, Udp},
+    Control, Protocol, Session, Shutdown,
 };
 use std::{
-    any::TypeId,
     ops::Range,
     sync::{Arc, RwLock},
     time::{Duration, SystemTime},
@@ -40,26 +37,21 @@ impl ThroughputTester {
             received: Arc::new(RwLock::new(0)),
         }
     }
-
-    /// Creates a new capture behind a shared handle.
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
 }
 
 #[async_trait::async_trait]
-impl Application for ThroughputTester {
+impl Protocol for ThroughputTester {
     async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
         protocols
             .protocol::<Udp>()
             .expect("No such protocol")
-            .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+            .listen(self.id(), self.endpoint, protocols)
             .unwrap();
 
         initialized.wait().await;
@@ -67,13 +59,13 @@ impl Application for ThroughputTester {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         let now = SystemTime::now();
         if let Some(previous) = self.previous_receipt.write().unwrap().replace(now) {
             let elapsed = now.duration_since(previous).unwrap();

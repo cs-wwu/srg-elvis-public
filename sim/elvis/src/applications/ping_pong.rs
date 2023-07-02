@@ -2,16 +2,11 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     network::Mac,
-    protocols::{
-        user_process::{Application, ApplicationError, UserProcess},
-        Endpoints, Udp,
-    },
-    Control, Session, Shutdown, Transport,
+    protocol::{DemuxError, StartError},
+    protocols::{Endpoints, Udp},
+    Control, Protocol, Session, Shutdown, Transport,
 };
-use std::{
-    any::TypeId,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
 /// An application that sends a Time To Live (TTL) to
@@ -44,11 +39,6 @@ impl PingPong {
         }
     }
 
-    /// Creates a new capture behind a shared handle.
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
-
     /// Set the MAC address of the machine to send to
     pub fn remote_mac(mut self, mac: Mac) -> Self {
         self.remote_mac = Some(mac);
@@ -63,21 +53,17 @@ impl PingPong {
 }
 
 #[async_trait::async_trait]
-impl Application for PingPong {
+impl Protocol for PingPong {
     async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
         let protocol = protocols.protocol::<Udp>().expect("No such protocol");
         let session = protocol
-            .open_and_listen(
-                TypeId::of::<UserProcess<Self>>(),
-                self.endpoints,
-                protocols.clone(),
-            )
+            .open_and_listen(self.id(), self.endpoints, protocols.clone())
             .await
             .unwrap();
         *self.session.write().unwrap() = Some(session.clone());
@@ -93,13 +79,13 @@ impl Application for PingPong {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
         if ttl % 2 == 0 {

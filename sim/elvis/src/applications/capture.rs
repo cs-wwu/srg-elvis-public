@@ -1,16 +1,11 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocols::{
-        user_process::{Application, ApplicationError, UserProcess},
-        Endpoint, Tcp, Udp,
-    },
-    Control, Session, Shutdown, Transport,
+    protocol::{DemuxError, StartError},
+    protocols::{Endpoint, Tcp, Udp},
+    Control, Protocol, Session, Shutdown, Transport,
 };
-use std::{
-    any::TypeId,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
 /// An application that stores the first message it receives and then exits the
@@ -43,11 +38,6 @@ impl Capture {
         }
     }
 
-    /// Creates a new capture behind a shared handle.
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
-
     /// Gets the message that was received.
     pub fn message(&self) -> Option<Message> {
         self.message.read().unwrap().clone()
@@ -61,26 +51,26 @@ impl Capture {
 }
 
 #[async_trait::async_trait]
-impl Application for Capture {
+impl Protocol for Capture {
     async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         match self.transport {
             Transport::Tcp => {
                 protocols
                     .protocol::<Tcp>()
                     .unwrap()
-                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .listen(self.id(), self.endpoint, protocols)
                     .unwrap();
             }
             Transport::Udp => {
                 protocols
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(TypeId::of::<UserProcess<Self>>(), self.endpoint, protocols)
+                    .listen(self.id(), self.endpoint, protocols)
                     .unwrap();
             }
         }
@@ -90,13 +80,13 @@ impl Application for Capture {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
         if *self.cur_count.read().unwrap() >= self.message_count {

@@ -1,12 +1,12 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
+    protocol::{DemuxError, StartError},
     protocols::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipients},
-        user_process::{Application, ApplicationError},
-        Ipv4, Pci, UserProcess,
+        Ipv4, Pci,
     },
-    Control, Session, Shutdown,
+    Control, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -20,53 +20,41 @@ impl Router {
     pub fn new(ip_table: Recipients) -> Self {
         Self { ip_table }
     }
-
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
 }
 
 #[async_trait::async_trait]
-impl Application for Router {
-    /// Gives the application an opportunity to set up before the simulation
-    /// begins.
+impl Protocol for Router {
     async fn start(
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
-        ipv4.listen(
-            TypeId::of::<UserProcess<Self>>(),
-            Ipv4Address::CURRENT_NETWORK,
-            protocols,
-        )
-        .unwrap();
+        ipv4.listen(self.id(), Ipv4Address::CURRENT_NETWORK, protocols)
+            .unwrap();
         initialize.wait().await;
         Ok(())
     }
 
-    /// Called when the containing [`UserProcess`] receives a message over the
-    /// network and gives the application time to handle it.
-    fn receive(
+    fn demux(
         &self,
         mut message: Message,
         _caller: Arc<dyn Session>,
         control: Control,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
-        let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(ApplicationError::Other)?;
+    ) -> Result<(), DemuxError> {
+        let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
         ipv4_header.time_to_live -= 1;
         if ipv4_header.time_to_live == 0 {
             return Ok(());
         }
         // TODO(hardint): Fragmentation
-        message.header(ipv4_header.serialize().or(Err(ApplicationError::Other))?);
+        message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
         let recipient = self
             .ip_table
             .get(&ipv4_header.destination)
-            .ok_or(ApplicationError::Other)?;
+            .ok_or(DemuxError::Other)?;
         let session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
         session.send_pci(message, recipient.mac, TypeId::of::<Ipv4>())?;
         Ok(())

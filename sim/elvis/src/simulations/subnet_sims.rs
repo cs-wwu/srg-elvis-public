@@ -99,9 +99,7 @@ impl Protocol for MockGateway {
 /// Jack sends messages to Mae
 fn jack(network: &Arc<Network>) -> Machine {
     new_machine![
-        SendMessage::new(vec![Message::new(b"hi mae this is jack")], MAE)
-            .local_ip(JACK.address)
-            .process(),
+        SendMessage::new(vec![Message::new(b"hi mae this is jack")], MAE).local_ip(JACK.address),
         Udp::new(),
         Ipv4::new(ip_table()),
         Arp::basic().preconfig_subnet(JACK.address, SUBNET_INFO),
@@ -123,9 +121,7 @@ fn mae(network: &Arc<Network>) -> (Machine, broadcast::Receiver<Message>) {
             },
             MAE
         ),
-        SendMessage::new(message, GUY_SOMEWHERE_ELSE)
-            .local_ip(MAE.address)
-            .process(),
+        SendMessage::new(message, GUY_SOMEWHERE_ELSE).local_ip(MAE.address),
         Udp::new(),
         Ipv4::new(ip_table()),
         Arp::basic().preconfig_subnet(MAE.address, SUBNET_INFO),

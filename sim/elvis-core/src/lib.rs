@@ -61,9 +61,6 @@ pub use machine::Machine;
 mod internet;
 pub use internet::run_internet;
 
-mod network_api;
-pub use network_api::NetworkAPI;
-
 mod shutdown;
 pub use shutdown::Shutdown;
 

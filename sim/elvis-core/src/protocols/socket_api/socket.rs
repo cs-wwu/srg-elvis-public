@@ -1,18 +1,13 @@
-use super::Sockets;
+use super::SocketAPI;
 use crate::{
     machine::ProtocolMap,
     message::Chunk,
-    protocol::DemuxError,
-    protocols::{
-        ipv4::Ipv4Address,
-        utility::{Endpoint, Endpoints},
-    },
+    protocol::{DemuxError, NotifyType},
+    protocols::utility::{Endpoint, Endpoints},
     Message, Session, Shutdown,
 };
 use std::{
     collections::VecDeque,
-    error::Error,
-    fmt::{self, Display, Formatter},
     sync::{Arc, RwLock},
 };
 use thiserror::Error as ThisError;
@@ -28,29 +23,17 @@ pub struct Socket {
     is_bound: RwLock<bool>,
     is_listening: RwLock<bool>,
     is_blocking: RwLock<bool>,
-    local_addr: RwLock<Option<SocketAddress>>,
-    remote_addr: RwLock<Option<SocketAddress>>,
+    local_addr: RwLock<Option<Endpoint>>,
+    remote_addr: RwLock<Option<Endpoint>>,
     session: Arc<RwLock<Option<Arc<dyn Session>>>>,
-    listen_addresses: Arc<RwLock<VecDeque<SocketAddress>>>,
+    listen_addresses: Arc<RwLock<VecDeque<Endpoint>>>,
     listen_backlog: RwLock<usize>,
     notify_listen: Notify,
     messages: Arc<RwLock<VecDeque<Message>>>,
     notify_recv: Notify,
     protocols: ProtocolMap,
-    socket_api: Arc<Sockets>,
+    socket_api: Arc<SocketAPI>,
     shutdown: Shutdown,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum NotifyResult {
-    Notified,
-    Shutdown,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum NotifyType {
-    Listening,
-    Receiving,
 }
 
 impl Socket {
@@ -59,7 +42,7 @@ impl Socket {
         sock_type: SocketType,
         fd: u64,
         protocols: ProtocolMap,
-        socket_api: Arc<Sockets>,
+        socket_api: Arc<SocketAPI>,
         shutdown: Shutdown,
     ) -> Socket {
         Self {
@@ -84,7 +67,7 @@ impl Socket {
         }
     }
 
-    pub(super) fn add_listen_address(&self, remote_address: SocketAddress) {
+    pub(super) fn add_listen_address(&self, remote_address: Endpoint) {
         let backlog = *self.listen_backlog.read().unwrap();
         if backlog == 0 || self.listen_addresses.read().unwrap().len() <= backlog {
             self.listen_addresses
@@ -99,11 +82,11 @@ impl Socket {
         if *self.is_blocking.read().unwrap() {
             let mut shutdown_receiver = self.shutdown.receiver();
             match notify_type {
-                NotifyType::Listening => select! {
+                NotifyType::NewConnection => select! {
                     _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
                     _ = self.notify_listen.notified() => NotifyResult::Notified,
                 },
-                NotifyType::Receiving => select! {
+                NotifyType::NewMessage => select! {
                     _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
                     _ = self.notify_recv.notified() => NotifyResult::Notified,
                 },
@@ -118,9 +101,13 @@ impl Socket {
         *self.is_blocking.write().unwrap() = is_blocking;
     }
 
+    pub fn connection_established(&self) {
+        self.notify_listen.notify_one();
+    }
+
     /// Assigns a remote ip address and port to a socket and connects the socket
     /// to that endpoint
-    pub async fn connect(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub async fn connect(&self, sock_addr: Endpoint) -> Result<(), SocketError> {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected. Also, a listening
         // socket cannot connect to a remote endpoint
@@ -140,11 +127,11 @@ impl Socket {
         if let (Some(local), Some(remote)) = (local_op, remote_op) {
             let session = match self
                 .protocols
-                .protocol::<Sockets>()
+                .protocol::<SocketAPI>()
                 .expect("Sockets API not found")
                 .open_with_fd(
                     self.fd,
-                    SocketId::new_from_addresses(local, remote),
+                    Endpoints::new(local, remote),
                     self.protocols.clone(),
                 )
                 .await
@@ -162,19 +149,13 @@ impl Socket {
     }
 
     /// Assigns a local ip address and port to a socket
-    pub fn bind(&self, sock_addr: SocketAddress) -> Result<(), SocketError> {
+    pub fn bind(&self, sock_addr: Endpoint) -> Result<(), SocketError> {
         match self.family {
             ProtocolFamily::LOCAL => {
                 return Err(SocketError::BindError);
             }
-            ProtocolFamily::INET => match sock_addr.address {
-                IpAddress::IPv4(_v) => *self.local_addr.write().unwrap() = Some(sock_addr),
-                IpAddress::IPv6() => return Err(SocketError::BindError),
-            },
-            ProtocolFamily::INET6 => match sock_addr.address {
-                IpAddress::IPv4(_v) => return Err(SocketError::BindError),
-                IpAddress::IPv6() => *self.local_addr.write().unwrap() = Some(sock_addr),
-            },
+            ProtocolFamily::INET => *self.local_addr.write().unwrap() = Some(sock_addr),
+            ProtocolFamily::INET6 => return Err(SocketError::BindError),
         }
         *self.is_bound.write().unwrap() = true;
         Ok(())
@@ -194,7 +175,7 @@ impl Socket {
         if let Some(local_addr) = *self.local_addr.read().unwrap() {
             match self
                 .protocols
-                .protocol::<Sockets>()
+                .protocol::<SocketAPI>()
                 .expect("Sockets API not found")
                 .listen_with_fd(self.fd, local_addr, self.protocols.clone())
             {
@@ -219,15 +200,15 @@ impl Socket {
         if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
-        if self.wait_for_notify(NotifyType::Listening).await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::NewConnection).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
         let new_sock = self
             .socket_api
             .new_socket(self.family, self.sock_type, self.protocols.clone())
             .await?;
-        let local_addr = SocketAddress {
-            address: self.socket_api.get_local_ipv4()?,
+        let local_addr = Endpoint {
+            address: self.socket_api.get_local_ip()?,
             port: self.local_addr.read().unwrap().unwrap().port,
         };
         new_sock.bind(local_addr)?;
@@ -241,7 +222,7 @@ impl Socket {
         )?;
         *session.upstream.write().unwrap() = Some(new_sock.clone());
         *new_sock.session.write().unwrap() = Some(session.clone());
-        session.receive_stored_msg().unwrap();
+        session.receive_stored_messages().unwrap();
         *new_sock.is_active.write().unwrap() = true;
         Ok(new_sock)
     }
@@ -281,7 +262,7 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if self.wait_for_notify(NotifyType::Receiving).await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
         let mut buf = Vec::new();
@@ -315,7 +296,7 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        if self.wait_for_notify(NotifyType::Receiving).await == NotifyResult::Shutdown {
+        if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
         let mut queue = self.messages.write().unwrap().clone();
@@ -336,6 +317,12 @@ impl Socket {
         self.notify_recv.notify_one();
         Ok(())
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum NotifyResult {
+    Notified,
+    Shutdown,
 }
 
 #[derive(Debug, ThisError, Clone, PartialEq, Eq)]
@@ -374,7 +361,6 @@ pub enum ProtocolFamily {
 }
 
 /// SocketType::Stream - Indicates that the socket utilizes TCP
-/// (Not yet implemented)
 ///
 /// SocketType::Datagram - Indicates that the socket utilizes UDP
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -382,133 +368,3 @@ pub enum SocketType {
     Stream,
     Datagram,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum IpAddress {
-    IPv4(Ipv4Address),
-    IPv6(),
-}
-
-impl From<Ipv4Address> for IpAddress {
-    fn from(address: Ipv4Address) -> Self {
-        Self::IPv4(address)
-    }
-}
-
-impl TryFrom<IpAddress> for Ipv4Address {
-    type Error = AddressConversionError;
-
-    fn try_from(address: IpAddress) -> Result<Self, Self::Error> {
-        match address {
-            IpAddress::IPv4(address) => Ok(address),
-            IpAddress::IPv6() => Err(AddressConversionError),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SocketAddress {
-    pub address: IpAddress,
-    pub port: u16,
-}
-
-impl SocketAddress {
-    pub fn new(address: IpAddress, port: u16) -> SocketAddress {
-        match address {
-            IpAddress::IPv4(addr) => SocketAddress::new_v4(addr, port),
-            IpAddress::IPv6() => todo!(),
-        }
-    }
-
-    pub fn new_v4(address: Ipv4Address, port: u16) -> SocketAddress {
-        Self {
-            address: IpAddress::IPv4(address),
-            port,
-        }
-    }
-
-    pub fn new_v6(port: u16) -> SocketAddress {
-        Self {
-            address: IpAddress::IPv6(),
-            port,
-        }
-    }
-}
-
-impl From<Endpoint> for SocketAddress {
-    fn from(endpoint: Endpoint) -> Self {
-        Self::new(endpoint.address.into(), endpoint.port)
-    }
-}
-
-impl TryFrom<SocketAddress> for Endpoint {
-    type Error = AddressConversionError;
-
-    fn try_from(address: SocketAddress) -> Result<Self, Self::Error> {
-        Ok(Endpoint {
-            address: address.address.try_into()?,
-            port: address.port,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SocketId {
-    pub local_address: SocketAddress,
-    pub remote_address: SocketAddress,
-}
-
-impl SocketId {
-    pub fn new(
-        local_address: IpAddress,
-        local_port: u16,
-        remote_address: IpAddress,
-        remote_port: u16,
-    ) -> SocketId {
-        Self {
-            local_address: SocketAddress::new(local_address, local_port),
-            remote_address: SocketAddress::new(remote_address, remote_port),
-        }
-    }
-
-    pub fn new_from_addresses(
-        local_address: SocketAddress,
-        remote_address: SocketAddress,
-    ) -> SocketId {
-        Self {
-            local_address,
-            remote_address,
-        }
-    }
-}
-
-impl From<Endpoints> for SocketId {
-    fn from(endpoints: Endpoints) -> Self {
-        Self {
-            local_address: endpoints.local.into(),
-            remote_address: endpoints.remote.into(),
-        }
-    }
-}
-
-impl TryFrom<SocketId> for Endpoints {
-    type Error = AddressConversionError;
-
-    fn try_from(socket_id: SocketId) -> Result<Self, Self::Error> {
-        Ok(Endpoints {
-            local: socket_id.local_address.try_into()?,
-            remote: socket_id.remote_address.try_into()?,
-        })
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct AddressConversionError;
-
-impl Display for AddressConversionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Expected IPv4, got IPv6")
-    }
-}
-
-impl Error for AddressConversionError {}

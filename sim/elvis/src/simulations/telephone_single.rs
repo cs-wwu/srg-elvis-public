@@ -5,7 +5,7 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
-        Endpoint, Endpoints, Pci, UserProcess,
+        Endpoint, Endpoints, Pci,
     },
     run_internet, Message, Network,
 };
@@ -24,7 +24,7 @@ pub async fn telephone_single() {
         Udp::new(),
         Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect(),),
         Pci::new([network.clone()]),
-        SendMessage::new(vec![message.clone()], Endpoint::new(remote, 0xbeef)).process()
+        SendMessage::new(vec![message.clone()], Endpoint::new(remote, 0xbeef))
     ]];
 
     for i in 0u32..(END - 1) {
@@ -41,7 +41,6 @@ pub async fn telephone_single() {
                 Endpoint::new(local, 0xbeef),
                 Endpoint::new(remote, 0xbeef),
             ))
-            .process(),
         ]);
     }
 
@@ -50,7 +49,7 @@ pub async fn telephone_single() {
         Udp::new(),
         Ipv4::new(Default::default()),
         Pci::new([network.clone()]),
-        Capture::new(Endpoint::new(local, 0xbeef), 1).process()
+        Capture::new(Endpoint::new(local, 0xbeef), 1)
     ]);
 
     run_internet(&machines).await;
@@ -59,9 +58,8 @@ pub async fn telephone_single() {
         .last()
         .unwrap()
         .into_inner()
-        .protocol::<UserProcess<Capture>>()
+        .protocol::<Capture>()
         .unwrap()
-        .application()
         .message();
     assert_eq!(received, Some(message));
 }

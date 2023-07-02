@@ -1,17 +1,11 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
-    protocols::{
-        ipv4::Ipv4Address,
-        user_process::{Application, ApplicationError, UserProcess},
-        Endpoint, Endpoints, Tcp, Udp,
-    },
-    Control, Session, Shutdown, Transport,
+    protocol::{DemuxError, StartError},
+    protocols::{ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
+    Control, Protocol, Session, Shutdown, Transport,
 };
-use std::{
-    any::TypeId,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
 use super::dhcp::dhcp_client::DhcpClient;
@@ -45,11 +39,6 @@ impl SendMessage {
         self
     }
 
-    /// Wrap the SendMessage in a user process
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
-    }
-
     /// The protocol to use in delivering the message
     pub fn transport(mut self, transport: Transport) -> Self {
         self.transport = transport;
@@ -58,20 +47,20 @@ impl SendMessage {
 }
 
 #[async_trait::async_trait]
-impl Application for SendMessage {
+impl Protocol for SendMessage {
     async fn start(
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         let endpoint = self.endpoint;
         let transport = self.transport;
         initialized.wait().await;
 
-        let local_address = match protocols.protocol::<UserProcess<DhcpClient>>() {
-            Some(dhcp) => dhcp.application().ip_address().await,
+        let local_address = match protocols.protocol::<DhcpClient>() {
+            Some(dhcp) => dhcp.ip_address().await,
             None => self.local_ip,
         };
 
@@ -87,21 +76,13 @@ impl Application for SendMessage {
             Transport::Tcp => protocols
                 .protocol::<Tcp>()
                 .unwrap()
-                .open(
-                    TypeId::of::<UserProcess<Self>>(),
-                    endpoints,
-                    protocols.clone(),
-                )
+                .open(self.id(), endpoints, protocols.clone())
                 .await
                 .unwrap(),
             Transport::Udp => protocols
                 .protocol::<Udp>()
                 .unwrap()
-                .open_for_sending(
-                    TypeId::of::<UserProcess<Self>>(),
-                    endpoints,
-                    protocols.clone(),
-                )
+                .open_for_sending(self.id(), endpoints, protocols.clone())
                 .await
                 .unwrap(),
         };
@@ -114,13 +95,13 @@ impl Application for SendMessage {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         Ok(())
     }
 }

@@ -45,9 +45,7 @@
 //! ```
 
 use super::message::Message;
-use crate::{
-    machine::ProtocolMap, protocols::user_process::ApplicationError, Control, Session, Shutdown,
-};
+use crate::{machine::ProtocolMap, session::SendError, Control, Session, Shutdown};
 use std::{
     any::{Any, TypeId},
     sync::Arc,
@@ -111,9 +109,27 @@ pub trait Protocol: Send + Sync + 'static {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError>;
+
+    /// Allows for notifying a protocol about an occurrence,
+    /// Eg. a new connection being established
+    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotifyType {
+    NewConnection,
+    NewMessage,
 }
 
 // TODO(hardint): Get rid of these error types and replace them with inline logging
+
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
+pub enum NotifyError {
+    #[error("Data expected through the context was missing")]
+    MissingContext,
+    #[error("Unspecified query error")]
+    Other,
+}
 
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum DemuxError {
@@ -127,16 +143,25 @@ pub enum DemuxError {
     MissingProtocol(TypeId),
     #[error("Failed to parse a header during demux")]
     Header,
-    #[error("Receive failed during the execution of an Application")]
-    Application(#[from] ApplicationError),
     #[error("Unspecified demux error")]
     Other,
 }
 
+impl From<SendError> for DemuxError {
+    fn from(value: SendError) -> DemuxError {
+        match value {
+            SendError::Header => DemuxError::Header,
+            SendError::MissingContext => DemuxError::MissingContext,
+            SendError::Mtu(_) => DemuxError::Other,
+            SendError::Other => DemuxError::Other,
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
 pub enum StartError {
-    #[error("Protocol failed to start because an application failed to start")]
-    Application(#[from] ApplicationError),
+    #[error("Could not find the given protocol: {0:?}")]
+    MissingProtocol(TypeId),
     #[error("Unspecified error")]
     Other,
 }

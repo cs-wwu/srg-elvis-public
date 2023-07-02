@@ -44,7 +44,7 @@
 use crate::{
     machine::ProtocolMap,
     message::Message,
-    protocol::{DemuxError, StartError},
+    protocol::{DemuxError, NotifyType, StartError},
     session::SendError,
     Control, Protocol, Session, Shutdown,
 };
@@ -146,4 +146,6 @@ impl<A: Application + Send + Sync + 'static> Protocol for UserProcess<A> {
             .await?;
         Ok(())
     }
+
+    fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
 }

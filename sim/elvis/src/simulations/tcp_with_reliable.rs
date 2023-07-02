@@ -4,7 +4,7 @@ use elvis_core::{
     new_machine,
     protocols::{
         ipv4::{Ipv4, Recipient, Recipients},
-        Endpoint, Pci, Tcp, UserProcess,
+        Endpoint, Pci, Tcp,
     },
     run_internet, Network, Transport,
 };
@@ -32,17 +32,13 @@ pub async fn tcp_with_reliable() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![message.clone()], endpoint)
-                .transport(Transport::Tcp)
-                .process(),
+            SendMessage::new(vec![message.clone()], endpoint).transport(Transport::Tcp)
         ],
         new_machine![
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            Capture::new(endpoint, 1)
-                .transport(Transport::Tcp)
-                .process(),
+            Capture::new(endpoint, 1).transport(Transport::Tcp)
         ],
     ];
 
@@ -52,9 +48,8 @@ pub async fn tcp_with_reliable() {
         .nth(1)
         .unwrap()
         .into_inner()
-        .protocol::<UserProcess<Capture>>()
+        .protocol::<Capture>()
         .unwrap()
-        .application()
         .message();
     assert_eq!(received, Some(message));
 }

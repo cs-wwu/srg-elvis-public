@@ -31,9 +31,7 @@ pub async fn tcp_gigabyte_bench() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![message.clone()], endpoint)
-                .transport(Transport::Tcp)
-                .process(),
+            SendMessage::new(vec![message.clone()], endpoint).transport(Transport::Tcp)
         ],
         new_machine![
             Tcp::new(),
@@ -42,7 +40,6 @@ pub async fn tcp_gigabyte_bench() {
             WaitForMessage::new(endpoint, message)
                 .transport(Transport::Tcp)
                 .disable_checking()
-                .process(),
         ],
     ];
 

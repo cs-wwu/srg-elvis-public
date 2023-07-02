@@ -54,8 +54,7 @@ pub async fn router_single() {
                     address: DESTINATION,
                     port: 0xbeef,
                 },
-            )
-            .process(),
+            ),
         ],
         // machine representing our router
         new_machine![
@@ -66,7 +65,7 @@ pub async fn router_single() {
                 networks[3].clone(),
             ]),
             Ipv4::new(ip_table.clone()),
-            Router::new(ip_table).process()
+            Router::new(ip_table)
         ],
         // capture for destination 1
         new_machine![
@@ -80,7 +79,6 @@ pub async fn router_single() {
                 },
                 1,
             )
-            .process(),
         ],
         // capture for destination 2
         new_machine![
@@ -94,7 +92,6 @@ pub async fn router_single() {
                 },
                 1,
             )
-            .process(),
         ],
         // capture for destination 3
         new_machine![
@@ -108,7 +105,6 @@ pub async fn router_single() {
                 },
                 1,
             )
-            .process(),
         ],
     ];
 
