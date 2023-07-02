@@ -185,7 +185,7 @@ mod test {
         table.add_cidr("1.1.3.0/24", 4);
         table.add_cidr("1.2.3.0/24", 5);
         table.add_cidr("1.1.1.2/32", 6);
-        table.add_cidr("1.1.3.4/32", 7);
+        table.add_cidr("1.2.3.4/32", 7);
 
         table
     }
@@ -235,7 +235,7 @@ mod test {
         .into_iter()
         .collect();
     
-    let mut new_table: IpTable<Recipient> = ip_table.clone().into();
+        let mut new_table: IpTable<Recipient> = ip_table.clone().into();
 
         for ip in ip_table.keys() {
             assert_eq!(new_table.get_recipient(*ip).unwrap(), *ip_table.get(ip).unwrap());
