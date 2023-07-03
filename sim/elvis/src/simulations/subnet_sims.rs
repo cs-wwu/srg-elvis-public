@@ -10,7 +10,7 @@ use elvis_core::{
             arp_parsing::ArpPacket,
             subnetting::{Ipv4Mask, SubnetInfo},
         },
-        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipient, Recipients},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipient},
         Arp, Endpoint, Ipv4, Pci, Udp,
     },
     *,
@@ -33,7 +33,7 @@ const GUY_SOMEWHERE_ELSE: Endpoint = Endpoint::new(Ipv4Address::new([30, 40, 90,
 const SUBNET_INFO: SubnetInfo = SubnetInfo::new(Ipv4Mask::from_bitcount(24), GATEWAY.address);
 
 /// Returns a recipients table where all IPs go to tap slot 0
-fn ip_table() -> Recipients {
+fn ip_table() -> IpTable<Recipient> {
     let recipient = Recipient::new(0, None);
     [
         MAE.address,

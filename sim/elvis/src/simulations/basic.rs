@@ -3,11 +3,11 @@ use elvis_core::{
     message::Message,
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient, Recipients},
+        ipv4::{Ipv4, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, Network,
+    run_internet, IpTable, Network,
 };
 
 /// Runs a basic simulation.
@@ -21,7 +21,7 @@ pub async fn basic() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
+    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 

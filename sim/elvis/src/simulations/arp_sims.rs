@@ -7,10 +7,10 @@ use std::{sync::Arc, time::Duration};
 use elvis_core::{
     new_machine,
     protocols::{
-        ipv4::{Ipv4Address, Recipient, Recipients},
+        ipv4::{Ipv4Address, Recipient},
         Arp, Endpoint, Endpoints, Ipv4, Pci, Udp,
     },
-    run_internet, Machine, Message, Network,
+    run_internet, IpTable, Machine, Message, Network,
 };
 
 use crate::applications::{Capture, PingPong, SendMessage};
@@ -23,7 +23,7 @@ const RECEIVER_IP: Ipv4Address = Ipv4Address::new([67, 8, 9, 10]);
 const RECEIVER_ENDPOINT: Endpoint = Endpoint::new(RECEIVER_IP, 0xfefe);
 
 /// generates a Recipients to work with the simulations
-fn ip_table() -> Recipients {
+fn ip_table() -> IpTable<Recipient> {
     let default_recipient: Recipient = Recipient::new(0, None);
     [
         (SENDER_IP, default_recipient),

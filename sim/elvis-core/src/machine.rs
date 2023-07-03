@@ -7,7 +7,7 @@ use std::{
 use tokio::{sync::Barrier, task::JoinSet};
 
 /// A tap's PCI slot index
-pub(crate) type PciSlot = u32;
+pub type PciSlot = u32;
 
 type ArcAny = Arc<dyn Any + Send + Sync + 'static>;
 type AnyMap = FxHashMap<TypeId, (ArcAny, Arc<dyn Protocol>)>;
@@ -142,16 +142,17 @@ impl Machine {
 ///     protocols::*,
 ///     run_internet,
 ///     machine::*,
+///     IpTable
 /// };
 ///
 /// let machines = [
 ///     new_machine![
-///         Ipv4::new(std::iter::empty().collect()),
+///         Ipv4::new(IpTable::new()),
 ///         Pci::new([]),
 ///     ],
 ///     new_machine![
 ///         Udp::new(),
-///         Ipv4::new(std::iter::empty().collect()),
+///         Ipv4::new(IpTable::new()),
 ///         Pci::new([]),
 ///     ],
 ///     new_machine![],
@@ -176,9 +177,12 @@ pub use new_machine;
 
 #[cfg(test)]
 mod tests {
-    use crate::protocols::{Ipv4, Pci};
+    use crate::{
+        protocols::{Ipv4, Pci},
+        IpTable,
+    };
     #[test]
     fn test() {
-        let _machine = new_machine![Ipv4::new(std::iter::empty().collect()), Pci::new([]),];
+        let _machine = new_machine![Ipv4::new(IpTable::new()), Pci::new([]),];
     }
 }
