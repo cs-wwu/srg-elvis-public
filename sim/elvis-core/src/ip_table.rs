@@ -32,11 +32,10 @@ impl<T: Copy> IpTable<T> {
         table
     }
 
-    /// Gets value associated with provided ipv4 address by starting at the most
-    /// specific mask in the table (32 if there are mappings to that mask) and
+    /// Gets value associated with provided ipv4 address by starting at the largest bit mask and
     /// returns the destination associated with that mask. If no subnet is found,
     /// the recipient linked to the default gateway is returned. If no default gateway is
-    /// specified an error is returned.
+    /// then None is returned
     pub fn get_recipient(&self, address: Ipv4Address) -> Option<T> {
         for entry in self.masks.keys().rev() {
             let masked_address = get_network_id(address, *entry);
