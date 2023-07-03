@@ -21,7 +21,7 @@ use ipv4_parsing::Ipv4Header;
 mod ipv4_address;
 pub use ipv4_address::Ipv4Address;
 
-mod ipv4_session;
+pub(crate) mod ipv4_session;
 pub use ipv4_session::AddressPair;
 use ipv4_session::Ipv4Session;
 

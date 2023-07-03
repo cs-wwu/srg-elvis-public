@@ -3,6 +3,7 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{Endpoint, Tcp, Udp},
+    shutdown::ExitStatus,
     Control, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, RwLock};
@@ -23,6 +24,7 @@ pub struct Capture {
     cur_count: RwLock<u32>,
     /// The transport protocol to use
     transport: Transport,
+    exit_status: Option<u32>,
 }
 
 impl Capture {
@@ -35,6 +37,7 @@ impl Capture {
             message_count,
             cur_count: RwLock::new(0),
             transport: Transport::Udp,
+            exit_status: None,
         }
     }
 
@@ -46,6 +49,12 @@ impl Capture {
     /// Set the transport protocol to use
     pub fn transport(mut self, transport: Transport) -> Self {
         self.transport = transport;
+        self
+    }
+
+    // Set the exit status for capture to return with on shutdown
+    pub fn exit_status(mut self, status: u32) -> Self {
+        self.exit_status = Some(status);
         self
     }
 }
@@ -91,7 +100,11 @@ impl Protocol for Capture {
         *self.cur_count.write().unwrap() += 1;
         if *self.cur_count.read().unwrap() >= self.message_count {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-                shutdown.shut_down();
+                if let Some(status) = self.exit_status {
+                    shutdown.shut_down_with_status(ExitStatus::Status(status));
+                } else {
+                    shutdown.shut_down();
+                }
             }
         }
         Ok(())

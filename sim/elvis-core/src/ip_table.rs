@@ -111,6 +111,10 @@ impl<T: Copy> IpTable<T> {
             self.add(key, value);
         }
     }
+
+    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, (Ipv4Address, Ipv4Mask), T> {
+        self.table.iter()
+    }
 }
 
 /// Allows conversion of Recipients into IpTable
@@ -171,19 +175,18 @@ impl<T: Copy> Default for IpTable<T> {
 impl<T: Copy + Debug> Debug for IpTable<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for entry in self.table.iter() {
-            writeln!(f, "{}/{} : {:?}", entry.0.0, entry.0.1.count_ones(), entry.1).unwrap();
-        }   
+            writeln!(
+                f,
+                "{}/{} : {:?}",
+                entry.0 .0,
+                entry.0 .1.count_ones(),
+                entry.1
+            )
+            .unwrap();
+        }
         Ok(())
     }
 }
-
-// TODO (eulerfrog) add macro to support creating ip table from a variety of
-// different input types
-#[macro_export]
-macro_rules! ip_table {
-    () => {};
-}
-pub use ip_table;
 
 mod test {
     use super::*;
