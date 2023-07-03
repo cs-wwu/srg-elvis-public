@@ -14,11 +14,12 @@ use tokio::sync::Barrier;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Router {
     ip_table: Recipients,
+    local_ip: Ipv4Address,
 }
 
 impl Router {
-    pub fn new(ip_table: Recipients) -> Self {
-        Self { ip_table }
+    pub fn new(ip_table: Recipients, local_ip: Ipv4Address) -> Self {
+        Self { ip_table, local_ip }
     }
 }
 
@@ -31,8 +32,10 @@ impl Protocol for Router {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
+
         ipv4.listen(self.id(), Ipv4Address::CURRENT_NETWORK, protocols)
             .unwrap();
+
         initialize.wait().await;
         Ok(())
     }
@@ -45,18 +48,23 @@ impl Protocol for Router {
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
+
         ipv4_header.time_to_live -= 1;
         if ipv4_header.time_to_live == 0 {
             return Ok(());
         }
+
         // TODO(hardint): Fragmentation
         message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
+
         let recipient = self
             .ip_table
             .get(&ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
+
         let session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
         session.send_pci(message, recipient.mac, TypeId::of::<Ipv4>())?;
+
         Ok(())
     }
 }

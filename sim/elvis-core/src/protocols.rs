@@ -1,6 +1,7 @@
 //! Fundamental Internet protocols to be used by most simulations.
 
 pub mod ipv4;
+pub use ipv4::ipv4_session::AddressPair;
 pub use ipv4::Ipv4;
 
 pub mod arp;
