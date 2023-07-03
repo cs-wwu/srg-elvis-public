@@ -171,7 +171,7 @@ impl<T: Copy> Default for IpTable<T> {
 impl<T: Copy + Debug> Debug for IpTable<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for entry in self.table.iter() {
-            write!(f, "{}/{} : {:?}\n", entry.0.0, entry.0.1.count_ones(), entry.1).unwrap();
+            writeln!(f, "{}/{} : {:?}", entry.0.0, entry.0.1.count_ones(), entry.1).unwrap();
         }   
         Ok(())
     }
