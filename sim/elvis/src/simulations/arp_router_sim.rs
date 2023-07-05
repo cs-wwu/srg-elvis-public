@@ -319,6 +319,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
 
     run_internet_with_timeout(&machines, Duration::from_secs(2)).await
 }
+
 #[cfg(test)]
 mod tests {
 

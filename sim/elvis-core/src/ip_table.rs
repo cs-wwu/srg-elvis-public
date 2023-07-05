@@ -3,6 +3,7 @@ use std::fmt;
 
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
+use std::collections::btree_map::*;
 use std::fmt::Debug;
 
 type Entry = (Ipv4Address, Ipv4Mask);
@@ -116,7 +117,7 @@ impl<T: Copy> IpTable<T> {
         }
     }
 
-    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, (Ipv4Address, Ipv4Mask), T> {
+    pub fn iter(&self) -> Iter<'_, (Ipv4Address, Ipv4Mask), T> {
         self.table.iter()
     }
 }
