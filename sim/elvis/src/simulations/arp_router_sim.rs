@@ -68,6 +68,7 @@ pub fn build_capture(
       o or (n)   :  network
 
     - or | or /  :  connection
+
 */
 
 /*routes packet from destination 0 to one of the given destinations 1,2,3

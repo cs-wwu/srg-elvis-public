@@ -9,7 +9,7 @@
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RipPacket {
     header: RipHeader,
-    entries: Vec<RipEntry>,
+    entries: Option<Vec<RipEntry>>,
 }
 
 pub struct RipHeader {
