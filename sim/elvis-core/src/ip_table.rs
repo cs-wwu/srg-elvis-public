@@ -8,6 +8,10 @@ use std::fmt::Debug;
 type Entry = (Ipv4Address, Ipv4Mask);
 
 #[derive(Clone, Eq, PartialEq)]
+
+/// An IpTable is a type of map that maps (Ipv4, Ipv4Mask) to the given type T
+/// this mapping is different from a traditional HashMap/TreeMap in a sense
+/// that entries are accsessed by providing a single ipv4address.
 pub struct IpTable<T: Copy> {
     table: BTreeMap<Entry, T>,
     // mapping to keep track of number of num of unique subnets associated with
