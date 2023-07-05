@@ -4,15 +4,14 @@ use elvis_core::{
     new_machine,
     protocols::{
         arp::subnetting::{Ipv4Mask, SubnetInfo},
-        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Arp, Endpoint, Pci,
     },
     run_internet_with_timeout,
     shutdown::ExitStatus,
-    Machine, Message, Network,
+    IpTable, Machine, Message, Network,
 };
-use rustc_hash::FxHashMap;
 use std::{sync::Arc, time::Duration};
 
 const IPS: [Ipv4Address; 6] = [
@@ -29,22 +28,22 @@ const ROUTER_IPS: [Ipv4Address; 2] = [
     Ipv4Address::new([123, 45, 76, 93]),
 ];
 
-pub fn build_ip_table(router_table: &FxHashMap<Ipv4Address, (Ipv4Address, PciSlot)>) -> Recipients {
-    let mut ip_table = Recipients::default();
+pub fn build_ip_table(router_table: &IpTable<(Ipv4Address, PciSlot)>) -> IpTable<Recipient> {
+    let mut ip_table = IpTable::<Recipient>::new();
     for entry in router_table.iter() {
-        ip_table.insert(*entry.0, Recipient::new((entry.1).1, None));
+        ip_table.add(*entry.0, Recipient::new((entry.1).1, None));
     }
     ip_table
 }
 
-pub fn build_dest_table(address: Ipv4Address, slot: PciSlot) -> Recipients {
+pub fn build_dest_table(address: Ipv4Address, slot: PciSlot) -> IpTable<Recipient> {
     [(address, Recipient::new(slot, None))]
         .into_iter()
         .collect()
 }
 
 pub fn build_capture(
-    destination_table: Recipients,
+    destination_table: IpTable<Recipient>,
     network: Arc<Network>,
     address: Ipv4Address,
     exit_status: u32,
@@ -81,7 +80,7 @@ pub fn build_capture(
 */
 #[allow(dead_code)]
 pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
-    let router_table: FxHashMap<Ipv4Address, (Ipv4Address, PciSlot)> = [
+    let router_table: IpTable<(Ipv4Address, PciSlot)> = [
         (IPS[0], (IPS[0], 0)),
         (IPS[1], (IPS[1], 1)),
         (IPS[2], (IPS[2], 2)),
@@ -157,7 +156,7 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
 */
 #[allow(dead_code)]
 pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
-    let router_table: FxHashMap<Ipv4Address, (Ipv4Address, PciSlot)> = [
+    let router_table: IpTable<(Ipv4Address, PciSlot)> = [
         (IPS[0], (IPS[0], 0)),
         (IPS[1], (IPS[1], 1)),
         (IPS[2], (IPS[2], 1)),
@@ -232,7 +231,7 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
 */
 #[allow(dead_code)]
 pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
-    let router_table_1: FxHashMap<Ipv4Address, (Ipv4Address, PciSlot)> = [
+    let router_table_1: IpTable<(Ipv4Address, PciSlot)> = [
         (IPS[0], (IPS[0], 0)),
         (IPS[1], (IPS[1], 1)),
         (IPS[2], (ROUTER_IPS[1], 2)),
@@ -243,7 +242,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
     .into_iter()
     .collect();
 
-    let router_table_2: FxHashMap<Ipv4Address, (Ipv4Address, PciSlot)> = [
+    let router_table_2: IpTable<(Ipv4Address, PciSlot)> = [
         (IPS[0], (ROUTER_IPS[0], 0)),
         (IPS[1], (ROUTER_IPS[0], 0)),
         (IPS[2], (IPS[2], 1)),
@@ -320,6 +319,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
 
     run_internet_with_timeout(&machines, Duration::from_secs(2)).await
 }
+
 #[cfg(test)]
 mod tests {
 

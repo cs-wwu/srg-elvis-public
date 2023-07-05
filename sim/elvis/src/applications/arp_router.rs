@@ -7,30 +7,25 @@ use elvis_core::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
         AddressPair, Arp, Ipv4, Pci,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, IpTable, Protocol, Session, Shutdown,
 };
-use rustc_hash::FxHashMap;
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ArpRouter {
-    ip_table: FxHashMap<Ipv4Address, (Ipv4Address, PciSlot)>,
+    ip_table: IpTable<(Ipv4Address, PciSlot)>,
     local_ip: Ipv4Address,
 }
 
 impl ArpRouter {
-    pub fn new(
-        ip_table: FxHashMap<Ipv4Address, (Ipv4Address, PciSlot)>,
-        local_ip: Ipv4Address,
-    ) -> Self {
+    pub fn new(ip_table: IpTable<(Ipv4Address, PciSlot)>, local_ip: Ipv4Address) -> Self {
         Self { ip_table, local_ip }
     }
 }
 
 #[async_trait::async_trait]
 impl Protocol for ArpRouter {
-
     async fn start(
         &self,
         _shutdown: Shutdown,
@@ -71,7 +66,7 @@ impl Protocol for ArpRouter {
 
         let pair = self
             .ip_table
-            .get(&ipv4_header.destination)
+            .get_recipient(ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
 
         let gateway = pair.0;

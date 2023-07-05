@@ -7,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    run_internet, Message, Network,
+    run_internet, IpTable, Message, Network,
 };
 
 /// Simulates a message being repeatedly forwarded on a single network.
@@ -47,7 +47,7 @@ pub async fn telephone_single() {
     let local = (END - 1).to_be_bytes().into();
     machines.push(new_machine![
         Udp::new(),
-        Ipv4::new(Default::default()),
+        Ipv4::new(IpTable::new()),
         Pci::new([network.clone()]),
         Capture::new(Endpoint::new(local, 0xbeef), 1)
     ]);

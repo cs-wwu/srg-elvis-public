@@ -4,13 +4,13 @@ use crate::applications::{Capture, Router, SendMessage};
 use elvis_core::{
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
     run_internet_with_timeout,
     shutdown::ExitStatus,
-    Message, Network,
+    IpTable, Message, Network,
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
@@ -21,7 +21,7 @@ const ROUTER_IP: Ipv4Address = Ipv4Address::new([123, 45, 76, 92]);
 
 // simulates a staticly configured router routing a single packet to one of three destinations
 pub async fn router_single(destination: Ipv4Address) -> ExitStatus {
-    let ip_table: Recipients = [
+    let ip_table: IpTable<Recipient> = [
         (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
         (IP_ADDRESS_2, Recipient::with_mac(1, 1)),
         (IP_ADDRESS_3, Recipient::with_mac(2, 1)),
@@ -30,13 +30,13 @@ pub async fn router_single(destination: Ipv4Address) -> ExitStatus {
     .into_iter()
     .collect();
 
-    let dt1: Recipients = [(IP_ADDRESS_2, Recipient::with_mac(0, 1))]
+    let dt1: IpTable<Recipient> = [(IP_ADDRESS_2, Recipient::with_mac(0, 666))]
         .into_iter()
         .collect();
-    let dt2: Recipients = [(IP_ADDRESS_3, Recipient::with_mac(0, 1))]
+    let dt2: IpTable<Recipient> = [(IP_ADDRESS_3, Recipient::with_mac(0, 666))]
         .into_iter()
         .collect();
-    let dt3: Recipients = [(IP_ADDRESS_4, Recipient::with_mac(0, 1))]
+    let dt3: IpTable<Recipient> = [(IP_ADDRESS_4, Recipient::with_mac(0, 666))]
         .into_iter()
         .collect();
 

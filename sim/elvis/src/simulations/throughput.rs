@@ -3,11 +3,11 @@ use elvis_core::{
     network::{Baud, NetworkBuilder, Throughput},
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient, Recipients},
+        ipv4::{Ipv4, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, Message,
+    run_internet, IpTable, Message,
 };
 use std::time::Duration;
 
@@ -24,7 +24,7 @@ pub async fn throughput() {
         .throughput(Throughput::constant(Baud::bytes_per_second(MESSAGE_LENGTH)))
         .build();
     let endpoint = Endpoint::new([123, 45, 67, 89].into(), 0xbeef);
-    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
+    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
