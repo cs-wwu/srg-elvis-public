@@ -10,8 +10,20 @@ use elvis_core::{
         Dns,
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         SocketAPI,
+        dns::{ dns_parsing::{
+            DnsHeader,
+            DnsQuestion,
+            DnsResourceRecord,
+            DnsMessageType,
+            },
+        },
     },
     Control, Protocol, Session, Shutdown,
+    FxDashMap,
+};
+
+use {
+    dashmap::mapref::entry::Entry,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -22,31 +34,45 @@ pub const PORT_NUM: u16 = 53;
 pub struct DnsServer {
     /// The Sockets API
     sockets: Arc<Socket>,
-    /// The port to capture a message on
-    local_port: u16,
+    /// The DnsServer version of a normal Dns cache to hold all mappings in 
+    /// the network.
+    name_to_ip: FxDashMap<String, Ipv4Address>,
 }
 
 impl DnsServer {
     pub fn new(
             sockets: Arc<Socket>,
-            local_port: u16,
-            remote_ip: Ipv4Address,
+            name_to_ip: FxDashMap<String, Ipv4Address>,
         ) -> Self {
         Self {
             sockets,
-            local_port,
+            name_to_ip,
         }
     }
 
-    // pub fn shared(self) -> Arc<UserProcess<Self>> {
-    //     UserProcess::new(self).shared()
-    // }
+     /// Adds a new mapping to the name_to_ip cache.
+     pub fn add_mapping(&self, name: String, ip: Ipv4Address) {
+        self.name_to_ip.insert(name, ip);
+    }
+
+    /// Checks local name_to_ip cache for ['Ipv4Address'] given a name.
+    pub fn get_mapping(
+        &self,
+        name: String,
+    ) -> Result<Ipv4Address, DnsServerError> {
+        match self.name_to_ip.entry(name) {
+            Entry::Occupied(e) => {
+                Ok(e.get().clone())
+            }
+            Entry::Vacant(_) => {
+                Err(DnsServerError::Cache)
+            }
+        }
+    }
 }
 
 #[async_trait::async_trait]
 impl Protocol for DnsServer {
-    // const ID: Id = Id::from_string("DNS Server");
-
     async fn start(
         &self,
         shutdown: Shutdown,
@@ -54,6 +80,7 @@ impl Protocol for DnsServer {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let udp = protocols.protocol::<Udp>().unwrap();
+
         udp.listen(
             self.id(),
             Endpoint::new(Ipv4Address::DNS_AUTH, 53), protocols
@@ -71,6 +98,14 @@ impl Protocol for DnsServer {
     ) -> Result<(), DemuxError> {
         Ok(())
     }
+}
+
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
+pub enum DnsServerError {
+    #[error("DNS Authoritative cache lookup error")]
+    Cache,
+    #[error("Unspecified DNS Server error")]
+    Other,
 }
 
 // impl Default for DnsServer {

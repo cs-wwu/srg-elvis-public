@@ -16,10 +16,12 @@ use crate::{
     protocols::pci::Pci,
     protocols::dns::dns_session::{DnsSession, SessionId},
     Control, Network, Protocol, Shutdown, Session,
+    FxDashMap,
 };
 
 use {
-    dashmap::{mapref::entry::Entry, DashMap},
+    dashmap::mapref::entry::Entry,
+    rustc_hash::FxHashMap,
     std::sync::Arc,
     std::collections::HashMap,
     std::any::TypeId,
@@ -33,27 +35,19 @@ pub struct Dns {
     /// Mapping of names to IPs that is unique to each machine. When a machine
     /// connects to a host using DNS, the mapping is saved in the connecting
     /// machines DNS protocol.
-    name_to_ip: DashMap<String, Ipv4Address>,
+    name_to_ip: FxDashMap<String, Ipv4Address>,
 
-    /// The type for this Dns protocol telling us what kind of machine we're on
-    dns_type: DnsType,
-
-    /// Direct reference to Sockets
+    // Direct reference to Sockets
     // TODO(zachd9757): Replace this with a reference to the Network API once it exists
     // sockets: Sockets,
-
-    /// Well-known IP for the authoritative server
-    auth_ip: Ipv4Address,
 }
 
 impl Dns {
 
     /// Creates a new instance of the protocol.
-    pub fn new(dns_type: DnsType, auth_ip: Ipv4Address) -> Self {
+    pub fn new() -> Self {
         Self {
-            name_to_ip: DashMap::new(),
-            dns_type,
-            auth_ip,
+            name_to_ip: Default::default(),
         }
     }
 
@@ -117,8 +111,14 @@ impl Protocol for Dns {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        let udp = protocols.protocol::<Udp>().unwrap();
+
+        udp.listen(
+            self.id(),
+            Endpoint::new(Ipv4Address::DNS_AUTH, 53), protocols
+        ).unwrap();
         initialized.wait().await;
         Ok(())
     }
@@ -136,14 +136,14 @@ impl Protocol for Dns {
     }
 }
 
-pub enum DnsType {
-    /// Authoritative Server
-    AUT,
-    /// Client
-    CLI,
-    /// Recursive
-    REC,
-}
+// pub enum DnsType {
+//     /// Authoritative Server
+//     AUT,
+//     /// Client
+//     CLI,
+//     /// Recursive
+//     REC,
+// }
 
 #[cfg(test)]
 mod tests {
@@ -153,7 +153,7 @@ mod tests {
     /// Checks HashMap functionality
     fn add_and_lookup_mapping() {
         // Initialize struct
-        let dns: Dns = Dns::new(DnsType::CLI, Ipv4Address::CURRENT_NETWORK);
+        let dns: Dns = Dns::new();
 
         // Create and add mapping
         let name: String = String::from("Name");
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     // Checks appropriate behaviour on cache miss.
     fn cache_miss() {
-        let dns: Dns = Dns::new(DnsType::CLI, Ipv4Address::CURRENT_NETWORK);
+        let dns: Dns = Dns::new();
 
         // Create and do NOT add mapping
         let name: String = String::from("Arbitrary");
