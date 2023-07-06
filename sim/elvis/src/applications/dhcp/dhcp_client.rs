@@ -1,4 +1,5 @@
-use crate::applications::dhcp::dhcp_parsing::DhcpMessage;
+use super::dhcp_parsing::{DhcpMessage, MessageType};
+use super::dhcp_client_listener::DhcpClientListener;
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
@@ -6,7 +7,9 @@ use elvis_core::{
     protocols::{ipv4::Ipv4Address, Endpoint, Endpoints, Udp},
     Control, Protocol, Session, Shutdown,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, RwLock},
+};
 use tokio::sync::{Barrier, Notify};
 
 // NOTE: THIS IS A TEMPORARY CLIENT
@@ -15,15 +18,17 @@ use tokio::sync::{Barrier, Notify};
 pub struct DhcpClient {
     server_ip: Ipv4Address,
     notify: Arc<Notify>,
-    ip_address: Arc<RwLock<Option<Ipv4Address>>>,
+    pub ip_address: RwLock<Option<Ipv4Address>>,
+    listener: RwLock<Option<DhcpClientListener>>,
 }
 
 impl DhcpClient {
-    pub fn new(server_ip: Ipv4Address) -> Self {
+    pub fn new(server_ip: Ipv4Address, listen: Option<DhcpClientListener>) -> Self {
         Self {
             server_ip,
             notify: Default::default(),
             ip_address: Default::default(),
+            listener: RwLock::new(listen),
         }
     }
 
@@ -46,18 +51,8 @@ impl Protocol for DhcpClient {
     ) -> Result<(), StartError> {
         let server_ip = self.server_ip;
         // Wait on initialization before sending any message across the network
+        
         initialized.wait().await;
-
-        // NOTE(hardint):
-        //
-        // The problem I'm having using sockets here at the moment is that the connect method
-        // expects that we already have a local address. The tests were specifying a local
-        // address for sockets in the constructor, but that doesn't really make sense for the
-        // test since that's what DHCP is supposed to be doing. I don't think that sockets is
-        // the right interface for this protocol. According to ChatGPT, we should use UDP with
-        // a local address of 0.0.0.0, port 68 for the client, and port 67 for the server. Some
-        // unwraps in here can probably be handled better.
-
         let sockets = Endpoints {
             local: Endpoint {
                 address: Ipv4Address::new([0, 0, 0, 0]),
@@ -74,6 +69,7 @@ impl Protocol for DhcpClient {
             .open_and_listen(self.id(), sockets, protocols.clone())
             .await
             .unwrap();
+
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
         udp.send(response_message, protocols).unwrap();
@@ -83,13 +79,25 @@ impl Protocol for DhcpClient {
     fn demux(
         &self,
         message: Message,
-        _caller: Arc<dyn Session>,
+        caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         let parsed_msg = DhcpMessage::from_bytes(message.iter()).unwrap();
-        *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
-        self.notify.notify_waiters();
-        Ok(())
+        match parsed_msg.msg_type {
+            MessageType::Offer => {
+                *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
+                self.notify.notify_waiters();
+                if self.listener.read().unwrap().is_some() {
+                    if let Some(release) = self.listener.write().unwrap().as_mut().unwrap().update(parsed_msg.your_ip) {
+                        caller.send(DhcpMessage::to_message(release).unwrap(), protocols.clone()).unwrap();
+                        *self.ip_address.write().unwrap() = None;
+                        caller.send(DhcpMessage::to_message(DhcpMessage::default()).unwrap(), protocols).unwrap();
+                    }
+                }
+                Ok(())
+            }
+            _ => Err(DemuxError::Other),
+        }
     }
 }

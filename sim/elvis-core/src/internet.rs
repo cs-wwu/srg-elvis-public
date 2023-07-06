@@ -48,11 +48,19 @@ pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
                 result.expect("machines should be configured so internet can be run successfully");
             }
         } => (),
-        status = shutdown_receiver.recv() => return status.expect("Failed to shut down correctly"),
+        result = shutdown_receiver.recv() => { 
+            match result {
+                Err(_) => return ExitStatus::Exited,
+                Ok(status) => return status 
+            }
+        },
     }
     // When every sender has gone out of scope, the recv call
     // will return with an error. We ignore the error.
-    let status = shutdown_receiver.recv().await;
+    let result = shutdown_receiver.recv().await;
 
-    status.expect("Failed to shut down correctly")
+    match result {
+        Ok(status) => status,
+        Err(_) => ExitStatus::Exited
+    }
 }
