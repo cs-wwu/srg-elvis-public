@@ -7,24 +7,21 @@ use elvis_core::{
         ipv4::Ipv4Address,
         Endpoint,
         Udp,
-        Dns,
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         SocketAPI,
-        dns::{ dns_parsing::{
-            DnsHeader,
-            DnsQuestion,
-            DnsResourceRecord,
-            DnsMessageType,
-            },
-        },
     },
     Control, Protocol, Session, Shutdown,
     FxDashMap,
 };
 
-use {
-    dashmap::mapref::entry::Entry,
-};
+use super::dns_parsing::{
+        DnsHeader,
+        DnsQuestion,
+        DnsResourceRecord,
+        DnsMessageType,
+    };
+
+use {dashmap::mapref::entry::Entry};
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
 
