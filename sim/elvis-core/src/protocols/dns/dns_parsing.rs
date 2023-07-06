@@ -104,30 +104,7 @@ impl DnsMessage {
             }
         )
     }
-
-    fn new_testing() -> Result<Self, ParseError> {
-        let header: DnsHeader = DnsHeader::new(
-            1337,
-            DnsMessageType::RESPONSE,
-        );
-        let question: DnsQuestion = DnsQuestion::new(
-            "google.com".to_string()
-        );
-        let answer: DnsResourceRecord = DnsResourceRecord::new(
-            "google.com".to_string(),
-            1600,
-            Ipv4Address::new([10u8, 11, 12, 13])
-        );
-
-        Ok(
-            Self {
-                header,
-                question,
-                answer,
-            }
-        )
-    }
-
+    
     pub fn new(
         header: DnsHeader,
         question: DnsQuestion,
