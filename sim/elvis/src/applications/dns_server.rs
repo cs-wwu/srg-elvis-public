@@ -56,7 +56,7 @@ impl Protocol for DnsServer {
         let udp = protocols.protocol::<Udp>().unwrap();
         udp.listen(
             self.id(),
-            Endpoint::new(Ipv4Address::DNS_AUTH, 67), protocols
+            Endpoint::new(Ipv4Address::DNS_AUTH, 53), protocols
         ).unwrap();
         initialized.wait().await;
         Ok(())
