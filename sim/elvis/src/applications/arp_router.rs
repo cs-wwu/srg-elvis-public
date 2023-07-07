@@ -11,16 +11,25 @@ use elvis_core::{
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
+use std::sync::RwLock;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug)]
 pub struct ArpRouter {
-    ip_table: IpTable<(Ipv4Address, PciSlot)>,
+    ip_table: RwLock<IpTable<(Ipv4Address, PciSlot)>>,
     local_ip: Ipv4Address,
 }
 
 impl ArpRouter {
     pub fn new(ip_table: IpTable<(Ipv4Address, PciSlot)>, local_ip: Ipv4Address) -> Self {
-        Self { ip_table, local_ip }
+        Self { ip_table: RwLock::new(ip_table), local_ip }
+    }
+
+    pub fn receive() {
+
+    }
+
+    pub fn send() {
+
     }
 }
 
@@ -66,6 +75,8 @@ impl Protocol for ArpRouter {
 
         let pair = self
             .ip_table
+            .read()
+            .unwrap()
             .get_recipient(ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
 

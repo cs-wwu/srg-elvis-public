@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use futures::sink::Send;
+
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
 use std::collections::btree_map::*;
@@ -9,13 +11,13 @@ use std::fmt::Debug;
 
 type Entry = (Ipv4Address, Ipv4Mask);
 
-#[derive(Clone, Eq, PartialEq)]
 /// An IpTable is a type of map that maps (Ipv4, Ipv4Mask) to the given type T
 /// this mapping is different from a traditional HashMap/TreeMap in a sense
 /// that entries are accsessed by providing a single ipv4address.
 /// When the ipv4 address is provided the table starts with the highest
 /// mask on the table and applies it to the provided ipv4address then
 /// checks if the masked ipv4address, mask pair is in the table
+#[derive(Eq, PartialEq)]
 pub struct IpTable<T: Copy> {
     table: BTreeMap<Entry, T>,
     // mapping to keep track of number of num of unique subnets associated with
@@ -120,7 +122,6 @@ impl<T: Copy> IpTable<T> {
         }
     }
 
-
     pub fn iter(&self) -> Iter<'_, (Ipv4Address, Ipv4Mask), T> {
         self.table.iter()
     }
@@ -135,6 +136,15 @@ impl From<Recipients> for IpTable<Recipient> {
             table.add_direct(*pair.0, *pair.1);
         }
         table
+    }
+}
+
+impl<T: Copy> Clone for IpTable<T> {
+    fn clone(&self) -> Self {
+        Self {
+            table: self.table.clone(),
+            masks:  self.masks.clone(),
+        }
     }
 }
 

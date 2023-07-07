@@ -34,3 +34,6 @@ pub use wait_for_message::WaitForMessage;
 
 pub mod arp_router;
 pub use arp_router::ArpRouter;
+
+pub mod rip;
+pub use rip::rip_parsing;

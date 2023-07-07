@@ -1,13 +1,13 @@
-/// Implemntation of RIP v2
-/// 
+use elvis_core::protocols::arp::subnetting::Ipv4Mask;
+use elvis_core::{network::Mac, protocols::ipv4::Ipv4Address, protocols::utility::BytesExt};
+
+/// Parsing for RIP v2
+///
 /// See rfc manual entry
 /// https://www.rfc-editor.org/rfc/rfc2453
-/// 
-/// 
-/// 
 ///
 const VERSION: u8 = 2;
-const AFI_2: u8 = 2;
+const AFI_2: u16 = 2;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RipPacket {
@@ -26,11 +26,12 @@ pub struct RipEntry {
     pub address_family_id: u16,
     pub route_tag: u16,
     pub ip_address: Ipv4Address,
-    pub subnet_mask: SubnetMask,
+    pub subnet_mask: Ipv4Mask,
     pub next_hop: Ipv4Address,
     pub metric: u32,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum Operation {
     Request = 1,
     Response = 2,
@@ -42,37 +43,31 @@ impl RipPacket {
             command: Operation::Request,
             version: VERSION,
         };
-        Self {
-            header,
-            entries
-        }
+        Self { header, entries }
     }
 
-    pub fn new_response(entries: Vec<RipEntry>) {
+    pub fn new_response(entries: Vec<RipEntry>) -> Self {
         let header = RipHeader {
             command: Operation::Response,
-            version: 2
+            version: 2,
         };
-        RipPacket {
-            header,
-            entries
-        }
+        RipPacket { header, entries }
     }
 
     pub fn build(&self) -> Vec<u8> {
         let mut out: Vec<u8> = Vec::new();
 
-        out.extend_from_slice(self.header.command.to_be_bytes());
-        out.extend_from_slice(self.header.version.to_be_bytes());
-        
+        out.extend_from_slice(&(self.header.command as u8).to_be_bytes());
+        out.extend_from_slice(&self.header.version.to_be_bytes());
+
         // build entries
         for entry in self.entries.iter() {
-            out.extend_from_slice(entry.address_family_id.to_be_bytes());
-            out.extend_from_slice(entry.route_tag.to_be_bytes());
-            out.extend_from_slice((entry.ip_address as u32).to_be_bytes());
-            out.extend_from_slice((entry.subnet_mask as u32).to_be_bytes());
-            out.extend_from_slice((entry.next_hop as u32).to_be_bytes());
-            out.extend_from_slice(entry.metric.to_be_bytes());
+            out.extend_from_slice(&entry.address_family_id.to_be_bytes());
+            out.extend_from_slice(&entry.route_tag.to_be_bytes());
+            out.extend_from_slice(&u32::from(entry.ip_address).to_be_bytes());
+            out.extend_from_slice(&u32::from(entry.subnet_mask).to_be_bytes());
+            out.extend_from_slice(&u32::from(entry.next_hop).to_be_bytes());
+            out.extend_from_slice(&entry.metric.to_be_bytes());
         }
 
         out
@@ -81,21 +76,27 @@ impl RipPacket {
     pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, ParseError> {
         const HTS: ParseError = ParseError::HeaderTooShort;
 
-        let command = bytes.next_u8_be().ok_or(HTS)?;
+        let command = bytes.next_u8().ok_or(HTS)?;
         let command: Operation = match command {
-            1 => Operation::Reqest,
+            1 => Operation::Request,
             2 => Operation::Response,
             _ => return Err(ParseError::InvalidOperation),
         };
 
-        let version = bytes.next_u8_be().ok_or(HTS)?;
+        let version = bytes.next_u8().ok_or(HTS)?;
 
         let mut entries = Vec::new();
 
         while let Some(address_family_id) = bytes.next_u16_be() {
             let route_tag = bytes.next_u16_be().ok_or(HTS)?;
             let ip_address = bytes.next_u32_be().ok_or(HTS)?.into();
-            let subnet_mask = bytes.next_u32_be().ok_or(HTS)?.into();
+            let subnet_mask = Ipv4Mask::try_from(bytes.next_u32_be().ok_or(HTS)?);
+
+            let subnet_mask = match subnet_mask {
+                Ok(mask) => mask,
+                Err(_) => return Err(ParseError::Invalid),
+            };
+
             let next_hop = bytes.next_u32_be().ok_or(HTS)?.into();
             let metric = bytes.next_u32_be().ok_or(HTS)?;
 
@@ -108,22 +109,16 @@ impl RipPacket {
                 metric,
             };
 
-            entries.add(entry);
+            entries.push(entry);
         }
 
-        if entires.len() > 25 {
-            Err(ParseError::HeaderTooLong)
+        if entries.len() > 25 {
+            return Err(ParseError::HeaderTooLong);
         }
 
-        let header = RipHeader {
-            operation,
-            version,
-        };
+        let header = RipHeader { command, version };
 
-        RipPacket {
-            header,
-            entries,
-        }
+        Ok(RipPacket { header, entries })
     }
 }
 
@@ -133,39 +128,63 @@ impl RipEntry {
             address_family_id: AFI_2,
             route_tag: 0,
             ip_address,
-            subnet_mask: 0,
-            next_hop: 0,
+            subnet_mask: Ipv4Mask::from_bitcount(0),
+            next_hop: 0.into(),
             metric,
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
-    #[error("The RIP header is incomplete")]
+    // #[error("The RIP header is incomplete")]
     HeaderTooShort,
-    #[error("Invalid operation: should be 1 for request, 2 for reply")]
+    // #[error("Invalid operation: should be 1 for request, 2 for reply")]
     InvalidOperation,
-    #[error("The RIP header has too many entries")]
+    // #[error("The RIP header has too many entries")]
     HeaderTooLong,
+    Invalid,
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
     fn rip_parsing_build_unbuild() {
-        let entries = Vec::new();
+        let mut entries = Vec::new();
 
-        for i in (1..16) {
-            let ip_address = Ipv4Address::from([192,168,1, i as u8]);
+        for i in 1..16 {
+            let ip_address = Ipv4Address::from([192, 168, 1, i as u8]);
             let metric = i as u32;
-            entries.add(RipEntry::new_entry(ip_address, metric));
+            entries.push(RipEntry::new_entry(ip_address, metric));
         }
 
         let packet = RipPacket::new_request(entries);
 
         let serialized_packet = packet.build();
-        let unserialized_packet = RipPacket::from_bytes(serialized_packet);
+        let unserialized_packet = RipPacket::from_bytes(serialized_packet.iter().cloned()).unwrap();
 
-        assert_eq!(serialized_packet, packet);
-    }    
+        assert_eq!(unserialized_packet, packet);
+        println!("new a was: {:?}", unserialized_packet);
+    }
+
+    #[test]
+    fn rip_parsing_header_too_long() {
+        let mut entries = Vec::new();
+
+        for i in 1..27 {
+            let ip_address = Ipv4Address::from([192, 168, 1, i as u8]);
+            let metric = i as u32;
+            entries.push(RipEntry::new_entry(ip_address, metric));
+        }
+
+        let packet = RipPacket::new_request(entries);
+
+        let serialized_packet = packet.build();
+        let unserialized_packet = RipPacket::from_bytes(serialized_packet.iter().cloned())
+            .expect_err("packet is too long");
+
+        assert_eq!(unserialized_packet, ParseError::HeaderTooLong);
+    }
 }

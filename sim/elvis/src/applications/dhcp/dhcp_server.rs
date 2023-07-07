@@ -6,7 +6,10 @@ use elvis_core::{
     protocols::{ipv4::Ipv4Address, Endpoint, Udp},
     Control, Protocol, Session, Shutdown,
 };
-use std::{sync::{Arc, RwLock}, collections::VecDeque};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
 
 // Port number & broadcast frequency used by DHCP servers
@@ -40,7 +43,7 @@ impl Protocol for DhcpServer {
     ) -> Result<(), StartError> {
         let udp = protocols.protocol::<Udp>().unwrap();
         udp.listen(self.id(), Endpoint::new(self.server_address, 67), protocols)
-        .unwrap();
+            .unwrap();
         initialized.wait().await;
         Ok(())
     }
@@ -75,7 +78,10 @@ impl Protocol for DhcpServer {
                 Ok(())
             }
             MessageType::Release => {
-                self.ip_generator.write().unwrap().return_ip(message.your_ip);
+                self.ip_generator
+                    .write()
+                    .unwrap()
+                    .return_ip(message.your_ip);
                 Ok(())
             }
             // TODO: Invalid message type, send error
