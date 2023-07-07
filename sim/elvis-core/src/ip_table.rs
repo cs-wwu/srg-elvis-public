@@ -3,11 +3,19 @@ use std::fmt;
 
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
+use std::collections::btree_map::*;
+
 use std::fmt::Debug;
 
 type Entry = (Ipv4Address, Ipv4Mask);
 
 #[derive(Clone, Eq, PartialEq)]
+/// An IpTable is a type of map that maps (Ipv4, Ipv4Mask) to the given type T
+/// this mapping is different from a traditional HashMap/TreeMap in a sense
+/// that entries are accsessed by providing a single ipv4address.
+/// When the ipv4 address is provided the table starts with the highest
+/// mask on the table and applies it to the provided ipv4address then
+/// checks if the masked ipv4address, mask pair is in the table
 pub struct IpTable<T: Copy> {
     table: BTreeMap<Entry, T>,
     // mapping to keep track of number of num of unique subnets associated with
@@ -112,7 +120,11 @@ impl<T: Copy> IpTable<T> {
         }
     }
 
+<<<<<<< HEAD
     pub fn iter(&self) -> std::collections::btree_map::Iter<'_, (Ipv4Address, Ipv4Mask), T> {
+=======
+    pub fn iter(&self) -> Iter<'_, (Ipv4Address, Ipv4Mask), T> {
+>>>>>>> main
         self.table.iter()
     }
 }
