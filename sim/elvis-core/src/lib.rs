@@ -67,8 +67,8 @@ pub use transport::Transport;
 mod control;
 pub use control::Control;
 
-pub mod dns;
-pub use dns::DnsClient;
+// pub mod dns;
+// pub use dns_client::DnsClient;
 
 use std::hash::BuildHasherDefault;
 pub type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<rustc_hash::FxHasher>>;
