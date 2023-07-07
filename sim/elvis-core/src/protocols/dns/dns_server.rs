@@ -1,14 +1,13 @@
 
+
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::Ipv4Address,
+        ipv4::{Ipv4Address},
         Endpoint,
         Udp,
-        socket_api::socket::{ProtocolFamily, Socket, SocketType},
-        SocketAPI,
     },
     Control, Protocol, Session, Shutdown,
     FxDashMap,
@@ -18,31 +17,27 @@ use super::dns_parsing::{
         DnsHeader,
         DnsQuestion,
         DnsResourceRecord,
-        DnsMessageType,
+        DnsMessageType, DnsMessage,
     };
 
 use {dashmap::mapref::entry::Entry};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 
-pub const PORT_NUM: u16 = 53;
+pub const DNS_PORT_NUM: u16 = 53;
 
 pub struct DnsServer {
-    /// The Sockets API
-    sockets: Arc<Socket>,
     /// The DnsServer version of a normal Dns cache to hold all mappings in 
     /// the network.
-    name_to_ip: FxDashMap<String, Ipv4Address>,
+    name_to_ip: FxDashMap<String, Ipv4Address>
 }
 
 impl DnsServer {
     pub fn new(
-            sockets: Arc<Socket>,
             name_to_ip: FxDashMap<String, Ipv4Address>,
         ) -> Self {
         Self {
-            sockets,
             name_to_ip,
         }
     }
@@ -66,13 +61,31 @@ impl DnsServer {
             }
         }
     }
+
+    pub fn create_response(
+        query_msg: DnsMessage,
+        requested_ip: Ipv4Address,
+    ) -> Result<DnsMessage, DnsServerError> {
+        let header = DnsHeader::new(
+            query_msg.header.id,
+            DnsMessageType::RESPONSE,
+        );
+        let question = DnsQuestion::new(query_msg.question.qname);
+        let answer = DnsResourceRecord::new(
+            query_msg.answer.name,
+            query_msg.answer.ttl,
+            requested_ip
+        );
+        let response_msg = DnsMessage::new(header, question, answer).unwrap();
+        Ok(response_msg)
+    }
 }
 
 #[async_trait::async_trait]
 impl Protocol for DnsServer {
     async fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -80,7 +93,7 @@ impl Protocol for DnsServer {
 
         udp.listen(
             self.id(),
-            Endpoint::new(Ipv4Address::DNS_AUTH, 53), protocols
+            Endpoint::new(Ipv4Address::DNS_AUTH, DNS_PORT_NUM), protocols
         ).unwrap();
         initialized.wait().await;
         Ok(())
@@ -88,12 +101,25 @@ impl Protocol for DnsServer {
 
     fn demux(
         &self,
-        _message: Message,
-        _caller: Arc<dyn Session>,
+        message: Message,
+        caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        Ok(())
+        // let client_ip = control.get::<Ipv4Header>().unwrap().source;
+        let req_msg = DnsMessage::from_bytes(message.iter()).unwrap();
+        match req_msg.get_type() {
+            DnsMessageType::QUERY => {
+                let name = req_msg.question.query_name().unwrap();
+                let address = self.get_mapping(name).unwrap();
+                let res_msg = DnsServer::create_response(req_msg, address).unwrap();
+                caller.send(DnsMessage::to_message(res_msg).unwrap(), protocols).unwrap();
+                Ok(())
+            }
+            DnsMessageType::RESPONSE => {
+                Err(DemuxError::Other)
+            }
+        }
     }
 }
 
@@ -101,14 +127,8 @@ impl Protocol for DnsServer {
 pub enum DnsServerError {
     #[error("DNS Authoritative cache lookup error")]
     Cache,
+    #[error("DNS Server received response message error")]
+    BadRequest,
     #[error("Unspecified DNS Server error")]
     Other,
 }
-
-// impl Default for DnsServer {
-//     fn default() -> Self {
-//         Self {
-//             sockets: Sockets::new(Some(BROADCAST)).shared(),
-//         }
-//     }
-// }

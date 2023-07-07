@@ -105,6 +105,14 @@ impl Socket {
         self.notify_listen.notify_one();
     }
 
+    /// TODO(HenryEricksonIV) Used by calling application when the ip address
+    /// of the endpoint is not known to the calling application.
+    /// Intended to call 'connect()' with an ip provided by the local 
+    /// 'DnsClient'.
+    // pub fn connect_by_name(&self, domain_name: String) {
+    //     self.protocols.get(Dns)
+    // }
+
     /// Assigns a remote ip address and port to a socket and connects the socket
     /// to that endpoint
     pub async fn connect(&self, sock_addr: Endpoint) -> Result<(), SocketError> {

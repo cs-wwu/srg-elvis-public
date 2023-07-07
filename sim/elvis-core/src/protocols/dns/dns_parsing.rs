@@ -17,10 +17,10 @@ pub enum DnsMessageType {
 /// 'Question', and 'Answer' message sections defined in RFC 1035. The
 /// 'Authority' and 'Additional' fields may be added in the future as DNS
 /// becomes more robust.
-pub(super) struct DnsMessage {
+pub struct DnsMessage {
     pub header: DnsHeader,
-    question: DnsQuestion,
-    answer: DnsResourceRecord,
+    pub question: DnsQuestion,
+    pub answer: DnsResourceRecord,
 }
 
 impl DnsMessage {
@@ -100,6 +100,14 @@ impl DnsMessage {
             }
         )
     }
+
+    pub fn get_type(&self) -> DnsMessageType {
+        if (&self.header.properties & (1 << 15)) == DnsMessageType::QUERY as u16 {
+            DnsMessageType::QUERY
+        } else {
+            DnsMessageType::RESPONSE
+        }
+    }
     
     pub fn new(
         header: DnsHeader,
@@ -116,14 +124,14 @@ impl DnsMessage {
         )
     }
 
-    pub fn to_message(message: DnsMessage) -> Result<Vec<u8>, ParseError> {
+    pub fn to_message(message: DnsMessage) -> Result<Message, ParseError> {
         let mut message_vec: Vec<u8> = Vec::new();
         message_vec.append(&mut DnsHeader::build(message.header));
         message_vec.append(&mut DnsQuestion::build(message.question));
         message_vec.append(&mut DnsResourceRecord::build(message.answer));
 
         Ok(
-            message_vec
+            Message::from(message_vec)
         )
     }
 }
@@ -207,7 +215,7 @@ impl DnsHeader {
 /// they are present for completeness.
 pub struct DnsQuestion {
     // qname defined as string for ease of parsing.
-    qname: Vec<u8>,
+    pub qname: Vec<u8>,
     qtype: u16,
     qclass: u16,
 }
@@ -217,10 +225,10 @@ impl DnsQuestion {
     // String for the domain name. TODO: add in functionality for additional
     // types, specifically 'AAAA' as ipv6 comes into the simulation.
     pub fn new(
-        domain_name: String
+        domain_name: Vec<u8>
     ) -> DnsQuestion {
         DnsQuestion {
-            qname: domain_name.into_bytes(),
+            qname: domain_name,
             qtype: 1,
             qclass: 1,
         }
@@ -239,6 +247,13 @@ impl DnsQuestion {
         my_vec
     }
 
+    pub fn query_name(&self) -> Result<String, ParseError> {
+        let name = String::from_utf8(self.qname.clone()).unwrap();
+        Ok(
+            name
+        )
+    }
+
 }
 
 /// A struct defining the resource records used for the 'Answer', 'Authority',
@@ -246,12 +261,12 @@ impl DnsQuestion {
 /// fields remain unsupported and are present for completeness.
 pub struct DnsResourceRecord {
     // name defined as string for ease of parsing.
-    name: Vec<u8>,
-    rec_type: u16,
+    pub name: Vec<u8>,
+    pub rec_type: u16,
     class: u16,
-    ttl: u32,
+    pub ttl: u32,
     rdlength: u16,
-    rdata: Vec<u8>,
+    pub rdata: Vec<u8>,
 }
 
 impl DnsResourceRecord {
@@ -259,12 +274,12 @@ impl DnsResourceRecord {
     // String for the domain name. TODO: add in functionality for additional
     // types, specifically 'AAAA' as ipv6 comes into the simulation.
     pub fn new(
-        domain_name: String,
+        domain_name: Vec<u8>,
         time_to_live: u32,
         record_data: Ipv4Address,
     ) -> DnsResourceRecord {
         DnsResourceRecord {
-            name: domain_name.into_bytes(),
+            name: domain_name,
             rec_type: 1,
             class: 1,
             ttl: time_to_live,
@@ -296,10 +311,6 @@ impl DnsResourceRecord {
 pub enum ParseError {
     #[error("The message or section is incomplete")]
     HeaderTooShort,
-}
-
-#[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]
-pub enum BuildError {
     #[error("The message or section is invalid")]
     HeaderBadFormat,
 }
@@ -315,10 +326,9 @@ mod tests {
                 1337,
                 DnsMessageType::RESPONSE,
             ),
-            DnsQuestion::new("google.com".to_string()),
+            DnsQuestion::new(Vec::from("google.com")),
             DnsResourceRecord::new(
-                "google.com".to_string(),
-                1600,
+                Vec::from("google.com"),                1600,
                 Ipv4Address::new([10u8, 11, 12, 13])),
         ).unwrap();
 
@@ -346,14 +356,14 @@ mod tests {
                 1337,
                 DnsMessageType::QUERY,
             ),
-            DnsQuestion::new("google.com".to_string()),
+            DnsQuestion::new(Vec::from("google.com")),
             DnsResourceRecord::new(
-                "google.com".to_string(),
+                Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13])),
         ).unwrap();
 
-        let message_as_bytes: Vec<u8> = DnsMessage::to_message(message).unwrap();
+        let message_as_bytes: Vec<u8> = DnsMessage::to_message(message).unwrap().to_vec();
 
         let head_final: DnsHeader = 
             DnsMessage::from_bytes(message_as_bytes.iter().cloned()).unwrap().header;
@@ -380,9 +390,9 @@ mod tests {
                 1337,
                 DnsMessageType::RESPONSE,
             ),
-            DnsQuestion::new("google.com".to_string()),
+            DnsQuestion::new(Vec::from("google.com")),
             DnsResourceRecord::new(
-                "google.com".to_string(),
+                Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13])),
         ).unwrap();
@@ -406,14 +416,14 @@ mod tests {
                 1337,
                 DnsMessageType::RESPONSE,
             ),
-            DnsQuestion::new("google.com".to_string()),
+            DnsQuestion::new(Vec::from("google.com")),
             DnsResourceRecord::new(
-                "google.com".to_string(),
+                Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13])),
         ).unwrap();
 
-        let message_as_bytes: Vec<u8> = DnsMessage::to_message(message).unwrap();
+        let message_as_bytes: Vec<u8> = DnsMessage::to_message(message).unwrap().to_vec();
 
         let question_final: DnsQuestion = 
             DnsMessage::from_bytes(message_as_bytes.iter().cloned()).unwrap().question;
@@ -435,9 +445,9 @@ mod tests {
                 1337,
                 DnsMessageType::RESPONSE,
             ),
-            DnsQuestion::new("google.com".to_string()),
+            DnsQuestion::new(Vec::from("google.com")),
             DnsResourceRecord::new(
-                "google.com".to_string(),
+                Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13])),
         ).unwrap();
@@ -468,16 +478,16 @@ mod tests {
                 1337,
                 DnsMessageType::RESPONSE,
             ),
-            DnsQuestion::new("google.com".to_string()),
+            DnsQuestion::new(Vec::from("google.com")),
             DnsResourceRecord::new(
-                "google.com".to_string(),
+                Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13])
             ),
         ).unwrap();
         let rdata_len: u16 = message.answer.rdlength;
 
-        let message_as_bytes: Vec<u8> = DnsMessage::to_message(message).unwrap();
+        let message_as_bytes: Vec<u8> = DnsMessage::to_message(message).unwrap().to_vec();
 
         let answer_final: DnsResourceRecord = DnsMessage::from_bytes(message_as_bytes.iter().cloned()).unwrap().answer;
 

@@ -44,7 +44,6 @@ pub struct SocketAPI {
     listen_bindings: FxDashMap<Endpoint, u64>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
-    // TODO(zachd9757): A reference to the ELVIS API once it exists
 }
 
 impl SocketAPI {
@@ -365,36 +364,7 @@ pub enum ListenError {
     NoSocketForFd(u64),
 }
 
-#[cfg(test)]
-mod tests {
-    // use super::*;
+// #[cfg(test)]
+// mod tests {
 
-    // #[tokio::test]
-    // /// Test for Sockets:get_host_by_name() when Dns cache is empty
-    // async fn ghbn_cache_miss() {
-    //     let sockets = Sockets::new(None).shared();
-
-    //     let machine: Machine = 
-    //         Machine::new([
-    //             sockets.clone() as SharedProtocol,
-    //         ]);
-
-    //     let shutdown = Shutdown::new();
-    //     let total_protocols: usize = machine.protocol_count();
-    //     let initialized = Arc::new(Barrier::new(total_protocols));
-    //     let protocols: ProtocolMap = machine.protocols.clone();
-        
-    //     machine.start(shutdown.clone(), initialized.clone());
-        
-    //     let ip: Result<Ipv4Address, SocketError> =
-    //         sockets.get_host_by_name("DNE".to_string(), protocols);
-
-    //     assert_eq!(ip, Err(SocketError::Other));
-
-    //     // TODO(zachd9757) potentially expand this test to establish a
-    //     // machine-to-machine connection and check if the cache is auto-updated
-
-
-
-    // }
-}
+// }
