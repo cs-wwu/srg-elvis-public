@@ -120,11 +120,8 @@ impl<T: Copy> IpTable<T> {
         }
     }
 
-<<<<<<< HEAD
-    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, (Ipv4Address, Ipv4Mask), T> {
-=======
+
     pub fn iter(&self) -> Iter<'_, (Ipv4Address, Ipv4Mask), T> {
->>>>>>> main
         self.table.iter()
     }
 }
