@@ -23,6 +23,9 @@ pub use ping_pong::PingPong;
 
 pub mod dhcp;
 
+pub mod dns_test_client;
+pub mod dns_test_server;
+
 pub mod router;
 pub use router::Router;
 
