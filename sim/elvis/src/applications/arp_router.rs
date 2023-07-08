@@ -13,24 +13,50 @@ use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 use std::sync::RwLock;
 
+use super::rip_parsing::RipPacket;
+
+pub type Entry = (Ipv4Address, PciSlot, u32); 
+
 #[derive(Debug)]
 pub struct ArpRouter {
-    ip_table: RwLock<IpTable<(Ipv4Address, PciSlot)>>,
+    ip_table: RwLock<IpTable<Entry>>,
     local_ip: Ipv4Address,
 }
 
 impl ArpRouter {
-    pub fn new(ip_table: IpTable<(Ipv4Address, PciSlot)>, local_ip: Ipv4Address) -> Self {
-        Self { ip_table: RwLock::new(ip_table), local_ip }
+    pub fn new(ip_table: IpTable<(Ipv4Address, PciSlot)>, local_ip: Ipv4Address) -> Self { 
+        Self { ip_table: RwLock::new(ip_table.into()), local_ip }
     }
 
-    pub fn receive() {
-
+    // processes an rip request and returns the 
+    pub fn process_request(packet: RipPacket) -> Option<Vec<RipPacket>> {
+        todo!()
     }
 
-    pub fn send() {
-
+    pub fn process_response(packet: RipPacket) -> Option<Vec<RipPacket>> {
+        todo!()
     }
+    
+    // iterate through the table and return all the 
+    // entries that have the route change flag set
+    // also poison the routes that are adjacent
+    pub fn generate_triggered_response() -> Option<Vec<RipPacket>> {
+        todo!()
+    }
+
+    pub fn  generate_response() -> Option<Vec<RipPacket>>  {
+        todo!()
+    }
+
+    // 
+    fn add_entry() {
+        todo!()
+    }
+
+    fn delete_entry() {
+        todo!()
+    }
+
 }
 
 #[async_trait::async_trait]

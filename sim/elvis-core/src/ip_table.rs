@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use futures::sink::Send;
 
+use crate::machine::PciSlot;
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
 use std::collections::btree_map::*;
@@ -180,6 +180,16 @@ impl<'a, T: Copy> FromIterator<(&'a str, T)> for IpTable<T> {
         let mut table = Self::new();
         for pair in iter {
             table.add_cidr(pair.0, pair.1);
+        }
+        table
+    }
+}
+
+impl From<IpTable<(Ipv4Address, PciSlot)>> for IpTable<(Ipv4Address, PciSlot, u32)> {
+    fn from(other: IpTable<(Ipv4Address, PciSlot)>) -> IpTable<(Ipv4Address, PciSlot, u32)> {
+        let mut table = IpTable::new();
+        for entry in other.iter() {
+            table.add(entry.0, (entry.0.0, entry.0.1, 1));
         }
         table
     }
