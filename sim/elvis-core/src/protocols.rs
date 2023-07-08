@@ -20,3 +20,5 @@ pub use utility::{Endpoint, Endpoints};
 
 pub mod tcp;
 pub use tcp::Tcp;
+
+mod dns;

@@ -1,11 +1,11 @@
 //! An implementation of the Domain Name Structure
 
 
-use elvis_core::{
+use crate::{
     // control::{ControlError, Key, Primitive},
     machine::ProtocolMap,
     message::Message,
-    protocols::ipv4::Ipv4Address,
+    protocols::{ipv4::Ipv4Address, Endpoints, SocketAPI, socket_api::socket::{ProtocolFamily, SocketType}},
     protocol::{DemuxError, StartError},
     protocols::{Udp, Endpoint},
     Control, Protocol, Shutdown, Session,
@@ -13,7 +13,11 @@ use elvis_core::{
 };
 
 use super::dns_parsing::{
-    DnsMessageType, DnsMessage,
+    DnsMessageType,
+    DnsMessage,
+    DnsHeader,
+    DnsQuestion,
+    DnsResourceRecord,
 };
 
 use std::any::Any;
@@ -36,6 +40,7 @@ pub struct DnsClient {
     // Direct reference to Sockets
     // TODO(zachd9757): Replace this with a reference to the Network API once it exists
     // sockets: Sockets,
+    // protocols: ProtocolMap,
 }
 
 impl DnsClient {
@@ -44,11 +49,12 @@ impl DnsClient {
     pub fn new() -> Self {
         Self {
             name_to_ip: Default::default(),
+            // protocols,
         }
     }
 
     /// Creates a new shared handle to an instance of the protocol.
-    pub fn shared(self) -> Arc<Self> {
+    pub fn _shared(self) -> Arc<Self> {
         Arc::new(self)
     }
 
@@ -71,40 +77,76 @@ impl DnsClient {
 
     /// Finds the IP associated with the given domain name. Usuable by external
     /// callers. Specifically intended for use by socket.rs.
-    pub fn get_host_by_name(
+    pub async fn get_host_by_name(
         &self,
         name: String,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<Ipv4Address, DnsClientError> {
         
 
-        match self.get_mapping(name) {
+        match self.get_mapping(name.clone()) {
             // Cache hit
             Ok(ip) => Ok(ip),
 
             // Cache miss
             Err(_ip) => {
-                Err(DnsClientError::Other)
+
+                let message = DnsMessage::to_message(DnsClient::create_request(name.clone()).unwrap()).unwrap();
+
+                let sockets = protocols
+                    .protocol::<SocketAPI>()
+                    .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>())).unwrap();
+    
+                let socket = sockets
+                    .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                    .await
+                    .unwrap();
+
+                // "Connect" the socket to a remote address
+                let remote_sock_addr = Endpoint::new(Ipv4Address::DNS_AUTH, 53);
+                socket.connect(remote_sock_addr).await.unwrap();
+                println!("CLIENT: Connected");
+
+                // Send a message
+                println!("CLIENT: Sending Request:");
+                socket.send(message.to_vec()).unwrap();
+
+                // Receive a message
+                let resp = socket.recv(message.len()).await.unwrap();
+                println!(
+                    "CLIENT: Response Received"
+                );
+
+                let res_msg = DnsMessage::from_bytes(resp.iter().cloned()).unwrap();
+
+                let name_to_add = String::from_utf8(res_msg.answer.name).unwrap();
+                let rdata = res_msg.answer.rdata;
+                let ip_to_add = Ipv4Address::new([rdata[0], rdata[1], rdata[2], rdata[3]]);
+                DnsClient::add_mapping(&self, name_to_add, ip_to_add);
+                        
+                Ok(self.get_mapping(name.clone()).unwrap())
             }
         }
 
-        // pub fn create_request(
-        //     name: String
-        // ) -> Result<DnsMessage, DnsClientError> {
-        //     let header = DnsHeader::new(
-        //         // Temporary. Still need to implement unique transaction id's.
-        //         name.parse::<u16>().unwrap(),   
-        //         DnsMessageType::QUERY,
-        //     );
-        //     let question = DnsQuestion::new(Vec::from(name));
-        //     let answer = DnsResourceRecord::new(
-        //         Vec::from(name),
-        //         0,
-        //         Ipv4Address::new([0,0,0,0]),
-        //     );
-        //     let response_msg = DnsMessage::new(header, question, answer).unwrap();
-        //     Ok(response_msg)
-        // }
+    }
+
+    pub fn create_request(
+        name: String
+    ) -> Result<DnsMessage, DnsClientError> {
+        let vec_name: Vec<u8> = Vec::from(name.clone());
+        let header = DnsHeader::new(
+            // Temporary. Still need to implement unique transaction id's.
+            name.parse::<u16>().unwrap(),   
+            DnsMessageType::QUERY,
+        );
+        let question = DnsQuestion::new(vec_name.clone());
+        let answer = DnsResourceRecord::new(
+            vec_name.clone(),
+            0,
+            Ipv4Address::new([0,0,0,0]),
+        );
+        let response_msg = DnsMessage::new(header, question, answer).unwrap();
+        Ok(response_msg)
     }
 }
 
@@ -118,44 +160,35 @@ impl Protocol for DnsClient {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        let udp = protocols.protocol::<Udp>().unwrap();
-        
-        udp.listen(
-            self.id(),
-            Endpoint::new(Ipv4Address::new([0u8, 0, 0, 0]), 53), protocols
-        ).unwrap();
         initialized.wait().await;
         Ok(())
     }
 
     fn demux(
         &self,
-        message: Message,
+        _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        // let client_ip = control.get::<Ipv4Header>().unwrap().source;
-        let res_msg = DnsMessage::from_bytes(message.iter()).unwrap();
-        match res_msg.get_type() {
-            DnsMessageType::QUERY => {
-                Err(DemuxError::Other)
-            }
-            DnsMessageType::RESPONSE => {
-                let name_to_add = String::from_utf8(res_msg.answer.name).unwrap();
-                let rdata = res_msg.answer.rdata;
-                let ip_to_add = Ipv4Address::new([rdata[0], rdata[1], rdata[2], rdata[3]]);
-                DnsClient::add_mapping(&self, name_to_add, ip_to_add);
-                Ok(())
-            }
-        }
+        Ok(())
     }
+}
+
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
+pub enum DnsClientError {
+    #[error("DNS cache lookup error")]
+    Cache,
+    #[error("Unspecified DNS error")]
+    Other,
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{new_machine};
+
     use super::*;
 
     #[test]
@@ -186,12 +219,4 @@ mod tests {
         let check = dns.get_mapping(name);
         assert_eq!(Err(DnsClientError::Cache), check);
     }
-}
-
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
-pub enum DnsClientError {
-    #[error("DNS cache lookup error")]
-    Cache,
-    #[error("Unspecified DNS error")]
-    Other,
 }

@@ -1,4 +1,4 @@
-use elvis_core::{
+use crate::{
     protocols::ipv4::Ipv4Address,
     Message,
 };
@@ -101,7 +101,7 @@ impl DnsMessage {
         )
     }
 
-    pub fn get_type(&self) -> DnsMessageType {
+    pub fn _get_type(&self) -> DnsMessageType {
         if (&self.header.properties & (1 << 15)) == DnsMessageType::QUERY as u16 {
             DnsMessageType::QUERY
         } else {
@@ -311,8 +311,8 @@ impl DnsResourceRecord {
 pub enum ParseError {
     #[error("The message or section is incomplete")]
     HeaderTooShort,
-    #[error("The message or section is invalid")]
-    HeaderBadFormat,
+    // #[error("The message or section is invalid")]
+    // HeaderBadFormat,
 }
 
 #[cfg(test)]
