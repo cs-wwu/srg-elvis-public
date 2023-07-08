@@ -90,6 +90,8 @@ impl DnsClient {
             // Cache miss
             Err(_ip) => {
 
+                println!("Before {:?}", self.name_to_ip);
+
                 let message = DnsMessage::to_message(DnsClient::create_request(name.clone()).unwrap()).unwrap();
 
                 let sockets = protocols
@@ -122,6 +124,8 @@ impl DnsClient {
                 let rdata = res_msg.answer.rdata;
                 let ip_to_add = Ipv4Address::new([rdata[0], rdata[1], rdata[2], rdata[3]]);
                 DnsClient::add_mapping(&self, name_to_add, ip_to_add);
+
+                println!("After {:?}", self.name_to_ip);
                         
                 Ok(self.get_mapping(name.clone()).unwrap())
             }
@@ -186,7 +190,6 @@ pub enum DnsClientError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{new_machine};
 
     use super::*;
 

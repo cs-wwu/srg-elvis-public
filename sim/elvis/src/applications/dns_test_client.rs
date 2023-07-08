@@ -3,9 +3,8 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::Ipv4Address,
         socket_api::socket::{ProtocolFamily, SocketType},
-        Endpoint, SocketAPI,
+        SocketAPI,
     },
     Control, Protocol, Session, Shutdown,
 };
@@ -15,8 +14,6 @@ use tokio::sync::Barrier;
 pub struct FakeDnsUser {
     /// Numerical ID
     client_id: u16,
-    /// The IP address to send to
-    remote_ip: Ipv4Address,
     /// The port to send to
     remote_port: u16,
     /// Whether to use UDP or TCP
@@ -26,13 +23,11 @@ pub struct FakeDnsUser {
 impl FakeDnsUser {
     pub fn new(
         client_id: u16,
-        remote_ip: Ipv4Address,
         remote_port: u16,
         transport: SocketType,
     ) -> Self {
         Self {
             client_id,
-            remote_ip,
             remote_port,
             transport,
         }

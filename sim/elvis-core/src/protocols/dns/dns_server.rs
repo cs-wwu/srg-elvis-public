@@ -131,6 +131,7 @@ impl Protocol for DnsServer {
         self.add_mapping("facebook.com".to_string(), [123, 45, 67, 91].into());
         self.add_mapping("youtube.com".to_string(), [123, 45, 67, 92].into());
 
+        println!("{:?}", self.name_to_ip);
 
         let sockets = protocols
         .protocol::<SocketAPI>()
