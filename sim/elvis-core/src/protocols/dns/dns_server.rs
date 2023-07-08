@@ -35,10 +35,9 @@ pub struct DnsServer {
 
 impl DnsServer {
     pub fn new(
-            name_to_ip: FxDashMap<String, Ipv4Address>,
         ) -> Self {
         Self {
-            name_to_ip,
+            name_to_ip: Default::default(),
         }
     }
 

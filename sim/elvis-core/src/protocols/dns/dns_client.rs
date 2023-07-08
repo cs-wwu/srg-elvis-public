@@ -49,7 +49,6 @@ impl DnsClient {
     pub fn new() -> Self {
         Self {
             name_to_ip: Default::default(),
-            // protocols,
         }
     }
 

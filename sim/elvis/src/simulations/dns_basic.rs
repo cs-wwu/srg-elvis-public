@@ -7,6 +7,7 @@ use elvis_core::{
         tcp::Tcp,
         udp::Udp,
         Pci, SocketAPI,
+        dns::{dns_client::DnsClient, dns_server::DnsServer}
     },
     run_internet, Network,
 };
@@ -20,7 +21,7 @@ use elvis_core::{
 /// receives the "ackowledgement" messages, and shuts down the simulation.
 pub async fn dns_basic() {
     let network = Network::basic();
-    let dns_server_ip_address: Ipv4Address::DNS_AUTH;
+    let dns_server_ip_address = Ipv4Address::DNS_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 89].into();
     let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
@@ -42,7 +43,7 @@ pub async fn dns_basic() {
             Pci::new([network.clone()]),
             SocketAPI::new(Some(dns_server_ip_address)),
             DnsServer::new(),
-        ]
+        ],
         new_machine![
             Udp::new(),
             Tcp::new(),
@@ -86,7 +87,7 @@ pub async fn dns_basic() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    async fn socket_basic() {
-        super::socket_basic().await;
+    async fn dns_basic() {
+        super::dns_basic().await;
     }
 }

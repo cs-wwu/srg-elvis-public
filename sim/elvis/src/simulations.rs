@@ -8,6 +8,9 @@ pub use dhcp_basic::dhcp_basic;
 mod socket_basic;
 pub use socket_basic::socket_basic;
 
+mod dns_basic;
+pub use dns_basic::dns_basic;
+
 mod telephone_multi;
 pub use telephone_multi::telephone_multi;
 
