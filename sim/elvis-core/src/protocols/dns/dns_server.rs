@@ -7,7 +7,7 @@ use crate::{
     protocols::{
         ipv4::{Ipv4Address},
         Endpoint,
-        Udp, SocketAPI, socket_api::socket::{ProtocolFamily, SocketType, Socket},
+        SocketAPI, socket_api::socket::{ProtocolFamily, SocketType, Socket},
     },
     Control, Protocol, Session, Shutdown,
     FxDashMap,

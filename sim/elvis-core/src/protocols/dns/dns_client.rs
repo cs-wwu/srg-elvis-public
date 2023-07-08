@@ -5,9 +5,9 @@ use crate::{
     // control::{ControlError, Key, Primitive},
     machine::ProtocolMap,
     message::Message,
-    protocols::{ipv4::Ipv4Address, Endpoints, SocketAPI, socket_api::socket::{ProtocolFamily, SocketType}},
+    protocols::{ipv4::Ipv4Address, SocketAPI, socket_api::socket::{ProtocolFamily, SocketType}},
     protocol::{DemuxError, StartError},
-    protocols::{Udp, Endpoint},
+    protocols::Endpoint,
     Control, Protocol, Shutdown, Session,
     FxDashMap,
 };
