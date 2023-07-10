@@ -9,46 +9,102 @@ use elvis_core::{
     },
     Control, IpTable, Protocol, Session, Shutdown,
 };
+use std::sync::RwLock;
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
-use std::sync::RwLock;
 
-use super::rip_parsing::RipPacket;
+use super::rip_parsing::{RipEntry, RipPacket};
 
-pub type Entry = (Ipv4Address, PciSlot, u32); 
+// entry representing next hop, outgoing interface, metric and route change flag
+pub type Rte = (Ipv4Address, PciSlot, u32, bool);
+const INFINITY: u32 = 16;
 
 #[derive(Debug)]
 pub struct ArpRouter {
-    ip_table: RwLock<IpTable<Entry>>,
+    ip_table: RwLock<IpTable<Rte>>,
     local_ip: Ipv4Address,
 }
 
 impl ArpRouter {
-    pub fn new(ip_table: IpTable<(Ipv4Address, PciSlot)>, local_ip: Ipv4Address) -> Self { 
-        Self { ip_table: RwLock::new(ip_table.into()), local_ip }
+    pub fn new(ip_table: IpTable<(Ipv4Address, PciSlot)>, local_ip: Ipv4Address) -> Self {
+        Self {
+            ip_table: RwLock::new(ip_table.into()),
+            local_ip,
+        }
     }
 
-    // processes an rip request and returns the 
-    pub fn process_request(packet: RipPacket) -> Option<Vec<RipPacket>> {
+    // processes the packet of an incoming arp request and returns relevent
+    // information to calling process
+    pub fn process_request(&self, packet: RipPacket) -> Vec<RipPacket> {
+        let mut output: Vec<RipPacket> = Vec::new();
+
+        let mut entries = packet.entries;
+
+        // if entries is 1 and metric and address family id of that entry is
+        // 0, process whole table request
+        if entries.len() == 1 && entries[0].address_family_id == 0 {
+            let mut frame: Vec<RipEntry> = Vec::new();
+            let mut count: u32 = 0;
+
+            for entry in self.ip_table.read().unwrap().iter() {
+                count += 1;
+
+                let element: RipEntry =
+                    RipEntry::new_entry(entry.0 .0, entry.1 .0, entry.0 .1, entry.1 .2);
+
+                frame.push(element);
+
+                // every 25th entry add the current frame to the output vector
+                if count % 25 == 0 {
+                    output.push(RipPacket::new_response(frame));
+                    frame = Vec::new();
+                }
+            }
+
+            return output;
+        }
+
+        // otherwise obtain the metrics for each entry that exists on the routing table
+        for mut entry in entries.iter_mut() {
+            if let Some(route) = self
+                .ip_table
+                .read()
+                .unwrap()
+                .get_recipient(entry.ip_address)
+            {
+                entry.metric = route.2;
+            } else {
+                entry.metric = INFINITY;
+            }
+        }
+
+        output.push(RipPacket::new_response(entries));
+        output
+    }
+
+    pub fn process_response(packet: RipPacket) -> Vec<RipPacket> {
+        // check packet validity
+        // ignore responses from non-adjacent ips
+        // ignore responses from ips matching routers own
+        //
+
+        // processs response
+        let mut entries = packet.entries;
         todo!()
     }
 
-    pub fn process_response(packet: RipPacket) -> Option<Vec<RipPacket>> {
-        todo!()
-    }
-    
-    // iterate through the table and return all the 
+    // iterate through the table and return all the
     // entries that have the route change flag set
     // also poison the routes that are adjacent
-    pub fn generate_triggered_response() -> Option<Vec<RipPacket>> {
+    pub fn generate_triggered_response() -> Vec<RipPacket> {
         todo!()
     }
 
-    pub fn  generate_response() -> Option<Vec<RipPacket>>  {
+    pub fn generate_response() -> Vec<RipPacket> {
         todo!()
     }
 
-    // 
+    //
     fn add_entry() {
         todo!()
     }
@@ -56,7 +112,6 @@ impl ArpRouter {
     fn delete_entry() {
         todo!()
     }
-
 }
 
 #[async_trait::async_trait]

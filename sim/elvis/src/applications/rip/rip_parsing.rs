@@ -11,8 +11,8 @@ const AFI_2: u16 = 2;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RipPacket {
-    header: RipHeader,
-    entries: Vec<RipEntry>,
+    pub header: RipHeader,
+    pub entries: Vec<RipEntry>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -49,7 +49,7 @@ impl RipPacket {
     pub fn new_response(entries: Vec<RipEntry>) -> Self {
         let header = RipHeader {
             command: Operation::Response,
-            version: 2,
+            version: VERSION,
         };
         RipPacket { header, entries }
     }
@@ -123,13 +123,18 @@ impl RipPacket {
 }
 
 impl RipEntry {
-    pub fn new_entry(ip_address: Ipv4Address, metric: u32) -> Self {
+    pub fn new_entry(
+        ip_address: Ipv4Address,
+        next_hop: Ipv4Address,
+        subnet_mask: Ipv4Mask,
+        metric: u32,
+    ) -> Self {
         Self {
             address_family_id: AFI_2,
             route_tag: 0,
             ip_address,
-            subnet_mask: Ipv4Mask::from_bitcount(0),
-            next_hop: 0.into(),
+            subnet_mask,
+            next_hop,
             metric,
         }
     }
@@ -157,7 +162,12 @@ mod tests {
         for i in 1..16 {
             let ip_address = Ipv4Address::from([192, 168, 1, i as u8]);
             let metric = i as u32;
-            entries.push(RipEntry::new_entry(ip_address, metric));
+            entries.push(RipEntry::new_entry(
+                ip_address,
+                0.into(),
+                Ipv4Mask::from_bitcount(0),
+                metric,
+            ));
         }
 
         let packet = RipPacket::new_request(entries);
@@ -176,7 +186,12 @@ mod tests {
         for i in 1..27 {
             let ip_address = Ipv4Address::from([192, 168, 1, i as u8]);
             let metric = i as u32;
-            entries.push(RipEntry::new_entry(ip_address, metric));
+            entries.push(RipEntry::new_entry(
+                ip_address,
+                0.into(),
+                Ipv4Mask::from_bitcount(0),
+                metric,
+            ));
         }
 
         let packet = RipPacket::new_request(entries);

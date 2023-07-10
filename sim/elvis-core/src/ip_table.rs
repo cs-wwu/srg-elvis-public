@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-
 use crate::machine::PciSlot;
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
@@ -143,7 +142,7 @@ impl<T: Copy> Clone for IpTable<T> {
     fn clone(&self) -> Self {
         Self {
             table: self.table.clone(),
-            masks:  self.masks.clone(),
+            masks: self.masks.clone(),
         }
     }
 }
@@ -185,11 +184,11 @@ impl<'a, T: Copy> FromIterator<(&'a str, T)> for IpTable<T> {
     }
 }
 
-impl From<IpTable<(Ipv4Address, PciSlot)>> for IpTable<(Ipv4Address, PciSlot, u32)> {
-    fn from(other: IpTable<(Ipv4Address, PciSlot)>) -> IpTable<(Ipv4Address, PciSlot, u32)> {
+impl From<IpTable<(Ipv4Address, PciSlot)>> for IpTable<(Ipv4Address, PciSlot, u32, bool)> {
+    fn from(other: IpTable<(Ipv4Address, PciSlot)>) -> IpTable<(Ipv4Address, PciSlot, u32, bool)> {
         let mut table = IpTable::new();
         for entry in other.iter() {
-            table.add(entry.0, (entry.0.0, entry.0.1, 1));
+            table.add(*entry.0, (entry.1 .0, entry.1 .1, 1, false));
         }
         table
     }

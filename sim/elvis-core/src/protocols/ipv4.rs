@@ -93,7 +93,6 @@ impl Ipv4 {
         Ok(session)
     }
 
-
     pub fn listen(
         &self,
         upstream: TypeId,
