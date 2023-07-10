@@ -68,6 +68,7 @@ impl DnsServer {
         // Receive a message
         println!("SERVER: Waiting for request...");
         let response = socket.recv(80).await.unwrap();
+
         let req_msg = DnsMessage::from_bytes(response.iter().cloned()).unwrap();
         println!(
             "SERVER: Request Received"
@@ -92,10 +93,10 @@ impl DnsServer {
         println!("SERVER: Sending Response");
         socket.send(res_msg.to_vec()).unwrap();
 
-        // Receive a message (Also example usage of recv_msg)
-        println!("SERVER: Waiting for awkowledgement...");
-        let _ack = socket.recv_msg().await.unwrap();
-        println!("SERVER: Ackowledgement Received");
+        // // Receive a message (Also example usage of recv_msg)
+        // println!("SERVER: Waiting for awkowledgement...");
+        // let _ack = socket.recv_msg().await.unwrap();
+        // println!("SERVER: Ackowledgement Received");
         Ok(())
     }
 
@@ -164,6 +165,7 @@ impl Protocol for DnsServer {
             println!("{:?}", table);
             // Accept an incoming connection
             let socket = listen_socket.accept().await.unwrap();
+            // socket.set_blocking(false);
             println!("start of loop");
             println!("SERVER: Connection accepted");
 
@@ -174,9 +176,9 @@ impl Protocol for DnsServer {
             }));
 
             // if tasks.len() >= 1 {
-            //     while !tasks.is_empty() {
-            //         tasks.pop().unwrap().await.unwrap()
-            //     }
+                // while !tasks.is_empty() {
+                    tasks.pop().unwrap().await.unwrap()
+                // }
             //     break;
             // }
 

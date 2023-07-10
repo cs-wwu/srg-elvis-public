@@ -53,7 +53,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 impl Protocol for SocketServer {
     async fn start(
         &self,
-        _shutdown: Shutdown,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -109,7 +109,7 @@ impl Protocol for SocketServer {
 
         // Shut down the simulation
         println!("SERVER: Shutting down");
-        // shutdown.shut_down();
+        shutdown.shut_down();
         Ok(())
     }
 

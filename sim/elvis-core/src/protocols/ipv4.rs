@@ -107,6 +107,7 @@ impl Ipv4 {
         match self.listen_bindings.entry(address) {
             Entry::Occupied(entry) => {
                 if *entry.get() == upstream {
+                    entry.replace_entry(upstream);
                     Ok(())
                 } else {
                     Err(ListenError::Exists(address))

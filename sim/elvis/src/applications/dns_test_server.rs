@@ -7,7 +7,7 @@ use elvis_core::{
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         Endpoint, SocketAPI,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Protocol, Session, Shutdown, ExitStatus,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -109,7 +109,7 @@ impl Protocol for DnsTestServer {
 
         // Shut down the simulation
         println!("SERVER: Shutting down");
-        shutdown.shut_down();
+        shutdown.shut_down_with_status(ExitStatus::Status(10));
         Ok(())
     }
 

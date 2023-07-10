@@ -223,6 +223,7 @@ impl Socket {
             return Err(SocketError::AcceptError);
         }
         if self.wait_for_notify(NotifyType::NewConnection).await == NotifyResult::Shutdown {
+            println!("accept wait_for_notify returned shutdown error");
             return Err(SocketError::Shutdown);
         }
         println!("made it to accept");
@@ -325,6 +326,7 @@ impl Socket {
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
         if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
+            println!("recv_msg wait_for_notify returned shutdown error");
             return Err(SocketError::Shutdown);
         }
         let mut queue = self.messages.write().unwrap().clone();

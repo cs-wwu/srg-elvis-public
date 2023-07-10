@@ -9,7 +9,7 @@ use elvis_core::{
         Pci, SocketAPI,
         dns::{dns_client::DnsClient, dns_server::DnsServer}
     },
-    run_internet, Network,
+    run_internet, Network, IpTable,
 };
 
 /// Runs a basic server-client simulation using sockets.
@@ -24,7 +24,7 @@ pub async fn dns_basic() {
     let dns_server_ip_address = Ipv4Address::DNS_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     let client1_ip_address: Ipv4Address = [123, 45, 67, 60].into();
-    let ip_table: Recipients = [
+    let ip_table: IpTable<Recipient> = [
         (dns_server_ip_address, Recipient::with_mac(0, 0)),
         (server_ip_address, Recipient::with_mac(0, 1)),
         (client1_ip_address, Recipient::with_mac(0, 2)),
@@ -66,6 +66,7 @@ pub async fn dns_basic() {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    #[tracing_test::traced_test]
     async fn dns_basic() {
         super::dns_basic().await;
     }
