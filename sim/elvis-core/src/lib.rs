@@ -40,6 +40,9 @@ mod logging;
 pub mod message;
 pub mod protocols;
 
+pub mod ip_table;
+pub use ip_table::IpTable;
+
 use dashmap::DashMap;
 pub use message::Message;
 
@@ -57,8 +60,14 @@ pub use machine::Machine;
 
 mod internet;
 pub use internet::run_internet;
+pub use internet::run_internet_with_timeout;
 
-mod shutdown;
+// mod network_api;
+// pub use network_api::NetworkAPI;
+
+pub mod shutdown;
+
+pub use shutdown::ExitStatus;
 pub use shutdown::Shutdown;
 
 mod transport;

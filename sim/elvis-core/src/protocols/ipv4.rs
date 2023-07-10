@@ -8,7 +8,7 @@ use crate::{
     network::Mac,
     protocol::{DemuxError, StartError},
     protocols::pci::Pci,
-    Control, FxDashMap, Protocol, Session, Shutdown,
+    Control, FxDashMap, IpTable, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
@@ -21,7 +21,7 @@ use ipv4_parsing::Ipv4Header;
 mod ipv4_address;
 pub use ipv4_address::Ipv4Address;
 
-mod ipv4_session;
+pub(crate) mod ipv4_session;
 pub use ipv4_session::AddressPair;
 use ipv4_session::Ipv4Session;
 
@@ -34,12 +34,12 @@ mod test_header_builder;
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     listen_bindings: FxDashMap<Ipv4Address, TypeId>,
-    recipients: Recipients,
+    recipients: IpTable<Recipient>,
 }
 
 impl Ipv4 {
     /// Creates a new instance of the protocol.
-    pub fn new(recipients: Recipients) -> Self {
+    pub fn new(recipients: IpTable<Recipient>) -> Self {
         Self {
             listen_bindings: Default::default(),
             recipients,
@@ -64,8 +64,8 @@ impl Ipv4 {
         endpoints: AddressPair,
         protocols: ProtocolMap,
     ) -> Result<Arc<Ipv4Session>, OpenError> {
-        let mut recipient = match self.recipients.get(&endpoints.remote) {
-            Some(recipient) => *recipient,
+        let mut recipient = match self.recipients.get_recipient(endpoints.remote) {
+            Some(recipient) => recipient,
             None => {
                 return Err(OpenError::UnknownRecipient(endpoints.remote));
             }

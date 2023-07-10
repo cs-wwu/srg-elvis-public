@@ -6,7 +6,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    run_internet, Message, Network,
+    run_internet, IpTable, Message, Network,
 };
 
 /// Simulates a message being forwarded along across many networks.
@@ -56,7 +56,7 @@ pub async fn telephone_multi() {
     let local = last_network.to_be_bytes().into();
     machines.push(new_machine![
         Udp::new(),
-        Ipv4::new(Default::default()),
+        Ipv4::new(IpTable::new()),
         Pci::new([networks[last_network as usize].clone()]),
         Capture::new(Endpoint::new(local, 0xbeef), 1)
     ]);
