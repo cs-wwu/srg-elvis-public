@@ -103,7 +103,7 @@ impl Network {
             sleep(Duration::from_millis(ms)).await;
             self.throughput_permit.notify_one();
         }
-        
+
         let latency = self.latency.next();
         if latency > Duration::ZERO {
             sleep(latency).await;

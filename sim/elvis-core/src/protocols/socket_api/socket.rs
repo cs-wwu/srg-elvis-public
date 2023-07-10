@@ -3,7 +3,10 @@ use crate::{
     machine::ProtocolMap,
     message::Chunk,
     protocol::{DemuxError, NotifyType},
-    protocols::{utility::{Endpoint, Endpoints}, dns::dns_client::DnsClient},
+    protocols::{
+        dns::dns_client::DnsClient,
+        utility::{Endpoint, Endpoints},
+    },
     Message, Session, Shutdown,
 };
 use std::{
@@ -107,12 +110,19 @@ impl Socket {
 
     /// TODO(HenryEricksonIV) Used by calling application when the ip address
     /// of the endpoint is not known to the calling application.
-    /// Intended to call 'connect()' with an ip provided by the local 
+    /// Intended to call 'connect()' with an ip provided by the local
     /// 'DnsClient'.
-    pub async fn connect_by_name(&self, domain_name: String, dest_port: u16) -> Result<(), SocketError> {
-        let ip_from_domain = self.protocols.protocol::<DnsClient>()
+    pub async fn connect_by_name(
+        &self,
+        domain_name: String,
+        dest_port: u16,
+    ) -> Result<(), SocketError> {
+        let ip_from_domain = self
+            .protocols
+            .protocol::<DnsClient>()
             .unwrap()
-            .get_host_by_name(domain_name, self.protocols.clone()).await
+            .get_host_by_name(domain_name, self.protocols.clone())
+            .await
             .unwrap();
         let new_destination = Endpoint::new(ip_from_domain, dest_port);
         self.connect(new_destination).await
@@ -139,15 +149,15 @@ impl Socket {
         let remote_op = *self.remote_addr.read().unwrap();
         if let (Some(local), Some(remote)) = (local_op, remote_op) {
             let session = match self
-            .protocols
-            .protocol::<SocketAPI>()
-            .expect("Sockets API not found")
-            .open_with_fd(
-                self.fd,
-                Endpoints::new(local, remote),
-                self.protocols.clone(),
-            )
-            .await
+                .protocols
+                .protocol::<SocketAPI>()
+                .expect("Sockets API not found")
+                .open_with_fd(
+                    self.fd,
+                    Endpoints::new(local, remote),
+                    self.protocols.clone(),
+                )
+                .await
             {
                 Ok(v) => v,
                 Err(_) => return Err(SocketError::ConnectError),
@@ -217,9 +227,9 @@ impl Socket {
             return Err(SocketError::Shutdown);
         }
         let new_sock = self
-        .socket_api
-        .new_socket(self.family, self.sock_type, self.protocols.clone())
-        .await?;
+            .socket_api
+            .new_socket(self.family, self.sock_type, self.protocols.clone())
+            .await?;
         let local_addr = Endpoint {
             address: self.socket_api.get_local_ip()?,
             port: self.local_addr.read().unwrap().unwrap().port,

@@ -110,8 +110,7 @@ impl Ipv4 {
                 } else {
                     Err(ListenError::Exists(address))
                 }
-                // Err(ListenError::Exists(address))
-            },
+            }
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
                 Ok(())
@@ -159,10 +158,8 @@ impl Protocol for Ipv4 {
         // If the session does not exist, see if we have a listen
         // binding for it
         let upstream = match self.listen_bindings.get(&endpoints.local) {
-            Some(binding) => {
-                *binding
-            },
-            
+            Some(binding) => *binding,
+
             None => {
                 // If we don't have a normal listen binding, check for
                 // a 0.0.0.0 binding

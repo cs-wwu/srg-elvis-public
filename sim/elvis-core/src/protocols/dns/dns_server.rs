@@ -3,30 +3,23 @@ use crate::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::{Ipv4Address},
-        Endpoint,
-        SocketAPI, socket_api::socket::{ProtocolFamily, SocketType, Socket},
+        ipv4::Ipv4Address,
+        socket_api::socket::{ProtocolFamily, Socket, SocketType},
+        Endpoint, SocketAPI,
     },
-    Control, Protocol, Session, Shutdown,
-    FxDashMap,
+    Control, FxDashMap, Protocol, Session, Shutdown,
 };
 
-use super::dns_parsing::{
-        DnsHeader,
-        DnsQuestion,
-        DnsResourceRecord,
-        DnsMessageType, DnsMessage,
-    };
+use super::dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord};
 
-use {dashmap::mapref::entry::Entry};
-use std::{sync::Arc, any::TypeId};
+use dashmap::mapref::entry::Entry;
+use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
-
 
 pub const DNS_PORT_NUM: u16 = 53;
 
 pub struct DnsServer {
-    /// The DnsServer version of a normal Dns cache to hold all mappings in 
+    /// The DnsServer version of a normal Dns cache to hold all mappings in
     /// the network.
     name_to_ip: FxDashMap<String, Ipv4Address>,
     /// Work around for other issues still being investigated.
@@ -35,17 +28,15 @@ pub struct DnsServer {
 }
 
 impl DnsServer {
-    pub fn new(
-        num_connections: u16
-    ) -> Self {
+    pub fn new(num_connections: u16) -> Self {
         Self {
             name_to_ip: Default::default(),
             num_connections,
         }
     }
 
-     /// Adds a new mapping to the name_to_ip cache.
-     pub fn add_mapping(&self, name: String, ip: Ipv4Address) {
+    /// Adds a new mapping to the name_to_ip cache.
+    pub fn add_mapping(&self, name: String, ip: Ipv4Address) {
         self.name_to_ip.insert(name, ip);
     }
 
@@ -55,12 +46,8 @@ impl DnsServer {
         name: String,
     ) -> Result<Ipv4Address, DnsServerError> {
         match table.entry(name) {
-            Entry::Occupied(e) => {
-                Ok(e.get().clone())
-            }
-            Entry::Vacant(_) => {
-                Err(DnsServerError::Cache)
-            }
+            Entry::Occupied(e) => Ok(*e.get()),
+            Entry::Vacant(_) => Err(DnsServerError::Cache),
         }
     }
 
@@ -73,22 +60,16 @@ impl DnsServer {
         let response = socket.recv(80).await.unwrap();
 
         let req_msg = DnsMessage::from_bytes(response.iter().cloned()).unwrap();
-        println!(
-            "SERVER: Request Received"
-        );
+        println!("SERVER: Request Received");
 
         let name = req_msg.question.query_name().unwrap();
-        let address: Ipv4Address;
-        match DnsServer::get_mapping(table, name) {
-            Ok(ip) => {
-                address = ip;
-            }
+        let address: Ipv4Address = match DnsServer::get_mapping(table, name) {
+            Ok(ip) => ip,
             Err(_) => {
                 return Err(DnsServerError::Cache);
             }
-        }
+        };
 
-        
         // Send a message
         let dns_res_msg = DnsServer::create_response(req_msg, address).unwrap();
         let res_msg = DnsMessage::to_message(dns_res_msg).unwrap();
@@ -97,20 +78,17 @@ impl DnsServer {
         Ok(())
     }
 
+    /// Creates an appropriate response message using DnsMessage and its
+    /// related structs. Full DnsMessage implementation is WiP
+    /// (HenryEricksonIV).
     pub fn create_response(
         query_msg: DnsMessage,
         requested_ip: Ipv4Address,
     ) -> Result<DnsMessage, DnsServerError> {
-        let header = DnsHeader::new(
-            query_msg.header.id,
-            DnsMessageType::RESPONSE,
-        );
+        let header = DnsHeader::new(query_msg.header.id, DnsMessageType::RESPONSE);
         let question = DnsQuestion::new(query_msg.question.qname);
-        let answer = DnsResourceRecord::new(
-            query_msg.answer.name,
-            query_msg.answer.ttl,
-            requested_ip
-        );
+        let answer =
+            DnsResourceRecord::new(query_msg.answer.name, query_msg.answer.ttl, requested_ip);
         let response_msg = DnsMessage::new(header, question, answer).unwrap();
         Ok(response_msg)
     }
@@ -124,14 +102,14 @@ impl Protocol for DnsServer {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        // Adds mappings to the dns server cache. This is a stand it method of 
+        // Adds mappings to the dns server cache. This is a stand it method of
         // doing it. TODO (HenryEricksonIV)
         self.add_mapping("testserver.com".to_string(), [123, 45, 67, 15].into());
         self.add_mapping("google.com".to_string(), [123, 45, 67, 60].into());
 
         let sockets = protocols
-        .protocol::<SocketAPI>()
-        .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
+            .protocol::<SocketAPI>()
+            .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = 53;
         let transport = SocketType::Datagram;
 

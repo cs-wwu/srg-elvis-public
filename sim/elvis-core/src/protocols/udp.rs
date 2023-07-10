@@ -119,7 +119,8 @@ impl Protocol for Udp {
             Endpoint::new(ipv4_header.source, udp_header.source),
         );
 
-        let binding = match self.listen_bindings.get(&endpoints.local) { // MAKE THIS LOCAL AGAIN
+        let binding = match self.listen_bindings.get(&endpoints.local) {
+            // MAKE THIS LOCAL AGAIN
             Some(listen_entry) => listen_entry,
             None => {
                 // If we don't have a normal listen binding, check for

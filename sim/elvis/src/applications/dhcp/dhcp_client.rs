@@ -1,5 +1,5 @@
-use super::dhcp_parsing::{DhcpMessage, MessageType};
 use super::dhcp_client_listener::DhcpClientListener;
+use super::dhcp_parsing::{DhcpMessage, MessageType};
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
@@ -7,9 +7,7 @@ use elvis_core::{
     protocols::{ipv4::Ipv4Address, Endpoint, Endpoints, Udp},
     Control, Protocol, Session, Shutdown,
 };
-use std::{
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{Barrier, Notify};
 
 // NOTE: THIS IS A TEMPORARY CLIENT
@@ -51,7 +49,7 @@ impl Protocol for DhcpClient {
     ) -> Result<(), StartError> {
         let server_ip = self.server_ip;
         // Wait on initialization before sending any message across the network
-        
+
         initialized.wait().await;
         let sockets = Endpoints {
             local: Endpoint {
@@ -89,10 +87,24 @@ impl Protocol for DhcpClient {
                 *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
                 self.notify.notify_waiters();
                 if self.listener.read().unwrap().is_some() {
-                    if let Some(release) = self.listener.write().unwrap().as_mut().unwrap().update(parsed_msg.your_ip) {
-                        caller.send(DhcpMessage::to_message(release).unwrap(), protocols.clone()).unwrap();
+                    if let Some(release) = self
+                        .listener
+                        .write()
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .update(parsed_msg.your_ip)
+                    {
+                        caller
+                            .send(DhcpMessage::to_message(release).unwrap(), protocols.clone())
+                            .unwrap();
                         *self.ip_address.write().unwrap() = None;
-                        caller.send(DhcpMessage::to_message(DhcpMessage::default()).unwrap(), protocols).unwrap();
+                        caller
+                            .send(
+                                DhcpMessage::to_message(DhcpMessage::default()).unwrap(),
+                                protocols,
+                            )
+                            .unwrap();
                     }
                 }
                 Ok(())

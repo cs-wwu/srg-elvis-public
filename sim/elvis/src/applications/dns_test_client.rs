@@ -19,10 +19,7 @@ pub struct DnsTestClient {
 }
 
 impl DnsTestClient {
-    pub fn new(
-        remote_port: u16,
-        transport: SocketType,
-    ) -> Self {
+    pub fn new(remote_port: u16, transport: SocketType) -> Self {
         Self {
             remote_port,
             transport,
@@ -56,7 +53,10 @@ impl Protocol for DnsTestClient {
 
         // "Connect" the socket to a remote address
         println!("CLIENT: Connecting to testserver.com");
-        socket.connect_by_name("testserver.com".to_string(), self.remote_port).await.unwrap();
+        socket
+            .connect_by_name("testserver.com".to_string(), self.remote_port)
+            .await
+            .unwrap();
         println!("CLIENT: Connected");
 
         // Send a message

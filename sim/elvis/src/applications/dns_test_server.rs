@@ -7,7 +7,7 @@ use elvis_core::{
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         Endpoint, SocketAPI,
     },
-    Control, Protocol, Session, Shutdown, ExitStatus,
+    Control, ExitStatus, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -99,7 +99,7 @@ impl Protocol for DnsTestServer {
             // served, stops accepting new connections after the third,
             // and shuts down the simulation once communication with
             // the third has ended
-            if tasks.len() >= 1 {
+            if !tasks.is_empty() {
                 while !tasks.is_empty() {
                     tasks.pop().unwrap().await.unwrap()
                 }

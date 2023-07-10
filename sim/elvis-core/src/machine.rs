@@ -92,10 +92,9 @@ impl Machine {
         Self { protocols }
     }
 
-
     /// Creates a new machine containing the given `protocols`. Returns the
     /// machine and a channel which can be used to send messages to the machine.
-    
+
     /// Further Iteration needed: (github@) HenryEricksonIV
 
     // pub fn new_auth_dns(
