@@ -81,7 +81,6 @@ impl Socket {
     async fn wait_for_notify(&self, notify_type: NotifyType) -> NotifyResult {
         if *self.is_blocking.read().unwrap() {
             let mut shutdown_receiver = self.shutdown.receiver();
-            println!("wait_for_notify");
             match notify_type {
                 NotifyType::NewConnection => select! {
                     _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
@@ -111,7 +110,6 @@ impl Socket {
     /// Intended to call 'connect()' with an ip provided by the local 
     /// 'DnsClient'.
     pub async fn connect_by_name(&self, domain_name: String, dest_port: u16) -> Result<(), SocketError> {
-        println!("connect by name");
         let ip_from_domain = self.protocols.protocol::<DnsClient>()
             .unwrap()
             .get_host_by_name(domain_name, self.protocols.clone()).await
@@ -126,9 +124,6 @@ impl Socket {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected. Also, a listening
         // socket cannot connect to a remote endpoint
-        println!("connect");
-        println!(" first boolean {:?}", self.is_active.read().unwrap());
-        println!(" second boolean {:?}", self.is_listening.read().unwrap());
         if *self.is_active.read().unwrap() || *self.is_listening.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
@@ -142,8 +137,6 @@ impl Socket {
         // Sockets API to retreive a socket_session
         let local_op = *self.local_addr.read().unwrap();
         let remote_op = *self.remote_addr.read().unwrap();
-        println!("connect 2");
-        println!("local: {:?}\nremote: {:?}", local_op, remote_op);
         if let (Some(local), Some(remote)) = (local_op, remote_op) {
             let session = match self
             .protocols
@@ -159,7 +152,6 @@ impl Socket {
                 Ok(v) => v,
                 Err(_) => return Err(SocketError::ConnectError),
             };
-            println!("connect 3");
             // Assign the socket_session to the socket
             *self.session.write().unwrap() = Some(session);
             *self.is_active.write().unwrap() = true;
@@ -218,20 +210,16 @@ impl Socket {
     /// This function will block if the queue of pending connections is empty
     /// until a new connection arrives
     pub async fn accept(&self) -> Result<Arc<Socket>, SocketError> {
-        println!("accept");
         if !*self.is_listening.read().unwrap() || *self.is_active.read().unwrap() {
             return Err(SocketError::AcceptError);
         }
         if self.wait_for_notify(NotifyType::NewConnection).await == NotifyResult::Shutdown {
-            println!("accept wait_for_notify returned shutdown error");
             return Err(SocketError::Shutdown);
         }
-        println!("made it to accept");
         let new_sock = self
         .socket_api
         .new_socket(self.family, self.sock_type, self.protocols.clone())
         .await?;
-        println!("accept 2");
         let local_addr = Endpoint {
             address: self.socket_api.get_local_ip()?,
             port: self.local_addr.read().unwrap().unwrap().port,
@@ -257,12 +245,9 @@ impl Socket {
         &self,
         message: impl Into<Chunk> + std::marker::Send + 'static,
     ) -> Result<(), SocketError> {
-        println!(" first boolean {:?}", self.session.read().unwrap().is_none());
-        println!(" second boolean {:?}", self.is_listening.read());
         if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {
             return Err(SocketError::SendError);
         }
-        println!("socket send");
         let session = self.session.clone();
         let protocols = self.protocols.clone();
         tokio::spawn(async move {
@@ -290,7 +275,6 @@ impl Socket {
         }
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
-        println!("socket recv");
         if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
@@ -326,7 +310,6 @@ impl Socket {
         // If there is no data in the queue to recv, and the socket is blocking,
         // block until there is data to be received
         if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
-            println!("recv_msg wait_for_notify returned shutdown error");
             return Err(SocketError::Shutdown);
         }
         let mut queue = self.messages.write().unwrap().clone();

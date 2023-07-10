@@ -99,11 +99,9 @@ impl Ipv4 {
         address: Ipv4Address,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
-        println!("ipv4 listen");
         if let Some(arp) = protocols.protocol::<Arp>() {
             arp.listen(address);
         }
-        println!("ipv4 listen 2");
         match self.listen_bindings.entry(address) {
             Entry::Occupied(entry) => {
                 if *entry.get() == upstream {
@@ -115,7 +113,6 @@ impl Ipv4 {
                 // Err(ListenError::Exists(address))
             },
             Entry::Vacant(entry) => {
-                println!("ipv4 listen 3");
                 entry.insert(upstream);
                 Ok(())
             }
@@ -146,7 +143,6 @@ impl Protocol for Ipv4 {
     ) -> Result<(), DemuxError> {
         // Extract identifying information from the header and the context and
         // add header information to the context
-        println!("ipv4 demux");
         let header = match Ipv4Header::from_bytes(message.iter()) {
             Ok(header) => header,
             Err(e) => {
@@ -154,18 +150,15 @@ impl Protocol for Ipv4 {
                 Err(DemuxError::Header)?
             }
         };
-        println!("ipv4 demux 2");
         control.insert(header);
         message.remove_front(header.ihl as usize * 4);
         let endpoints = AddressPair {
             local: header.destination,
             remote: header.source,
         };
-        println!("{:?} | {:?}", endpoints.local, endpoints.remote);
-        println!("ipv4 demux 3");
         // If the session does not exist, see if we have a listen
         // binding for it
-        let upstream = match self.listen_bindings.get(&endpoints.local) { // MAKE THIS LOCAL AGAIN
+        let upstream = match self.listen_bindings.get(&endpoints.local) {
             Some(binding) => {
                 *binding
             },
@@ -180,7 +173,6 @@ impl Protocol for Ipv4 {
                             "Could not find a listen binding for the local address {}",
                             endpoints.local
                         );
-                        println!("upstream none");
                         Err(DemuxError::MissingSession)?
                     }
                 }
@@ -204,9 +196,7 @@ impl Protocol for Ipv4 {
             recipient,
             reassembly: Default::default(),
         });
-        println!("ipv4 demux 5");
         session.receive(header, message, control, protocols)?;
-        println!("ipv4 demux 6");
         Ok(())
     }
 }

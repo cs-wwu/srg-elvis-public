@@ -41,7 +41,6 @@ impl Udp {
         endpoints: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
-        println!("udp open and listen");
         self.listen(upstream, endpoints.local, protocols.clone())?;
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
@@ -54,7 +53,6 @@ impl Udp {
         endpoints: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenError> {
-        println!("udp open_for_sending");
         let downstream = protocols
             .protocol::<Ipv4>()
             .unwrap()
@@ -74,9 +72,6 @@ impl Udp {
         socket: Endpoint,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
-        println!("udp listen");
-        println!("Socket to check {:?}", socket);
-        println!("listen bindings table {:?}", self.listen_bindings);
         match self.listen_bindings.entry(socket) {
             Entry::Occupied(_) => return Err(ListenError::Existing(socket)),
             Entry::Vacant(entry) => {
@@ -84,7 +79,6 @@ impl Udp {
             }
         }
         // Ask lower-level protocols to add the binding as well
-        println!("udp listen 2");
         protocols
             .protocol::<Ipv4>()
             .expect("No such protocol")
@@ -102,7 +96,6 @@ impl Protocol for Udp {
         mut control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        println!("udp demux");
         let ipv4_header = *control.get::<Ipv4Header>().unwrap();
         // Parse the header
         let udp_header = match UdpHeader::from_bytes_ipv4(

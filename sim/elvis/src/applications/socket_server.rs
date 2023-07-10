@@ -99,7 +99,7 @@ impl Protocol for SocketServer {
             // served, stops accepting new connections after the third,
             // and shuts down the simulation once communication with
             // the third has ended
-            if tasks.len() >= 1 {
+            if tasks.len() >= 3 {
                 while !tasks.is_empty() {
                     tasks.pop().unwrap().await.unwrap()
                 }

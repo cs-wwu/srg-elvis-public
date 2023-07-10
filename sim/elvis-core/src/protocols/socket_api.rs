@@ -144,20 +144,16 @@ impl SocketAPI {
         socket_id: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenError> {
-        println!("socket open_with_fd");
         match self.socket_sessions.entry(socket_id) {
             Entry::Occupied(_) => {
-                println!("socketAPI open_with_fd 2.1");
                 tracing::error!("Tried to create an existing session");
                 Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
-                println!("socket open_with_fd 2.2");
                 let sock = match self.sockets.entry(fd) {
                     Entry::Occupied(sock) => sock.get().clone(),
                     Entry::Vacant(_) => return Err(OpenError::NoSocketForFd(fd)),
                 };
-                println!("socket open_with_fd 2.3");
                 let downstream = match sock.sock_type {
                     SocketType::Datagram => {
                         protocols
@@ -174,15 +170,12 @@ impl SocketAPI {
                             .await?
                     }
                 };
-                println!("socket open_with_fd 2.4");
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(Some(sock)),
                     downstream,
                     stored_messages: RwLock::new(VecDeque::new()),
                 });
-                println!("socket open_with_fd 2.5");
                 entry.insert(session.clone());
-                println!("socket open_with_fd 2.6");
                 Ok(session)
             }
         }
@@ -240,13 +233,12 @@ impl Protocol for SocketAPI {
         control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        println!("socket api demux");
         let identifier = match control.get::<UdpHeader>() {
             Some(udp_header) => {
                 let ipv4_header = control.get::<Ipv4Header>().unwrap();
                 Endpoints::new(
                     Endpoint::new(ipv4_header.destination, udp_header.destination),
-                    Endpoint::new(ipv4_header.source, udp_header.source), // REVERSE THESE TWO
+                    Endpoint::new(ipv4_header.source, udp_header.source),
                 )
             }
             None => match control.get::<Endpoints>() {

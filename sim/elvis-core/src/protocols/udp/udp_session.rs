@@ -40,7 +40,6 @@ impl UdpSession {
 
 impl Session for UdpSession {
     fn send(&self, mut message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
-        println!("udp send");
         let id = self.endpoints;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
@@ -67,7 +66,6 @@ impl Session for UdpSession {
         );
         message.header(header);
         self.downstream.send(message, protocols)?;
-        println!("udp send 2");
         Ok(())
     }
 }

@@ -1,8 +1,8 @@
-use crate::applications::{SocketClient, SocketServer, dns_test_client::FakeDnsUser, dns_test_server::DnsTestServer};
+use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
 use elvis_core::{
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         socket_api::socket::SocketType,
         tcp::Tcp,
         udp::Udp,
@@ -39,7 +39,7 @@ pub async fn dns_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(dns_server_ip_address)),
-            DnsServer::new(),
+            DnsServer::new(1),  // Argument is for number of connections this server will at most have open. WiP workaround solution for now.
         ],
         new_machine![
             Udp::new(),
@@ -55,8 +55,8 @@ pub async fn dns_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client1_ip_address)),
-            DnsClient::new(client1_ip_address),
-            FakeDnsUser::new(1, 0xbeef, SocketType::Datagram)
+            DnsClient::new(),
+            DnsTestClient::new(0xbeef, SocketType::Datagram)
         ],
     ];
 
