@@ -1,4 +1,4 @@
-use crate::applications::{SocketClient, SocketServer};
+use crate::applications::{SocketClient, SocketServer, dns_test_client::FakeDnsUser, dns_test_server::DnsTestServer};
 use elvis_core::{
     new_machine,
     protocols::{
@@ -22,15 +22,12 @@ use elvis_core::{
 pub async fn dns_basic() {
     let network = Network::basic();
     let dns_server_ip_address = Ipv4Address::DNS_AUTH;
-    let server_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
-    let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
-    let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
+    let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
+    let client1_ip_address: Ipv4Address = [123, 45, 67, 60].into();
     let ip_table: Recipients = [
-        (server_ip_address, Recipient::with_mac(0, 0)),
-        (client1_ip_address, Recipient::with_mac(0, 1)),
-        (client2_ip_address, Recipient::with_mac(0, 2)),
-        (client3_ip_address, Recipient::with_mac(0, 3)),
+        (dns_server_ip_address, Recipient::with_mac(0, 0)),
+        (server_ip_address, Recipient::with_mac(0, 1)),
+        (client1_ip_address, Recipient::with_mac(0, 2)),
     ]
     .into_iter()
     .collect();
@@ -50,7 +47,7 @@ pub async fn dns_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
-            SocketServer::new(0xbeef, SocketType::Stream)
+            DnsTestServer::new(0xbeef, SocketType::Datagram)
         ],
         new_machine![
             Udp::new(),
@@ -58,26 +55,8 @@ pub async fn dns_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client1_ip_address)),
-            DnsClient::new(),
-            SocketClient::new(1, server_ip_address, 0xbeef, SocketType::Stream)
-        ],
-        new_machine![
-            Udp::new(),
-            Tcp::new(),
-            Ipv4::new(ip_table.clone()),
-            Pci::new([network.clone()]),
-            SocketAPI::new(Some(client2_ip_address)),
-            DnsClient::new(),
-            SocketClient::new(2, server_ip_address, 0xbeef, SocketType::Stream)
-        ],
-        new_machine![
-            Udp::new(),
-            Tcp::new(),
-            Ipv4::new(ip_table.clone()),
-            Pci::new([network.clone()]),
-            SocketAPI::new(Some(client3_ip_address)),
-            DnsClient::new(),
-            SocketClient::new(3, server_ip_address, 0xbeef, SocketType::Stream)
+            DnsClient::new(client1_ip_address),
+            FakeDnsUser::new(1, 0xbeef, SocketType::Datagram)
         ],
     ];
 

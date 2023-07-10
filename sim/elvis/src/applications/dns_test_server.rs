@@ -71,7 +71,7 @@ impl Protocol for DnsTestServer {
             .unwrap();
 
         // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
-        let local_sock_addr = Endpoint::new(Ipv4Address::CURRENT_NETWORK, local_port);
+        let local_sock_addr = Endpoint::new(Ipv4Address::from([0, 0, 0, 0]), local_port);
         listen_socket.bind(local_sock_addr).unwrap();
 
         // Listen for incoming connections, with a maximum backlog of 10
@@ -99,7 +99,7 @@ impl Protocol for DnsTestServer {
             // served, stops accepting new connections after the third,
             // and shuts down the simulation once communication with
             // the third has ended
-            if tasks.len() >= 3 {
+            if tasks.len() >= 1 {
                 while !tasks.is_empty() {
                     tasks.pop().unwrap().await.unwrap()
                 }

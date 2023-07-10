@@ -4,7 +4,7 @@ use crate::{
     network::{Delivery, Mac, Mtu},
     protocol::DemuxError,
     session::SendError,
-    Control, Network, Session,
+    Control, Network, Session, protocols::dns::dns_server::DnsServer,
 };
 use std::{
     any::TypeId,
@@ -61,6 +61,7 @@ impl PciSession {
     /// specialized arguments to pass a full network frame to this session is
     /// useful.
     pub(crate) fn receive(self: &Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
+        println!("tap receive");
         let mut control = Control::new();
         let pci_demux_info = DemuxInfo {
             slot: self.slot,
@@ -80,6 +81,7 @@ impl PciSession {
                 Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
+        println!("tap receive 2");
         protocol.demux(delivery.message, self.clone(), control, protocols)?;
         Ok(())
     }
@@ -90,6 +92,7 @@ impl PciSession {
         remote_mac: Option<Mac>,
         receiver: TypeId,
     ) -> Result<(), SendError> {
+        println!("pci send_pci");
         if message.len() > self.network.mtu as usize {
             return Err(SendError::Mtu(self.network.mtu));
         }
@@ -105,6 +108,7 @@ impl PciSession {
         tokio::spawn(async move {
             network.send(delivery).await;
         });
+        println!("pci send_pci");
         Ok(())
     }
 }

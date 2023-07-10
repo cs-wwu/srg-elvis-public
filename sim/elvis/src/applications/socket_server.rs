@@ -53,7 +53,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 impl Protocol for SocketServer {
     async fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -99,7 +99,7 @@ impl Protocol for SocketServer {
             // served, stops accepting new connections after the third,
             // and shuts down the simulation once communication with
             // the third has ended
-            if tasks.len() >= 3 {
+            if tasks.len() >= 1 {
                 while !tasks.is_empty() {
                     tasks.pop().unwrap().await.unwrap()
                 }
@@ -109,7 +109,7 @@ impl Protocol for SocketServer {
 
         // Shut down the simulation
         println!("SERVER: Shutting down");
-        shutdown.shut_down();
+        // shutdown.shut_down();
         Ok(())
     }
 

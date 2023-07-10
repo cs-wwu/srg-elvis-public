@@ -59,13 +59,13 @@ impl Protocol for FakeDnsUser {
         initialized.wait().await;
 
         // "Connect" the socket to a remote address
-        socket.connect_by_name("testserver.com".to_string(), self.remote_port).await;
+        socket.connect_by_name("testserver.com".to_string(), self.remote_port).await.unwrap();
         println!("CLIENT {}: Connected", self.client_id);
 
         // Send a message
         let req = "Ground Control to Major Tom";
-        println!("CLIENT {}: Sending Request: {:?}", self.client_id, req);
-        socket.send(req).unwrap();
+        println!("CLIENT {}: Sending test Request: {:?}", self.client_id, req);
+        socket.send(req).unwrap();  // THIS IS THE PROBLEM AREA! SOCKET IS NOT LISTENING!
 
         // Receive a message
         let resp = socket.recv(32).await.unwrap();

@@ -67,7 +67,7 @@ impl DnsServer {
     ) -> Result<(), DnsServerError> {
         // Receive a message
         println!("SERVER: Waiting for request...");
-        let response = socket.recv(4096).await.unwrap();
+        let response = socket.recv(80).await.unwrap();
         let req_msg = DnsMessage::from_bytes(response.iter().cloned()).unwrap();
         println!(
             "SERVER: Request Received"
@@ -93,7 +93,7 @@ impl DnsServer {
         socket.send(res_msg.to_vec()).unwrap();
 
         // Receive a message (Also example usage of recv_msg)
-        // println!("SERVER: Waiting for awkowledgement...");
+        println!("SERVER: Waiting for awkowledgement...");
         let _ack = socket.recv_msg().await.unwrap();
         println!("SERVER: Ackowledgement Received");
         Ok(())
@@ -126,17 +126,17 @@ impl Protocol for DnsServer {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        self.add_mapping("testserver.com".to_string(), [123, 45, 67, 89].into());
-        self.add_mapping("google.com".to_string(), [123, 45, 67, 90].into());
-        self.add_mapping("facebook.com".to_string(), [123, 45, 67, 91].into());
-        self.add_mapping("youtube.com".to_string(), [123, 45, 67, 92].into());
+        self.add_mapping("testserver.com".to_string(), [123, 45, 67, 15].into());
+        self.add_mapping("google.com".to_string(), [123, 45, 67, 60].into());
+        // self.add_mapping("facebook.com".to_string(), [123, 45, 67, 91].into());
+        // self.add_mapping("youtube.com".to_string(), [123, 45, 67, 92].into());
 
         println!("{:?}", self.name_to_ip);
 
         let sockets = protocols
         .protocol::<SocketAPI>()
         .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
-        let local_port = DNS_PORT_NUM;
+        let local_port = 53;
         let transport = SocketType::Datagram;
 
         let listen_socket = sockets
@@ -145,31 +145,46 @@ impl Protocol for DnsServer {
             .unwrap();
 
         // Bind the socket to Ipv4 [0.0.0.0] (Any Address) for listening
-        let local_sock_addr = Endpoint::new(Ipv4Address::CURRENT_NETWORK, local_port);
+        let local_sock_addr = Endpoint::new(Ipv4Address::from([0, 0, 0, 0]), local_port);
         listen_socket.bind(local_sock_addr).unwrap();
 
         // Listen for incoming connections, with a maximum backlog of 10
-        listen_socket.listen(0).unwrap();
+        listen_socket.listen(10).unwrap();
         println!("\nSERVER: Listening for incoming connections");
 
         // Wait on ititialization before sending or receiving any message from the network
         initialized.wait().await;
+        println!("server initialized");
 
         let mut tasks = Vec::new();
         // Continuously accept incoming connections in a loop, spawning a
         // new tokio task to handle each accepted connection
         loop {
             let table = self.name_to_ip.clone();
+            println!("{:?}", table);
             // Accept an incoming connection
             let socket = listen_socket.accept().await.unwrap();
+            println!("start of loop");
             println!("SERVER: Connection accepted");
 
             // Spawn a new tokio task for handling communication
             // with the new client
             tasks.push(tokio::spawn(async move {
-                let _ = DnsServer::respond_to_query(table, socket).await;
+                DnsServer::respond_to_query(table, socket).await.unwrap();
             }));
+
+            // if tasks.len() >= 1 {
+            //     while !tasks.is_empty() {
+            //         tasks.pop().unwrap().await.unwrap()
+            //     }
+            //     break;
+            // }
+
         }
+        // // // Shut down the simulation
+        // println!("SERVER: Shutting down dns server");
+        // // shutdown.shut_down();
+        // Ok(())
     }
 
     fn demux(
@@ -189,6 +204,6 @@ pub enum DnsServerError {
     Cache,
     // #[error("DNS Server received response message error")]
     // BadRequest,
-    // #[error("Unspecified DNS Server error")]
-    // Other,
+    #[error("Unspecified DNS Server error")]
+    Other,
 }

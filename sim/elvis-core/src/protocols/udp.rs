@@ -41,6 +41,7 @@ impl Udp {
         endpoints: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
+        println!("udp open and listen");
         self.listen(upstream, endpoints.local, protocols.clone())?;
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
@@ -53,6 +54,7 @@ impl Udp {
         endpoints: Endpoints,
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenError> {
+        println!("udp open_for_sending");
         let downstream = protocols
             .protocol::<Ipv4>()
             .unwrap()
@@ -72,6 +74,9 @@ impl Udp {
         socket: Endpoint,
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
+        println!("udp listen");
+        println!("Socket to check {:?}", socket);
+        println!("listen bindings table {:?}", self.listen_bindings);
         match self.listen_bindings.entry(socket) {
             Entry::Occupied(_) => return Err(ListenError::Existing(socket)),
             Entry::Vacant(entry) => {
@@ -79,6 +84,7 @@ impl Udp {
             }
         }
         // Ask lower-level protocols to add the binding as well
+        println!("udp listen 2");
         protocols
             .protocol::<Ipv4>()
             .expect("No such protocol")
@@ -96,6 +102,7 @@ impl Protocol for Udp {
         mut control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
+        println!("udp demux");
         let ipv4_header = *control.get::<Ipv4Header>().unwrap();
         // Parse the header
         let udp_header = match UdpHeader::from_bytes_ipv4(
@@ -119,7 +126,7 @@ impl Protocol for Udp {
             Endpoint::new(ipv4_header.source, udp_header.source),
         );
 
-        let binding = match self.listen_bindings.get(&endpoints.local) {
+        let binding = match self.listen_bindings.get(&endpoints.local) { // MAKE THIS LOCAL AGAIN
             Some(listen_entry) => listen_entry,
             None => {
                 // If we don't have a normal listen binding, check for

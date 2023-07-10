@@ -26,6 +26,7 @@ impl Shutdown {
     }
 
     pub fn receiver(&self) -> broadcast::Receiver<()> {
+        println!("shutdown receiver");
         self.notify.subscribe()
     }
 }

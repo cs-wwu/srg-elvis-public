@@ -44,6 +44,7 @@ impl SocketSession {
 
 impl Session for SocketSession {
     fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
+        println!("socket session send");
         self.downstream.send(message, protocols)
     }
 }

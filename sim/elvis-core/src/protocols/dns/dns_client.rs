@@ -1,11 +1,13 @@
 //! An implementation of the Domain Name Structure
 
 
+use rand::random;
+
 use crate::{
     // control::{ControlError, Key, Primitive},
     machine::ProtocolMap,
     message::Message,
-    protocols::{ipv4::Ipv4Address, SocketAPI, socket_api::socket::{ProtocolFamily, SocketType}},
+    protocols::{ipv4::Ipv4Address, SocketAPI, socket_api::socket::{ProtocolFamily, SocketType}, Udp},
     protocol::{DemuxError, StartError},
     protocols::Endpoint,
     Control, Protocol, Shutdown, Session,
@@ -36,6 +38,7 @@ pub struct DnsClient {
     /// connects to a host using DNS, the mapping is saved in the connecting
     /// machines DNS protocol.
     name_to_ip: FxDashMap<String, Ipv4Address>,
+    local_ip: Ipv4Address,
 
     // Direct reference to Sockets
     // TODO(zachd9757): Replace this with a reference to the Network API once it exists
@@ -46,9 +49,10 @@ pub struct DnsClient {
 impl DnsClient {
 
     /// Creates a new instance of the protocol.
-    pub fn new() -> Self {
+    pub fn new(ip: Ipv4Address) -> Self {
         Self {
             name_to_ip: Default::default(),
+            local_ip: ip
         }
     }
 
@@ -80,6 +84,7 @@ impl DnsClient {
         &self,
         name: String,
         protocols: ProtocolMap,
+        // sockets: Arc<SocketAPI>
     ) -> Result<Ipv4Address, DnsClientError> {
         
 
@@ -92,7 +97,7 @@ impl DnsClient {
 
                 println!("Before {:?}", self.name_to_ip);
 
-                let message = DnsMessage::to_message(DnsClient::create_request(name.clone()).unwrap()).unwrap();
+                let message = DnsMessage::to_message(DnsClient::create_request(self, name.clone()).unwrap()).unwrap();
 
                 let sockets = protocols
                     .protocol::<SocketAPI>()
@@ -106,16 +111,16 @@ impl DnsClient {
                 // "Connect" the socket to a remote address
                 let remote_sock_addr = Endpoint::new(Ipv4Address::DNS_AUTH, 53);
                 socket.connect(remote_sock_addr).await.unwrap();
-                println!("CLIENT: Connected");
+                println!("CLIENT: dns Connected");
 
                 // Send a message
-                println!("CLIENT: Sending Request:");
+                println!("CLIENT: Sending dns Request:");
                 socket.send(message.to_vec()).unwrap();
 
                 // Receive a message
                 let resp = socket.recv(message.len()).await.unwrap();
                 println!(
-                    "CLIENT: Response Received"
+                    "CLIENT: dns Response Received"
                 );
 
                 let res_msg = DnsMessage::from_bytes(resp.iter().cloned()).unwrap();
@@ -134,12 +139,14 @@ impl DnsClient {
     }
 
     pub fn create_request(
+        &self,
         name: String
     ) -> Result<DnsMessage, DnsClientError> {
+        let to_rand: u16 = rand::random::<u16>();
         let vec_name: Vec<u8> = Vec::from(name.clone());
         let header = DnsHeader::new(
             // Temporary. Still need to implement unique transaction id's.
-            name.parse::<u16>().unwrap(),   
+            to_rand,   
             DnsMessageType::QUERY,
         );
         let question = DnsQuestion::new(vec_name.clone());
@@ -165,6 +172,7 @@ impl Protocol for DnsClient {
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        // let _ = protocols.protocol::<Udp>().unwrap().listen(TypeId::of::<DnsClient>() ,Endpoint::new(self.local_ip, 54), protocols);
         initialized.wait().await;
         Ok(())
     }
@@ -197,7 +205,7 @@ mod tests {
     /// Checks HashMap functionality
     fn add_and_lookup_mapping() {
         // Initialize struct
-        let dns: DnsClient = DnsClient::new();
+        let dns: DnsClient = DnsClient::new(Ipv4Address::CURRENT_NETWORK);
 
         // Create and add mapping
         let name: String = String::from("Name");
@@ -212,7 +220,7 @@ mod tests {
     #[test]
     // Checks appropriate behaviour on cache miss.
     fn cache_miss() {
-        let dns: DnsClient = DnsClient::new();
+        let dns: DnsClient = DnsClient::new(Ipv4Address::CURRENT_NETWORK);
 
         // Create and do NOT add mapping
         let name: String = String::from("Arbitrary");

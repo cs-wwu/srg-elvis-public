@@ -91,6 +91,7 @@ impl Network {
 
     /// Called at the beginning of the simulation to start the network running
     pub(crate) async fn send(self: &Arc<Self>, delivery: Delivery) {
+        println!("network send");
         if self.loss_rate > 0.0 && rand::random::<f32>() < self.loss_rate {
             // Drop the message
             return;
@@ -103,11 +104,13 @@ impl Network {
             sleep(Duration::from_millis(ms)).await;
             self.throughput_permit.notify_one();
         }
-
+        
         let latency = self.latency.next();
         if latency > Duration::ZERO {
             sleep(latency).await;
         }
+        println!("network send 2");
+        println!("{:?}", delivery.destination);
         match delivery.destination {
             None | Some(Self::BROADCAST_MAC) => {
                 for tap in self.taps.iter() {
