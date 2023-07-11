@@ -124,6 +124,10 @@ impl<T: Copy> IpTable<T> {
     pub fn iter(&self) -> Iter<'_, (Ipv4Address, Ipv4Mask), T> {
         self.table.iter()
     }
+
+    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, (Ipv4Address, Ipv4Mask), T> {
+        self.table.iter_mut()
+    }
 }
 
 /// Allows conversion of Recipients into IpTable

@@ -85,23 +85,46 @@ impl ArpRouter {
     pub fn process_response(packet: RipPacket) -> Vec<RipPacket> {
         // check packet validity
         // ignore responses from non-adjacent ips
-        // ignore responses from ips matching routers own
-        //
+        // ignore responses from ips matching routers own ip
 
         // processs response
         let mut entries = packet.entries;
+
         todo!()
     }
 
     // iterate through the table and return all the
     // entries that have the route change flag set
-    // also poison the routes that are adjacent
-    pub fn generate_triggered_response() -> Vec<RipPacket> {
-        todo!()
-    }
+    // also poison routes that are destinations to neighboring routers
+    pub fn generate_triggered_response(&self) -> Vec<RipPacket> {
+        let mut output: Vec<RipPacket> = Vec::new();
+        let mut frame: Vec<RipEntry> = Vec::new();
+        let mut count: u32 = 0;
 
-    pub fn generate_response() -> Vec<RipPacket> {
-        todo!()
+        for entry in self.ip_table.read().unwrap().iter().filter(|e| e.1 .3) {
+            count += 1;
+
+            let element: RipEntry =
+                RipEntry::new_entry(entry.0 .0, entry.1 .0, entry.0 .1, entry.1 .2);
+
+            frame.push(element);
+
+            // every 25th entry add the current frame to the output vector
+            if count % 25 == 0 {
+                output.push(RipPacket::new_response(frame));
+                frame = Vec::new();
+            }
+        }
+
+        // unset the update flags 
+        // this could be bad if update occurs after entries have been read
+        self.ip_table
+            .write()
+            .unwrap()
+            .iter_mut()
+            .for_each(|mut e| e.1 .3 = false);
+
+        return output;
     }
 
     //
