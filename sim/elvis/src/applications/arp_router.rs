@@ -100,8 +100,11 @@ impl ArpRouter {
         let mut output: Vec<RipPacket> = Vec::new();
         let mut frame: Vec<RipEntry> = Vec::new();
         let mut count: u32 = 0;
+        
+        let mut ip_table_ref = self.ip_table.write().unwrap();
 
-        for entry in self.ip_table.read().unwrap().iter().filter(|e| e.1 .3) {
+        // find every entry that has a flag set and add the entries the output packet
+        for entry in ip_table_ref.iter().filter(|e| e.1 .3) {
             count += 1;
 
             let element: RipEntry =
@@ -118,9 +121,7 @@ impl ArpRouter {
 
         // unset the update flags 
         // this could be bad if update occurs after entries have been read
-        self.ip_table
-            .write()
-            .unwrap()
+        ip_table_ref
             .iter_mut()
             .for_each(|mut e| e.1 .3 = false);
 
