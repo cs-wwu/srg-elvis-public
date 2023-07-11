@@ -48,10 +48,10 @@ pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
                 result.expect("machines should be configured so internet can be run successfully");
             }
         } => (),
-        result = shutdown_receiver.recv() => { 
+        result = shutdown_receiver.recv() => {
             match result {
                 Err(_) => return ExitStatus::Exited,
-                Ok(status) => return status 
+                Ok(status) => return status
             }
         },
     }
@@ -61,6 +61,6 @@ pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
 
     match result {
         Ok(status) => status,
-        Err(_) => ExitStatus::Exited
+        Err(_) => ExitStatus::Exited,
     }
 }

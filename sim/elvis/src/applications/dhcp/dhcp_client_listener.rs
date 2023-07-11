@@ -1,16 +1,12 @@
 use super::dhcp_parsing::{DhcpMessage, MessageType};
-use elvis_core::{protocols::ipv4::Ipv4Address,
-    Protocol,
-    Shutdown,
+use elvis_core::{
     machine::ProtocolMap,
-    protocol::{StartError, DemuxError},
-    Message,
-    Session,
-    Control};
-use std::{
-    sync::{Arc},
+    protocol::{DemuxError, StartError},
+    protocols::ipv4::Ipv4Address,
+    Control, Message, Protocol, Session, Shutdown,
 };
-use tokio::sync::{Barrier};
+use std::sync::Arc;
+use tokio::sync::Barrier;
 
 #[derive(Debug, Default)]
 pub struct DhcpClientListener {
@@ -27,14 +23,14 @@ impl DhcpClientListener {
     }
 
     pub fn update(&mut self, addr: Ipv4Address) -> Option<DhcpMessage> {
-            match self.first_ip {
+        match self.first_ip {
             None => {
                 self.first_ip = Some(addr);
                 let mut response = DhcpMessage::default();
                 response.your_ip = addr;
                 response.msg_type = MessageType::Release;
                 Some(response)
-            },
+            }
             Some(_addr) => {
                 self.second_ip = Some(addr);
                 assert_eq!(self.first_ip.unwrap(), self.second_ip.unwrap());
@@ -52,7 +48,6 @@ impl Protocol for DhcpClientListener {
         initialized: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-       
         initialized.wait().await;
         Ok(())
     }

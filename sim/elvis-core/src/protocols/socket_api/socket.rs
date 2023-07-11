@@ -14,7 +14,7 @@ use thiserror::Error as ThisError;
 use tokio::{select, sync::Notify};
 
 /// An implementation of an individual Socket
-/// Created by the [`Sockets`] API
+/// Created by the [`SocketAPI`]
 pub struct Socket {
     pub family: ProtocolFamily,
     pub sock_type: SocketType,
