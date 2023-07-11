@@ -47,3 +47,6 @@ pub use tcp_gigabyte_bench::tcp_gigabyte_bench;
 
 mod udp_gigabyte_bench;
 pub use udp_gigabyte_bench::udp_gigabyte_bench;
+
+mod tcp_stream;
+pub use tcp_stream::tcp_stream;

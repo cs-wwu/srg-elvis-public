@@ -21,3 +21,9 @@ pub use utility::{Endpoint, Endpoints};
 
 pub mod tcp;
 pub use tcp::Tcp;
+
+pub mod tcp_stream;
+pub use tcp_stream::TcpStream;
+
+pub mod tcp_listener;
+pub use tcp_listener::TcpListener;
