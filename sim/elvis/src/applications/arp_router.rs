@@ -4,7 +4,7 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        arp::subnetting::Ipv4Mask,
+        arp::subnetting::{Ipv4Mask, Ipv4Net},
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
         AddressPair, Arp, Ipv4, Pci,
     },
@@ -51,7 +51,7 @@ impl ArpRouter {
                 count += 1;
 
                 let element: RipEntry =
-                    RipEntry::new_entry(entry.0 .0, entry.1 .0, entry.0 .1, entry.1 .2);
+                    RipEntry::new_entry(entry.0.id(), entry.1 .0, entry.0.mask(), entry.1 .2);
 
                 frame.push(element);
 
@@ -95,7 +95,7 @@ impl ArpRouter {
 
         for entry in entries {
             // cost of going to new route is metric provided by packet
-            // + the cost of traveling to 
+            // + the cost of traveling to
             let metric = min(entry.metric + 1, INFINITY);
 
             let destination = entry.ip_address;
@@ -105,7 +105,7 @@ impl ArpRouter {
                 Some(recipient) => {
                     if recipient.2 > metric {
                         ip_table_ref.add(
-                            (recipient.0, Ipv4Mask::from_bitcount(recipient.1)),
+                            Ipv4Net::new(recipient.0, Ipv4Mask::from_bitcount(recipient.1)),
                             (neighbor_ip, neighbor_slot, metric, true),
                         )
                     }
@@ -113,7 +113,7 @@ impl ArpRouter {
                 None => {
                     if metric < INFINITY {
                         ip_table_ref.add(
-                            (destination, mask),
+                            Ipv4Net::new(destination, mask),
                             (neighbor_ip, neighbor_slot, metric, true),
                         )
                     }
@@ -121,7 +121,6 @@ impl ArpRouter {
             }
         }
     }
-
 }
 
 #[async_trait::async_trait]

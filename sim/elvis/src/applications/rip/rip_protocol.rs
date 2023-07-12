@@ -10,28 +10,38 @@ use elvis_core::{
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
-pub struct RIP {
-    
+
+// number of seconds between each update
+const UPDATE: u32 = 30;
+pub struct Rip {
+
+}
+
+impl Rip {
+    pub async fn update() {
+        
+    }
 }
 
 #[async_trait::async_trait]
-impl Protocol for RIP {
+impl Protocol for Rip {
     async fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         initialized.wait().await;
+        
         Ok(())
     }
 
     fn demux(
         &self,
-        message: Message,
-        caller: Arc<dyn Session>,
-        control: Control,
-        protocols: ProtocolMap,
+        _message: Message,
+        _caller: Arc<dyn Session>,
+        _control: Control,
+        _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         todo!()
     }
