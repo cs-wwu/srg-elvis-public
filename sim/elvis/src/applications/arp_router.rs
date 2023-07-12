@@ -4,13 +4,14 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
+        arp::subnetting::Ipv4Mask,
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
         AddressPair, Arp, Ipv4, Pci,
     },
     Control, IpTable, Protocol, Session, Shutdown,
 };
-use std::sync::RwLock;
 use std::{any::TypeId, sync::Arc};
+use std::{cmp::min, sync::RwLock};
 use tokio::sync::Barrier;
 
 use super::rip_parsing::{RipEntry, RipPacket};
@@ -82,60 +83,45 @@ impl ArpRouter {
         output
     }
 
-    pub fn process_response(packet: RipPacket) -> Vec<RipPacket> {
-        // check packet validity
-        // ignore responses from non-adjacent ips
-        // ignore responses from ips matching routers own ip
-
+    pub fn process_response(
+        &self,
+        neighbor_ip: Ipv4Address,
+        neighbor_slot: PciSlot,
+        packet: RipPacket,
+    ) {
         // processs response
-        let mut entries = packet.entries;
-
-        todo!()
-    }
-
-    // iterate through the table and return all the
-    // entries that have the route change flag set
-    // also poison routes that are destinations to neighboring routers
-    pub fn generate_triggered_response(&self) -> Vec<RipPacket> {
-        let mut output: Vec<RipPacket> = Vec::new();
-        let mut frame: Vec<RipEntry> = Vec::new();
-        let mut count: u32 = 0;
-        
+        let entries = packet.entries;
         let mut ip_table_ref = self.ip_table.write().unwrap();
 
-        // find every entry that has a flag set and add the entries the output packet
-        for entry in ip_table_ref.iter().filter(|e| e.1 .3) {
-            count += 1;
+        for entry in entries {
+            // cost of going to new route is metric provided by packet
+            // + the cost of traveling to 
+            let metric = min(entry.metric + 1, INFINITY);
 
-            let element: RipEntry =
-                RipEntry::new_entry(entry.0 .0, entry.1 .0, entry.0 .1, entry.1 .2);
+            let destination = entry.ip_address;
+            let mask = entry.subnet_mask;
 
-            frame.push(element);
-
-            // every 25th entry add the current frame to the output vector
-            if count % 25 == 0 {
-                output.push(RipPacket::new_response(frame));
-                frame = Vec::new();
+            match ip_table_ref.get_recipient(destination) {
+                Some(recipient) => {
+                    if recipient.2 > metric {
+                        ip_table_ref.add(
+                            (recipient.0, Ipv4Mask::from_bitcount(recipient.1)),
+                            (neighbor_ip, neighbor_slot, metric, true),
+                        )
+                    }
+                }
+                None => {
+                    if metric < INFINITY {
+                        ip_table_ref.add(
+                            (destination, mask),
+                            (neighbor_ip, neighbor_slot, metric, true),
+                        )
+                    }
+                }
             }
         }
-
-        // unset the update flags 
-        // this could be bad if update occurs after entries have been read
-        ip_table_ref
-            .iter_mut()
-            .for_each(|mut e| e.1 .3 = false);
-
-        return output;
     }
 
-    //
-    fn add_entry() {
-        todo!()
-    }
-
-    fn delete_entry() {
-        todo!()
-    }
 }
 
 #[async_trait::async_trait]
