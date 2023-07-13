@@ -40,3 +40,7 @@ pub use tcp_stream_client::TcpStreamClient;
 
 pub mod tcp_listener_server;
 pub use tcp_listener_server::TcpListenerServer;
+
+pub mod multi_capture;
+pub use multi_capture::Counter;
+pub use multi_capture::MultiCapture;

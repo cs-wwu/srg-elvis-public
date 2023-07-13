@@ -17,8 +17,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-pub const BROADCAST: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
-
 /// The session type for [`Ipv4`].
 pub struct Ipv4Session {
     /// The protocol that we demux incoming messages to
@@ -97,18 +95,15 @@ impl Session for Ipv4Session {
         };
         message.header(header);
 
-        if self.addresses.remote == BROADCAST {
+        if self.addresses.remote == Ipv4Address::SUBNET {
             self.pci_session.send_pci(
                 message,
                 Some(Network::BROADCAST_MAC),
                 TypeId::of::<Ipv4>(),
             )?;
         } else {
-            self.pci_session.send_pci(
-                message, 
-                self.recipient.mac, 
-                TypeId::of::<Ipv4>()
-            )?;
+            self.pci_session
+                .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
         }
 
         Ok(())

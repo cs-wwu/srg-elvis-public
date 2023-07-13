@@ -42,6 +42,11 @@ impl Udp {
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
         self.listen(upstream, endpoints.local, protocols.clone())?;
+
+        // listen for broadcast messages as well
+        let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, endpoints.local.port);
+        self.listen(upstream, broadcast_endpoint, protocols.clone())?;
+
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
             .await?)

@@ -53,6 +53,10 @@ impl Ipv4 {
         protocols: ProtocolMap,
     ) -> Result<Arc<Ipv4Session>, OpenAndListenError> {
         self.listen(upstream, endpoints.local, protocols.clone())?;
+
+        // listen for broadcast messages as well
+        self.listen(upstream, Ipv4Address::SUBNET, protocols.clone())?;
+
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
             .await?)
@@ -72,6 +76,7 @@ impl Ipv4 {
         };
 
         // if ARP exists, and recipient does not specify a destination MAC, then try to figure out a destination MAC
+        // don't try to send arp requests if the remote enpoint is the broadcast address
         if recipient.mac.is_none() {
             if let Some(arp) = protocols.protocol::<Arp>() {
                 arp.listen(endpoints.local);
