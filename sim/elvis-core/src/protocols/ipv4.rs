@@ -54,9 +54,6 @@ impl Ipv4 {
     ) -> Result<Arc<Ipv4Session>, OpenAndListenError> {
         self.listen(upstream, endpoints.local, protocols.clone())?;
 
-        // listen for broadcast messages as well
-        self.listen(upstream, Ipv4Address::SUBNET, protocols.clone())?;
-
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
             .await?)
@@ -105,7 +102,9 @@ impl Ipv4 {
         protocols: ProtocolMap,
     ) -> Result<(), ListenError> {
         if let Some(arp) = protocols.protocol::<Arp>() {
-            arp.listen(address);
+            if address != Ipv4Address::SUBNET {
+                arp.listen(address);
+            }
         }
         match self.listen_bindings.entry(address) {
             Entry::Occupied(_) => Err(ListenError::Exists(address)),

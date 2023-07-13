@@ -2,7 +2,7 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, Tcp, Udp},
+    protocols::{ipv4::Ipv4Address, Endpoint, Tcp, Udp},
     shutdown::ExitStatus,
     Control, Protocol, Session, Shutdown, Transport,
 };
@@ -93,6 +93,8 @@ impl Protocol for MultiCapture {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, self.endpoint.port);
+
         match self.transport {
             Transport::Tcp => {
                 protocols
@@ -105,7 +107,14 @@ impl Protocol for MultiCapture {
                 protocols
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(self.id(), self.endpoint, protocols)
+                    .listen(self.id(), self.endpoint, protocols.clone())
+                    .unwrap();
+
+                // listen on broadcast
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .listen(self.id(), broadcast_endpoint, protocols)
                     .unwrap();
             }
         }
@@ -124,8 +133,6 @@ impl Protocol for MultiCapture {
     ) -> Result<(), DemuxError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
-
-        println!("got here");
 
         if (*self.counter).call() {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {

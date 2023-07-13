@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::applications::{Capture, Counter, MultiCapture, SendMessage};
+use crate::applications::{Counter, MultiCapture, SendMessage};
 use elvis_core::{
     message::Message,
     new_machine,
@@ -41,7 +41,7 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
         Endpoint::new(IPS[2], 0xbeef),
     ];
 
-    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
