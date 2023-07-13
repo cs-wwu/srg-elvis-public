@@ -41,7 +41,7 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
         Endpoint::new(IPS[2], 0xbeef),
     ];
 
-    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::new(0, None))]
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
         .into_iter()
         .collect();
 

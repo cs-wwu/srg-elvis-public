@@ -9,7 +9,7 @@ use elvis_core::{
 use std::sync::{Arc, Mutex, RwLock};
 use tokio::sync::Barrier;
 
-/// An application that receives a message and implements a shared counter
+/// An application that receives a message and increments a shared counter
 /// if the shared counter counts to its capacity, the simulation exits
 /// can be used to debug message ordering by having each capture return
 /// a different exit status
