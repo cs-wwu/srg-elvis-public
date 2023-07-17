@@ -125,11 +125,6 @@ impl DnsMessage {
     }
 }
 
-// /// The number of `u32` words in a basic DNS header
-// const BASE_WORDS: u8 = 6;
-// /// The number of `u8` bytes in a basic IPv4 header
-// const BASE_OCTETS: u16 = BASE_WORDS as u16 * 2;
-
 /// A DNS header, as described in RFC 1035 p25 s4.1.1
 pub struct DnsHeader {
     /// A 16 bit identifier assigned by the program that
