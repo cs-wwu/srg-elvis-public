@@ -12,14 +12,14 @@ use elvis_core::{
     run_internet, IpTable, Network,
 };
 
-/// Runs a basic client-server sim using the DNS client and server to resolve 
+/// Runs a basic client-server sim using the DNS client and server to resolve
 /// the correct Ipv4 address.
 ///
-/// In this simulation, a client machine intends to send a "request" messages 
-/// to a server machine. The client machine only has a name associated with the 
-/// server in question. The original application will use the local instance of 
-/// the DNS protocol to find out the Ipv4 address of the intended server by 
-/// sending a query to the DNS Authoritative server. The client then uses the 
+/// In this simulation, a client machine intends to send a "request" messages
+/// to a server machine. The client machine only has a name associated with the
+/// server in question. The original application will use the local instance of
+/// the DNS protocol to find out the Ipv4 address of the intended server by
+/// sending a query to the DNS Authoritative server. The client then uses the
 /// retrieved Ipv4 address to interact with the non-DNS server.
 pub async fn dns_basic() {
     let network = Network::basic();
