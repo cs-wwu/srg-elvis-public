@@ -115,11 +115,11 @@ impl DnsMessage {
         })
     }
 
-    pub fn to_message(message: DnsMessage) -> Result<Message, ParseError> {
+    pub fn to_message(self) -> Result<Message, ParseError> {
         let mut message_vec: Vec<u8> = Vec::new();
-        message_vec.append(&mut DnsHeader::build(message.header));
-        message_vec.append(&mut DnsQuestion::build(message.question));
-        message_vec.append(&mut DnsResourceRecord::build(message.answer));
+        message_vec.append(&mut DnsHeader::build(self.header));
+        message_vec.append(&mut DnsQuestion::build(self.question));
+        message_vec.append(&mut DnsResourceRecord::build(self.answer));
 
         Ok(Message::from(message_vec))
     }
@@ -197,7 +197,6 @@ impl DnsHeader {
 /// RFC 1035 specification. Some fields will not be supported in current DNS,
 /// they are present for completeness.
 pub struct DnsQuestion {
-    // qname defined as string for ease of parsing.
     pub qname: Vec<u8>,
     qtype: u16,
     qclass: u16,
@@ -287,8 +286,6 @@ impl DnsResourceRecord {
 pub enum ParseError {
     #[error("The message or section is incomplete")]
     HeaderTooShort,
-    // #[error("The message or section is invalid")]
-    // HeaderBadFormat,
 }
 
 #[cfg(test)]
@@ -309,13 +306,6 @@ mod tests {
         .unwrap();
 
         let head = message.header;
-
-        println!("{:?}", head.id);
-        println!("{:?}", head.properties);
-        println!("{:?}", head.qdcount);
-        println!("{:?}", head.ancount);
-        println!("{:?}", head.nscount);
-        println!("{:?}", head.arcount);
 
         assert_eq!(head.id, 1337);
         assert_eq!(head.properties, 32768);
@@ -344,13 +334,6 @@ mod tests {
             .unwrap()
             .header;
 
-        println!("{:?}", head_final.id);
-        println!("{:?}", head_final.properties);
-        println!("{:?}", head_final.qdcount);
-        println!("{:?}", head_final.ancount);
-        println!("{:?}", head_final.nscount);
-        println!("{:?}", head_final.arcount);
-
         assert_eq!(head_final.id, 1337);
         assert_eq!(head_final.properties, 0);
         assert_eq!(head_final.qdcount, 0);
@@ -375,9 +358,6 @@ mod tests {
         let question = message.question;
 
         let domain_string = String::from_utf8(question.qname).unwrap();
-        println!("{:?}", domain_string);
-        println!("{:?}", question.qtype);
-        println!("{:?}", question.qclass);
 
         assert_eq!(domain_string, "google.com".to_string());
         assert_eq!(question.qtype, 1);
@@ -404,9 +384,6 @@ mod tests {
             .question;
 
         let domain_string = String::from_utf8(question_final.qname).unwrap();
-        println!("{:?}", domain_string);
-        println!("{:?}", question_final.qtype);
-        println!("{:?}", question_final.qclass);
 
         assert_eq!(domain_string, "google.com".to_string());
         assert_eq!(question_final.qtype, 1);
@@ -430,12 +407,6 @@ mod tests {
         let answer = message.answer;
 
         let domain_string = String::from_utf8(answer.name).unwrap();
-        println!("{:?}", domain_string);
-        println!("{:?}", answer.rec_type);
-        println!("{:?}", answer.class);
-        println!("{:?}", answer.ttl);
-        println!("{:?}", answer.rdlength);
-        println!("{:?}", answer.rdata);
 
         assert_eq!(domain_string, "google.com".to_string());
         assert_eq!(answer.rec_type, 1);
@@ -467,12 +438,6 @@ mod tests {
                 .answer;
 
         let domain_string = String::from_utf8(answer_final.name).unwrap();
-        println!("{:?}", domain_string);
-        println!("{:?}", answer_final.rec_type);
-        println!("{:?}", answer_final.class);
-        println!("{:?}", answer_final.ttl);
-        println!("{:?}", answer_final.rdlength);
-        println!("{:?}", answer_final.rdata);
 
         assert_eq!(domain_string, "google.com".to_string());
         assert_eq!(answer_final.rec_type, 1);

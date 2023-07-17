@@ -12,7 +12,6 @@ use crate::{
 
 use super::dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord};
 
-use dashmap::mapref::entry::Entry;
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
@@ -45,9 +44,9 @@ impl DnsServer {
         table: FxDashMap<String, Ipv4Address>,
         name: String,
     ) -> Result<Ipv4Address, DnsServerError> {
-        match table.entry(name) {
-            Entry::Occupied(e) => Ok(*e.get()),
-            Entry::Vacant(_) => Err(DnsServerError::Cache),
+        match table.get(&name) {
+            Some(e) => Ok(*e),
+            None => Err(DnsServerError::Cache),
         }
     }
 

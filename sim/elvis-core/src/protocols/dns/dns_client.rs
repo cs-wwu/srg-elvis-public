@@ -1,7 +1,6 @@
 //! An implementation of the Domain Name Structure For Client Machines
 
 use crate::{
-    // control::{ControlError, Key, Primitive},
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
@@ -11,17 +10,13 @@ use crate::{
         socket_api::socket::{ProtocolFamily, SocketType},
         SocketAPI,
     },
-    Control,
-    FxDashMap,
-    Protocol,
-    Session,
-    Shutdown,
+    Control, FxDashMap, Protocol, Session, Shutdown,
 };
 
 use super::dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord};
 
 use std::any::Any;
-use {dashmap::mapref::entry::Entry, std::any::TypeId, std::sync::Arc, tokio::sync::Barrier};
+use {std::any::TypeId, std::sync::Arc, tokio::sync::Barrier};
 
 /// Serves as a tool for looking up the ['Ipv4Address'] of a host using its
 /// known machine name (domain), and as the storage for an individual machine's
@@ -53,9 +48,9 @@ impl DnsClient {
 
     /// Checks local name_to_ip cache for ['Ipv4Address'] given a name.
     pub fn get_mapping(&self, name: &str) -> Result<Ipv4Address, DnsClientError> {
-        match self.name_to_ip.entry(name.to_owned()) {
-            Entry::Occupied(e) => Ok(*e.get()),
-            Entry::Vacant(_) => Err(DnsClientError::Cache),
+        match self.name_to_ip.get(name) {
+            Some(e) => Ok(*e),
+            None => Err(DnsClientError::Cache),
         }
     }
 
@@ -65,7 +60,6 @@ impl DnsClient {
         &self,
         name: String,
         protocols: ProtocolMap,
-        // sockets: Arc<SocketAPI>
     ) -> Result<Ipv4Address, DnsClientError> {
         match self.get_mapping(&name) {
             // Cache hit
@@ -73,19 +67,17 @@ impl DnsClient {
 
             // Cache miss
             Err(_ip) => {
-                let message =
-                    DnsMessage::to_message(DnsClient::create_request(self, &name).unwrap())
-                        .unwrap();
+                let message = self.create_request(&name).unwrap().to_message().unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
                 let sockets = protocols
                     .protocol::<SocketAPI>()
                     .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))
-                    .unwrap();
+                    .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
                 let socket = sockets
                     .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                     .await
-                    .unwrap();
+                    .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
                 // "Connect" the socket to a remote address
                 let remote_sock_addr = Endpoint::new(Ipv4Address::DNS_AUTH, 53);
@@ -95,9 +87,9 @@ impl DnsClient {
                 socket.send(message.to_vec()).unwrap();
 
                 // Receive a message
-                let resp = socket.recv(message.len()).await.unwrap();
+                let resp = socket.recv_msg().await.unwrap();
 
-                let res_msg = DnsMessage::from_bytes(resp.iter().cloned()).unwrap();
+                let res_msg = DnsMessage::from_bytes(resp.iter()).unwrap();
 
                 let name_to_add = String::from_utf8(res_msg.answer.name).unwrap();
                 let rdata = res_msg.answer.rdata;
