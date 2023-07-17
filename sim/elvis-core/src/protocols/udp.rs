@@ -43,10 +43,6 @@ impl Udp {
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
         self.listen(upstream, endpoints.local, protocols.clone())?;
 
-        // // listen for broadcast messages as well
-        // let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, endpoints.local.port);
-        // self.listen(upstream, broadcast_endpoint, protocols.clone())?;
-
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
             .await?)
@@ -88,7 +84,12 @@ impl Udp {
         protocols
             .protocol::<Ipv4>()
             .expect("No such protocol")
-            .listen(TypeId::of::<Self>(), socket.address, protocols)?;
+            .listen(
+                TypeId::of::<Self>(),
+                socket.address,
+                protocols,
+                ipv4::ProtocolNumber::UDP,
+            )?;
 
         Ok(())
     }

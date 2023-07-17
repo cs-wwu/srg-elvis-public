@@ -3,7 +3,7 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipient},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber, Recipient},
         Ipv4, Pci,
     },
     Control, IpTable, Protocol, Session, Shutdown,
@@ -33,8 +33,13 @@ impl Protocol for Router {
     ) -> Result<(), StartError> {
         let ipv4 = protocols.protocol::<Ipv4>().expect("Router requires IPv4");
 
-        ipv4.listen(self.id(), Ipv4Address::CURRENT_NETWORK, protocols)
-            .unwrap();
+        ipv4.listen(
+            self.id(),
+            Ipv4Address::CURRENT_NETWORK,
+            protocols,
+            ProtocolNumber::OTHER,
+        )
+        .unwrap();
 
         initialize.wait().await;
         Ok(())

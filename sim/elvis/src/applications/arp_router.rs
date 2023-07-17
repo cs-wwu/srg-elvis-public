@@ -4,7 +4,7 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
         AddressPair, Arp, Ipv4, Pci,
     },
     Control, IpTable, Protocol, Session, Shutdown,
@@ -39,8 +39,13 @@ impl Protocol for ArpRouter {
             .protocol::<Arp>()
             .expect("Arp Router requires Arp");
 
-        ipv4.listen(self.id(), Ipv4Address::CURRENT_NETWORK, protocols)
-            .unwrap();
+        ipv4.listen(
+            self.id(),
+            Ipv4Address::CURRENT_NETWORK,
+            protocols,
+            ProtocolNumber::OTHER,
+        )
+        .unwrap();
 
         arp.listen(self.local_ip);
 

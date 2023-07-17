@@ -31,9 +31,33 @@ pub mod fragmentation;
 mod reassembly;
 mod test_header_builder;
 
+#[derive(Eq, PartialEq, Hash)]
+pub enum ProtocolNumber {
+    OTHER,
+    UDP,
+    TCP,
+}
+
+//
+// https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
+//
+impl From<u8> for ProtocolNumber {
+    fn from(value: u8) -> Self {
+        match value {
+            6 => ProtocolNumber::TCP,
+            17 => ProtocolNumber::UDP,
+            _ => ProtocolNumber::OTHER,
+        }
+    }
+}
+
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
-    listen_bindings: FxDashMap<Ipv4Address, TypeId>,
+    // todo! (eulerfrog) change listen bindings to (Ipv4Address, ProtocolNumber)
+    // 255 listens on all protocols
+    listen_bindings: FxDashMap<(Ipv4Address, Option<ProtocolNumber>), TypeId>,
+
+    // todo! (eulerfrog) now maps local_ip to recipient
     recipients: IpTable<Recipient>,
 }
 
@@ -46,13 +70,20 @@ impl Ipv4 {
         }
     }
 
+    // todo! (eulerfrog) change listen to use protocol number
     pub async fn open_and_listen(
         &self,
         upstream: TypeId,
         endpoints: AddressPair,
         protocols: ProtocolMap,
+        protocol_number: ProtocolNumber,
     ) -> Result<Arc<Ipv4Session>, OpenAndListenError> {
-        self.listen(upstream, endpoints.local, protocols.clone())?;
+        self.listen(
+            upstream,
+            endpoints.local,
+            protocols.clone(),
+            protocol_number,
+        )?;
 
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
@@ -65,10 +96,10 @@ impl Ipv4 {
         endpoints: AddressPair,
         protocols: ProtocolMap,
     ) -> Result<Arc<Ipv4Session>, OpenError> {
-        let mut recipient = match self.recipients.get_recipient(endpoints.remote) {
+        let mut recipient = match self.recipients.get_recipient(endpoints.local) {
             Some(recipient) => recipient,
             None => {
-                return Err(OpenError::UnknownRecipient(endpoints.remote));
+                return Err(OpenError::UnknownRecipient(endpoints.local));
             }
         };
 
@@ -95,18 +126,20 @@ impl Ipv4 {
         Ok(session)
     }
 
+    // todo! (eulerfrog) change listen to take an optional protocol number
     pub fn listen(
         &self,
         upstream: TypeId,
         address: Ipv4Address,
         protocols: ProtocolMap,
+        protocol_number: ProtocolNumber,
     ) -> Result<(), ListenError> {
         if let Some(arp) = protocols.protocol::<Arp>() {
             if address != Ipv4Address::SUBNET {
                 arp.listen(address);
             }
         }
-        match self.listen_bindings.entry(address) {
+        match self.listen_bindings.entry((address, Some(protocol_number))) {
             Entry::Occupied(_) => Err(ListenError::Exists(address)),
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
@@ -152,14 +185,23 @@ impl Protocol for Ipv4 {
             local: header.destination,
             remote: header.source,
         };
+
+        let protocol_no: ProtocolNumber = ProtocolNumber::from(header.protocol);
+
         // If the session does not exist, see if we have a listen
         // binding for it
-        let upstream = match self.listen_bindings.get(&endpoints.local) {
+        let upstream = match self
+            .listen_bindings
+            .get(&(endpoints.local, Some(protocol_no)))
+        {
             Some(binding) => *binding,
             None => {
                 // If we don't have a normal listen binding, check for
                 // a 0.0.0.0 binding
-                match self.listen_bindings.get(&Ipv4Address::CURRENT_NETWORK) {
+                match self
+                    .listen_bindings
+                    .get(&(Ipv4Address::CURRENT_NETWORK, None))
+                {
                     Some(binding) => *binding,
                     None => {
                         tracing::error!(

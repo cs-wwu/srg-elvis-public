@@ -3,7 +3,7 @@ use elvis_core::{
     network::{Latency, NetworkBuilder},
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
@@ -23,7 +23,10 @@ pub async fn latency() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
+
+    let local_address: Ipv4Address = [127, 0, 0, 1].into();
+
+    let ip_table: IpTable<Recipient> = [(local_address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 

@@ -91,9 +91,6 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
 
     let networks: Vec<_> = (0..4).map(|_| Network::basic()).collect();
     let ip_table = build_ip_table(&router_table);
-    let destination_table: Vec<_> = (0..4)
-        .map(|index| build_dest_table(IPS[index], 0))
-        .collect();
 
     let send_message = SendMessage::new(
         vec![Message::new(b"Hello World!")],
@@ -135,11 +132,11 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
             ArpRouter::new(router_table, ROUTER_IPS[0])
         ],
         // capture for destination 1
-        build_capture(destination_table[1].clone(), networks[1].clone(), IPS[1], 1),
+        build_capture(Default::default(), networks[1].clone(), IPS[1], 1),
         // capture for destination 2
-        build_capture(destination_table[2].clone(), networks[2].clone(), IPS[2], 2),
+        build_capture(Default::default(), networks[2].clone(), IPS[2], 2),
         // capture for destination 3
-        build_capture(destination_table[3].clone(), networks[3].clone(), IPS[3], 3),
+        build_capture(Default::default(), networks[3].clone(), IPS[3], 3),
     ];
 
     run_internet_with_timeout(&machines, Duration::from_secs(2)).await

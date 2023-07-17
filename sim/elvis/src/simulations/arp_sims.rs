@@ -112,7 +112,7 @@ mod wait_to_send {
     use elvis_core::{
         machine::ProtocolMap,
         protocol::{DemuxError, StartError},
-        protocols::Ipv4,
+        protocols::{ipv4::ProtocolNumber, Ipv4},
         Control, Message, Protocol, Session,
     };
 
@@ -136,7 +136,7 @@ mod wait_to_send {
             protocols
                 .protocol::<Ipv4>()
                 .unwrap()
-                .listen(self.id(), RECEIVER_IP, protocols)
+                .listen(self.id(), RECEIVER_IP, protocols, ProtocolNumber::OTHER)
                 .expect("listen should work");
             Ok(())
         }

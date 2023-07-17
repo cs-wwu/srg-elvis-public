@@ -35,10 +35,11 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
         port: 0xbeef,
     };
 
-    let endpoints: [Endpoint; 3] = [
+    let endpoints: [Endpoint; 4] = [
         Endpoint::new(IPS[0], 0xbeef),
         Endpoint::new(IPS[1], 0xbeef),
         Endpoint::new(IPS[2], 0xbeef),
+        Endpoint::new(IPS[2], 0xface),
     ];
 
     let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::with_mac(0, 1))]
@@ -55,19 +56,19 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
         ],
         new_machine![
             Udp::new(),
-            Ipv4::new(ip_table.clone()),
+            Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
             MultiCapture::new(endpoints[0], counter.clone()).exit_status(1),
         ],
         new_machine![
             Udp::new(),
-            Ipv4::new(ip_table.clone()),
+            Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
             MultiCapture::new(endpoints[1], counter.clone()).exit_status(1),
         ],
         new_machine![
             Udp::new(),
-            Ipv4::new(ip_table),
+            Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
             MultiCapture::new(endpoints[2], counter.clone()).exit_status(1),
         ],
