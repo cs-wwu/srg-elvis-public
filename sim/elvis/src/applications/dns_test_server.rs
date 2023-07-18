@@ -43,8 +43,7 @@ async fn communicate_with_client(socket: Arc<Socket>) {
     println!("SERVER: Sending Response: {:?}", resp);
     socket.send(resp).unwrap();
 
-    // Receive a message (Also example usage of recv_msg)
-    // println!("SERVER: Waiting for awkowledgement...");
+    // Receive a message
     let _ack = socket.recv_msg().await.unwrap();
     println!("SERVER: Ackowledgement Received");
 }
