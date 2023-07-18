@@ -126,7 +126,7 @@ impl Tcb {
     pub fn advance_time(&mut self, delta_time: Duration) -> AdvanceTimeResult {
         if delta_time > self.timeouts.retransmission {
             self.timeouts.retransmission = RETRANSMISSION_TIMEOUT;
-            for mut transmit in self.outgoing.retransmit.iter_mut() {
+            for transmit in self.outgoing.retransmit.iter_mut() {
                 transmit.needs_transmit = true;
             }
         } else {
