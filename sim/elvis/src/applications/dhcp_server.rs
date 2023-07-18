@@ -1,9 +1,12 @@
-use super::dhcp_parsing::{DhcpMessage, MessageType};
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{ipv4::Ipv4Address, Endpoint, Udp},
+    protocols::{
+        dhcp::dhcp_parsing::{DhcpMessage, MessageType},
+        ipv4::Ipv4Address,
+        Endpoint, Udp,
+    },
     Control, Protocol, Session, Shutdown,
 };
 use std::{
@@ -12,12 +15,7 @@ use std::{
 };
 use tokio::sync::Barrier;
 
-// Port number & broadcast frequency used by DHCP servers
-pub const PORT_NUM: u16 = 67;
-pub const BROADCAST: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
-
 /// A struct describing an implementation of a DHCP server
-
 pub struct DhcpServer {
     server_address: Ipv4Address,
     pub ip_generator: RwLock<IpGenerator>,
@@ -70,9 +68,9 @@ impl Protocol for DhcpServer {
             }
             MessageType::Request => {
                 let mut response = DhcpMessage::default();
-                response.op = 2;
+                response.op = 2; 
                 response.your_ip = message.your_ip;
-                response.msg_type = MessageType::Offer;
+                response.msg_type = MessageType::Ack;
                 let response = DhcpMessage::to_message(response).unwrap();
                 caller.send(response, protocols).unwrap();
                 Ok(())
@@ -84,7 +82,6 @@ impl Protocol for DhcpServer {
                     .return_ip(message.your_ip);
                 Ok(())
             }
-            // TODO: Invalid message type, send error
             _ => Err(DemuxError::Other),
         }
     }

@@ -1,4 +1,4 @@
-use elvis_core::{protocols::ipv4::Ipv4Address, Message};
+use crate::{protocols::ipv4::Ipv4Address, Message};
 use thiserror::Error as ThisError;
 
 /// An enumeration representing the specific type or functionality of a DHCP Message

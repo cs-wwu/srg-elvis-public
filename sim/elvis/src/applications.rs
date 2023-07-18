@@ -21,8 +21,6 @@ pub use on_receive::OnReceive;
 mod ping_pong;
 pub use ping_pong::PingPong;
 
-pub mod dhcp;
-
 pub mod router;
 pub use router::Router;
 
@@ -40,3 +38,6 @@ pub use tcp_stream_client::TcpStreamClient;
 
 pub mod tcp_listener_server;
 pub use tcp_listener_server::TcpListenerServer;
+
+pub mod dhcp_server;
+pub use dhcp_server::DhcpServer;
