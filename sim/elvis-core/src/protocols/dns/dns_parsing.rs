@@ -232,7 +232,7 @@ impl DnsQuestion {
 /// and 'Additional' fields of a DNS message as specified in RFC 1035. Some
 /// fields remain unsupported and are present for completeness.
 pub struct DnsResourceRecord {
-    // name defined as string for ease of parsing.
+    // name defined as Vec<u8> rather than string for future expansion on label system.
     pub name: Vec<u8>,
     pub rec_type: u16,
     class: u16,
