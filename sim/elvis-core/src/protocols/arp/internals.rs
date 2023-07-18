@@ -102,8 +102,7 @@ impl ArpInner for BasicArpInner {
 
         if let Some(subnet) = subnet {
             let mask = subnet.mask;
-            if subnetting::get_network_id(endpoints.local, mask)
-                != subnetting::get_network_id(endpoints.remote, mask)
+            if Ipv4Net::new(endpoints.local, mask).id() != Ipv4Net::new(endpoints.remote, mask).id()
             {
                 endpoints.remote = subnet.default_gateway;
             }

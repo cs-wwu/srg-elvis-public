@@ -2,13 +2,11 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
+    protocols::{dhcp::dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
     Control, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
-
-use super::dhcp::dhcp_client::DhcpClient;
 
 /// An application that sends a single message over the network.
 pub struct SendMessage {

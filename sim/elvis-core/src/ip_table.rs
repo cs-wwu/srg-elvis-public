@@ -6,8 +6,6 @@ use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
 use std::collections::btree_map::*;
 use std::fmt::Debug;
 
-type Entry = (Ipv4Address, Ipv4Mask);
-
 #[derive(Clone, Eq, PartialEq)]
 
 /// An IpTable is a type of map that maps (Ipv4, Ipv4Mask) to the given type T
@@ -17,7 +15,7 @@ type Entry = (Ipv4Address, Ipv4Mask);
 /// mask on the table and applies it to the provided ipv4address then
 /// checks if the masked ipv4address, mask pair is in the table
 pub struct IpTable<T: Copy> {
-    table: BTreeMap<Entry, T>,
+    table: BTreeMap<Ipv4Net, T>,
     // mapping to keep track of number of num of unique subnets associated with
     // each mask
     masks: BTreeMap<Ipv4Mask, u32>,
@@ -36,7 +34,7 @@ impl<T: Copy> IpTable<T> {
     /// is found in the table.
     pub fn default_gateway(recipient: T) -> Self {
         let mut table = IpTable::new();
-        table.add(cidr_to_ip("0.0.0.0/0").unwrap(), recipient);
+        table.add(Ipv4Net::from_cidr("0.0.0.0/0").unwrap(), recipient);
         table
     }
 
@@ -46,9 +44,9 @@ impl<T: Copy> IpTable<T> {
     /// then None is returned
     pub fn get_recipient(&self, address: Ipv4Address) -> Option<T> {
         for entry in self.masks.keys().rev() {
-            let masked_address = get_network_id(address, *entry);
+            let netid = Ipv4Net::new(address, *entry);
 
-            if let Some(recipient) = self.table.get(&(masked_address, *entry)) {
+            if let Some(recipient) = self.table.get(&netid) {
                 return Some(*recipient);
             }
         }
@@ -56,19 +54,17 @@ impl<T: Copy> IpTable<T> {
     }
 
     /// Removes subnet associated with given key from the table
-    pub fn remove(&mut self, key: Entry) {
-        let masked_key = (get_network_id(key.0, key.1), key.1);
-
-        match self.table.remove(&masked_key) {
+    pub fn remove(&mut self, key: Ipv4Net) {
+        match self.table.remove(&key) {
             None => return,
             Some(_) => {}
         }
 
-        if let Some(&val) = self.masks.get(&key.1) {
+        if let Some(&val) = self.masks.get(&key.mask()) {
             if val == 1 {
-                self.masks.remove(&key.1);
+                self.masks.remove(&key.mask());
             } else {
-                self.masks.insert(key.1, val - 1);
+                self.masks.insert(key.mask(), val - 1);
             }
         }
     }
@@ -76,51 +72,49 @@ impl<T: Copy> IpTable<T> {
     /// Removes address associated with given ip address using
     /// 32 bit mask length as second part of the key.
     pub fn remove_direct(&mut self, address: Ipv4Address) {
-        self.remove((address, Ipv4Mask::from_bitcount(32)));
+        self.remove(Ipv4Net::new(address, Ipv4Mask::from_bitcount(32)));
     }
 
     /// Removes address associated with given ip address using
     /// cidr notation. If notation is invalid the table
     /// is left unchanged
     pub fn remove_cidr(&mut self, cidr: &str) {
-        if let Ok(key) = cidr_to_ip(cidr) {
+        if let Ok(key) = Ipv4Net::from_cidr(cidr) {
             self.remove(key);
         }
     }
 
     /// Maps subnet associated with (Ipv4Address, Ipv4Mask) pair
     /// to provided value.
-    pub fn add(&mut self, key: Entry, value: T) {
-        let masked_key = (get_network_id(key.0, key.1), key.1);
-
+    pub fn add(&mut self, key: Ipv4Net, value: T) {
         // if we replaced an entry in the table don't update the mask count
-        if self.table.insert(masked_key, value).is_some() {
+        if self.table.insert(key, value).is_some() {
             return;
         }
 
-        let total = match self.masks.get(&key.1) {
+        let total = match self.masks.get(&key.mask()) {
             Some(val) => *val,
             None => 0,
         };
 
-        self.masks.insert(key.1, total + 1);
+        self.masks.insert(key.mask(), total + 1);
     }
 
     /// Maps ipv4 address associated with the subnet: address/32
     /// to provided value.
     pub fn add_direct(&mut self, address: Ipv4Address, value: T) {
-        self.add((address, Ipv4Mask::from_bitcount(32)), value);
+        self.add(Ipv4Net::new(address, Ipv4Mask::from_bitcount(32)), value);
     }
 
     /// Maps subnet associated with given cidr notation to
     /// to provided value.
     pub fn add_cidr(&mut self, cidr: &str, value: T) {
-        if let Ok(key) = cidr_to_ip(cidr) {
+        if let Ok(key) = Ipv4Net::from_cidr(cidr) {
             self.add(key, value);
         }
     }
 
-    pub fn iter(&self) -> Iter<'_, (Ipv4Address, Ipv4Mask), T> {
+    pub fn iter(&self) -> Iter<'_, Ipv4Net, T> {
         self.table.iter()
     }
 }
@@ -141,6 +135,14 @@ impl From<Recipients> for IpTable<Recipient> {
 ///
 impl<T: Copy> FromIterator<((Ipv4Address, Ipv4Mask), T)> for IpTable<T> {
     fn from_iter<I: IntoIterator<Item = ((Ipv4Address, Ipv4Mask), T)>>(iter: I) -> Self {
+        iter.into_iter()
+            .map(|entry| (Ipv4Net::from(entry.0), entry.1))
+            .collect()
+    }
+}
+
+impl<T: Copy> FromIterator<(Ipv4Net, T)> for IpTable<T> {
+    fn from_iter<I: IntoIterator<Item = (Ipv4Net, T)>>(iter: I) -> Self {
         let mut table = Self::new();
         for pair in iter {
             table.add(pair.0, pair.1);
@@ -186,8 +188,8 @@ impl<T: Copy + Debug> Debug for IpTable<T> {
             writeln!(
                 f,
                 "{}/{} : {:?}",
-                entry.0 .0,
-                entry.0 .1.count_ones(),
+                entry.0.id(),
+                entry.0.mask().count_ones(),
                 entry.1
             )
             .unwrap();
@@ -225,7 +227,7 @@ mod test {
         assert_eq!(table.get_recipient(ip1), Some(6));
         assert_eq!(table.get_recipient(ip2), Some(1));
 
-        table.add(cidr_to_ip("1.1.0.0/24").unwrap(), 20);
+        table.add(Ipv4Net::from_cidr("1.1.0.0/24").unwrap(), 20);
 
         assert_eq!(table.get_recipient(ip2), Some(20));
     }
@@ -238,11 +240,11 @@ mod test {
 
         assert_eq!(table.get_recipient(ip1), Some(7));
 
-        table.remove(cidr_to_ip("1.2.3.4/32").unwrap());
+        table.remove(Ipv4Net::from_cidr("1.2.3.4/32").unwrap());
 
         assert_eq!(table.get_recipient(ip1), Some(5));
 
-        table.remove(cidr_to_ip("1.1.1.2/32").unwrap());
+        table.remove(Ipv4Net::from_cidr("1.1.1.2/32").unwrap());
 
         // all 32 bit mask addresses should now be removed from the table
         assert_eq!(table.masks.get(&Ipv4Mask::from_bitcount(32)), None);

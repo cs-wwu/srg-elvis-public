@@ -2,7 +2,7 @@
 # # program runs every time there is a push to the repository
 # on:
 #   push
-#
+
 # jobs:
 #   get-docs:
 #     runs-on: ubuntu-latest
@@ -10,7 +10,7 @@
 #     defaults:
 #       run:
 #         working-directory: ./sim
-#
+        
 #     steps:
 #     - uses: actions/checkout@v3
 #     - name: Update local toolchain
@@ -27,7 +27,7 @@
 #       # Provides access token
 #       env:
 #         API_TOKEN_GITHUB: ${{ secrets.BOT_KEY }}
-#       with:
+#       with: 
 #         source-files: 'sim/target/doc'
 #         destination-username: 'cs-wwu'
 #         destination-repository: 'srg-elvis-docs'
