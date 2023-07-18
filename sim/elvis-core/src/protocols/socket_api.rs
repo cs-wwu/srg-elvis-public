@@ -363,8 +363,3 @@ pub enum ListenError {
     #[error("There was no socket for the file descriptor {0}")]
     NoSocketForFd(u64),
 }
-
-// #[cfg(test)]
-// mod tests {
-
-// }
