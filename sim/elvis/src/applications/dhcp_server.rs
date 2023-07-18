@@ -68,7 +68,7 @@ impl Protocol for DhcpServer {
             }
             MessageType::Request => {
                 let mut response = DhcpMessage::default();
-                response.op = 2; 
+                response.op = 2;
                 response.your_ip = message.your_ip;
                 response.msg_type = MessageType::Ack;
                 let response = DhcpMessage::to_message(response).unwrap();
