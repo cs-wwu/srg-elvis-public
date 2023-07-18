@@ -140,8 +140,7 @@ impl Protocol for DnsServer {
             tasks.push(tokio::spawn(async move {
                 DnsServer::respond_to_query(table, socket).await.unwrap();
             }));
-
-            // Currently only accepts
+            
             if tasks.len() >= self.num_connections as usize {
                 while !tasks.is_empty() {
                     tasks.pop().unwrap().await.unwrap()
