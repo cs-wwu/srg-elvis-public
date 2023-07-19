@@ -141,6 +141,8 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             net.options.get("id").unwrap()
                         )
                     });
+
+                // todo! (eulerfrog) change this to use local ips
                 for ip in ips {
                     let mac = ip_to_mac.get(ip).cloned();
                     ip_table.add_direct(*ip, Recipient::new(net_num, mac));

@@ -26,8 +26,8 @@ const RECEIVER_ENDPOINT: Endpoint = Endpoint::new(RECEIVER_IP, 0xfefe);
 fn ip_table() -> IpTable<Recipient> {
     let default_recipient: Recipient = Recipient::new(0, None);
     [
-        (SENDER_IP, default_recipient),
-        (RECEIVER_IP, default_recipient),
+        // (RECEIVER_IP, default_recipient),
+        (Ipv4Address::from([127, 0, 0, 1]), default_recipient),
     ]
     .into_iter()
     .collect()
@@ -51,7 +51,7 @@ fn receiver_machine(network: &Arc<Network>) -> Machine {
     new_machine!(
         Capture::new(RECEIVER_ENDPOINT, 1),
         Udp::new(),
-        Ipv4::new(ip_table()),
+        Ipv4::new(Default::default()),
         Arp::basic(),
         Pci::new([network.clone()]),
     )
@@ -136,7 +136,7 @@ mod wait_to_send {
             protocols
                 .protocol::<Ipv4>()
                 .unwrap()
-                .listen(self.id(), RECEIVER_IP, protocols, ProtocolNumber::OTHER)
+                .listen(self.id(), RECEIVER_IP, protocols, ProtocolNumber::DEFAULT)
                 .expect("listen should work");
             Ok(())
         }
@@ -177,7 +177,7 @@ pub async fn test_resend() {
         // Receiver
         new_machine!(
             wait_to_send::WaitToListen(),
-            Ipv4::new(ip_table()),
+            Ipv4::new(Default::default()),
             receiver_arp,
             Pci::new([network.clone()]),
         ),
@@ -218,17 +218,25 @@ pub async fn test_resend() {
 pub async fn ping_pong() {
     let network = Network::basic();
 
+    let ping_table: IpTable<Recipient> = [(SENDER_ENDPOINT.address, Recipient::new(0, None))]
+        .into_iter()
+        .collect();
+
+    let pong_table: IpTable<Recipient> = [(RECEIVER_ENDPOINT.address, Recipient::new(0, None))]
+        .into_iter()
+        .collect();
+
     let machines = vec![
         new_machine!(
             Udp::new(),
-            Ipv4::new(ip_table()),
+            Ipv4::new(ping_table),
             Arp::basic(),
             Pci::new([network.clone()]),
             PingPong::new(true, Endpoints::new(SENDER_ENDPOINT, RECEIVER_ENDPOINT)),
         ),
         new_machine!(
             Udp::new(),
-            Ipv4::new(ip_table()),
+            Ipv4::new(pong_table),
             Arp::basic(),
             Pci::new([network.clone()]),
             PingPong::new(false, Endpoints::new(RECEIVER_ENDPOINT, SENDER_ENDPOINT)),

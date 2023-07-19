@@ -14,13 +14,16 @@ use tokio::sync::Barrier;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ArpRouter {
-    ip_table: IpTable<(Ipv4Address, PciSlot)>,
-    local_ip: Ipv4Address,
+    ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
+    local_ips: Vec<Ipv4Address>,
 }
 
 impl ArpRouter {
-    pub fn new(ip_table: IpTable<(Ipv4Address, PciSlot)>, local_ip: Ipv4Address) -> Self {
-        Self { ip_table, local_ip }
+    pub fn new(ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>, local_ips: Vec<Ipv4Address>) -> Self {
+        Self {
+            ip_table,
+            local_ips,
+        }
     }
 }
 
@@ -43,11 +46,13 @@ impl Protocol for ArpRouter {
             self.id(),
             Ipv4Address::CURRENT_NETWORK,
             protocols,
-            ProtocolNumber::OTHER,
+            ProtocolNumber::DEFAULT,
         )
         .unwrap();
 
-        arp.listen(self.local_ip);
+        for ip in self.local_ips.iter() {
+            arp.listen(*ip);
+        }
 
         initialize.wait().await;
         Ok(())
@@ -60,13 +65,15 @@ impl Protocol for ArpRouter {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
+
+        println!("received routing message");
+
         let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
         ipv4_header.time_to_live -= 1;
         if ipv4_header.time_to_live == 0 {
             return Ok(());
         }
 
-        // TODO(hardint): Fragmentation
         message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
 
         let pair = self
@@ -74,13 +81,21 @@ impl Protocol for ArpRouter {
             .get_recipient(ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
 
-        let gateway = pair.0;
+        let gateway = match pair.0 {
+            Some(address) => {
+                address
+            }
+            // allows router to send packet back to local network
+            None => {
+                ipv4_header.destination
+            }
+        };
         let slot = pair.1;
 
         let arp = protocols.protocol::<Arp>().unwrap();
 
         let address_pair = AddressPair {
-            local: self.local_ip,
+            local: self.local_ips[slot as usize],
             remote: gateway,
         };
 

@@ -23,9 +23,6 @@ pub use ping_pong::PingPong;
 
 pub mod dhcp;
 
-pub mod router;
-pub use router::Router;
-
 mod throughput_tester;
 pub use throughput_tester::ThroughputTester;
 

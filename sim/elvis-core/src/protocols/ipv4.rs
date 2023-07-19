@@ -31,9 +31,9 @@ pub mod fragmentation;
 mod reassembly;
 mod test_header_builder;
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Debug)]
 pub enum ProtocolNumber {
-    OTHER,
+    DEFAULT,
     UDP,
     TCP,
 }
@@ -46,7 +46,7 @@ impl From<u8> for ProtocolNumber {
         match value {
             6 => ProtocolNumber::TCP,
             17 => ProtocolNumber::UDP,
-            _ => ProtocolNumber::OTHER,
+            _ => ProtocolNumber::DEFAULT,
         }
     }
 }
@@ -54,8 +54,7 @@ impl From<u8> for ProtocolNumber {
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     // todo! (eulerfrog) change listen bindings to (Ipv4Address, ProtocolNumber)
-    // 255 listens on all protocols
-    listen_bindings: FxDashMap<(Ipv4Address, Option<ProtocolNumber>), TypeId>,
+    listen_bindings: FxDashMap<(Ipv4Address, ProtocolNumber), TypeId>,
 
     // todo! (eulerfrog) now maps local_ip to recipient
     recipients: IpTable<Recipient>,
@@ -139,7 +138,7 @@ impl Ipv4 {
                 arp.listen(address);
             }
         }
-        match self.listen_bindings.entry((address, Some(protocol_number))) {
+        match self.listen_bindings.entry((address, protocol_number)) {
             Entry::Occupied(_) => Err(ListenError::Exists(address)),
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
@@ -190,17 +189,14 @@ impl Protocol for Ipv4 {
 
         // If the session does not exist, see if we have a listen
         // binding for it
-        let upstream = match self
-            .listen_bindings
-            .get(&(endpoints.local, Some(protocol_no)))
-        {
+        let upstream = match self.listen_bindings.get(&(endpoints.local, protocol_no)) {
             Some(binding) => *binding,
             None => {
                 // If we don't have a normal listen binding, check for
                 // a 0.0.0.0 binding
                 match self
                     .listen_bindings
-                    .get(&(Ipv4Address::CURRENT_NETWORK, None))
+                    .get(&(Ipv4Address::CURRENT_NETWORK, ProtocolNumber::DEFAULT))
                 {
                     Some(binding) => *binding,
                     None => {

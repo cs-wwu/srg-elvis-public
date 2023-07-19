@@ -6,7 +6,7 @@
 	[Network id='1']
 		[IP range='12.34.56.89/90']
 [Machines]
-	[Machine name='test1' count='1']
+	[Machine name='test1' count='10']
 		[Networks]
 			[Network id='5']
 			[Network id='1']

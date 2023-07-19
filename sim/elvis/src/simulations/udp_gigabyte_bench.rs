@@ -1,10 +1,12 @@
+use std::default;
+
 use crate::applications::{SendMessage, WaitForMessage};
 use elvis_core::{
     message::Message,
     network::NetworkBuilder,
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Udp,
     },
     run_internet, IpTable,
@@ -17,9 +19,10 @@ use elvis_core::{
 pub async fn udp_gigabyte_bench() {
     let network = NetworkBuilder::new().mtu(1500).build();
     let endpoint = Endpoint::new([123, 45, 67, 89].into(), 0xbeef);
-    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
-        .into_iter()
-        .collect();
+    let ip_table: IpTable<Recipient> =
+        [(Ipv4Address::from([127, 0, 0, 1]), Recipient::with_mac(0, 1))]
+            .into_iter()
+            .collect();
 
     let message: Vec<_> = (0..1_000_000_000).map(|i| i as u8).collect();
     let message = Message::new(message);
@@ -39,7 +42,7 @@ pub async fn udp_gigabyte_bench() {
         ],
         new_machine![
             Udp::new(),
-            Ipv4::new(ip_table),
+            Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
             WaitForMessage::new(endpoint, message).disable_checking()
         ],

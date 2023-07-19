@@ -4,7 +4,7 @@ use elvis_core::{
     network::{Latency, NetworkBuilder},
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Tcp,
     },
     run_internet, IpTable, Transport,
@@ -28,9 +28,11 @@ pub async fn tcp_with_unreliable() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
-        .into_iter()
-        .collect();
+
+    let ip_table: IpTable<Recipient> =
+        [(Ipv4Address::from([127, 0, 0, 1]), Recipient::with_mac(0, 1))]
+            .into_iter()
+            .collect();
 
     let message: Vec<_> = (0..8000).map(|i| i as u8).collect();
     let message = Message::new(message);

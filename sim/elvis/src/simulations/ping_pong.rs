@@ -29,8 +29,8 @@ pub async fn ping_pong() {
         },
     };
     let ip_table: IpTable<Recipient> = [
-        (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
-        (IP_ADDRESS_2, Recipient::with_mac(0, 1)),
+        (IP_ADDRESS_2, Recipient::with_mac(0, 0)),
+        (IP_ADDRESS_1, Recipient::with_mac(0, 1)),
     ]
     .into_iter()
     .collect();

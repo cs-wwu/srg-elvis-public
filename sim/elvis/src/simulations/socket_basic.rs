@@ -1,14 +1,15 @@
-use crate::applications::{SocketClient, SocketServer};
+use crate::applications::{SocketClient, SocketServer, ArpRouter};
 use elvis_core::{
     new_machine,
     protocols::{
+        arp::subnetting::{Ipv4Mask, SubnetInfo},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         socket_api::socket::SocketType,
         tcp::Tcp,
         udp::Udp,
-        Pci, SocketAPI,
+        Arp, Pci, SocketAPI,
     },
-    run_internet, IpTable, Network,
+    run_internet, IpTable, Network, machine::PciSlot,
 };
 
 /// Runs a basic server-client simulation using sockets.
@@ -25,14 +26,26 @@ pub async fn socket_basic() {
     let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
     let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
 
+    let router_ip: Ipv4Address = [1,1,1,1].into();
+
+    let router_table: IpTable<(Option<Ipv4Address>, PciSlot)> =
+        [("123.45.67.0/24", (None, 0))].into_iter().collect();
+
+    let mut router_ips: Vec<Ipv4Address> = Vec::new();
+    router_ips.push(router_ip);
+
     let ip_table: IpTable<Recipient> = [
-        (server_ip_address, Recipient::with_mac(0, 0)),
-        (client1_ip_address, Recipient::with_mac(0, 1)),
-        (client2_ip_address, Recipient::with_mac(0, 2)),
-        (client3_ip_address, Recipient::with_mac(0, 3)),
+        (server_ip_address, Recipient::new(0, None)),
+        (client1_ip_address, Recipient::new(0, None)),
+        (client2_ip_address, Recipient::new(0, None)),
+        (client3_ip_address, Recipient::new(0, None)),
     ]
     .into_iter()
     .collect();
+
+    let router_ip_table: IpTable<Recipient> = [
+        (router_ip, Recipient::new(0, None))
+    ].into_iter().collect();
 
     let machines = vec![
         new_machine![
@@ -40,6 +53,13 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::basic().preconfig_subnet(
+                router_ip,
+                SubnetInfo {
+                    mask: Ipv4Mask::from_bitcount(32),
+                    default_gateway: router_ip
+                }
+            ),
             SocketAPI::new(Some(server_ip_address)),
             SocketServer::new(0xbeef, SocketType::Stream)
         ],
@@ -48,6 +68,13 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::basic().preconfig_subnet(
+                router_ip,
+                SubnetInfo {
+                    mask: Ipv4Mask::from_bitcount(32),
+                    default_gateway: router_ip
+                }
+            ),
             SocketAPI::new(Some(client1_ip_address)),
             SocketClient::new(1, server_ip_address, 0xbeef, SocketType::Stream)
         ],
@@ -56,6 +83,13 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::basic().preconfig_subnet(
+                router_ip,
+                SubnetInfo {
+                    mask: Ipv4Mask::from_bitcount(32),
+                    default_gateway: router_ip
+                }
+            ),
             SocketAPI::new(Some(client2_ip_address)),
             SocketClient::new(2, server_ip_address, 0xbeef, SocketType::Stream)
         ],
@@ -64,9 +98,22 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::basic().preconfig_subnet(
+                router_ip,
+                SubnetInfo {
+                    mask: Ipv4Mask::from_bitcount(32),
+                    default_gateway: router_ip
+                }
+            ),
             SocketAPI::new(Some(client3_ip_address)),
             SocketClient::new(3, server_ip_address, 0xbeef, SocketType::Stream)
         ],
+        new_machine![
+            Pci::new([network.clone()]),
+            Ipv4::new(router_ip_table),
+            Arp::basic(),
+            ArpRouter::new(router_table, router_ips)
+        ]
     ];
 
     run_internet(&machines).await;
