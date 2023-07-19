@@ -8,6 +8,9 @@ pub use dhcp_basic::{dhcp_basic_offer, dhcp_basic_release};
 mod socket_basic;
 pub use socket_basic::socket_basic;
 
+mod dns_basic;
+pub use dns_basic::dns_basic;
+
 mod arp_router_sim;
 pub use arp_router_sim::arp_router_single;
 

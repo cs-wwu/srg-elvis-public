@@ -3,7 +3,10 @@ use crate::{
     machine::ProtocolMap,
     message::Chunk,
     protocol::{DemuxError, NotifyType},
-    protocols::utility::{Endpoint, Endpoints},
+    protocols::{
+        dns::dns_client::DnsClient,
+        utility::{Endpoint, Endpoints},
+    },
     Message, Session, Shutdown,
 };
 use std::{
@@ -103,6 +106,26 @@ impl Socket {
 
     pub fn connection_established(&self) {
         self.notify_listen.notify_one();
+    }
+
+    /// TODO(HenryEricksonIV) Used by calling application when the ip address
+    /// of the endpoint is not known to the calling application.
+    /// Intended to call 'connect()' with an ip provided by the local
+    /// 'DnsClient'.
+    pub async fn connect_by_name(
+        &self,
+        domain_name: String,
+        dest_port: u16,
+    ) -> Result<(), SocketError> {
+        let ip_from_domain = self
+            .protocols
+            .protocol::<DnsClient>()
+            .unwrap()
+            .get_host_by_name(domain_name, self.protocols.clone())
+            .await
+            .unwrap();
+        let new_destination = Endpoint::new(ip_from_domain, dest_port);
+        self.connect(new_destination).await
     }
 
     /// Assigns a remote ip address and port to a socket and connects the socket

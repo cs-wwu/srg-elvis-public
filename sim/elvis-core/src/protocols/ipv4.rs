@@ -103,7 +103,14 @@ impl Ipv4 {
             arp.listen(address);
         }
         match self.listen_bindings.entry(address) {
-            Entry::Occupied(_) => Err(ListenError::Exists(address)),
+            Entry::Occupied(entry) => {
+                if *entry.get() == upstream {
+                    entry.replace_entry(upstream);
+                    Ok(())
+                } else {
+                    Err(ListenError::Exists(address))
+                }
+            }
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
                 Ok(())
@@ -152,6 +159,7 @@ impl Protocol for Ipv4 {
         // binding for it
         let upstream = match self.listen_bindings.get(&endpoints.local) {
             Some(binding) => *binding,
+
             None => {
                 // If we don't have a normal listen binding, check for
                 // a 0.0.0.0 binding

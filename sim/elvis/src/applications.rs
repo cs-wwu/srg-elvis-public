@@ -21,6 +21,9 @@ pub use on_receive::OnReceive;
 mod ping_pong;
 pub use ping_pong::PingPong;
 
+pub mod dns_test_client;
+pub mod dns_test_server;
+
 pub mod router;
 pub use router::Router;
 

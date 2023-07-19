@@ -22,6 +22,10 @@ pub use utility::{Endpoint, Endpoints};
 pub mod tcp;
 pub use tcp::Tcp;
 
+pub mod dns;
+pub use dns::dns_client::DnsClient;
+pub use dns::dns_server::DnsServer;
+
 pub mod tcp_stream;
 pub use tcp_stream::TcpStream;
 
