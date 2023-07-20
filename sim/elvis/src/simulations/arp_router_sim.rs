@@ -79,10 +79,10 @@ pub fn build_capture(network: Arc<Network>, address: Ipv4Address, exit_status: u
 #[allow(dead_code)]
 pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
     let router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = [
-        (IPS[0], (Some(IPS[0]), 0)),
-        (IPS[1], (Some(IPS[1]), 1)),
-        (IPS[2], (Some(IPS[2]), 2)),
-        (IPS[3], (Some(IPS[3]), 3)),
+        (IPS[0], (None, 0)),
+        (IPS[1], (None, 1)),
+        (IPS[2], (None, 2)),
+        (IPS[3], (None, 3)),
     ]
     .into_iter()
     .collect();
@@ -150,11 +150,11 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
 #[allow(dead_code)]
 pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
     let router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = [
-        (IPS[0], (Some(IPS[0]), 0)),
-        (IPS[1], (Some(IPS[1]), 1)),
-        (IPS[2], (Some(IPS[2]), 1)),
-        (IPS[3], (Some(IPS[3]), 1)),
-        (IPS[4], (Some(IPS[4]), 2)),
+        (IPS[0], (None, 0)),
+        (IPS[1], (None, 1)),
+        (IPS[2], (None, 1)),
+        (IPS[3], (None, 1)),
+        (IPS[4], (None, 2)),
     ]
     .into_iter()
     .collect();
@@ -218,12 +218,12 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
 #[allow(dead_code)]
 pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
     let router_table_1: IpTable<(Option<Ipv4Address>, PciSlot)> = [
-        (IPS[0], (Some(IPS[0]), 0)),
-        (IPS[1], (Some(IPS[1]), 1)),
+        (IPS[0], (None, 0)),
+        (IPS[1], (None, 1)),
         (IPS[2], (Some(ROUTER2_IPS[0]), 2)),
         (IPS[3], (Some(ROUTER2_IPS[0]), 2)),
-        (IPS[4], (Some(IPS[4]), 3)),
-        (IPS[5], (Some(IPS[5]), 3)),
+        (IPS[4], (None, 3)),
+        (IPS[5], (None, 3)),
     ]
     .into_iter()
     .collect();
@@ -231,8 +231,8 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
     let router_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> = [
         (IPS[0], (Some(ROUTER1_IPS[2]), 0)),
         (IPS[1], (Some(ROUTER1_IPS[2]), 0)),
-        (IPS[2], (Some(IPS[2]), 1)),
-        (IPS[3], (Some(IPS[3]), 2)),
+        (IPS[2], (None, 1)),
+        (IPS[3], (None, 2)),
         (IPS[4], (Some(ROUTER1_IPS[2]), 0)),
         (IPS[5], (Some(ROUTER1_IPS[2]), 0)),
     ]

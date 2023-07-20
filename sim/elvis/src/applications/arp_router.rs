@@ -66,7 +66,7 @@ impl Protocol for ArpRouter {
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
 
-        println!("received routing message");
+        println!("router received message");
 
         let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
         ipv4_header.time_to_live -= 1;

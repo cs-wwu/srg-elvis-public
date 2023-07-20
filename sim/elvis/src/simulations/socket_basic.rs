@@ -54,7 +54,7 @@ pub async fn socket_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             Arp::basic().preconfig_subnet(
-                router_ip,
+                server_ip_address,
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
                     default_gateway: router_ip
@@ -69,9 +69,9 @@ pub async fn socket_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             Arp::basic().preconfig_subnet(
-                router_ip,
+                client1_ip_address,
                 SubnetInfo {
-                    mask: Ipv4Mask::from_bitcount(32),
+                    mask: Ipv4Mask::from_bitcount(0),
                     default_gateway: router_ip
                 }
             ),
@@ -84,9 +84,9 @@ pub async fn socket_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             Arp::basic().preconfig_subnet(
-                router_ip,
+                client2_ip_address,
                 SubnetInfo {
-                    mask: Ipv4Mask::from_bitcount(32),
+                    mask: Ipv4Mask::from_bitcount(0),
                     default_gateway: router_ip
                 }
             ),
@@ -99,9 +99,9 @@ pub async fn socket_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             Arp::basic().preconfig_subnet(
-                router_ip,
+                client3_ip_address,
                 SubnetInfo {
-                    mask: Ipv4Mask::from_bitcount(32),
+                    mask: Ipv4Mask::from_bitcount(0),
                     default_gateway: router_ip
                 }
             ),

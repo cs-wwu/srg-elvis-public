@@ -131,12 +131,15 @@ impl Ipv4 {
         upstream: TypeId,
         address: Ipv4Address,
         protocols: ProtocolMap,
-        protocol_number: ProtocolNumber,
+        mut protocol_number: ProtocolNumber,
     ) -> Result<(), ListenError> {
         if let Some(arp) = protocols.protocol::<Arp>() {
             if address != Ipv4Address::SUBNET {
                 arp.listen(address);
             }
+        }
+        if address == Ipv4Address::CURRENT_NETWORK {
+            protocol_number = ProtocolNumber::DEFAULT;
         }
         match self.listen_bindings.entry((address, protocol_number)) {
             Entry::Occupied(_) => Err(ListenError::Exists(address)),
