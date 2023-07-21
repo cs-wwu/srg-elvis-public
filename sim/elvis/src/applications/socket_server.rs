@@ -5,7 +5,6 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
-        user_process::{Application, ApplicationError, UserProcess},
         Endpoint, SocketAPI,
     },
     Control, Protocol, Session, Shutdown,
@@ -27,10 +26,6 @@ impl SocketServer {
             local_port,
             transport,
         }
-    }
-
-    pub fn process(self) -> UserProcess<Self> {
-        UserProcess::new(self)
     }
 }
 
@@ -66,7 +61,7 @@ impl Protocol for SocketServer {
         // tokio thread
         let sockets = protocols
             .protocol::<SocketAPI>()
-            .ok_or(ApplicationError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
+            .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = self.local_port;
         let transport = self.transport;
 

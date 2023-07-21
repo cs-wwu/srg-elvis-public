@@ -62,7 +62,8 @@ mod internet;
 pub use internet::run_internet;
 pub use internet::run_internet_with_timeout;
 
-mod shutdown;
+pub mod shutdown;
+pub use shutdown::ExitStatus;
 pub use shutdown::Shutdown;
 
 mod transport;

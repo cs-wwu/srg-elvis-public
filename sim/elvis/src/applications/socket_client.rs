@@ -5,7 +5,6 @@ use elvis_core::{
     protocols::{
         ipv4::Ipv4Address,
         socket_api::socket::{ProtocolFamily, SocketType},
-        user_process::{Application, ApplicationError, UserProcess},
         Endpoint, SocketAPI,
     },
     Control, Protocol, Session, Shutdown,
