@@ -114,7 +114,6 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
                 }
             ),
         ],
-
         // machine representing our router
         new_machine![
             Pci::new([

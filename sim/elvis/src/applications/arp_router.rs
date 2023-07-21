@@ -19,7 +19,10 @@ pub struct ArpRouter {
 }
 
 impl ArpRouter {
-    pub fn new(ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>, local_ips: Vec<Ipv4Address>) -> Self {
+    pub fn new(
+        ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
+        local_ips: Vec<Ipv4Address>,
+    ) -> Self {
         Self {
             ip_table,
             local_ips,
@@ -38,7 +41,7 @@ impl Protocol for ArpRouter {
         let ipv4 = protocols
             .protocol::<Ipv4>()
             .expect("Arp Router requires IPv4");
-        
+
         let arp = protocols
             .protocol::<Arp>()
             .expect("Arp Router requires Arp");
@@ -74,7 +77,6 @@ impl Protocol for ArpRouter {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-
         let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
         ipv4_header.time_to_live -= 1;
         if ipv4_header.time_to_live == 0 {
@@ -89,13 +91,9 @@ impl Protocol for ArpRouter {
             .ok_or(DemuxError::Other)?;
 
         let gateway = match pair.0 {
-            Some(address) => {
-                address
-            }
+            Some(address) => address,
             // allows router to send packet back to local network
-            None => {
-                ipv4_header.destination
-            }
+            None => ipv4_header.destination,
         };
         let slot = pair.1;
 

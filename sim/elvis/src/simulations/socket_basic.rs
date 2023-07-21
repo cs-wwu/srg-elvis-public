@@ -1,5 +1,6 @@
-use crate::applications::{SocketClient, SocketServer, ArpRouter};
+use crate::applications::{ArpRouter, SocketClient, SocketServer};
 use elvis_core::{
+    machine::PciSlot,
     new_machine,
     protocols::{
         arp::subnetting::{Ipv4Mask, SubnetInfo},
@@ -9,7 +10,7 @@ use elvis_core::{
         udp::Udp,
         Arp, Pci, SocketAPI,
     },
-    run_internet, IpTable, Network, machine::PciSlot,
+    run_internet, IpTable, Network,
 };
 
 /// Runs a basic server-client simulation using sockets.
@@ -26,7 +27,7 @@ pub async fn socket_basic() {
     let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
     let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
 
-    let router_ip: Ipv4Address = [1,1,1,1].into();
+    let router_ip: Ipv4Address = [1, 1, 1, 1].into();
 
     let router_table: IpTable<(Option<Ipv4Address>, PciSlot)> =
         [("123.45.67.0/24", (None, 0))].into_iter().collect();
@@ -43,9 +44,8 @@ pub async fn socket_basic() {
     .into_iter()
     .collect();
 
-    let router_ip_table: IpTable<Recipient> = [
-        (router_ip, Recipient::new(0, None))
-    ].into_iter().collect();
+    let router_ip_table: IpTable<Recipient> =
+        [(router_ip, Recipient::new(0, None))].into_iter().collect();
 
     let machines = vec![
         new_machine![
@@ -113,7 +113,7 @@ pub async fn socket_basic() {
             Ipv4::new(router_ip_table),
             Arp::basic(),
             ArpRouter::new(router_table, router_ips)
-        ]
+        ],
     ];
 
     run_internet(&machines).await;
