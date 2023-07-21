@@ -322,15 +322,14 @@ impl Socket {
         if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
-        let mut queue = self.messages.write().unwrap().clone();
-        let msg = match queue.pop_front() {
-            Some(v) => v,
-            None => return Err(SocketError::Other),
-        };
-        if !queue.is_empty() {
+        let msg = self.messages.write().unwrap().pop_front();
+        if !self.messages.read().unwrap().is_empty() {
             self.notify_recv.notify_one();
         }
-        Ok(msg)
+        match msg {
+            Some(v) => Ok(v),
+            None => Err(SocketError::Other),
+        }
     }
 
     /// Called by the socket's socket_session when it receives data, stores data
