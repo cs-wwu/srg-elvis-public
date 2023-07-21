@@ -40,6 +40,9 @@ mod logging;
 pub mod message;
 pub mod protocols;
 
+pub mod ip_table;
+pub use ip_table::IpTable;
+
 use dashmap::DashMap;
 pub use message::Message;
 
@@ -57,6 +60,7 @@ pub use machine::Machine;
 
 mod internet;
 pub use internet::run_internet;
+pub use internet::run_internet_with_timeout;
 
 mod shutdown;
 pub use shutdown::Shutdown;
@@ -68,4 +72,4 @@ mod control;
 pub use control::Control;
 
 use std::hash::BuildHasherDefault;
-type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<rustc_hash::FxHasher>>;
+pub type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<rustc_hash::FxHasher>>;

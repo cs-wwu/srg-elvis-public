@@ -4,10 +4,10 @@ use elvis_core::{
     network::NetworkBuilder,
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient, Recipients},
+        ipv4::{Ipv4, Recipient},
         Endpoint, Pci, Tcp,
     },
-    run_internet, Transport,
+    run_internet, IpTable, Transport,
 };
 
 /// Runs a basic simulation.
@@ -20,7 +20,7 @@ pub async fn tcp_gigabyte_bench() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
+    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
@@ -31,9 +31,7 @@ pub async fn tcp_gigabyte_bench() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![message.clone()], endpoint)
-                .transport(Transport::Tcp)
-                .process(),
+            SendMessage::new(vec![message.clone()], endpoint).transport(Transport::Tcp)
         ],
         new_machine![
             Tcp::new(),
@@ -42,7 +40,6 @@ pub async fn tcp_gigabyte_bench() {
             WaitForMessage::new(endpoint, message)
                 .transport(Transport::Tcp)
                 .disable_checking()
-                .process(),
         ],
     ];
 

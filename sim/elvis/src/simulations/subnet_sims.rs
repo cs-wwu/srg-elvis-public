@@ -10,7 +10,7 @@ use elvis_core::{
             arp_parsing::ArpPacket,
             subnetting::{Ipv4Mask, SubnetInfo},
         },
-        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipient, Recipients},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipient},
         Arp, Endpoint, Ipv4, Pci, Udp,
     },
     *,
@@ -33,7 +33,7 @@ const GUY_SOMEWHERE_ELSE: Endpoint = Endpoint::new(Ipv4Address::new([30, 40, 90,
 const SUBNET_INFO: SubnetInfo = SubnetInfo::new(Ipv4Mask::from_bitcount(24), GATEWAY.address);
 
 /// Returns a recipients table where all IPs go to tap slot 0
-fn ip_table() -> Recipients {
+fn ip_table() -> IpTable<Recipient> {
     let recipient = Recipient::new(0, None);
     [
         MAE.address,
@@ -99,9 +99,7 @@ impl Protocol for MockGateway {
 /// Jack sends messages to Mae
 fn jack(network: &Arc<Network>) -> Machine {
     new_machine![
-        SendMessage::new(vec![Message::new(b"hi mae this is jack")], MAE)
-            .local_ip(JACK.address)
-            .process(),
+        SendMessage::new(vec![Message::new(b"hi mae this is jack")], MAE).local_ip(JACK.address),
         Udp::new(),
         Ipv4::new(ip_table()),
         Arp::basic().preconfig_subnet(JACK.address, SUBNET_INFO),
@@ -123,9 +121,7 @@ fn mae(network: &Arc<Network>) -> (Machine, broadcast::Receiver<Message>) {
             },
             MAE
         ),
-        SendMessage::new(message, GUY_SOMEWHERE_ELSE)
-            .local_ip(MAE.address)
-            .process(),
+        SendMessage::new(message, GUY_SOMEWHERE_ELSE).local_ip(MAE.address),
         Udp::new(),
         Ipv4::new(ip_table()),
         Arp::basic().preconfig_subnet(MAE.address, SUBNET_INFO),

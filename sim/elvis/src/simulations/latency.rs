@@ -3,11 +3,11 @@ use elvis_core::{
     network::{Latency, NetworkBuilder},
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient, Recipients},
+        ipv4::{Ipv4, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, Message,
+    run_internet, IpTable, Message,
 };
 use std::time::{Duration, SystemTime};
 
@@ -23,7 +23,7 @@ pub async fn latency() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
+    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
@@ -32,13 +32,13 @@ pub async fn latency() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![Message::new("Hello!")], endpoint).process()
+            SendMessage::new(vec![Message::new("Hello!")], endpoint)
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            Capture::new(endpoint, 1).process()
+            Capture::new(endpoint, 1)
         ],
     ];
 

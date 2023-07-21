@@ -1,13 +1,14 @@
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
+    protocol::{DemuxError, StartError},
     protocols::{
         ipv4::Ipv4Address,
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         user_process::{Application, ApplicationError, UserProcess},
         Endpoint, SocketAPI,
     },
-    Control, Session, Shutdown,
+    Control, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -54,13 +55,13 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 }
 
 #[async_trait::async_trait]
-impl Application for SocketServer {
+impl Protocol for SocketServer {
     async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), StartError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
         let sockets = protocols
@@ -117,13 +118,13 @@ impl Application for SocketServer {
         Ok(())
     }
 
-    fn receive(
+    fn demux(
         &self,
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), DemuxError> {
         Ok(())
     }
 }

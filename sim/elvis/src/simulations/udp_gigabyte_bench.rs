@@ -4,10 +4,10 @@ use elvis_core::{
     network::NetworkBuilder,
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient, Recipients},
+        ipv4::{Ipv4, Recipient},
         Endpoint, Pci, Udp,
     },
-    run_internet,
+    run_internet, IpTable,
 };
 
 /// Runs a basic simulation.
@@ -17,7 +17,7 @@ use elvis_core::{
 pub async fn udp_gigabyte_bench() {
     let network = NetworkBuilder::new().mtu(1500).build();
     let endpoint = Endpoint::new([123, 45, 67, 89].into(), 0xbeef);
-    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
+    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
@@ -35,15 +35,13 @@ pub async fn udp_gigabyte_bench() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(messages, endpoint).process()
+            SendMessage::new(messages, endpoint)
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            WaitForMessage::new(endpoint, message)
-                .disable_checking()
-                .process(),
+            WaitForMessage::new(endpoint, message).disable_checking()
         ],
     ];
 

@@ -8,8 +8,8 @@ use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Pci;
 use elvis_core::protocols::{ipv4::Ipv4, udp::Udp};
+use elvis_core::IpTable;
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
 
 use super::generator_data::NetworkInfo;
 
@@ -115,7 +115,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
         for _count in 0..machine_count {
             let mut networks_to_be_added = Vec::new();
             let mut protocol_map = ProtocolMapBuilder::new();
-            let mut ip_table = FxHashMap::default();
+            let mut ip_table = IpTable::<Recipient>::new();
 
             for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
                 // TODO: maybe still need an error test
@@ -143,7 +143,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     });
                 for ip in ips {
                     let mac = ip_to_mac.get(ip).cloned();
-                    ip_table.insert(*ip, Recipient::new(net_num, mac));
+                    ip_table.add_direct(*ip, Recipient::new(net_num, mac));
                 }
             }
             protocol_map = protocol_map.with(Pci::new(networks_to_be_added));

@@ -2,11 +2,11 @@ use crate::applications::PingPong;
 use elvis_core::{
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient, Recipients},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    run_internet, Network,
+    run_internet, IpTable, Network,
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
@@ -28,7 +28,7 @@ pub async fn ping_pong() {
             port: 0xface,
         },
     };
-    let ip_table: Recipients = [
+    let ip_table: IpTable<Recipient> = [
         (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
         (IP_ADDRESS_2, Recipient::with_mac(0, 1)),
     ]
@@ -40,13 +40,13 @@ pub async fn ping_pong() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            PingPong::new(true, endpoints).process()
+            PingPong::new(true, endpoints)
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            PingPong::new(false, endpoints.reverse()).process()
+            PingPong::new(false, endpoints.reverse())
         ],
     ];
 

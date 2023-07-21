@@ -4,9 +4,9 @@ use elvis_core::{
     protocols::{
         ipv4::{Ipv4, Recipient},
         udp::Udp,
-        Endpoint, Endpoints, Pci, UserProcess,
+        Endpoint, Endpoints, Pci,
     },
-    run_internet, Message, Network,
+    run_internet, IpTable, Message, Network,
 };
 
 /// Simulates a message being forwarded along across many networks.
@@ -32,7 +32,6 @@ pub async fn telephone_multi() {
                 port: 0xbeef,
             },
         )
-        .process(),
     ]];
 
     for i in 0u32..(END - 1) {
@@ -50,7 +49,6 @@ pub async fn telephone_multi() {
                 Endpoint::new(local, 0xbeef),
                 Endpoint::new(remote, 0xbeef),
             ))
-            .process(),
         ]);
     }
 
@@ -58,9 +56,9 @@ pub async fn telephone_multi() {
     let local = last_network.to_be_bytes().into();
     machines.push(new_machine![
         Udp::new(),
-        Ipv4::new(Default::default()),
+        Ipv4::new(IpTable::new()),
         Pci::new([networks[last_network as usize].clone()]),
-        Capture::new(Endpoint::new(local, 0xbeef), 1).process()
+        Capture::new(Endpoint::new(local, 0xbeef), 1)
     ]);
 
     run_internet(&machines).await;
@@ -69,9 +67,8 @@ pub async fn telephone_multi() {
         .last()
         .unwrap()
         .into_inner()
-        .protocol::<UserProcess<Capture>>()
+        .protocol::<Capture>()
         .unwrap()
-        .application()
         .message();
     assert_eq!(received, Some(message));
 }

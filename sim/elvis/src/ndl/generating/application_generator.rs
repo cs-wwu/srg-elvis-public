@@ -11,14 +11,14 @@ use crate::{
 };
 use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::Ipv4Address;
-use elvis_core::protocols::{Endpoint, Endpoints, UserProcess};
+use elvis_core::protocols::{Endpoint, Endpoints};
 use elvis_core::Message;
 
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-) -> UserProcess<SendMessage> {
+) -> SendMessage {
     assert!(
         app.options.contains_key("port"),
         "Send_Message application doesn't contain port."
@@ -43,15 +43,15 @@ pub fn send_message_builder(
         let to = ip_string_to_ip(to, "Send_Message declaration");
 
         // case where ip to mac doesn't have a mac
-        UserProcess::new(SendMessage::new(
+        SendMessage::new(
             messages,
             Endpoint {
                 address: to.into(),
                 port,
             },
-        ))
+        )
     } else {
-        UserProcess::new(SendMessage::new(
+        SendMessage::new(
             messages,
             Endpoint {
                 address: *name_to_ip.get(&to).unwrap_or_else(|| {
@@ -59,12 +59,12 @@ pub fn send_message_builder(
                 }),
                 port,
             },
-        ))
+        )
     }
 }
 
 /// Builds the [Capture] application for a machine
-pub fn capture_builder(app: &Application) -> UserProcess<Capture> {
+pub fn capture_builder(app: &Application) -> Capture {
     assert!(
         app.options.contains_key("port"),
         "Capture application doesn't contain port."
@@ -88,13 +88,13 @@ pub fn capture_builder(app: &Application) -> UserProcess<Capture> {
         .unwrap()
         .parse::<u32>()
         .expect("Invalid u32 found in Capture for message count");
-    UserProcess::new(Capture::new(
+    Capture::new(
         Endpoint {
             address: ip.into(),
             port,
         },
         message_count,
-    ))
+    )
 }
 
 /// Builds the [Forward] application for a machine
@@ -102,7 +102,7 @@ pub fn capture_builder(app: &Application) -> UserProcess<Capture> {
 pub fn forward_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
-) -> UserProcess<Forward> {
+) -> Forward {
     assert!(
         app.options.contains_key("local_port"),
         "Forward application doesn't contain local port."
@@ -129,7 +129,7 @@ pub fn forward_message_builder(
     let remote_port = string_to_port(app.options.get("remote_port").unwrap().to_string());
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Forward declaration");
-        UserProcess::new(Forward::new(Endpoints {
+        Forward::new(Endpoints {
             local: Endpoint {
                 address: ip.into(),
                 port: local_port,
@@ -138,9 +138,9 @@ pub fn forward_message_builder(
                 address: to.into(),
                 port: remote_port,
             },
-        }))
+        })
     } else {
-        UserProcess::new(Forward::new(Endpoints {
+        Forward::new(Endpoints {
             local: Endpoint {
                 address: ip.into(),
                 port: local_port,
@@ -151,7 +151,7 @@ pub fn forward_message_builder(
                     .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
                 port: remote_port,
             },
-        }))
+        })
     }
 }
 
@@ -164,7 +164,7 @@ pub fn ping_pong_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
     ip_to_mac: &HashMap<Ipv4Address, Mac>,
     name_to_mac: &HashMap<String, u64>,
-) -> UserProcess<PingPong> {
+) -> PingPong {
     assert!(
         app.options.contains_key("local_port"),
         "Forward application doesn't contain local port."
@@ -213,13 +213,11 @@ pub fn ping_pong_builder(
             },
         };
         if !ip_to_mac.contains_key(&to.into()) {
-            PingPong::new(starter, endpoints).process()
+            PingPong::new(starter, endpoints)
         }
         // case where ip to mac does have a mac
         else {
-            PingPong::new(starter, endpoints)
-                .remote_mac(*ip_to_mac.get(&to.into()).unwrap())
-                .process()
+            PingPong::new(starter, endpoints).remote_mac(*ip_to_mac.get(&to.into()).unwrap())
         }
     } else {
         let endpoints = Endpoints {
@@ -234,12 +232,10 @@ pub fn ping_pong_builder(
                 port: remote_port,
             },
         };
-        UserProcess::new(
-            PingPong::new(starter, endpoints).remote_mac(
-                *name_to_mac
-                    .get(&to)
-                    .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
-            ),
+        PingPong::new(starter, endpoints).remote_mac(
+            *name_to_mac
+                .get(&to)
+                .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
         )
     }
 }

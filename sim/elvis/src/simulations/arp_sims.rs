@@ -7,10 +7,10 @@ use std::{sync::Arc, time::Duration};
 use elvis_core::{
     new_machine,
     protocols::{
-        ipv4::{Ipv4Address, Recipient, Recipients},
-        Arp, Endpoint, Endpoints, Ipv4, Pci, Udp, UserProcess,
+        ipv4::{Ipv4Address, Recipient},
+        Arp, Endpoint, Endpoints, Ipv4, Pci, Udp,
     },
-    run_internet, Machine, Message, Network,
+    run_internet, IpTable, Machine, Message, Network,
 };
 
 use crate::applications::{Capture, PingPong, SendMessage};
@@ -23,7 +23,7 @@ const RECEIVER_IP: Ipv4Address = Ipv4Address::new([67, 8, 9, 10]);
 const RECEIVER_ENDPOINT: Endpoint = Endpoint::new(RECEIVER_IP, 0xfefe);
 
 /// generates a Recipients to work with the simulations
-fn ip_table() -> Recipients {
+fn ip_table() -> IpTable<Recipient> {
     let default_recipient: Recipient = Recipient::new(0, None);
     [
         (SENDER_IP, default_recipient),
@@ -36,9 +36,9 @@ fn ip_table() -> Recipients {
 /// generates a sender machine
 fn sender_machine(network: &Arc<Network>, message: Message) -> Machine {
     new_machine!(
-        SendMessage::new(vec![message], RECEIVER_ENDPOINT).process(),
+        SendMessage::new(vec![message], RECEIVER_ENDPOINT),
         // Used to set local IP
-        Capture::new(SENDER_ENDPOINT, 1).process(),
+        Capture::new(SENDER_ENDPOINT, 1),
         Udp::new(),
         Ipv4::new(ip_table()),
         Arp::basic(),
@@ -49,7 +49,7 @@ fn sender_machine(network: &Arc<Network>, message: Message) -> Machine {
 /// generates a receiver machine
 fn receiver_machine(network: &Arc<Network>) -> Machine {
     new_machine!(
-        Capture::new(RECEIVER_ENDPOINT, 1).process(),
+        Capture::new(RECEIVER_ENDPOINT, 1),
         Udp::new(),
         Ipv4::new(ip_table()),
         Arp::basic(),
@@ -107,15 +107,13 @@ pub async fn test_no_broadcast() {
 }
 
 mod wait_to_send {
-    use std::{any::TypeId, sync::Arc};
+    use std::sync::Arc;
 
     use elvis_core::{
         machine::ProtocolMap,
-        protocols::{
-            user_process::{Application, ApplicationError},
-            Ipv4, UserProcess,
-        },
-        Control, Message, Session,
+        protocol::{DemuxError, StartError},
+        protocols::Ipv4,
+        Control, Message, Protocol, Session,
     };
 
     use super::*;
@@ -124,13 +122,13 @@ mod wait_to_send {
     pub struct WaitToListen();
 
     #[async_trait::async_trait]
-    impl Application for WaitToListen {
+    impl Protocol for WaitToListen {
         async fn start(
             &self,
             _shutdown: elvis_core::Shutdown,
             initialize: Arc<tokio::sync::Barrier>,
             protocols: elvis_core::machine::ProtocolMap,
-        ) -> Result<(), ApplicationError> {
+        ) -> Result<(), StartError> {
             initialize.wait().await;
 
             tokio::time::sleep(Duration::from_millis(300)).await;
@@ -138,18 +136,18 @@ mod wait_to_send {
             protocols
                 .protocol::<Ipv4>()
                 .unwrap()
-                .listen(TypeId::of::<UserProcess<Self>>(), RECEIVER_IP, protocols)
+                .listen(self.id(), RECEIVER_IP, protocols)
                 .expect("listen should work");
             Ok(())
         }
 
-        fn receive(
+        fn demux(
             &self,
             _: Message,
             _: Arc<dyn Session>,
             _: Control,
             _: ProtocolMap,
-        ) -> Result<(), ApplicationError> {
+        ) -> Result<(), DemuxError> {
             Ok(())
         }
     }
@@ -178,16 +176,16 @@ pub async fn test_resend() {
     let machines = vec![
         // Receiver
         new_machine!(
-            UserProcess::new(wait_to_send::WaitToListen()),
+            wait_to_send::WaitToListen(),
             Ipv4::new(ip_table()),
             receiver_arp,
             Pci::new([network.clone()]),
         ),
         // Sender
         new_machine!(
-            SendMessage::new(vec![message], RECEIVER_ENDPOINT).process(),
+            SendMessage::new(vec![message], RECEIVER_ENDPOINT),
             // Used to set local IP
-            Capture::new(SENDER_ENDPOINT, 1).process(),
+            Capture::new(SENDER_ENDPOINT, 1),
             Udp::new(),
             Ipv4::new(ip_table()),
             sender_arp,
@@ -226,14 +224,14 @@ pub async fn ping_pong() {
             Ipv4::new(ip_table()),
             Arp::basic(),
             Pci::new([network.clone()]),
-            PingPong::new(true, Endpoints::new(SENDER_ENDPOINT, RECEIVER_ENDPOINT)).process(),
+            PingPong::new(true, Endpoints::new(SENDER_ENDPOINT, RECEIVER_ENDPOINT)),
         ),
         new_machine!(
             Udp::new(),
             Ipv4::new(ip_table()),
             Arp::basic(),
             Pci::new([network.clone()]),
-            PingPong::new(false, Endpoints::new(RECEIVER_ENDPOINT, SENDER_ENDPOINT)).process(),
+            PingPong::new(false, Endpoints::new(RECEIVER_ENDPOINT, SENDER_ENDPOINT)),
         ),
     ];
 

@@ -8,7 +8,7 @@ use elvis_core::{
         udp::Udp,
         Pci, SocketAPI,
     },
-    run_internet, Network,
+    run_internet, IpTable, Network,
 };
 
 /// Runs a basic server-client simulation using sockets.
@@ -24,7 +24,8 @@ pub async fn socket_basic() {
     let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
     let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
-    let ip_table: Recipients = [
+
+    let ip_table: IpTable<Recipient> = [
         (server_ip_address, Recipient::with_mac(0, 0)),
         (client1_ip_address, Recipient::with_mac(0, 1)),
         (client2_ip_address, Recipient::with_mac(0, 2)),

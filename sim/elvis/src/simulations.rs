@@ -3,10 +3,16 @@
 mod basic;
 pub use basic::basic;
 mod dhcp_basic;
-pub use dhcp_basic::dhcp_basic;
+pub use dhcp_basic::{dhcp_basic_offer, dhcp_basic_release};
 
 mod socket_basic;
 pub use socket_basic::socket_basic;
+
+mod dns_basic;
+pub use dns_basic::dns_basic;
+
+mod arp_router_sim;
+pub use arp_router_sim::arp_router_single;
 
 mod telephone_multi;
 pub use telephone_multi::telephone_multi;
@@ -44,3 +50,6 @@ pub use tcp_gigabyte_bench::tcp_gigabyte_bench;
 
 mod udp_gigabyte_bench;
 pub use udp_gigabyte_bench::udp_gigabyte_bench;
+
+mod tcp_stream;
+pub use tcp_stream::tcp_stream;

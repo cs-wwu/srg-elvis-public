@@ -3,10 +3,10 @@ use elvis_core::{
     message::Message,
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient, Recipients},
-        Endpoint, Pci, Tcp, UserProcess,
+        ipv4::{Ipv4, Recipient},
+        Endpoint, Pci, Tcp,
     },
-    run_internet, Network, Transport,
+    run_internet, IpTable, Network, Transport,
 };
 
 // TODO(hardint): There is a lot of redundant code with addresses and such. Consolidate.
@@ -21,7 +21,7 @@ pub async fn tcp_with_reliable() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: Recipients = [(endpoint.address, Recipient::with_mac(0, 1))]
+    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
@@ -32,17 +32,13 @@ pub async fn tcp_with_reliable() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![message.clone()], endpoint)
-                .transport(Transport::Tcp)
-                .process(),
+            SendMessage::new(vec![message.clone()], endpoint).transport(Transport::Tcp)
         ],
         new_machine![
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            Capture::new(endpoint, 1)
-                .transport(Transport::Tcp)
-                .process(),
+            Capture::new(endpoint, 1).transport(Transport::Tcp)
         ],
     ];
 
@@ -52,9 +48,8 @@ pub async fn tcp_with_reliable() {
         .nth(1)
         .unwrap()
         .into_inner()
-        .protocol::<UserProcess<Capture>>()
+        .protocol::<Capture>()
         .unwrap()
-        .application()
         .message();
     assert_eq!(received, Some(message));
 }

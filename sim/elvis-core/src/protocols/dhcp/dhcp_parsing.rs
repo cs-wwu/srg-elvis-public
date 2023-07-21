@@ -1,4 +1,4 @@
-use elvis_core::{protocols::ipv4::Ipv4Address, Message};
+use crate::{protocols::ipv4::Ipv4Address, Message};
 use thiserror::Error as ThisError;
 
 /// An enumeration representing the specific type or functionality of a DHCP Message
@@ -218,10 +218,9 @@ mod tests {
         msg.extend("BootFileBootFile".as_bytes());
         msg.push(b'\0');
         let mess = Message::new(msg);
-        println!("{:?}", mess);
-        println!("AAAAA");
+        tracing::info!("{:?}", mess);
         let parsed = DhcpMessage::from_bytes(mess.iter())?;
-        println!("{:?}", parsed);
+        tracing::info!("{:?}", parsed);
         let test_struct = DhcpMessage {
             //struct to confirm we're getting expected values
             op: 1,
@@ -282,7 +281,7 @@ mod tests {
         msg.push(b'\0');
         msg.extend("BootFileBootFile".as_bytes());
         msg.push(b'\0');
-        println!("{:?}", msg);
+        tracing::info!("{:?}", msg);
         assert_eq!(redo, Message::new(msg));
         Ok(())
     }
