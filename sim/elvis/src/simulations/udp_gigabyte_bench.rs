@@ -32,7 +32,9 @@ pub async fn udp_gigabyte_bench() {
         let part = remainder.cut(1450);
         messages.push(part);
     }
+    
     messages.push(remainder);
+
     let machines = vec![
         new_machine![
             Udp::new(),

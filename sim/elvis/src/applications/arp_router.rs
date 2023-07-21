@@ -38,6 +38,7 @@ impl Protocol for ArpRouter {
         let ipv4 = protocols
             .protocol::<Ipv4>()
             .expect("Arp Router requires IPv4");
+        
         let arp = protocols
             .protocol::<Arp>()
             .expect("Arp Router requires Arp");
@@ -45,8 +46,16 @@ impl Protocol for ArpRouter {
         ipv4.listen(
             self.id(),
             Ipv4Address::CURRENT_NETWORK,
+            protocols.clone(),
+            ProtocolNumber::TCP,
+        )
+        .unwrap();
+
+        ipv4.listen(
+            self.id(),
+            Ipv4Address::CURRENT_NETWORK,
             protocols,
-            ProtocolNumber::DEFAULT,
+            ProtocolNumber::UDP,
         )
         .unwrap();
 
@@ -65,8 +74,6 @@ impl Protocol for ArpRouter {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-
-        println!("router received message");
 
         let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
         ipv4_header.time_to_live -= 1;

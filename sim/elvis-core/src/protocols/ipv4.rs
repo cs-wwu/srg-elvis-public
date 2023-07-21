@@ -31,7 +31,7 @@ pub mod fragmentation;
 mod reassembly;
 mod test_header_builder;
 
-#[derive(Eq, PartialEq, Hash, Debug)]
+#[derive(Eq, PartialEq, Hash, Debug, Clone, Copy)]
 pub enum ProtocolNumber {
     DEFAULT,
     UDP,
@@ -138,9 +138,6 @@ impl Ipv4 {
                 arp.listen(address);
             }
         }
-        if address == Ipv4Address::CURRENT_NETWORK {
-            protocol_number = ProtocolNumber::DEFAULT;
-        }
         match self.listen_bindings.entry((address, protocol_number)) {
             Entry::Occupied(_) => Err(ListenError::Exists(address)),
             Entry::Vacant(entry) => {
@@ -199,7 +196,7 @@ impl Protocol for Ipv4 {
                 // a 0.0.0.0 binding
                 match self
                     .listen_bindings
-                    .get(&(Ipv4Address::CURRENT_NETWORK, ProtocolNumber::DEFAULT))
+                    .get(&(Ipv4Address::CURRENT_NETWORK, protocol_no))
                 {
                     Some(binding) => *binding,
                     None => {

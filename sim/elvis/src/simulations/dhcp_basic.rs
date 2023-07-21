@@ -69,9 +69,9 @@ pub async fn dhcp_basic_offer() {
 // Sim to test clients returning IP to server
 pub async fn dhcp_basic_release() {
     let network = Network::basic();
-    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
+    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([123, 123, 123, 123]);
 
-    let ip_table: IpTable<Recipient> = [(DHCP_SERVER_IP, Recipient::with_mac(0, 0))]
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
         .into_iter()
         .collect();
 
