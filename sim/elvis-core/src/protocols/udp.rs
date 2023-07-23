@@ -129,6 +129,7 @@ impl Protocol for Udp {
         );
 
         let binding = match self.listen_bindings.get(&endpoints.local) {
+            // MAKE THIS LOCAL AGAIN
             Some(listen_entry) => listen_entry,
             None => {
                 // If we don't have a normal listen binding, check for

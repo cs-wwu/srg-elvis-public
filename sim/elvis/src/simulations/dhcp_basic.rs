@@ -1,14 +1,11 @@
 use crate::applications::{
-    dhcp::{
-        dhcp_client::DhcpClient,
-        dhcp_client_listener::DhcpClientListener,
-        dhcp_server::{DhcpServer, IpRange},
-    },
+    dhcp_server::{DhcpServer, IpRange},
     Capture, SendMessage,
 };
 use elvis_core::{
     new_machine,
     protocols::{
+        dhcp::{dhcp_client::DhcpClient, dhcp_client_listener::DhcpClientListener},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Pci, Arp,

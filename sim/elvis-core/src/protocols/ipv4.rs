@@ -191,6 +191,7 @@ impl Protocol for Ipv4 {
         // binding for it
         let upstream = match self.listen_bindings.get(&(endpoints.local, protocol_no)) {
             Some(binding) => *binding,
+
             None => {
                 // If we don't have a normal listen binding, check for
                 // a 0.0.0.0 binding

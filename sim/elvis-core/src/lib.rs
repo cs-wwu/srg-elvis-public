@@ -77,4 +77,4 @@ mod control;
 pub use control::Control;
 
 use std::hash::BuildHasherDefault;
-type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<rustc_hash::FxHasher>>;
+pub type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<rustc_hash::FxHasher>>;
