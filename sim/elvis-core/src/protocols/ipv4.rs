@@ -131,7 +131,7 @@ impl Ipv4 {
         upstream: TypeId,
         address: Ipv4Address,
         protocols: ProtocolMap,
-        mut protocol_number: ProtocolNumber,
+        protocol_number: ProtocolNumber,
     ) -> Result<(), ListenError> {
         if let Some(arp) = protocols.protocol::<Arp>() {
             if address != Ipv4Address::SUBNET {
