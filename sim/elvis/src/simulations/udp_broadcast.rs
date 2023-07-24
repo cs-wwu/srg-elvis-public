@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::applications::{Counter, MultiCapture, SendMessage};
+use crate::applications::{Counter, MultiCapture, SendMessage, Capture};
 use elvis_core::{
     message::Message,
     new_machine,
@@ -12,12 +12,11 @@ use elvis_core::{
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
-/// Runs a basic simulation.
-///
-/// In this simulation, a machine sends a message to another machine over a
-/// single network. The simulation ends when the message is received.
-///
-
+/// Simulation to test udp broadcasting and multiple 
+/// udp sessions on the same machine using the same local ip.
+/// Simulates a sendmessage broadcasting to multiple captures
+/// on the port 0xbeef. The simulation shuts down once all 3
+/// MultiCaptures receive a message
 const IPS: [Ipv4Address; 4] = [
     Ipv4Address::new([1, 1, 1, 1]),
     Ipv4Address::new([1, 1, 1, 2]),
@@ -29,7 +28,7 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
     let network = Network::basic();
     let message = Message::new("Hello!");
 
-    let counter: Arc<Counter> = Counter::new(4);
+    let counter: Arc<Counter> = Counter::new(3);
 
     let endpoint = Endpoint {
         address: [255, 255, 255, 255].into(),
@@ -40,7 +39,7 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
         Endpoint::new(IPS[0], 0xbeef),
         Endpoint::new(IPS[1], 0xbeef),
         Endpoint::new(IPS[2], 0xbeef),
-        Endpoint::new(IPS[3], 0xbeef),
+        Endpoint::new(IPS[3], 0xface),
     ];
 
     let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::with_mac(0, 1))]
@@ -68,11 +67,12 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
             Pci::new([network.clone()]),
             MultiCapture::new(endpoints[2], counter.clone()).exit_status(1),
         ],
+        // evil machine should not be receiving the udp broadcast
         new_machine![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
-            MultiCapture::new(endpoints[3], counter.clone()).exit_status(1),
+            Capture::new(endpoints[3], 1).exit_status(2),
         ],
     ];
 

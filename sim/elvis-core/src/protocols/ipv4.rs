@@ -38,9 +38,9 @@ pub enum ProtocolNumber {
     TCP,
 }
 
-//
-// https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
-//
+// Enum for which upstream protocol to use 
+// see https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
+// for more info about protocol numbers
 impl From<u8> for ProtocolNumber {
     fn from(value: u8) -> Self {
         match value {
@@ -53,10 +53,8 @@ impl From<u8> for ProtocolNumber {
 
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
-    // todo! (eulerfrog) change listen bindings to (Ipv4Address, ProtocolNumber)
     listen_bindings: FxDashMap<(Ipv4Address, ProtocolNumber), TypeId>,
 
-    // todo! (eulerfrog) now maps local_ip to recipient
     recipients: IpTable<Recipient>,
 }
 
@@ -69,7 +67,6 @@ impl Ipv4 {
         }
     }
 
-    // todo! (eulerfrog) change listen to use protocol number
     pub async fn open_and_listen(
         &self,
         upstream: TypeId,
@@ -125,7 +122,6 @@ impl Ipv4 {
         Ok(session)
     }
 
-    // todo! (eulerfrog) change listen to take an optional protocol number
     pub fn listen(
         &self,
         upstream: TypeId,
@@ -155,8 +151,6 @@ impl Ipv4 {
     }
 }
 
-// TODO(hardint): Add a static IP lookup table in the constructor so that
-// messages can be sent to the correct network
 #[async_trait::async_trait]
 impl Protocol for Ipv4 {
     async fn start(
