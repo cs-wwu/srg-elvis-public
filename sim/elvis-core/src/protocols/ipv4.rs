@@ -12,7 +12,7 @@ use crate::{
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
-use std::{any::TypeId, sync::Arc};
+use std::{any::TypeId, sync::{Arc, RwLock}};
 use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
@@ -25,7 +25,7 @@ pub(crate) mod ipv4_session;
 pub use ipv4_session::AddressPair;
 use ipv4_session::Ipv4Session;
 
-use super::{pci, Arp};
+use super::{pci, Arp, arp::subnetting::Ipv4Mask};
 
 pub mod fragmentation;
 mod reassembly;
@@ -35,6 +35,7 @@ mod test_header_builder;
 pub struct Ipv4 {
     listen_bindings: FxDashMap<Ipv4Address, TypeId>,
     recipients: IpTable<Recipient>,
+    info: Vec<RwLock<Ipv4Info>>,
 }
 
 impl Ipv4 {
@@ -43,6 +44,7 @@ impl Ipv4 {
         Self {
             listen_bindings: Default::default(),
             recipients,
+            info: Default::default(),
         }
     }
 
@@ -219,6 +221,14 @@ impl Recipient {
     pub fn broadcast(slot: PciSlot) -> Self {
         Self::new(slot, None)
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Ipv4Info {
+    pub ip_address: Option<Ipv4Address>,
+    pub subnet_mask: Option<Ipv4Mask>,
+    pub default_gateway: Option<Ipv4Address>,
+    pub dns_server: Option<Ipv4Address>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
