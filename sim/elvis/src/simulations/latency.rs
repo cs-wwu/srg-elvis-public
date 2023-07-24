@@ -7,7 +7,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, IpTable, Message,
+    run_internet_with_timeout, ExitStatus, IpTable, Message,
 };
 use std::time::{Duration, SystemTime};
 
@@ -46,7 +46,9 @@ pub async fn latency() {
     ];
 
     let now = SystemTime::now();
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+
+    assert_eq!(status, ExitStatus::Exited);
     assert!(now.elapsed().unwrap().as_millis() >= 1000);
 }
 

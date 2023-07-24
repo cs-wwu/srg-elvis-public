@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
     network::Mac,
@@ -7,7 +9,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    run_internet, IpTable, Message, Network,
+    IpTable, Message, Network, run_internet_with_timeout, ExitStatus,
 };
 
 /// Simulates a message being repeatedly forwarded on a single network.
@@ -55,7 +57,9 @@ pub async fn telephone_single() {
         Capture::new(Endpoint::new(local, 0xbeef), 1)
     ]);
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     let received = machines
         .into_iter()
         .last()

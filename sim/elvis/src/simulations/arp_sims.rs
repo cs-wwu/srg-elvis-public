@@ -10,7 +10,7 @@ use elvis_core::{
         ipv4::{Ipv4Address, Recipient},
         Arp, Endpoint, Endpoints, Ipv4, Pci, Udp,
     },
-    run_internet, IpTable, Machine, Message, Network,
+    run_internet, run_internet_with_timeout, ExitStatus, IpTable, Machine, Message, Network,
 };
 
 use crate::applications::{Capture, PingPong, SendMessage};
@@ -99,7 +99,9 @@ pub async fn test_no_broadcast() {
         new_machine!(evil_arp, Ipv4::new(ip_table()), Pci::new([network.clone()]),),
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     tokio::time::sleep(Duration::from_millis(2)).await;
     recv.changed()
         .await
@@ -243,7 +245,8 @@ pub async fn ping_pong() {
         ),
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
+    assert_eq!(status, ExitStatus::Exited);
 }
 
 #[cfg(test)]

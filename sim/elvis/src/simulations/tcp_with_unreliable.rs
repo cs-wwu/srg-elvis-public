@@ -7,7 +7,7 @@ use elvis_core::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Tcp,
     },
-    run_internet, IpTable, Transport,
+    run_internet_with_timeout, ExitStatus, IpTable, Transport,
 };
 use std::time::Duration;
 
@@ -51,7 +51,8 @@ pub async fn tcp_with_unreliable() {
         ],
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
+    assert_eq!(status, ExitStatus::Exited);
 }
 
 #[cfg(test)]

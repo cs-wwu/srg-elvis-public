@@ -1,6 +1,7 @@
-use crate::applications::{ArpRouter, SocketClient, SocketServer};
+use std::time::Duration;
+
+use crate::applications::{SocketClient, SocketServer};
 use elvis_core::{
-    machine::PciSlot,
     new_machine,
     protocols::{
         arp::subnetting::{Ipv4Mask, SubnetInfo},
@@ -10,7 +11,7 @@ use elvis_core::{
         udp::Udp,
         Arp, Pci, SocketAPI,
     },
-    run_internet, IpTable, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
 /// Runs a basic server-client simulation using sockets.
@@ -27,25 +28,14 @@ pub async fn socket_basic() {
     let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
     let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
 
-    let router_ip: Ipv4Address = [1, 1, 1, 1].into();
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
 
-    let router_table: IpTable<(Option<Ipv4Address>, PciSlot)> =
-        [("123.45.67.0/24", (None, 0))].into_iter().collect();
-
-    let mut router_ips: Vec<Ipv4Address> = Vec::new();
-    router_ips.push(router_ip);
-
-    let ip_table: IpTable<Recipient> = [
-        (server_ip_address, Recipient::new(0, None)),
-        (client1_ip_address, Recipient::new(0, None)),
-        (client2_ip_address, Recipient::new(0, None)),
-        (client3_ip_address, Recipient::new(0, None)),
-    ]
-    .into_iter()
-    .collect();
-
-    let router_ip_table: IpTable<Recipient> =
-        [(router_ip, Recipient::new(0, None))].into_iter().collect();
+    let info = SubnetInfo {
+        mask: Ipv4Mask::from_bitcount(0),
+        default_gateway: Ipv4Address::from([1, 1, 1, 1]),
+    };
 
     let machines = vec![
         new_machine![
@@ -53,13 +43,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::basic().preconfig_subnet(
-                server_ip_address,
-                SubnetInfo {
-                    mask: Ipv4Mask::from_bitcount(32),
-                    default_gateway: router_ip
-                }
-            ),
+            Arp::basic().preconfig_subnet(server_ip_address, info),
             SocketAPI::new(Some(server_ip_address)),
             SocketServer::new(0xbeef, SocketType::Stream)
         ],
@@ -68,13 +52,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::basic().preconfig_subnet(
-                client1_ip_address,
-                SubnetInfo {
-                    mask: Ipv4Mask::from_bitcount(0),
-                    default_gateway: router_ip
-                }
-            ),
+            Arp::basic().preconfig_subnet(client1_ip_address, info),
             SocketAPI::new(Some(client1_ip_address)),
             SocketClient::new(1, server_ip_address, 0xbeef, SocketType::Stream)
         ],
@@ -83,13 +61,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::basic().preconfig_subnet(
-                client2_ip_address,
-                SubnetInfo {
-                    mask: Ipv4Mask::from_bitcount(0),
-                    default_gateway: router_ip
-                }
-            ),
+            Arp::basic().preconfig_subnet(client2_ip_address, info),
             SocketAPI::new(Some(client2_ip_address)),
             SocketClient::new(2, server_ip_address, 0xbeef, SocketType::Stream)
         ],
@@ -98,29 +70,19 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::basic().preconfig_subnet(
-                client3_ip_address,
-                SubnetInfo {
-                    mask: Ipv4Mask::from_bitcount(0),
-                    default_gateway: router_ip
-                }
-            ),
+            Arp::basic().preconfig_subnet(client3_ip_address, info),
             SocketAPI::new(Some(client3_ip_address)),
             SocketClient::new(3, server_ip_address, 0xbeef, SocketType::Stream)
         ],
-        new_machine![
-            Pci::new([network.clone()]),
-            Ipv4::new(router_ip_table),
-            Arp::basic(),
-            ArpRouter::new(router_table, router_ips)
-        ],
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Exited);
 }
 
 #[cfg(test)]
 mod tests {
+
     #[tokio::test]
     async fn socket_basic() {
         super::socket_basic().await;

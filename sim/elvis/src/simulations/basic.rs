@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
@@ -7,7 +9,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, IpTable, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
 /// Runs a basic simulation.
@@ -44,7 +46,9 @@ pub async fn basic() {
         ],
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     let received = machines
         .into_iter()
         .nth(1)
@@ -53,6 +57,7 @@ pub async fn basic() {
         .protocol::<Capture>()
         .unwrap()
         .message();
+
     assert_eq!(received, Some(message));
 }
 

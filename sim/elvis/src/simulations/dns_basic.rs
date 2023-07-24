@@ -23,7 +23,7 @@ use elvis_core::{
 /// the DNS protocol to find out the Ipv4 address of the intended server by
 /// sending a query to the DNS Authoritative server. The client then uses the
 /// retrieved Ipv4 address to interact with the non-DNS server.
-pub async fn dns_basic() -> ExitStatus {
+pub async fn dns_basic() {
     let network = Network::basic();
     let dns_server_ip_address = Ipv4Address::DNS_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
@@ -63,16 +63,16 @@ pub async fn dns_basic() -> ExitStatus {
         ],
     ];
 
-    run_internet_with_timeout(&machines, Duration::from_secs(2)).await
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Status(10));
 }
 
 #[cfg(test)]
 mod tests {
-    use elvis_core::ExitStatus;
 
     #[tokio::test]
     #[tracing_test::traced_test]
     async fn dns_basic() {
-        assert_eq!(super::dns_basic().await, ExitStatus::Status(10));
+        super::dns_basic().await
     }
 }

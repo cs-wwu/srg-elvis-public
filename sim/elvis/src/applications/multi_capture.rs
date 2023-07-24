@@ -49,7 +49,7 @@ impl Counter {
         let mut count = self.count.lock().unwrap();
         *count += 1;
 
-        return *count == self.capacity;
+        *count == self.capacity
     }
 }
 

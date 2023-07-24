@@ -78,6 +78,8 @@ pub fn build_capture(network: Arc<Network>, address: Ipv4Address, exit_status: u
 */
 #[allow(dead_code)]
 pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
+    // Setting route to none sets the destination ip to the destination
+    // ip in the received packet
     let router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = [
         (IPS[0], (None, 0)),
         (IPS[1], (None, 1)),

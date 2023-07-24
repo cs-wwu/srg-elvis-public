@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::applications::{
     dhcp_server::{DhcpServer, IpRange},
     Capture, SendMessage,
@@ -10,7 +12,7 @@ use elvis_core::{
         udp::Udp,
         Arp, Endpoint, Pci,
     },
-    run_internet, IpTable, Message, Network,
+    run_internet, run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
 
 // Sim to test basic IP address allocation from server
@@ -97,7 +99,10 @@ pub async fn dhcp_basic_release() {
             DhcpClient::new(DHCP_SERVER_IP, Some(DhcpClientListener::new())),
         ],
     ];
-    run_internet(&machines).await;
+
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     let mut machines_iter = machines.into_iter();
     let server = machines_iter.next().unwrap();
     let client1 = machines_iter.next().unwrap();

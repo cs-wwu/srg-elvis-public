@@ -1,5 +1,3 @@
-use std::default;
-
 use crate::applications::{SendMessage, WaitForMessage};
 use elvis_core::{
     message::Message,
