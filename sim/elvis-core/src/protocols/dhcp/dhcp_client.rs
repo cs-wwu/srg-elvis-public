@@ -1,6 +1,6 @@
 use super::dhcp_client_listener::DhcpClientListener;
 use super::dhcp_parsing::{DhcpMessage, MessageType};
-use elvis_core::{
+use crate::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
@@ -10,8 +10,6 @@ use elvis_core::{
 use std::sync::{Arc, RwLock};
 use tokio::sync::{Barrier, Notify};
 
-// NOTE: THIS IS A TEMPORARY CLIENT
-// TO BE DELETED ONCE DHCP HAS BEEN FULLY IMPLEMENTED ON THE CLIENT SIDE
 #[derive(Default)]
 pub struct DhcpClient {
     server_ip: Ipv4Address,
@@ -71,6 +69,7 @@ impl Protocol for DhcpClient {
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
         udp.send(response_message, protocols).unwrap();
+
         Ok(())
     }
 
@@ -84,6 +83,16 @@ impl Protocol for DhcpClient {
         let parsed_msg = DhcpMessage::from_bytes(message.iter()).unwrap();
         match parsed_msg.msg_type {
             MessageType::Offer => {
+                let mut response = DhcpMessage::default();
+                response.your_ip = parsed_msg.your_ip;
+                response.msg_type = MessageType::Request;
+                response.op = 2;
+                caller
+                    .send(DhcpMessage::to_message(response).unwrap(), protocols)
+                    .unwrap();
+                Ok(())
+            }
+            MessageType::Ack => {
                 *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
                 self.notify.notify_waiters();
                 if self.listener.read().unwrap().is_some() {

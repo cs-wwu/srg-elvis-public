@@ -1,5 +1,5 @@
 use super::dhcp_parsing::{DhcpMessage, MessageType};
-use elvis_core::{
+use crate::{
     machine::ProtocolMap,
     protocol::{DemuxError, StartError},
     protocols::ipv4::Ipv4Address,

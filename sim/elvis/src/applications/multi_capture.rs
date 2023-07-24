@@ -2,42 +2,68 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, Tcp, Udp},
+    protocols::{ipv4::Ipv4Address, Endpoint, Tcp, Udp},
     shutdown::ExitStatus,
     Control, Protocol, Session, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::sync::Barrier;
 
-/// An application that stores the first message it receives and then exits the
-/// simulation.
+/// An application that receives a message and increments a shared counter
+/// if the shared counter counts to its capacity, the simulation exits
+/// can be used to debug message ordering by having each capture return
+/// a different exit status
 #[derive(Debug)]
-pub struct Capture {
+pub struct MultiCapture {
     /// The message that was received, if any
     message: RwLock<Option<Message>>,
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
     endpoint: Endpoint,
-    /// The number of messages it will receive before stopping
-    message_count: u32,
     /// The number of messages currently recieved
     cur_count: RwLock<u32>,
     /// The transport protocol to use
     transport: Transport,
     exit_status: Option<u32>,
+    counter: Arc<Counter>,
 }
 
-impl Capture {
+// struct that returns false for the first
+// n-1 callers and true for the nth caller
+#[derive(Debug)]
+pub struct Counter {
+    count: Mutex<u32>,
+    capacity: u32,
+}
+
+impl Counter {
+    pub fn new(capacity: u32) -> Arc<Self> {
+        Arc::new(Self {
+            count: Mutex::new(0),
+            capacity,
+        })
+    }
+
+    // increments count and returns true if count is equal to capacity
+    pub fn call(&self) -> bool {
+        let mut count = self.count.lock().unwrap();
+        *count += 1;
+
+        *count == self.capacity
+    }
+}
+
+impl MultiCapture {
     /// Creates a new capture.
-    pub fn new(endpoint: Endpoint, message_count: u32) -> Self {
+    pub fn new(endpoint: Endpoint, counter: Arc<Counter>) -> Self {
         Self {
             message: Default::default(),
             shutdown: Default::default(),
             endpoint,
-            message_count,
             cur_count: RwLock::new(0),
             transport: Transport::Udp,
             exit_status: None,
+            counter,
         }
     }
 
@@ -60,13 +86,15 @@ impl Capture {
 }
 
 #[async_trait::async_trait]
-impl Protocol for Capture {
+impl Protocol for MultiCapture {
     async fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, self.endpoint.port);
+
         match self.transport {
             Transport::Tcp => {
                 protocols
@@ -79,7 +107,14 @@ impl Protocol for Capture {
                 protocols
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(self.id(), self.endpoint, protocols)
+                    .listen(self.id(), self.endpoint, protocols.clone())
+                    .unwrap();
+
+                // listen on broadcast
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .listen(self.id(), broadcast_endpoint, protocols)
                     .unwrap();
             }
         }
@@ -99,7 +134,7 @@ impl Protocol for Capture {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
 
-        if *self.cur_count.read().unwrap() >= self.message_count {
+        if (*self.counter).call() {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
                 if let Some(status) = self.exit_status {
                     shutdown.shut_down_with_status(ExitStatus::Status(status));
@@ -108,6 +143,7 @@ impl Protocol for Capture {
                 }
             }
         }
+
         Ok(())
     }
 }

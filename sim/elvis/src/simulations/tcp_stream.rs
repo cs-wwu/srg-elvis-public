@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::applications::{TcpListenerServer, TcpStreamClient};
 use elvis_core::{
     new_machine,
@@ -6,7 +8,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Pci, SocketAPI,
     },
-    run_internet, IpTable, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
 pub async fn tcp_stream() {
@@ -17,8 +19,8 @@ pub async fn tcp_stream() {
     let client_socket_address: Endpoint = Endpoint::new(client_ip_address, 70);
 
     let ip_table: IpTable<Recipient> = [
-        (server_ip_address, Recipient::with_mac(0, 0)),
-        (client_ip_address, Recipient::with_mac(0, 1)),
+        (client_ip_address, Recipient::with_mac(0, 0)),
+        (server_ip_address, Recipient::with_mac(0, 1)),
     ]
     .into_iter()
     .collect();
@@ -40,7 +42,8 @@ pub async fn tcp_stream() {
         ],
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
+    assert_eq!(status, ExitStatus::Exited);
 }
 
 #[cfg(test)]

@@ -3,7 +3,10 @@ use crate::{
     machine::ProtocolMap,
     message::Chunk,
     protocol::{DemuxError, NotifyType},
-    protocols::utility::{Endpoint, Endpoints},
+    protocols::{
+        dns::dns_client::DnsClient,
+        utility::{Endpoint, Endpoints},
+    },
     Message, Session, Shutdown,
 };
 use std::{
@@ -103,6 +106,26 @@ impl Socket {
 
     pub fn connection_established(&self) {
         self.notify_listen.notify_one();
+    }
+
+    /// TODO(HenryEricksonIV) Used by calling application when the ip address
+    /// of the endpoint is not known to the calling application.
+    /// Intended to call 'connect()' with an ip provided by the local
+    /// 'DnsClient'.
+    pub async fn connect_by_name(
+        &self,
+        domain_name: String,
+        dest_port: u16,
+    ) -> Result<(), SocketError> {
+        let ip_from_domain = self
+            .protocols
+            .protocol::<DnsClient>()
+            .unwrap()
+            .get_host_by_name(domain_name, self.protocols.clone())
+            .await
+            .unwrap();
+        let new_destination = Endpoint::new(ip_from_domain, dest_port);
+        self.connect(new_destination).await
     }
 
     /// Assigns a remote ip address and port to a socket and connects the socket
@@ -299,15 +322,14 @@ impl Socket {
         if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
             return Err(SocketError::Shutdown);
         }
-        let mut queue = self.messages.write().unwrap().clone();
-        let msg = match queue.pop_front() {
-            Some(v) => v,
-            None => return Err(SocketError::Other),
-        };
-        if !queue.is_empty() {
+        let msg = self.messages.write().unwrap().pop_front();
+        if !self.messages.read().unwrap().is_empty() {
             self.notify_recv.notify_one();
         }
-        Ok(msg)
+        match msg {
+            Some(v) => Ok(v),
+            None => Err(SocketError::Other),
+        }
     }
 
     /// Called by the socket's socket_session when it receives data, stores data

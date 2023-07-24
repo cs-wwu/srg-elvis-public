@@ -1,12 +1,14 @@
+use std::time::Duration;
+
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    run_internet, IpTable, Message, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
 
 /// Simulates a message being forwarded along across many networks.
@@ -21,9 +23,12 @@ pub async fn telephone_multi() {
 
     let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
+
+    let local: Ipv4Address = [127, 0, 0, 1].into();
+
     let mut machines = vec![new_machine![
         Udp::new(),
-        Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect(),),
+        Ipv4::new([(local, Recipient::with_mac(0, 1))].into_iter().collect(),),
         Pci::new([networks[0].clone()]),
         SendMessage::new(
             vec![message.clone()],
@@ -37,7 +42,7 @@ pub async fn telephone_multi() {
     for i in 0u32..(END - 1) {
         let local = i.to_be_bytes().into();
         let remote = (i + 1).to_be_bytes().into();
-        let table = [(remote, Recipient::with_mac(1, 1))].into_iter().collect();
+        let table = [(local, Recipient::with_mac(1, 1))].into_iter().collect();
         machines.push(new_machine![
             Udp::new(),
             Ipv4::new(table),
@@ -61,7 +66,9 @@ pub async fn telephone_multi() {
         Capture::new(Endpoint::new(local, 0xbeef), 1)
     ]);
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     let received = machines
         .into_iter()
         .last()

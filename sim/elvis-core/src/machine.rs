@@ -81,7 +81,8 @@ impl ProtocolMap {
 /// set of [`Protocol`](super::Protocol)s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
-    protocols: ProtocolMap,
+    // pub network_api: NetworkAPI,
+    pub protocols: ProtocolMap,
 }
 
 impl Machine {

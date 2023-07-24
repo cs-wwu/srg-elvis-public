@@ -21,10 +21,8 @@ pub use on_receive::OnReceive;
 mod ping_pong;
 pub use ping_pong::PingPong;
 
-pub mod dhcp;
-
-pub mod router;
-pub use router::Router;
+pub mod dns_test_client;
+pub mod dns_test_server;
 
 mod throughput_tester;
 pub use throughput_tester::ThroughputTester;
@@ -43,3 +41,9 @@ pub use tcp_stream_client::TcpStreamClient;
 
 pub mod tcp_listener_server;
 pub use tcp_listener_server::TcpListenerServer;
+
+pub mod multi_capture;
+pub use multi_capture::Counter;
+pub use multi_capture::MultiCapture;
+
+pub mod dhcp_server;

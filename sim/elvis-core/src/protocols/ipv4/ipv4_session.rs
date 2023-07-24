@@ -9,7 +9,7 @@ use crate::{
     protocol::DemuxError,
     protocols::{pci::PciSession, utility::Endpoints},
     session::SendError,
-    Control, Session, Transport,
+    Control, Network, Session, Transport,
 };
 use std::{
     any::TypeId,
@@ -94,8 +94,18 @@ impl Session for Ipv4Session {
             }
         };
         message.header(header);
-        self.pci_session
-            .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
+
+        if self.addresses.remote == Ipv4Address::SUBNET {
+            self.pci_session.send_pci(
+                message,
+                Some(Network::BROADCAST_MAC),
+                TypeId::of::<Ipv4>(),
+            )?;
+        } else {
+            self.pci_session
+                .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
+        }
+
         Ok(())
     }
 }

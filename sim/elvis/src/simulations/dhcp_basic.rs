@@ -1,33 +1,30 @@
+use std::time::Duration;
+
 use crate::applications::{
-    dhcp::{
-        dhcp_client::DhcpClient,
-        dhcp_client_listener::DhcpClientListener,
-        dhcp_server::{DhcpServer, IpRange},
-    },
+    dhcp_server::{DhcpServer, IpRange},
     Capture, SendMessage,
 };
 use elvis_core::{
     new_machine,
     protocols::{
+        dhcp::{dhcp_client::DhcpClient, dhcp_client_listener::DhcpClientListener},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
-        Endpoint, Pci,
+        Arp, Endpoint, Pci,
     },
-    run_internet, IpTable, Message, Network,
+    run_internet, run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
 
 // Sim to test basic IP address allocation from server
 pub async fn dhcp_basic_offer() {
     let network = Network::basic();
-    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
+    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([123, 123, 123, 123]);
     const CAPTURE_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 0]);
     const CAPTURE_ENDPOINT: Endpoint = Endpoint::new(CAPTURE_IP, 0);
-    let ip_table: IpTable<Recipient> = [
-        (DHCP_SERVER_IP, Recipient::with_mac(0, 0)),
-        (CAPTURE_IP, Recipient::with_mac(0, 1)),
-    ]
-    .into_iter()
-    .collect();
+
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
 
     let machines = vec![
         // Server
@@ -35,6 +32,7 @@ pub async fn dhcp_basic_offer() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::basic(),
             DhcpServer::new(DHCP_SERVER_IP, IpRange::new(1.into(), 255.into())),
         ],
         // The capture machine has its IP address statically allocated because otherwise we would
@@ -43,6 +41,7 @@ pub async fn dhcp_basic_offer() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::basic(),
             Capture::new(CAPTURE_ENDPOINT, 2),
         ],
         // This machine and the next will get their IP addresses from the DHCP server and then send
@@ -51,6 +50,7 @@ pub async fn dhcp_basic_offer() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::basic(),
             DhcpClient::new(DHCP_SERVER_IP, None),
             SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
         ],
@@ -58,6 +58,7 @@ pub async fn dhcp_basic_offer() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::basic(),
             DhcpClient::new(DHCP_SERVER_IP, None),
             SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
         ],
@@ -69,9 +70,9 @@ pub async fn dhcp_basic_offer() {
 // Sim to test clients returning IP to server
 pub async fn dhcp_basic_release() {
     let network = Network::basic();
-    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
+    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([123, 123, 123, 123]);
 
-    let ip_table: IpTable<Recipient> = [(DHCP_SERVER_IP, Recipient::with_mac(0, 0))]
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
         .into_iter()
         .collect();
 
@@ -98,7 +99,10 @@ pub async fn dhcp_basic_release() {
             DhcpClient::new(DHCP_SERVER_IP, Some(DhcpClientListener::new())),
         ],
     ];
-    run_internet(&machines).await;
+
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     let mut machines_iter = machines.into_iter();
     let server = machines_iter.next().unwrap();
     let client1 = machines_iter.next().unwrap();

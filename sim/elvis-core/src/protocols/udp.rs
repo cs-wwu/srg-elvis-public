@@ -42,6 +42,7 @@ impl Udp {
         protocols: ProtocolMap,
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
         self.listen(upstream, endpoints.local, protocols.clone())?;
+
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
             .await?)
@@ -58,11 +59,13 @@ impl Udp {
             .unwrap()
             .open_for_sending(TypeId::of::<Self>(), endpoints.into(), protocols)
             .await?;
+
         let session = Arc::new(UdpSession {
             upstream,
             downstream,
             endpoints,
         });
+
         Ok(session)
     }
 
@@ -82,7 +85,13 @@ impl Udp {
         protocols
             .protocol::<Ipv4>()
             .expect("No such protocol")
-            .listen(TypeId::of::<Self>(), socket.address, protocols)?;
+            .listen(
+                TypeId::of::<Self>(),
+                socket.address,
+                protocols,
+                ipv4::ProtocolNumber::UDP,
+            )?;
+
         Ok(())
     }
 }
@@ -120,6 +129,7 @@ impl Protocol for Udp {
         );
 
         let binding = match self.listen_bindings.get(&endpoints.local) {
+            // MAKE THIS LOCAL AGAIN
             Some(listen_entry) => listen_entry,
             None => {
                 // If we don't have a normal listen binding, check for

@@ -8,6 +8,9 @@ pub use dhcp_basic::{dhcp_basic_offer, dhcp_basic_release};
 mod socket_basic;
 pub use socket_basic::socket_basic;
 
+mod dns_basic;
+pub use dns_basic::dns_basic;
+
 mod arp_router_sim;
 pub use arp_router_sim::arp_router_single;
 
@@ -25,12 +28,6 @@ pub use latency::latency;
 
 mod throughput;
 pub use throughput::throughput;
-
-mod router_single;
-pub use router_single::router_single;
-
-mod router_multi;
-pub use router_multi::router_multi;
 
 mod tcp_with_reliable;
 pub use tcp_with_reliable::tcp_with_reliable;
@@ -50,3 +47,6 @@ pub use udp_gigabyte_bench::udp_gigabyte_bench;
 
 mod tcp_stream;
 pub use tcp_stream::tcp_stream;
+
+mod udp_broadcast;
+pub use udp_broadcast::udp_broadcast_basic;

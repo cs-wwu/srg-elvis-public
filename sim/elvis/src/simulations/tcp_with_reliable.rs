@@ -1,12 +1,14 @@
+use std::time::Duration;
+
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Tcp,
     },
-    run_internet, IpTable, Network, Transport,
+    run_internet_with_timeout, ExitStatus, IpTable, Network, Transport,
 };
 
 // TODO(hardint): There is a lot of redundant code with addresses and such. Consolidate.
@@ -21,9 +23,11 @@ pub async fn tcp_with_reliable() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
-        .into_iter()
-        .collect();
+
+    let ip_table: IpTable<Recipient> =
+        [(Ipv4Address::from([127, 0, 0, 1]), Recipient::with_mac(0, 1))]
+            .into_iter()
+            .collect();
 
     let message: Vec<_> = (0..20).map(|i| i as u8).collect();
     let message = Message::new(message);
@@ -42,7 +46,9 @@ pub async fn tcp_with_reliable() {
         ],
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     let received = machines
         .into_iter()
         .nth(1)

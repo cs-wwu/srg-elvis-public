@@ -31,9 +31,30 @@ pub mod fragmentation;
 mod reassembly;
 mod test_header_builder;
 
+#[derive(Eq, PartialEq, Hash, Debug, Clone, Copy)]
+pub enum ProtocolNumber {
+    DEFAULT,
+    UDP,
+    TCP,
+}
+
+// Enum for which upstream protocol to use
+// see https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
+// for more info about protocol numbers
+impl From<u8> for ProtocolNumber {
+    fn from(value: u8) -> Self {
+        match value {
+            6 => ProtocolNumber::TCP,
+            17 => ProtocolNumber::UDP,
+            _ => ProtocolNumber::DEFAULT,
+        }
+    }
+}
+
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
-    listen_bindings: FxDashMap<Ipv4Address, TypeId>,
+    listen_bindings: FxDashMap<(Ipv4Address, ProtocolNumber), TypeId>,
+
     recipients: IpTable<Recipient>,
 }
 
@@ -51,8 +72,15 @@ impl Ipv4 {
         upstream: TypeId,
         endpoints: AddressPair,
         protocols: ProtocolMap,
+        protocol_number: ProtocolNumber,
     ) -> Result<Arc<Ipv4Session>, OpenAndListenError> {
-        self.listen(upstream, endpoints.local, protocols.clone())?;
+        self.listen(
+            upstream,
+            endpoints.local,
+            protocols.clone(),
+            protocol_number,
+        )?;
+
         Ok(self
             .open_for_sending(upstream, endpoints, protocols)
             .await?)
@@ -64,14 +92,15 @@ impl Ipv4 {
         endpoints: AddressPair,
         protocols: ProtocolMap,
     ) -> Result<Arc<Ipv4Session>, OpenError> {
-        let mut recipient = match self.recipients.get_recipient(endpoints.remote) {
+        let mut recipient = match self.recipients.get_recipient(endpoints.local) {
             Some(recipient) => recipient,
             None => {
-                return Err(OpenError::UnknownRecipient(endpoints.remote));
+                return Err(OpenError::UnknownRecipient(endpoints.local));
             }
         };
 
         // if ARP exists, and recipient does not specify a destination MAC, then try to figure out a destination MAC
+        // don't try to send arp requests if the remote enpoint is the broadcast address
         if recipient.mac.is_none() {
             if let Some(arp) = protocols.protocol::<Arp>() {
                 arp.listen(endpoints.local);
@@ -98,12 +127,22 @@ impl Ipv4 {
         upstream: TypeId,
         address: Ipv4Address,
         protocols: ProtocolMap,
+        protocol_number: ProtocolNumber,
     ) -> Result<(), ListenError> {
         if let Some(arp) = protocols.protocol::<Arp>() {
-            arp.listen(address);
+            if address != Ipv4Address::SUBNET {
+                arp.listen(address);
+            }
         }
-        match self.listen_bindings.entry(address) {
-            Entry::Occupied(_) => Err(ListenError::Exists(address)),
+        match self.listen_bindings.entry((address, protocol_number)) {
+            Entry::Occupied(e) => {
+                // if we're doing the EXACT same listen binding as before, return ok
+                if *e.get() == upstream {
+                    Ok(())
+                } else {
+                    Err(ListenError::Exists(address))
+                }
+            }
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
                 Ok(())
@@ -112,8 +151,6 @@ impl Ipv4 {
     }
 }
 
-// TODO(hardint): Add a static IP lookup table in the constructor so that
-// messages can be sent to the correct network
 #[async_trait::async_trait]
 impl Protocol for Ipv4 {
     async fn start(
@@ -148,14 +185,21 @@ impl Protocol for Ipv4 {
             local: header.destination,
             remote: header.source,
         };
+
+        let protocol_no: ProtocolNumber = ProtocolNumber::from(header.protocol);
+
         // If the session does not exist, see if we have a listen
         // binding for it
-        let upstream = match self.listen_bindings.get(&endpoints.local) {
+        let upstream = match self.listen_bindings.get(&(endpoints.local, protocol_no)) {
             Some(binding) => *binding,
+
             None => {
                 // If we don't have a normal listen binding, check for
                 // a 0.0.0.0 binding
-                match self.listen_bindings.get(&Ipv4Address::CURRENT_NETWORK) {
+                match self
+                    .listen_bindings
+                    .get(&(Ipv4Address::CURRENT_NETWORK, protocol_no))
+                {
                     Some(binding) => *binding,
                     None => {
                         tracing::error!(
