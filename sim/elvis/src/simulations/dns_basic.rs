@@ -1,4 +1,4 @@
-use std::{time::Duration};
+use std::time::Duration;
 
 use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
 use elvis_core::{
@@ -9,9 +9,9 @@ use elvis_core::{
         socket_api::socket::SocketType,
         tcp::Tcp,
         udp::Udp,
-        Pci, SocketAPI,
+        Arp, Pci, SocketAPI,
     },
-    run_internet, IpTable, Network, run_internet_with_timeout, ExitStatus,
+    run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
 /// Runs a basic client-server sim using the DNS client and server to resolve
@@ -28,19 +28,16 @@ pub async fn dns_basic() -> ExitStatus {
     let dns_server_ip_address = Ipv4Address::DNS_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     let client1_ip_address: Ipv4Address = [123, 45, 67, 60].into();
-    let ip_table: IpTable<Recipient> = [
-        (dns_server_ip_address, Recipient::with_mac(0, 0)),
-        (server_ip_address, Recipient::with_mac(0, 1)),
-        (client1_ip_address, Recipient::with_mac(0, 2)),
-    ]
-    .into_iter()
-    .collect();
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
 
     let machines = vec![
         new_machine![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
+            Arp::basic(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(dns_server_ip_address)),
             DnsServer::new(1), // Argument is for number of connections this server will at most have open. WiP workaround solution for now.
@@ -49,6 +46,7 @@ pub async fn dns_basic() -> ExitStatus {
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
+            Arp::basic(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
             DnsTestServer::new(0xbeef, SocketType::Datagram)
@@ -57,6 +55,7 @@ pub async fn dns_basic() -> ExitStatus {
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
+            Arp::basic(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client1_ip_address)),
             DnsClient::new(),
@@ -74,6 +73,6 @@ mod tests {
     #[tokio::test]
     #[tracing_test::traced_test]
     async fn dns_basic() {
-        assert_eq!(super::dns_basic().await, ExitStatus::Exited);
+        assert_eq!(super::dns_basic().await, ExitStatus::Status(10));
     }
 }

@@ -8,7 +8,7 @@ use elvis_core::{
         dhcp::{dhcp_client::DhcpClient, dhcp_client_listener::DhcpClientListener},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
-        Endpoint, Pci, Arp,
+        Arp, Endpoint, Pci,
     },
     run_internet, IpTable, Message, Network,
 };

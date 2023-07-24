@@ -22,7 +22,7 @@ const IPS: [Ipv4Address; 4] = [
     Ipv4Address::new([1, 1, 1, 1]),
     Ipv4Address::new([1, 1, 1, 2]),
     Ipv4Address::new([1, 1, 1, 3]),
-    Ipv4Address::new([1, 1, 1, 4])
+    Ipv4Address::new([1, 1, 1, 4]),
 ];
 
 pub async fn udp_broadcast_basic() -> ExitStatus {

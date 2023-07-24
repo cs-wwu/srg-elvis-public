@@ -139,7 +139,14 @@ impl Ipv4 {
             }
         }
         match self.listen_bindings.entry((address, protocol_number)) {
-            Entry::Occupied(_) => Err(ListenError::Exists(address)),
+            Entry::Occupied(e) => {
+                // if we're doing the EXACT same listen binding as before, return ok
+                if *e.get() == upstream {
+                    Ok(())
+                } else {
+                    Err(ListenError::Exists(address))
+                }
+            }
             Entry::Vacant(entry) => {
                 entry.insert(upstream);
                 Ok(())
