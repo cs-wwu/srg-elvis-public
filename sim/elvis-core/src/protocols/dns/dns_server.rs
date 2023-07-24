@@ -21,16 +21,12 @@ pub struct DnsServer {
     /// The DnsServer version of a normal Dns cache to hold all mappings in
     /// the network.
     name_to_ip: FxDashMap<String, Ipv4Address>,
-    /// Work around for other issues still being investigated.
-    /// The number of open sockets to accept before returning from start.
-    num_connections: u16,
 }
 
 impl DnsServer {
-    pub fn new(num_connections: u16) -> Self {
+    pub fn new() -> Self {
         Self {
             name_to_ip: Default::default(),
-            num_connections,
         }
     }
 
@@ -91,6 +87,25 @@ impl DnsServer {
         let response_msg = DnsMessage::new(header, question, answer).unwrap();
         Ok(response_msg)
     }
+
+    /// Continuously accepts new connections and spawns new tokio tasks to 
+    /// handle communication with each requester.
+    pub async fn accept_loop(
+        name_to_ip: FxDashMap<String, Ipv4Address>,
+        listen_socket: Arc<Socket>
+    ) -> Result<(), DnsServerError> {
+        loop {
+            let table = name_to_ip.clone();
+            // Accept an incoming connection
+            let socket = match listen_socket.accept().await {
+                Ok(sock) => sock,
+                Err(_) => return Ok(()),
+            };
+            tokio::spawn(async move {
+                DnsServer::respond_to_query(table, socket).await.unwrap();
+            });
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -127,27 +142,13 @@ impl Protocol for DnsServer {
         // Wait on ititialization before sending or receiving any message from the network
         initialized.wait().await;
 
-        let mut tasks = Vec::new();
-        // Continuously accept incoming connections in a loop, spawning a
-        // new tokio task to handle each accepted connection
-        loop {
-            let table = self.name_to_ip.clone();
-            // Accept an incoming connection
-            let socket = listen_socket.accept().await.unwrap();
-
-            // Spawn a new tokio task for handling communication
-            // with the new client
-            tasks.push(tokio::spawn(async move {
-                DnsServer::respond_to_query(table, socket).await.unwrap();
-            }));
-
-            if tasks.len() >= self.num_connections as usize {
-                while !tasks.is_empty() {
-                    tasks.pop().unwrap().await.unwrap()
-                }
-                break;
+        // Spawn tokio task to continuously accept incoming 
+        // connections in a loop.
+        let table = self.name_to_ip.clone();
+        tokio::spawn(async move {
+                DnsServer::accept_loop(table, listen_socket).await.unwrap()
             }
-        }
+        );
         Ok(())
     }
 
@@ -166,8 +167,8 @@ impl Protocol for DnsServer {
 pub enum DnsServerError {
     #[error("DNS Authoritative cache lookup error")]
     Cache,
-    // #[error("DNS Server received response message error")]
-    // BadRequest,
     #[error("Unspecified DNS Server error")]
     Other,
+    #[error("Socket Accept failed")]
+    DnsSocket,
 }

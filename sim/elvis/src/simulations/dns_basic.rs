@@ -1,4 +1,5 @@
 use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
+use tokio::time::Duration;
 use elvis_core::{
     new_machine,
     protocols::{
@@ -9,7 +10,7 @@ use elvis_core::{
         udp::Udp,
         Pci, SocketAPI,
     },
-    run_internet, IpTable, Network,
+    IpTable, Network, run_internet_with_timeout,
 };
 
 /// Runs a basic client-server sim using the DNS client and server to resolve
@@ -41,7 +42,7 @@ pub async fn dns_basic() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(dns_server_ip_address)),
-            DnsServer::new(1), // Argument is for number of connections this server will at most have open. WiP workaround solution for now.
+            DnsServer::new(),
         ],
         new_machine![
             Udp::new(),
@@ -62,7 +63,7 @@ pub async fn dns_basic() {
         ],
     ];
 
-    run_internet(&machines).await;
+    run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
 }
 
 #[cfg(test)]
