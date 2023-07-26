@@ -35,14 +35,14 @@ mod test_header_builder;
 #[repr(u8)]
 
 pub enum ProtocolNumber {
-    TEST_1 = 253,
-    TEST_2 = 254,
-    RESERVED = 255,
     TCP = 6,
     UDP = 17,
-    DEFAULT,
+    TEST1 = 253,
+    TEST2 = 254,
+    RESERVED = 255,
+    DEFAULT = 0,
 }
-// Enum for which upstream protocol to use 
+// Enum for which upstream protocol to use
 // see https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
 // for more info about protocol numbers
 impl From<u8> for ProtocolNumber {
@@ -50,6 +50,9 @@ impl From<u8> for ProtocolNumber {
         match value {
             6 => ProtocolNumber::TCP,
             17 => ProtocolNumber::UDP,
+            253 => ProtocolNumber::TEST1,
+            254 => ProtocolNumber::TEST2,
+            255 => ProtocolNumber::RESERVED,
             _ => ProtocolNumber::DEFAULT,
         }
     }

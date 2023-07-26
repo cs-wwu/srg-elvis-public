@@ -13,6 +13,9 @@ use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+/// Static router that uses arp to route messages to the correct location
+/// created by providing a table mapping subnet to router ip and pci slot
+/// requires a local ip to be specified for each pci session
 pub struct ArpRouter {
     ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
     local_ips: Vec<Ipv4Address>,
@@ -20,6 +23,9 @@ pub struct ArpRouter {
 
 impl ArpRouter {
     pub fn new(
+        // Maps subnet to a given router ip.
+        // Setting route to none sets the destination ip to the destination
+        // ip in the received packet so the router can send to a local network.
         ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
         local_ips: Vec<Ipv4Address>,
     ) -> Self {

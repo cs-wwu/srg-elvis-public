@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::applications::{Counter, MultiCapture, SendMessage, Capture};
+use crate::applications::{Capture, Counter, MultiCapture, SendMessage};
 use elvis_core::{
     message::Message,
     new_machine,
@@ -12,7 +12,7 @@ use elvis_core::{
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
-/// Simulation to test udp broadcasting and multiple 
+/// Simulation to test udp broadcasting and multiple
 /// udp sessions on the same machine using the same local ip.
 /// Simulates a sendmessage broadcasting to multiple captures
 /// on the port 0xbeef. The simulation shuts down once all 3

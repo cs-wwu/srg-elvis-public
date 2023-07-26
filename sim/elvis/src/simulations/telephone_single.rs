@@ -9,7 +9,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    IpTable, Message, Network, run_internet_with_timeout, ExitStatus,
+    run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
 
 /// Simulates a message being repeatedly forwarded on a single network.
