@@ -1,8 +1,6 @@
-use std::time::Duration;
-
-use crate::applications::{
-    dhcp_server::{DhcpServer, IpRange},
-    Capture, SendMessage,
+use crate::{
+    applications::{dhcp_server::DhcpServer, Capture, SendMessage},
+    ip_generator::IpRange,
 };
 use elvis_core::{
     new_machine,
@@ -14,6 +12,7 @@ use elvis_core::{
     },
     run_internet, run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
+use std::time::Duration;
 
 // Sim to test basic IP address allocation from server
 pub async fn dhcp_basic_offer() {
@@ -114,10 +113,11 @@ pub async fn dhcp_basic_release() {
             .protocol::<DhcpServer>()
             .unwrap()
             .ip_generator
-            .read()
+            .write()
             .unwrap()
-            .current,
-        3
+            .fetch_ip()
+            .unwrap(),
+        Ipv4Address::from(3)
     );
     // It's not consistent which machine gets [0.0.0.1] or [0.0.0.2] so just asserting that they have *some* IP
     // While the above assertion ensures they're one of the two mentioned values

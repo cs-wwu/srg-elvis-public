@@ -1,4 +1,3 @@
-use std::{sync::Arc, time::Duration};
 use crate::applications::{Capture, Counter, MultiCapture, SendMessage};
 use elvis_core::{
     message::Message,
@@ -10,6 +9,7 @@ use elvis_core::{
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
+use std::{sync::Arc, time::Duration};
 
 /// Simulation to test udp broadcasting and multiple
 /// udp sessions on the same machine using the same local ip.
