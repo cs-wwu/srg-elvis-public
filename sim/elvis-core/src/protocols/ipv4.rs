@@ -32,12 +32,16 @@ mod reassembly;
 mod test_header_builder;
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone, Copy)]
-pub enum ProtocolNumber {
-    DEFAULT,
-    UDP,
-    TCP,
-}
+#[repr(u8)]
 
+pub enum ProtocolNumber {
+    TEST_1 = 253,
+    TEST_2 = 254,
+    RESERVED = 255,
+    TCP = 6,
+    UDP = 17,
+    DEFAULT,
+}
 // Enum for which upstream protocol to use 
 // see https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
 // for more info about protocol numbers
