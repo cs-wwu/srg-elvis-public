@@ -1,5 +1,4 @@
 use std::{sync::Arc, time::Duration};
-
 use crate::applications::{Capture, Counter, MultiCapture, SendMessage};
 use elvis_core::{
     message::Message,
