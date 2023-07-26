@@ -30,8 +30,8 @@ const ROUTER_IPS: [Ipv4Address; 2] = [
 
 pub fn build_ip_table(router_table: &IpTable<(Ipv4Address, PciSlot)>) -> IpTable<Recipient> {
     let mut ip_table = IpTable::<Recipient>::new();
-    for entry in router_table.iter() {
-        ip_table.add(*entry.0, Recipient::new((entry.1).1, None));
+    for (net, value) in router_table.iter() {
+        ip_table.add(net, Recipient::new(value.1, None));
     }
     ip_table
 }
