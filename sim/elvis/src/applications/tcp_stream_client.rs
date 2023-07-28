@@ -35,25 +35,47 @@ impl Protocol for TcpStreamClient {
             .await
             .unwrap();
 
+        // TESTING TcpStream::read_exact()
         // Send bytes to the server
-        let mut msg: Vec<u8> = vec![
+        let mut msg1: Vec<u8> = vec![
             rand::random::<u8>() / 2,
             rand::random::<u8>() / 2,
             rand::random::<u8>() / 2,
         ];
-        stream.write(msg.clone()).await.unwrap();
+        stream.write(msg1.clone()).await.unwrap();
 
-        // Recieve bytes from the server
+        // Recieve bytes from the server using read_exact 
         let max_bytes: usize = 4;
-        let received_msg: Vec<u8> = stream.read(max_bytes).await.unwrap();
+        let received_msg1: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
 
         // Add 1 to each number in the vec
-        for n in &mut msg {
+        for n in &mut msg1 {
             *n += 1;
         }
 
         // The message sent and recieved should be identical
-        assert_eq!(msg, received_msg);
+        assert_eq!(msg1, received_msg1);
+
+        // TESTING TcpStream::read()
+        // Send bytes to the server
+        let mut msg2: Vec<u8> = vec![
+            rand::random::<u8>() / 2,
+            rand::random::<u8>() / 2,
+            rand::random::<u8>() / 2,
+        ];
+        stream.write(msg2.clone()).await.unwrap();
+
+        // Recieve bytes from the server using read_exact 
+        let max_bytes: usize = 4;
+        let received_msg2: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
+
+        // Add 1 to each number in the vec
+        for n in &mut msg2 {
+            *n += 1;
+        }
+
+        // The message sent and recieved should be identical
+        assert_eq!(msg2, received_msg2);
 
         // Shut down the simulation
         shutdown.shut_down();
