@@ -13,14 +13,10 @@ use tokio::sync::Barrier;
 
 // number of seconds between each update
 const UPDATE: u32 = 30;
-pub struct Rip {
-
-}
+pub struct Rip {}
 
 impl Rip {
-    pub async fn update() {
-        
-    }
+    pub async fn update() {}
 }
 
 #[async_trait::async_trait]
@@ -32,7 +28,7 @@ impl Protocol for Rip {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         initialized.wait().await;
-        
+
         Ok(())
     }
 

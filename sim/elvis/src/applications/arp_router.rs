@@ -1,4 +1,5 @@
 use elvis_core::{
+    ip_table::Rte,
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
@@ -17,21 +18,23 @@ use tokio::sync::Barrier;
 use super::rip_parsing::{RipEntry, RipPacket};
 
 // entry representing next hop, outgoing interface, metric and route change flag
-pub type Rte = (Ipv4Address, PciSlot, u32, bool);
 const INFINITY: u32 = 16;
 
 #[derive(Debug)]
 pub struct ArpRouter {
-    ip_table: RwLock<IpTable<(Option<Ipv4Address>, PciSlot, u32)>>,
+    ip_table: RwLock<IpTable<Rte>>,
     local_ips: Vec<Ipv4Address>,
 }
 
 impl ArpRouter {
     // todo! (eulerfrog) add into to auto assign metric for the ip tables
-    pub fn new(ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>, local_ips: Vec<Ipv4Address>) -> Self {
+    pub fn new(
+        ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
+        local_ips: Vec<Ipv4Address>,
+    ) -> Self {
         Self {
             ip_table: RwLock::new(ip_table.into()),
-            local_ips
+            local_ips,
         }
     }
 
@@ -39,7 +42,6 @@ impl ArpRouter {
     // information to calling process
     pub fn process_request(&self, packet: RipPacket) -> Vec<RipPacket> {
         let mut output: Vec<RipPacket> = Vec::new();
-
         let mut entries = packet.entries;
 
         // if entries is 1 and metric and address family id of that entry is
@@ -51,8 +53,14 @@ impl ArpRouter {
             for entry in self.ip_table.read().unwrap().iter() {
                 count += 1;
 
+                // is this correct?
+                let next_hop = match entry.1.destination {
+                    Some(addr) => addr,
+                    None => Ipv4Address::from([0, 0, 0, 0]),
+                };
+
                 let element: RipEntry =
-                    RipEntry::new_entry(entry.0.id(), entry.1 .0, entry.0.mask(), entry.1 .2);
+                    RipEntry::new_entry(entry.0.id(), next_hop, entry.0.mask(), entry.1.metric);
 
                 frame.push(element);
 
@@ -74,7 +82,7 @@ impl ArpRouter {
                 .unwrap()
                 .get_recipient(entry.ip_address)
             {
-                entry.metric = route.2;
+                entry.metric = route.metric;
             } else {
                 entry.metric = INFINITY;
             }
@@ -104,26 +112,25 @@ impl ArpRouter {
 
             match ip_table_ref.get_recipient(destination) {
                 Some(recipient) => {
-                    if recipient.2 > metric {
+                    if recipient.metric > metric {
                         ip_table_ref.add(
-                            Ipv4Net::new(recipient.0, Ipv4Mask::from_bitcount(recipient.1)),
-                            (Some(neighbor_ip), neighbor_slot, metric),
-                        )
+                            Ipv4Net::new(destination, mask),
+                            Rte::new(Some(neighbor_ip), mask, neighbor_slot, metric),
+                        );
                     }
                 }
                 None => {
                     if metric < INFINITY {
                         ip_table_ref.add(
                             Ipv4Net::new(destination, mask),
-                            (Some(neighbor_ip), neighbor_slot, metric),
-                        )
+                            Rte::new(Some(neighbor_ip), mask, neighbor_slot, metric),
+                        );
                     }
                 }
             }
         }
     }
 }
-
 
 #[async_trait::async_trait]
 impl Protocol for ArpRouter {
@@ -180,19 +187,20 @@ impl Protocol for ArpRouter {
 
         message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
 
-        let pair = self
+        let rte = self
             .ip_table
             .read()
             .unwrap()
             .get_recipient(ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
 
-        let gateway = match pair.0 {
+        let gateway = match rte.destination {
             Some(address) => address,
             // allows router to send packet back to local network
             None => ipv4_header.destination,
         };
-        let slot = pair.1;
+
+        let slot = rte.slot;
 
         let arp = protocols.protocol::<Arp>().unwrap();
 
