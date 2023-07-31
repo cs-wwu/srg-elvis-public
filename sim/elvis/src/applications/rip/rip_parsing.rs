@@ -1,5 +1,5 @@
 use elvis_core::protocols::arp::subnetting::Ipv4Mask;
-use elvis_core::{network::Mac, protocols::ipv4::Ipv4Address, protocols::utility::BytesExt};
+use elvis_core::{protocols::ipv4::Ipv4Address, protocols::utility::BytesExt};
 
 /// Parsing for RIP v2
 ///

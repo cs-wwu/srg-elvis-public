@@ -30,7 +30,6 @@ pub struct ArpRouter {
 }
 
 impl ArpRouter {
-    // todo! (eulerfrog) add into to auto assign metric for the ip tables
     pub fn new(
         // Maps subnet to a given router ip.
         // Setting route to none sets the destination ip to the destination
@@ -44,6 +43,29 @@ impl ArpRouter {
         }
     }
 
+    // generate rip packets for each entry in the router that has a
+    // destination router to send to
+    pub fn generate_request(&self) -> Vec<RipPacket> {
+        let mut output: Vec<RipPacket> = Vec::new();
+        let mut entries: Vec<RipEntry> = Vec::new();
+
+        for entry in self.ip_table.read().unwrap().iter() {
+            if let Some(next_hop) = entry.1.destination {
+                let rip_entry =
+                    RipEntry::new_entry(entry.0.id(), next_hop, entry.0.mask(), entry.1.metric);
+
+                entries.push(rip_entry);
+            }
+
+            if entries.len() == 25 {
+                output.push(RipPacket::new_request(entries));
+                entries = Vec::new();
+            }
+        }
+
+        output
+    }
+
     // processes the packet of an incoming arp request and returns relevent
     // information to calling process
     pub fn process_request(&self, packet: RipPacket) -> Vec<RipPacket> {
@@ -54,11 +76,8 @@ impl ArpRouter {
         // 0, process whole table request
         if entries.len() == 1 && entries[0].address_family_id == 0 {
             let mut frame: Vec<RipEntry> = Vec::new();
-            let mut count: u32 = 0;
 
             for entry in self.ip_table.read().unwrap().iter() {
-                count += 1;
-
                 // is this correct?
                 let next_hop = match entry.1.destination {
                     Some(addr) => addr,
@@ -71,7 +90,7 @@ impl ArpRouter {
                 frame.push(element);
 
                 // every 25th entry add the current frame to the output vector
-                if count % 25 == 0 {
+                if frame.len() == 25 {
                     output.push(RipPacket::new_response(frame));
                     frame = Vec::new();
                 }
@@ -110,7 +129,7 @@ impl ArpRouter {
 
         for entry in entries {
             // cost of going to new route is metric provided by packet
-            // + the cost of traveling to
+            // + the cost of traveling to that destination
             let metric = min(entry.metric + 1, INFINITY);
 
             let destination = entry.ip_address;

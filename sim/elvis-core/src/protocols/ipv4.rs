@@ -62,7 +62,6 @@ impl From<u8> for ProtocolNumber {
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     listen_bindings: FxDashMap<(Ipv4Address, ProtocolNumber), TypeId>,
-
     recipients: IpTable<Recipient>,
 }
 
