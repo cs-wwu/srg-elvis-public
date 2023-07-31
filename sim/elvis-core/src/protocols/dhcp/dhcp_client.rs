@@ -156,6 +156,7 @@ impl Protocol for DhcpClient {
                 }
             }
         }
+
         Ok(())
     }
 
