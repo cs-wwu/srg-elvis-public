@@ -116,7 +116,7 @@ impl Protocol for DnsServer {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        // Adds mappings to the dns server cache. This is a stand it method of
+        // Adds mappings to the dns server cache. This is a stand-in method of
         // doing it. TODO (HenryEricksonIV)
         self.add_mapping("testserver.com".to_string(), [123, 45, 67, 15].into());
         self.add_mapping("google.com".to_string(), [123, 45, 67, 60].into());
