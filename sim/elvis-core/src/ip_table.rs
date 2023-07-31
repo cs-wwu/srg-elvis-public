@@ -18,7 +18,6 @@ pub struct IpTable<T> {
     table: BTreeMap<Obm, T>,
 }
 
-
 // TODO (eulerfrog) add examples for each fn
 impl<T: Copy> IpTable<T> {
     pub fn new() -> Self {

@@ -32,10 +32,15 @@ mod reassembly;
 mod test_header_builder;
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone, Copy)]
+#[repr(u8)]
+
 pub enum ProtocolNumber {
-    DEFAULT,
-    UDP,
-    TCP,
+    TCP = 6,
+    UDP = 17,
+    TEST1 = 253,
+    TEST2 = 254,
+    RESERVED = 255,
+    DEFAULT = 0,
 }
 
 // Enum for which upstream protocol to use
@@ -46,6 +51,9 @@ impl From<u8> for ProtocolNumber {
         match value {
             6 => ProtocolNumber::TCP,
             17 => ProtocolNumber::UDP,
+            253 => ProtocolNumber::TEST1,
+            254 => ProtocolNumber::TEST2,
+            255 => ProtocolNumber::RESERVED,
             _ => ProtocolNumber::DEFAULT,
         }
     }

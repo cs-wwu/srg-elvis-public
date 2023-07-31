@@ -28,8 +28,9 @@ pub struct MultiCapture {
     counter: Arc<Counter>,
 }
 
-// struct that returns false for the first
-// n-1 callers and true for the nth caller
+/// struct that returns false for the first
+/// n-1 callers and true for the nth caller
+/// Used by setting the capacity to the number of multicaptures
 #[derive(Debug)]
 pub struct Counter {
     count: Mutex<u32>,
@@ -134,7 +135,7 @@ impl Protocol for MultiCapture {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
 
-        if (*self.counter).call() {
+        if self.counter.call() {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
                 if let Some(status) = self.exit_status {
                     shutdown.shut_down_with_status(ExitStatus::Status(status));

@@ -5,7 +5,7 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        arp::subnetting::{Ipv4Mask, Ipv4Net},
+        arp::subnetting::Ipv4Net,
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
         AddressPair, Arp, Ipv4, Pci,
     },
@@ -21,6 +21,9 @@ use super::rip_parsing::{RipEntry, RipPacket};
 const INFINITY: u32 = 16;
 
 #[derive(Debug)]
+/// Static router that uses arp to route messages to the correct location
+/// created by providing a table mapping subnet to router ip and pci slot
+/// requires a local ip to be specified for each pci session
 pub struct ArpRouter {
     ip_table: RwLock<IpTable<Rte>>,
     local_ips: Vec<Ipv4Address>,
@@ -29,6 +32,9 @@ pub struct ArpRouter {
 impl ArpRouter {
     // todo! (eulerfrog) add into to auto assign metric for the ip tables
     pub fn new(
+        // Maps subnet to a given router ip.
+        // Setting route to none sets the destination ip to the destination
+        // ip in the received packet so the router can send to a local network.
         ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
         local_ips: Vec<Ipv4Address>,
     ) -> Self {
@@ -184,10 +190,6 @@ impl Protocol for ArpRouter {
         if ipv4_header.time_to_live == 0 {
             return Ok(());
         }
-
-        // if the message destination is 255.255.255.255 or one
-        // of the routers local ips then we are processing a request
-        
 
         message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
 

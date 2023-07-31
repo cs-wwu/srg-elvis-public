@@ -8,6 +8,7 @@ use elvis_core::{network::Mac, protocols::ipv4::Ipv4Address, protocols::utility:
 ///
 const VERSION: u8 = 2;
 const AFI_2: u16 = 2;
+const INFINITY: u32 = 16;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RipPacket {
@@ -52,6 +53,12 @@ impl RipPacket {
             version: VERSION,
         };
         RipPacket { header, entries }
+    }
+
+    pub fn new_full_table_request() -> Self {
+        let mut entries: Vec<RipEntry> = Vec::new();
+        entries.push(RipEntry::new_full_table_request());
+        Self::new_request(entries)
     }
 
     pub fn build(&self) -> Vec<u8> {
@@ -136,6 +143,17 @@ impl RipEntry {
             subnet_mask,
             next_hop,
             metric,
+        }
+    }
+
+    pub fn new_full_table_request() -> Self {
+        Self {
+            address_family_id: 0,
+            route_tag: 0,
+            ip_address: 0.into(),
+            subnet_mask: Ipv4Mask::from_bitcount(0),
+            next_hop: 0.into(),
+            metric: INFINITY,
         }
     }
 }

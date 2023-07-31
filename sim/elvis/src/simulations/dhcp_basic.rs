@@ -1,8 +1,6 @@
-use std::time::Duration;
-
 use crate::{
     applications::{dhcp_server::DhcpServer, Capture, SendMessage},
-    ip_generator::*,
+    ip_generator::IpRange,
 };
 use elvis_core::{
     new_machine,
@@ -14,6 +12,7 @@ use elvis_core::{
     },
     run_internet, run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
+use std::time::Duration;
 
 // Sim to test basic IP address allocation from server
 pub async fn dhcp_basic_offer() {
