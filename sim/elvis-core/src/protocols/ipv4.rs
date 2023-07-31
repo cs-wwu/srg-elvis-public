@@ -225,10 +225,25 @@ impl Recipient {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Ipv4Info {
+    // The slot this struct maps to
+    pub tap_slot: PciSlot,
+    // configuration options
     pub ip_address: Option<Ipv4Address>,
     pub subnet_mask: Option<Ipv4Mask>,
     pub default_gateway: Option<Ipv4Address>,
     pub dns_server: Option<Ipv4Address>,
+}
+
+impl Ipv4Info {
+    pub fn new(tap_slot: PciSlot) -> Self {
+        Self {
+            tap_slot,
+            ip_address: None,
+            subnet_mask: None,
+            default_gateway: None,
+            dns_server: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
