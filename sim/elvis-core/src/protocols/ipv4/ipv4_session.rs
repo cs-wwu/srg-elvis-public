@@ -95,16 +95,8 @@ impl Session for Ipv4Session {
         };
         message.header(header);
 
-        if self.addresses.remote == Ipv4Address::SUBNET {
-            self.pci_session.send_pci(
-                message,
-                Some(Network::BROADCAST_MAC),
-                TypeId::of::<Ipv4>(),
-            )?;
-        } else {
-            self.pci_session
-                .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
-        }
+        self.pci_session
+        .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
 
         Ok(())
     }

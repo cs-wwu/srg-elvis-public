@@ -1,4 +1,4 @@
-use crate::applications::{ArpRouter, Capture, SendMessage, rip::rip_router::RipRouter};
+use crate::applications::{rip::rip_router::RipRouter, ArpRouter, Capture, SendMessage};
 use elvis_core::{
     machine::PciSlot,
     new_machine,
@@ -30,16 +30,14 @@ const ROUTER1_IPS: [Ipv4Address; 4] = [
     Ipv4Address::new([123, 45, 76, 95]),
 ];
 
-const ROUTER2_IPS: [Ipv4Address; 4] = [
+const ROUTER2_IPS: [Ipv4Address; 3] = [
     Ipv4Address::new([123, 45, 66, 92]),
     Ipv4Address::new([123, 45, 66, 93]),
     Ipv4Address::new([123, 45, 66, 94]),
-    Ipv4Address::new([123, 45, 66, 95]),
 ];
 
 pub fn build_ip_table(addresses: &[Ipv4Address]) -> IpTable<Recipient> {
     let mut router_table = IpTable::<Recipient>::new();
-
     for address in addresses.iter() {
         router_table.add_direct(*address, Recipient::new(0, None));
     }
@@ -84,12 +82,10 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
     .into_iter()
     .collect();
 
-    let router_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> = [
-        (IPS[2], (None, 1)),
-        (IPS[3], (None, 2)),
-    ]
-    .into_iter()
-    .collect();
+    let router_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> =
+        [(IPS[2], (None, 1)), (IPS[3], (None, 2))]
+            .into_iter()
+            .collect();
 
     let networks: Vec<_> = (0..6).map(|_| Network::basic()).collect();
     let ip_table_1 = build_ip_table(&ROUTER1_IPS);
@@ -129,7 +125,8 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new(ip_table_1),
             Arp::basic(),
             Udp::new(),
-            RipRouter::new(router_table_1, ROUTER1_IPS.to_vec())
+            ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec()),
+            RipRouter::new(ROUTER1_IPS.to_vec())
         ],
         new_machine![
             Pci::new([
@@ -140,7 +137,8 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new(ip_table_2),
             Arp::basic(),
             Udp::new(),
-            RipRouter::new(router_table_2, ROUTER2_IPS.to_vec())
+            ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec()),
+            RipRouter::new(ROUTER2_IPS.to_vec())
         ],
         // Destinations
         build_capture(networks[1].clone(), IPS[1], 1),
@@ -156,6 +154,7 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    #[tracing_test::traced_test]
     async fn rip_router() {
         let test1 = super::rip_router(super::IPS[1]);
         let test2 = super::rip_router(super::IPS[2]);

@@ -113,6 +113,8 @@ impl ArpRouter {
             }
         }
 
+        println!("I got a request, my ip table is: {:#?}", self.ip_table);
+
         output.push(RipPacket::new_response(entries));
         output
     }
