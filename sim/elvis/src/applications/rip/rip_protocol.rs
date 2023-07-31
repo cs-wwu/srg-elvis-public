@@ -11,9 +11,13 @@ use elvis_core::{
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
+use crate::applications::ArpRouter;
+
 // number of seconds between each update
 const UPDATE: u32 = 30;
-pub struct Rip {}
+pub struct Rip {
+    inner: ArpRouter
+}
 
 impl Rip {
     pub async fn update() {}
@@ -23,12 +27,12 @@ impl Rip {
 impl Protocol for Rip {
     async fn start(
         &self,
-        _shutdown: Shutdown,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         initialized.wait().await;
-
+        let _ = self.inner.start(shutdown, initialized, protocols);
         Ok(())
     }
 

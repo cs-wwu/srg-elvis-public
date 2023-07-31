@@ -185,6 +185,10 @@ impl Protocol for ArpRouter {
             return Ok(());
         }
 
+        // if the message destination is 255.255.255.255 or one
+        // of the routers local ips then we are processing a request
+        
+
         message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
 
         let rte = self
