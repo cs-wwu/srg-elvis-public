@@ -3,7 +3,6 @@ use std::fmt;
 
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
-use std::collections::btree_map::*;
 use std::fmt::Debug;
 
 #[derive(Clone, Eq, PartialEq)]
@@ -14,11 +13,8 @@ use std::fmt::Debug;
 /// When the ipv4 address is provided the table starts with the highest
 /// mask on the table and applies it to the provided ipv4address then
 /// checks if the masked ipv4address, mask pair is in the table
-pub struct IpTable<T: Copy> {
-    table: BTreeMap<Ipv4Net, T>,
-    // mapping to keep track of number of num of unique subnets associated with
-    // each mask
-    masks: BTreeMap<Ipv4Mask, u32>,
+pub struct IpTable<T> {
+    table: BTreeMap<Obm, T>,
 }
 
 // TODO (eulerfrog) add examples for each fn
@@ -26,7 +22,6 @@ impl<T: Copy> IpTable<T> {
     pub fn new() -> Self {
         IpTable {
             table: Default::default(),
-            masks: Default::default(),
         }
     }
 
@@ -43,61 +38,39 @@ impl<T: Copy> IpTable<T> {
     /// the recipient linked to the default gateway is returned. If no default gateway is
     /// then None is returned
     pub fn get_recipient(&self, address: Ipv4Address) -> Option<T> {
-        for entry in self.masks.keys().rev() {
-            let netid = Ipv4Net::new(address, *entry);
-
-            if let Some(recipient) = self.table.get(&netid) {
-                return Some(*recipient);
+        for (net, value) in self.iter() {
+            let net = net;
+            if net.contains(address) {
+                return Some(value);
             }
         }
         None
     }
 
     /// Removes subnet associated with given key from the table
-    pub fn remove(&mut self, key: Ipv4Net) {
-        match self.table.remove(&key) {
-            None => return,
-            Some(_) => {}
-        }
-
-        if let Some(&val) = self.masks.get(&key.mask()) {
-            if val == 1 {
-                self.masks.remove(&key.mask());
-            } else {
-                self.masks.insert(key.mask(), val - 1);
-            }
-        }
+    pub fn remove(&mut self, key: Ipv4Net) -> Option<T> {
+        self.table.remove(&Obm(key))
     }
 
     /// Removes address associated with given ip address using
     /// 32 bit mask length as second part of the key.
-    pub fn remove_direct(&mut self, address: Ipv4Address) {
-        self.remove(Ipv4Net::new(address, Ipv4Mask::from_bitcount(32)));
+    pub fn remove_direct(&mut self, address: Ipv4Address) -> Option<T> {
+        self.remove(Ipv4Net::new(address, Ipv4Mask::from_bitcount(32)))
     }
 
     /// Removes address associated with given ip address using
-    /// cidr notation. If notation is invalid the table
-    /// is left unchanged
+    /// cidr notation. Panics if notation is invalid.
     pub fn remove_cidr(&mut self, cidr: &str) {
-        if let Ok(key) = Ipv4Net::from_cidr(cidr) {
-            self.remove(key);
-        }
+        let net = Ipv4Net::from_cidr(cidr).expect("CIDR string formatted incorrectly");
+        self.remove(net);
     }
 
     /// Maps subnet associated with (Ipv4Address, Ipv4Mask) pair
     /// to provided value.
-    pub fn add(&mut self, key: Ipv4Net, value: T) {
-        // if we replaced an entry in the table don't update the mask count
-        if self.table.insert(key, value).is_some() {
-            return;
-        }
-
-        let total = match self.masks.get(&key.mask()) {
-            Some(val) => *val,
-            None => 0,
-        };
-
-        self.masks.insert(key.mask(), total + 1);
+    ///
+    /// If this net was already present in the map, return the old value.
+    pub fn add(&mut self, key: Ipv4Net, value: T) -> Option<T> {
+        self.table.insert(Obm(key), value)
     }
 
     /// Maps ipv4 address associated with the subnet: address/32
@@ -114,8 +87,8 @@ impl<T: Copy> IpTable<T> {
         }
     }
 
-    pub fn iter(&self) -> Iter<'_, Ipv4Net, T> {
-        self.table.iter()
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (Ipv4Net, T)> + '_ {
+        self.table.iter().map(|(net, value)| (net.0, *value))
     }
 }
 
@@ -184,13 +157,13 @@ impl<T: Copy> Default for IpTable<T> {
 
 impl<T: Copy + Debug> Debug for IpTable<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for entry in self.table.iter() {
+        for (net, value) in self.table.iter() {
             writeln!(
                 f,
                 "{}/{} : {:?}",
-                entry.0.id(),
-                entry.0.mask().count_ones(),
-                entry.1
+                net.0.id(),
+                net.0.mask().count_ones(),
+                value
             )
             .unwrap();
         }
@@ -198,7 +171,37 @@ impl<T: Copy + Debug> Debug for IpTable<T> {
     }
 }
 
+/// OBM stands for "order by mask."
+/// This is a wrapper around an Ipv4Net, causing it to be ordered by its mask (greatest to least),
+/// then by its IP address.
+/// In other words, it orders by network size from least to greatest.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Obm(Ipv4Net);
+
+impl PartialOrd for Obm {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Obm {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // compare masks
+        match self.0.mask().cmp(&other.0.mask()) {
+            std::cmp::Ordering::Equal => {
+                // order by ip address
+                self.0.id().cmp(&other.0.id())
+            }
+            // sort by mask greatest to least
+            other_ord => other_ord.reverse(),
+        }
+    }
+}
+
+#[cfg(test)]
 mod test {
+    use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+
     use super::*;
 
     #[allow(dead_code)]
@@ -247,7 +250,9 @@ mod test {
         table.remove(Ipv4Net::from_cidr("1.1.1.2/32").unwrap());
 
         // all 32 bit mask addresses should now be removed from the table
-        assert_eq!(table.masks.get(&Ipv4Mask::from_bitcount(32)), None);
+        assert!(!table
+            .iter()
+            .any(|(net, _value)| net.mask() == Ipv4Mask::from_bitcount(32)));
     }
 
     #[test]
@@ -284,5 +289,47 @@ mod test {
         .collect();
 
         println!("{:?}", ip_table);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn test_obm() {
+        // these networks are in sorted order
+        // like how Obm is supposed to work
+        let nets = [
+            // little network
+            Obm(Ipv4Net::from_cidr("35.0.1.0/32").unwrap()),
+            // random network
+            Obm(Ipv4Net::from_cidr("193.14.26.9/17").unwrap()),
+            // big network
+            Obm(Ipv4Net::from_cidr("15.0.7.0/16").unwrap()),
+            // biggest, first network
+            Obm(Ipv4Net::from_cidr("13.0.1.0/8").unwrap()),
+            // biggest, second network
+            Obm(Ipv4Net::from_cidr("15.0.1.0/8").unwrap()),
+            // biggest, third network
+            Obm(Ipv4Net::from_cidr("19.0.1.0/8").unwrap()),
+        ];
+
+        let mut shuffled_nets = nets.clone();
+        shuffled_nets.shuffle(&mut StdRng::seed_from_u64(1234));
+
+        println!("shuffled:");
+        for net in &shuffled_nets {
+            println!("{:?}", net);
+        }
+
+        // test to make sure that ip table's iterator gives things in the correct order
+        let mut ip_table = IpTable::new();
+        for obm in &shuffled_nets {
+            ip_table.add(obm.0, ());
+        }
+        let nets_no_obm = nets.iter().map(|obm| obm.0);
+        let table_keys = ip_table.iter().map(|(net, _v)| net);
+        assert!(nets_no_obm.eq(table_keys));
+
+        // test to make sure that sorting works
+        shuffled_nets.sort();
+        assert_eq!(shuffled_nets, nets);
     }
 }
