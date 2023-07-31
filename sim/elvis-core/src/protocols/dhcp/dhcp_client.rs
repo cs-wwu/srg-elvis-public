@@ -9,6 +9,8 @@ use crate::{
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{Barrier, Notify};
+use tokio::time::Duration;
+use tokio_util::time::{DelayQueue, delay_queue};
 
 #[derive(Default)]
 pub struct DhcpClient {
@@ -69,6 +71,20 @@ impl Protocol for DhcpClient {
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
         udp.send(response_message, protocols).unwrap();
+
+        //TO DO: implement something to ensure DelayQueue is not starting until ip is assigned
+
+        let mut delay_queue = DelayQueue::new();
+
+        delay_queue.insert("timetest1", Duration::from_secs(2));
+        delay_queue.insert("timetest2", Duration::from_secs(4));
+
+        while !delay_queue.is_empty() {
+            let next = futures::future::poll_fn(|cx| delay_queue.poll_expired(cx)).await;
+            println!("{:?}", next.unwrap().into_inner());
+            println!("{:?}", self.ip_address);
+        }
+
         Ok(())
     }
 
@@ -81,6 +97,7 @@ impl Protocol for DhcpClient {
     ) -> Result<(), DemuxError> {
         let parsed_msg = DhcpMessage::from_bytes(message.iter()).unwrap();
         match parsed_msg.msg_type {
+            //TO DO: Add arm for when Nack is received
             MessageType::Offer => {
                 let mut response = DhcpMessage::default();
                 response.your_ip = parsed_msg.your_ip;

@@ -58,9 +58,15 @@ impl Protocol for DhcpServer {
             MessageType::Discover => {
                 let mut response = DhcpMessage::default();
                 // Todo: Gracefully handle the case of no addresses available
-                response.your_ip = self.ip_generator.write().unwrap().fetch_ip().unwrap();
-                response.op = 2;
-                response.msg_type = MessageType::Offer;
+                let ip = self.ip_generator.write().unwrap().fetch_ip();
+                if ip.is_none() {
+                    response.op = 2;
+                    response.msg_type = MessageType::Nack;
+                } else {
+                    response.your_ip = ip.unwrap();
+                    response.op = 2;
+                    response.msg_type = MessageType::Offer;
+                }
                 let response = DhcpMessage::to_message(response).unwrap();
                 caller.send(response, protocols).unwrap();
                 Ok(())

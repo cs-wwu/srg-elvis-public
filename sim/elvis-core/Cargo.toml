@@ -12,6 +12,7 @@ futures = "0.3.25"
 rand = { version = "0.8.5", features = ["small_rng"] }
 rustc-hash = "1.1.0"
 async-trait = "0.1.68"
+tokio-util = { version = "0.7.8", features = ["time"] }
 
 [features]
 compute_checksum = []
