@@ -10,7 +10,13 @@ use crate::{
 use std::sync::{Arc, RwLock};
 use tokio::sync::{Barrier, Notify};
 use tokio::time::Duration;
-use tokio_util::time::{DelayQueue, delay_queue};
+use tokio_util::time::{DelayQueue};
+
+pub enum LeaseRemaining {
+    At50Percent,
+    At25Percent,
+    At0Percent,
+}
 
 #[derive(Default)]
 pub struct DhcpClient {
@@ -76,13 +82,25 @@ impl Protocol for DhcpClient {
 
         let mut delay_queue = DelayQueue::new();
 
-        delay_queue.insert("timetest1", Duration::from_secs(2));
-        delay_queue.insert("timetest2", Duration::from_secs(4));
+        //example at 10 second lease
+        let time = 10;
+        delay_queue.insert(LeaseRemaining::At50Percent, Duration::from_secs(time / 2));
+        delay_queue.insert(LeaseRemaining::At25Percent, Duration::from_secs(time * 3 / 4));
+        delay_queue.insert(LeaseRemaining::At0Percent, Duration::from_secs(time));
 
         while !delay_queue.is_empty() {
-            let next = futures::future::poll_fn(|cx| delay_queue.poll_expired(cx)).await;
-            println!("{:?}", next.unwrap().into_inner());
-            println!("{:?}", self.ip_address);
+            let next = futures::future::poll_fn(|cx| delay_queue.poll_expired(cx)).await.unwrap().into_inner();
+            match next {
+                LeaseRemaining::At50Percent => {
+                    println!("50 Percent Remaining!");
+                }
+                LeaseRemaining::At25Percent => {
+                    println!("25 Percent Remaining!");
+                }
+                LeaseRemaining::At0Percent => {
+                    println!("All Done!");
+                }
+            }
         }
 
         Ok(())
