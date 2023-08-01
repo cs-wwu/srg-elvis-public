@@ -213,8 +213,9 @@ impl Protocol for Ipv4 {
                     Some(binding) => *binding,
                     None => {
                         tracing::error!(
-                            "Could not find a listen binding for the local address {}",
-                            endpoints.local
+                            "Could not find a listen binding for the local address {} {:?}",
+                            endpoints.local,
+                            self.listen_bindings
                         );
                         Err(DemuxError::MissingSession)?
                     }

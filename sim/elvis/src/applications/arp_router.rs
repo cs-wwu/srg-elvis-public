@@ -66,8 +66,8 @@ impl ArpRouter {
         output
     }
 
-    // processes the packet of an incoming arp request and returns relevent
-    // information to calling process
+    /// processes the packet of an incoming rip request and returns relevent
+    /// information to calling process
     pub fn process_request(&self, packet: RipPacket) -> Vec<RipPacket> {
         let mut output: Vec<RipPacket> = Vec::new();
         let mut entries = packet.entries;
@@ -96,6 +96,9 @@ impl ArpRouter {
                 }
             }
 
+            // todo!(eulerfrog) if frame length is exactly 25 then an empty vec is added
+            // fix!
+            output.push(RipPacket::new_response(frame));
             return output;
         }
 

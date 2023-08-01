@@ -1,5 +1,5 @@
 use elvis_core::{
-    machine::{PciSlot, ProtocolMap},
+    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -7,7 +7,7 @@ use elvis_core::{
         pci::DemuxInfo,
         Endpoint, Endpoints, Udp,
     },
-    Control, IpTable, Protocol, Session, Shutdown,
+    Control, Protocol, Session, Shutdown,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Barrier;
@@ -76,7 +76,7 @@ impl RipRouter {
 impl Protocol for RipRouter {
     async fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -92,6 +92,9 @@ impl Protocol for RipRouter {
         let mut sessions = Vec::<Arc<dyn Session>>::new();
 
         let remote_endpoint = Endpoint::new(Ipv4Address::SUBNET, 520);
+        let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, 520);
+
+        udp.listen(self.id(), broadcast_endpoint, protocols.clone()).ok();
 
         for ip in self.local_ips.iter() {
             let local_endpoint = Endpoint::new(*ip, 520);
@@ -129,13 +132,14 @@ impl Protocol for RipRouter {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        println!("i been demuxed");
+        // println!("i been demuxed");
         // all messages at this point should be from udp port 520
         // messages are either request or response
 
         // obtain the pci slot that the message was received from
         let demux_info = *control.get::<DemuxInfo>().ok_or(DemuxError::Other)?;
         let ipv4_header_info = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
+        // let arp_router = protocols.protocol::<ArpRouter>().ok_or(DemuxError::Other)?;
 
         let slot = demux_info.slot;
         let router_address = ipv4_header_info.source;
@@ -152,11 +156,13 @@ impl Protocol for RipRouter {
 
         match packet.header.command {
             Operation::Request => {
+                println!("received request");
                 let udp = protocols
                     .protocol::<Udp>()
                     .expect("Rip requires UDP to work")
                     .clone();
                 let packets = protocols.protocol::<ArpRouter>().expect("RipRouter requires ArpRouter").process_request(packet);
+                println!("{}", packets.len());
 
                 for packet in packets.iter() {
                     let message = Message::new(RipPacket::build(packet));
@@ -166,6 +172,7 @@ impl Protocol for RipRouter {
 
                     // send response message back to router
                     tokio::spawn(async move {
+                        println!("sending request");
                         let result = udp.open_and_listen(id, endpoints, protocols.clone()).await;
                         let session = match result {
                             Ok(session) => session,
@@ -177,6 +184,7 @@ impl Protocol for RipRouter {
             }
             Operation::Response => {
                 // update router table accordingly
+                println!("received response");
                 protocols.protocol::<ArpRouter>().expect("RipRouter requires ArpRouter").process_response(router_address, slot, packet);
             }
         }

@@ -2,7 +2,7 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, Tcp, Udp},
+    protocols::{Endpoint, Tcp, Udp, ipv4::Ipv4Address},
     shutdown::ExitStatus,
     Control, Protocol, Session, Shutdown, Transport,
 };
@@ -67,6 +67,8 @@ impl Protocol for Capture {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, self.endpoint.port);
+
         match self.transport {
             Transport::Tcp => {
                 protocols
@@ -79,7 +81,14 @@ impl Protocol for Capture {
                 protocols
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(self.id(), self.endpoint, protocols)
+                    .listen(self.id(), self.endpoint, protocols.clone())
+                    .unwrap();
+
+                // listen on broadcast
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .listen(self.id(), broadcast_endpoint, protocols)
                     .unwrap();
             }
         }
