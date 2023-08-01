@@ -17,6 +17,8 @@ pub struct DnsMessage {
     pub header: DnsHeader,
     pub question: DnsQuestion,
     pub answer: DnsResourceRecord,
+    pub q_labels: Vec<String>,
+    pub a_labels: Vec<String>,
 }
 
 impl DnsMessage {
@@ -34,21 +36,53 @@ impl DnsMessage {
 
         // parsing bytes for the DnsQuestion
         let mut qname = Vec::new();
-        let mut current = next()?;
-        while current != b' ' {
-            qname.push(current);
-            current = next()?
-        }
+        let mut q_labels: Vec<String> = Vec::new();
+
+        // TODO COMMENT
+        let mut label_len = next()?;
+        let mut label_byte: u8;
+        while label_len != 0 {
+            let mut q_label: Vec<u8> = Vec::new();
+            for _ in 0..label_len {
+                label_byte = next()?;
+                q_label.push(label_byte);
+                qname.push(label_byte);
+            }
+            label_len = next()?;
+            if label_len != 0 {
+                qname.push(b'.');
+            }
+            q_labels.append(
+                &mut Vec::from(
+                    [String::from_utf8(q_label).unwrap()]
+                )
+            );
+        }        
         let qtype = ((next()? as u16) << 8) | (next()? as u16);
         let qclass = ((next()? as u16) << 8) | (next()? as u16);
-
+        
         // parsing bytes for the DnsResourceRecord for DnsMessage answer
         let mut name = Vec::new();
-        let mut rdata: Vec<u8> = Vec::new();
-        let mut current = next()?;
-        while current != b' ' {
-            name.push(current);
-            current = next()?
+        let mut a_labels: Vec<String> = Vec::new();
+
+        // TODO COMMENT
+        label_len = next()?;
+        while label_len != 0 {
+            let mut a_label: Vec<u8> = Vec::new();
+            for _ in 0..label_len {
+                label_byte = next()?;
+                a_label.push(label_byte);
+                name.push(label_byte);
+            }
+            label_len = next()?;
+            if label_len != 0 {
+                name.push(b'.');
+            }
+            a_labels.append(
+                &mut Vec::from(
+                    [String::from_utf8(a_label).unwrap()]
+                )
+            );
         }
         let rec_type = ((next()? as u16) << 8) | (next()? as u16);
         let class = ((next()? as u16) << 8) | (next()? as u16);
@@ -58,12 +92,13 @@ impl DnsMessage {
         ttl = (ttl << 8) | next()? as u32;
         let rdlength = ((next()? as u16) << 8) | (next()? as u16);
 
+        let mut rdata: Vec<u8> = Vec::new();
         let mut i: u16 = 0;
         while i < rdlength {
             rdata.push(next()?);
             i += 1;
         }
-
+        
         let header: DnsHeader = DnsHeader {
             id,
             properties,
@@ -92,7 +127,37 @@ impl DnsMessage {
             header,
             question,
             answer,
+            q_labels,
+            a_labels,
         })
+    }
+
+    // TODO COMMENT
+    pub fn encode_label(mut domain_name: Vec<u8>) -> Vec<u8> {
+
+        let mut label_size = 0;
+        let mut i = 0;
+        while i < domain_name.len() {
+            if domain_name[i] == b'.' {
+                domain_name.insert(i - label_size, label_size as u8);
+                domain_name.remove(i + 1);
+                label_size = 0;
+            } else if i == domain_name.len() - 1 {
+                label_size += 1;
+                domain_name.insert(i - label_size + 1, label_size as u8);
+                i += 1;
+                label_size = 0;
+            } else {
+                label_size += 1;
+            }
+
+            i += 1;
+        }
+
+        domain_name.insert(domain_name.len(), 0);
+
+        println!("{:?}", domain_name);
+        domain_name
     }
 
     pub fn _get_type(&self) -> DnsMessageType {
@@ -108,10 +173,14 @@ impl DnsMessage {
         question: DnsQuestion,
         answer: DnsResourceRecord,
     ) -> Result<Self, ParseError> {
+        let q_labels: Vec<String> = Vec::new();
+        let a_labels: Vec<String> = Vec::new();
         Ok(Self {
             header,
             question,
             answer,
+            q_labels,
+            a_labels,
         })
     }
 
@@ -211,11 +280,7 @@ impl DnsQuestion {
 
     pub fn build(question: DnsQuestion) -> Vec<u8> {
         let mut my_vec: Vec<u8> = Vec::new();
-        my_vec.append(&mut question.qname.clone());
-
-        // Byte signaling end of string in message byte string.
-        // More robust name encoding system is TODO.
-        my_vec.append(&mut Vec::from([b' ']));
+        my_vec.append(&mut DnsMessage::encode_label(question.qname.clone()));
 
         my_vec.extend_from_slice(&question.qtype.to_be_bytes());
         my_vec.extend_from_slice(&question.qclass.to_be_bytes());
@@ -262,11 +327,7 @@ impl DnsResourceRecord {
 
     pub fn build(mut answer: DnsResourceRecord) -> Vec<u8> {
         let mut my_vec: Vec<u8> = Vec::new();
-        my_vec.append(&mut answer.name.clone());
-
-        // Byte signaling end of string in message byte string.
-        // More robust name encoding system is TODO.
-        my_vec.append(&mut Vec::from([b' ']));
+        my_vec.append(&mut DnsMessage::encode_label(answer.name.clone()));
 
         my_vec.extend_from_slice(&answer.rec_type.to_be_bytes());
         my_vec.extend_from_slice(&answer.class.to_be_bytes());

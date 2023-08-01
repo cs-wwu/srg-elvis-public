@@ -7,7 +7,7 @@ use elvis_core::{
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         Endpoint, SocketAPI,
     },
-    Control, ExitStatus, Protocol, Session, Shutdown,
+    Control, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -29,10 +29,11 @@ impl DnsTestServer {
     }
 }
 
-async fn communicate_with_client(socket: Arc<Socket>) {
+async fn communicate_with_client(socket: Arc<Socket>, serving: u32) {
     // Receive a message
     // println!("SERVER: Waiting for request...");
-    let req = socket.recv(32).await.unwrap();
+    println!("SERVER: Serving {:?}", serving);
+    let _req = socket.recv(32).await.unwrap();
     // println!(
     //     "SERVER: Request Received: {:?}",
     //     String::from_utf8(req).unwrap()
@@ -49,28 +50,23 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 }
 
 pub async fn accept_loop(listen_socket: Arc<Socket>) -> Result<(), DnsTestServerError> {
-    let mut num_served: u32 = 1;
+    let mut num_served: u32 = 0;
     loop {
 
-        println!("SERVER: Served {:?}", num_served);
-        num_served += 1;
+        // println!("SERVER: Served {:?}", num_served);
         // Accept an incoming connection
         let socket = match listen_socket.accept().await {
             Ok(sock) => sock,
             Err(_) => return Ok(()),
         };
         // println!("SERVER: Connection accepted");
-
+        
         // Spawn a new tokio task for handling communication
         // with the new client
+        num_served += 1;
         tokio::spawn(async move {
-            communicate_with_client(socket).await;
+            communicate_with_client(socket, num_served).await;
         });
-
-        // This particular example server tracks the number of clients
-        // served, stops accepting new connections after the third,
-        // and shuts down the simulation once communication with
-        // the third has ended
     }
 }
 
@@ -78,7 +74,7 @@ pub async fn accept_loop(listen_socket: Arc<Socket>) -> Result<(), DnsTestServer
 impl Protocol for DnsTestServer {
     async fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {

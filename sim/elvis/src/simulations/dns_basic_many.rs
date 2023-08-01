@@ -15,14 +15,13 @@ use elvis_core::{
     IpTable, Network, run_internet_with_timeout,
 };
 
-/// Runs a basic client-server sim using the DNS client and server to resolve
-/// the correct Ipv4 address.
+/// Runs a client-server sim using many clients utilizing DNS and a single
+/// server to resolve the correct Ipv4 address.
 ///
-/// In this simulation, a client machine intends to send a "request" messages
-/// to a server machine. The client machine only has a name associated with the
-/// server in question. The original application will use the local instance of
-/// the DNS protocol to find out the Ipv4 address of the intended server by
-/// sending a query to the DNS Authoritative server. The client then uses the
+/// In this simulation, client machines intend to send a "request" message
+/// to a server machine. The client machines only have a name associated with the server in question. The original application will use the local instance 
+/// of the DNS protocol to find the Ipv4 address of the intended server by
+/// sending a query to the DNS Authoritative server. A client then uses the
 /// retrieved Ipv4 address to interact with the non-DNS server.
 pub async fn dns_basic_many() {
     let network = Network::basic();
@@ -30,7 +29,6 @@ pub async fn dns_basic_many() {
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     
     let num_clients: u32 = 999;
-    // let num_servers: u32 = 1;
 
     let mut client_ip_addresses: Vec<Ipv4Address> = vec![];
 
@@ -73,8 +71,6 @@ pub async fn dns_basic_many() {
     );
 
     for i in 0..num_clients {
-        // let server_index = i % num_servers;
-        // println!("server index: {}", server_index);
         machines.push(new_machine![
                 Tcp::new(),
                 Udp::new(),
@@ -86,7 +82,7 @@ pub async fn dns_basic_many() {
             ])
     }
 
-    run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
 }
 
 #[cfg(test)]
