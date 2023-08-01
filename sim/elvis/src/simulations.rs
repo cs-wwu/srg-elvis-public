@@ -11,6 +11,9 @@ pub use socket_basic::socket_basic;
 mod dns_basic;
 pub use dns_basic::dns_basic;
 
+mod dns_basic_many;
+pub use dns_basic_many::dns_basic_many;
+
 mod arp_router_sim;
 pub use arp_router_sim::arp_router_single;
 

@@ -51,11 +51,11 @@ impl DnsServer {
         socket: Arc<Socket>,
     ) -> Result<(), DnsServerError> {
         // Receive a message
-        println!("SERVER: Waiting for request...");
+        // println!("SERVER: Waiting for request...");
         let response = socket.recv(80).await.unwrap();
 
         let req_msg = DnsMessage::from_bytes(response.iter().cloned()).unwrap();
-        println!("SERVER: Request Received");
+        // println!("SERVER: Request Received");
 
         let name = req_msg.question.query_name().unwrap();
         let address: Ipv4Address = match DnsServer::get_mapping(table, name) {
@@ -68,7 +68,7 @@ impl DnsServer {
         // Send a message
         let dns_res_msg = DnsServer::create_response(req_msg, address).unwrap();
         let res_msg = DnsMessage::to_message(dns_res_msg).unwrap();
-        println!("SERVER: Sending Response");
+        // println!("SERVER: Sending Response");
         socket.send(res_msg.to_vec()).unwrap();
         Ok(())
     }
@@ -137,7 +137,7 @@ impl Protocol for DnsServer {
         listen_socket.bind(local_sock_addr).unwrap();
 
         // Listen for incoming connections, with a maximum backlog of 10
-        listen_socket.listen(10).unwrap();
+        listen_socket.listen(1000).unwrap();
 
         // Wait on ititialization before sending or receiving any message from the network
         initialized.wait().await;

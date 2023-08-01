@@ -52,27 +52,27 @@ impl Protocol for DnsTestClient {
         initialized.wait().await;
 
         // "Connect" the socket to a remote address
-        println!("CLIENT: Connecting to testserver.com");
+        // println!("CLIENT: Connecting to testserver.com");
         socket
             .connect_by_name("testserver.com".to_string(), self.remote_port)
             .await
             .unwrap();
-        println!("CLIENT: Connected");
+        // println!("CLIENT: Connected");
 
         // Send a message
         let req = "Ground Control to Major Tom";
-        println!("CLIENT: Sending test Request: {:?}", req);
+        // println!("CLIENT: Sending test Request: {:?}", req);
         socket.send(req).unwrap();
 
         // Receive a message
         let resp = socket.recv(32).await.unwrap();
-        println!(
-            "CLIENT: Response Received: {:?}",
-            String::from_utf8(resp).unwrap()
-        );
+        // println!(
+        //     "CLIENT: Response Received: {:?}",
+        //     String::from_utf8(resp).unwrap()
+        // );
 
         // Send a message
-        println!("CLIENT: Sending Ackowledgement");
+        // println!("CLIENT: Sending Ackowledgement");
         socket.send("Ackowledged").unwrap();
         Ok(())
     }

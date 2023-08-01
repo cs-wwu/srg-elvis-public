@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
 use tokio::time::Duration;
 use elvis_core::{
@@ -27,7 +29,8 @@ pub async fn dns_basic_many() {
     let dns_server_ip_address = Ipv4Address::DNS_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     
-    let num_clients: u32 = 500;
+    let num_clients: u32 = 999;
+    // let num_servers: u32 = 1;
 
     let mut client_ip_addresses: Vec<Ipv4Address> = vec![];
 
@@ -41,7 +44,11 @@ pub async fn dns_basic_many() {
         ip_map.insert(this_client_ip_address, Recipient::with_mac(0, 1));
     }
 
+    ip_map.insert(dns_server_ip_address, Recipient::with_mac(0, 0));
+    ip_map.insert(server_ip_address, Recipient::with_mac(0, 1));
+
     let ip_table: IpTable<Recipient> = ip_map.into_iter().collect();
+
 
     let mut machines = vec![];
     
@@ -55,7 +62,7 @@ pub async fn dns_basic_many() {
         ]
     );
 
-    machine.push(new_machine![
+    machines.push(new_machine![
         Udp::new(),
         Tcp::new(),
         Ipv4::new(ip_table.clone()),
@@ -66,7 +73,7 @@ pub async fn dns_basic_many() {
     );
 
     for i in 0..num_clients {
-        let server_index = i % num_servers;
+        // let server_index = i % num_servers;
         // println!("server index: {}", server_index);
         machines.push(new_machine![
                 Tcp::new(),
@@ -79,7 +86,7 @@ pub async fn dns_basic_many() {
             ])
     }
 
-    run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
+    run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
 }
 
 #[cfg(test)]
