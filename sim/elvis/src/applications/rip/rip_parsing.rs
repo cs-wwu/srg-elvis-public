@@ -1,3 +1,7 @@
+
+use std::error::Error;
+use std::fmt::{self, Formatter};
+
 use elvis_core::protocols::arp::subnetting::Ipv4Mask;
 use elvis_core::{protocols::ipv4::Ipv4Address, protocols::utility::BytesExt};
 
@@ -10,10 +14,27 @@ const VERSION: u8 = 2;
 const AFI_2: u16 = 2;
 const INFINITY: u32 = 16;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct RipPacket {
     pub header: RipHeader,
     pub entries: Vec<RipEntry>,
+}
+
+impl fmt::Debug for RipPacket {
+    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
+        for entry in self.entries.iter() {
+            println!("{:?}", entry)
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for RipEntry {
+    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
+        println!("{} {} {} {}", self.address_family_id, self.ip_address, self.next_hop, self.metric);
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -22,7 +43,7 @@ pub struct RipHeader {
     pub version: u8,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct RipEntry {
     pub address_family_id: u16,
     pub route_tag: u16,

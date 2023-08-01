@@ -68,7 +68,7 @@ impl ArpRouter {
 
     /// processes the packet of an incoming rip request and returns relevent
     /// information to calling process
-    pub fn process_request(&self, packet: RipPacket) -> Vec<RipPacket> {
+    pub fn process_request(&self, neighbor_ip: Ipv4Address, packet: RipPacket) -> Vec<RipPacket> {
         let mut output: Vec<RipPacket> = Vec::new();
         let mut entries = packet.entries;
 
@@ -78,14 +78,8 @@ impl ArpRouter {
             let mut frame: Vec<RipEntry> = Vec::new();
 
             for entry in self.ip_table.read().unwrap().iter() {
-                // is this correct?
-                let next_hop = match entry.1.destination {
-                    Some(addr) => addr,
-                    None => Ipv4Address::from([0, 0, 0, 0]),
-                };
-
                 let element: RipEntry =
-                    RipEntry::new_entry(entry.0.id(), next_hop, entry.0.mask(), entry.1.metric);
+                    RipEntry::new_entry(entry.0.id(), neighbor_ip, entry.0.mask(), entry.1.metric);
 
                 frame.push(element);
 
@@ -96,13 +90,17 @@ impl ArpRouter {
                 }
             }
 
-            // todo!(eulerfrog) if frame length is exactly 25 then an empty vec is added
-            // fix!
-            output.push(RipPacket::new_response(frame));
+            if frame.len() > 0 {
+                println!("{:?}", frame);
+                output.push(RipPacket::new_response(frame));
+            }
+
             return output;
         }
 
         // otherwise obtain the metrics for each entry that exists on the routing table
+        println!("modifying entries");
+
         for mut entry in entries.iter_mut() {
             if let Some(route) = self
                 .ip_table
@@ -129,8 +127,11 @@ impl ArpRouter {
         packet: RipPacket,
     ) {
         // processs response
+        println!("got here");
         let entries = packet.entries;
         let mut ip_table_ref = self.ip_table.write().unwrap();
+
+        println!("packet length {}", entries.len());
 
         for entry in entries {
             // cost of going to new route is metric provided by packet
@@ -159,6 +160,8 @@ impl ArpRouter {
                 }
             }
         }
+        println!("{:?}", ip_table_ref);
+
     }
 }
 

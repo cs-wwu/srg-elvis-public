@@ -5,7 +5,7 @@ use elvis_core::{
     protocols::{dhcp::dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
     Control, Protocol, Session, Shutdown, Transport,
 };
-use std::sync::{Arc, RwLock};
+use std::{sync::{Arc, RwLock}, time::Duration};
 use tokio::sync::Barrier;
 
 /// An application that sends a single message over the network.
@@ -17,6 +17,7 @@ pub struct SendMessage {
     transport: Transport,
     /// the application's local address
     local_ip: Ipv4Address,
+    delay: Option<Duration>,
 }
 
 impl SendMessage {
@@ -27,6 +28,7 @@ impl SendMessage {
             endpoint,
             transport: Transport::Udp,
             local_ip: Ipv4Address::LOCALHOST,
+            delay: None,
         }
     }
 
@@ -40,6 +42,11 @@ impl SendMessage {
     /// The protocol to use in delivering the message
     pub fn transport(mut self, transport: Transport) -> Self {
         self.transport = transport;
+        self
+    }
+
+    pub fn delay(mut self, duration: Duration) -> Self {
+        self.delay = Some(duration);
         self
     }
 }
@@ -85,6 +92,10 @@ impl Protocol for SendMessage {
                 .unwrap(),
         };
 
+        if let Some(duration) = self.delay {
+            tokio::time::sleep(duration).await;
+        }
+        
         for message in messages {
             session
                 .send(message, protocols.clone())
