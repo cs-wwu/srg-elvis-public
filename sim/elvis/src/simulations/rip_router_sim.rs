@@ -64,6 +64,8 @@ pub fn build_capture(network: Arc<Network>, address: Ipv4Address, exit_status: u
 }
 
 /* routes packet from source 0 to one of the given destinations 1,2,3,4,5
+    R1 does not know about R2 or its destinations
+    R2 does not know about R1 or its destinations
 
         (1) -- 1    (4)- 2
          |           |
@@ -154,91 +156,93 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
 
 }
 
-/* routes packet from source 0 to one of the given destinations 1,2,3,4,5
+/* routes packet from source 0 to one of the given destinations 1,2,3
+    R1 only has information about destination 0
+    R2 has no routing information
+    R3 only has information about destinations 1, 2 and 3
 
-    0 -(0)- R1 -(1)- R2 -(2)- R3 -
-
+                               (3)- 1
+                               |     
+    0 -(0)- R1 -(1)- R2 -(2)- R3 -(4)- 2 
+                               |
+                               (5)- 3
+                            
 */
 #[allow(dead_code)]
-// pub async fn rip_router2(destination: Ipv4Address) -> ExitStatus {
-//     let router_table_1: IpTable<(Option<Ipv4Address>, PciSlot)> = [
-//         (IPS[0], (None, 0)),
-//         (IPS[1], (None, 1)),
-//         (IPS[4], (None, 3)),
-//         (IPS[5], (None, 3)),
-//     ]
-//     .into_iter()
-//     .collect();
+pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
+    let router_table_1: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (IPS[0], (None, 0)),
+    ]
+    .into_iter()
+    .collect();
 
-//     let router_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> =
-//         [(IPS[2], (None, 1)), (IPS[3], (None, 2))]
-//             .into_iter()
-//             .collect();
+    let router_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> =
+        [(IPS[2], (None, 1)), (IPS[3], (None, 2))]
+            .into_iter()
+            .collect();
 
-//     let networks: Vec<_> = (0..6).map(|_| Network::basic()).collect();
-//     let ip_table_1 = build_ip_table(&ROUTER1_IPS);
-//     let ip_table_2 = build_ip_table(&ROUTER2_IPS);
+    let networks: Vec<_> = (0..).map(|_| Network::basic()).collect();
+    let ip_table_1 = build_ip_table(&ROUTER1_IPS);
+    let ip_table_2 = build_ip_table(&ROUTER2_IPS);
 
-//     let send_message = SendMessage::new(
-//         vec![Message::new(b"Hello World!")],
-//         Endpoint {
-//             address: destination,
-//             port: 0xbeef,
-//         },
-//     ).delay(Duration::from_secs(5));
+    let send_message = SendMessage::new(
+        vec![Message::new(b"Hello World!")],
+        Endpoint {
+            address: destination,
+            port: 0xbeef,
+        },
+    ).delay(Duration::from_secs(5));
 
-//     let machines = vec![
-//         // send message
-//         new_machine![
-//             Udp::new(),
-//             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
-//             Pci::new([networks[0].clone()]),
-//             send_message.local_ip(IPS[0]),
-//             Arp::basic().preconfig_subnet(
-//                 IPS[0],
-//                 SubnetInfo {
-//                     mask: Ipv4Mask::from_bitcount(32),
-//                     default_gateway: ROUTER1_IPS[0]
-//                 }
-//             ),
-//         ],
-//         // Routers
-//         new_machine![
-//             Pci::new([
-//                 networks[0].clone(),
-//                 networks[1].clone(),
-//                 networks[2].clone(),
-//                 networks[3].clone()
-//             ]),
-//             Ipv4::new(ip_table_1),
-//             Arp::basic(),
-//             Udp::new(),
-//             ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec()),
-//             RipRouter::new(ROUTER1_IPS.to_vec())
-//         ],
-//         new_machine![
-//             Pci::new([
-//                 networks[2].clone(),
-//                 networks[4].clone(),
-//                 networks[5].clone(),
-//             ]),
-//             Ipv4::new(ip_table_2),
-//             Arp::basic(),
-//             Udp::new(),
-//             ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec()),
-//             RipRouter::new(ROUTER2_IPS.to_vec())
-//         ],
-//         // Destinations
-//         build_capture(networks[1].clone(), IPS[1], 1),
-//         build_capture(networks[4].clone(), IPS[2], 2),
-//         build_capture(networks[5].clone(), IPS[3], 3),
-//         build_capture(networks[3].clone(), IPS[4], 4),
-//         build_capture(networks[3].clone(), IPS[5], 5),
-//     ];
+    let machines = vec![
+        // send message
+        new_machine![
+            Udp::new(),
+            Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
+            Pci::new([networks[0].clone()]),
+            send_message.local_ip(IPS[0]),
+            Arp::basic().preconfig_subnet(
+                IPS[0],
+                SubnetInfo {
+                    mask: Ipv4Mask::from_bitcount(32),
+                    default_gateway: ROUTER1_IPS[0]
+                }
+            ),
+        ],
+        // Routers
+        new_machine![
+            Pci::new([
+                networks[0].clone(),
+                networks[1].clone(),
+                networks[2].clone(),
+                networks[3].clone()
+            ]),
+            Ipv4::new(ip_table_1),
+            Arp::basic(),
+            Udp::new(),
+            ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec()),
+            RipRouter::new(ROUTER1_IPS.to_vec())
+        ],
+        new_machine![
+            Pci::new([
+                networks[2].clone(),
+                networks[4].clone(),
+                networks[5].clone(),
+            ]),
+            Ipv4::new(ip_table_2),
+            Arp::basic(),
+            Udp::new(),
+            ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec()),
+            RipRouter::new(ROUTER2_IPS.to_vec())
+        ],
+        // Destinations
+        build_capture(networks[3].clone(), IPS[1], 1),
+        build_capture(networks[4].clone(), IPS[2], 2),
+        build_capture(networks[5].clone(), IPS[3], 3),
+    ];
 
-//     run_internet_with_timeout(&machines, Duration::from_secs(20)).await
+    run_internet_with_timeout(&machines, Duration::from_secs(20)).await
 
-// }
+}
 
 #[cfg(test)]
 mod tests {
