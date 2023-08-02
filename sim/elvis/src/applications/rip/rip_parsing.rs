@@ -1,8 +1,6 @@
-use std::error::Error;
-use std::fmt::{self, Formatter};
-
 use elvis_core::protocols::arp::subnetting::Ipv4Mask;
 use elvis_core::{protocols::ipv4::Ipv4Address, protocols::utility::BytesExt};
+use std::fmt::{self, Formatter};
 
 /// Parsing for RIP v2
 ///
@@ -74,7 +72,7 @@ impl RipPacket {
             command: Operation::Response,
             version: VERSION,
         };
-        RipPacket { header, entries }
+        Self { header, entries }
     }
 
     pub fn new_full_table_request() -> Self {

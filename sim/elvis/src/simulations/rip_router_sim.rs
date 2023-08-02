@@ -153,13 +153,13 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
         build_capture(networks[3].clone(), IPS[5], 5),
     ];
 
-    run_internet_with_timeout(&machines, Duration::from_secs(20)).await
+    run_internet_with_timeout(&machines, Duration::from_secs(10)).await
 }
 
 /* routes packet from source 0 to one of the given destinations 1,2,3
     R1 only has information about destination 0
-    R2 has no routing information
-    R3 only has information about destinations 1, 2 and 3
+    R2-R4 have no routing information
+    R5 only has information about destinations 1, 2 and 3
 
                                (3)- 1
                                |
@@ -180,7 +180,17 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
         Ipv4Address::new([123, 46, 68, 90]),
     ];
 
-    let router3_ips: [Ipv4Address; 4] = [
+    let router3_ips: [Ipv4Address; 2] = [
+        Ipv4Address::new([123, 46, 68, 91]),
+        Ipv4Address::new([123, 46, 68, 92]),
+    ];
+
+    let router4_ips: [Ipv4Address; 2] = [
+        Ipv4Address::new([123, 46, 68, 93]),
+        Ipv4Address::new([123, 46, 68, 94]),
+    ];
+
+    let router5_ips: [Ipv4Address; 4] = [
         Ipv4Address::new([123, 46, 69, 89]),
         Ipv4Address::new([123, 46, 69, 90]),
         Ipv4Address::new([123, 46, 69, 91]),
@@ -190,7 +200,7 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
     let router_table_1: IpTable<(Option<Ipv4Address>, PciSlot)> =
         [(IPS[0], (None, 0))].into_iter().collect();
 
-    let router_table_3: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+    let router_table_5: IpTable<(Option<Ipv4Address>, PciSlot)> = [
         (IPS[1], (None, 1)),
         (IPS[2], (None, 2)),
         (IPS[3], (None, 3)),
@@ -198,11 +208,13 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
     .into_iter()
     .collect();
 
-    let networks: Vec<_> = (0..6).map(|_| Network::basic()).collect();
+    let networks: Vec<_> = (0..8).map(|_| Network::basic()).collect();
 
     let ip_table_1 = build_ip_table(&router1_ips);
     let ip_table_2 = build_ip_table(&router2_ips);
     let ip_table_3 = build_ip_table(&router3_ips);
+    let ip_table_4 = build_ip_table(&router4_ips);
+    let ip_table_5 = build_ip_table(&router5_ips);
 
     let send_message = SendMessage::new(
         vec![Message::new(b"Hello World!")],
@@ -211,7 +223,7 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
             port: 0xbeef,
         },
     )
-    .delay(Duration::from_secs(10));
+    .delay(Duration::from_secs(5));
 
     let machines = vec![
         // send message
@@ -234,37 +246,53 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new(ip_table_1),
             Arp::basic(),
             Udp::new(),
-            ArpRouter::new(router_table_1, router1_ips.to_vec()).debug(String::from("R1")),
-            RipRouter::new(router1_ips.to_vec()).debug(String::from("R1"))
+            ArpRouter::new(router_table_1, router1_ips.to_vec()),
+            RipRouter::new(router1_ips.to_vec())
         ],
         new_machine![
             Pci::new([networks[1].clone(), networks[2].clone(),]),
             Ipv4::new(ip_table_2),
             Arp::basic(),
             Udp::new(),
-            ArpRouter::new(Default::default(), router2_ips.to_vec()).debug(String::from("R2")),
-            RipRouter::new(router2_ips.to_vec()).debug(String::from("R2"))
+            ArpRouter::new(Default::default(), router2_ips.to_vec()),
+            RipRouter::new(router2_ips.to_vec())
         ],
         new_machine![
-            Pci::new([
-                networks[2].clone(),
-                networks[3].clone(),
-                networks[4].clone(),
-                networks[5].clone()
-            ]),
+            Pci::new([networks[2].clone(), networks[3].clone(),]),
             Ipv4::new(ip_table_3),
             Arp::basic(),
             Udp::new(),
-            ArpRouter::new(router_table_3, router3_ips.to_vec()).debug(String::from("R3")),
-            RipRouter::new(router3_ips.to_vec()).debug(String::from("R3"))
+            ArpRouter::new(Default::default(), router3_ips.to_vec()),
+            RipRouter::new(router3_ips.to_vec())
+        ],
+        new_machine![
+            Pci::new([networks[3].clone(), networks[4].clone(),]),
+            Ipv4::new(ip_table_4),
+            Arp::basic(),
+            Udp::new(),
+            ArpRouter::new(Default::default(), router4_ips.to_vec()),
+            RipRouter::new(router4_ips.to_vec())
+        ],
+        new_machine![
+            Pci::new([
+                networks[4].clone(),
+                networks[5].clone(),
+                networks[6].clone(),
+                networks[7].clone()
+            ]),
+            Ipv4::new(ip_table_5),
+            Arp::basic(),
+            Udp::new(),
+            ArpRouter::new(router_table_5, router5_ips.to_vec()),
+            RipRouter::new(router5_ips.to_vec())
         ],
         // Destinations
-        build_capture(networks[3].clone(), IPS[1], 1),
-        build_capture(networks[4].clone(), IPS[2], 2),
-        build_capture(networks[5].clone(), IPS[3], 3),
+        build_capture(networks[5].clone(), IPS[1], 1),
+        build_capture(networks[6].clone(), IPS[2], 2),
+        build_capture(networks[7].clone(), IPS[3], 3),
     ];
 
-    run_internet_with_timeout(&machines, Duration::from_secs(20)).await
+    run_internet_with_timeout(&machines, Duration::from_secs(10)).await
 }
 
 #[cfg(test)]

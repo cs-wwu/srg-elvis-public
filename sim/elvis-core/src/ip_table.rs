@@ -4,7 +4,6 @@ use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::Debug;
-use std::option::IterMut;
 
 /// An IpTable is a type of map that maps (Ipv4, Ipv4Mask) to the given type T
 /// this mapping is different from a traditional HashMap/TreeMap in a sense

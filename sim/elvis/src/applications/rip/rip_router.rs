@@ -82,7 +82,6 @@ impl Protocol for RipRouter {
 
         let mut sessions = Vec::<Arc<dyn Session>>::new();
 
-        let remote_endpoint = Endpoint::new(Ipv4Address::SUBNET, 520);
         let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, 520);
 
         udp.listen(self.id(), broadcast_endpoint, protocols.clone())
@@ -95,7 +94,7 @@ impl Protocol for RipRouter {
                     self.id(),
                     Endpoints {
                         local: local_endpoint,
-                        remote: remote_endpoint.clone(),
+                        remote: broadcast_endpoint.clone(),
                     },
                     protocols.clone(),
                 )
@@ -135,8 +134,8 @@ impl Protocol for RipRouter {
             return Ok(());
         }
 
-        let remote_endpoint = Endpoint::new(router_address, 512);
-        let local_endpoint = Endpoint::new(self.local_ips[slot as usize], 512);
+        let remote_endpoint = Endpoint::new(router_address, 520);
+        let local_endpoint = Endpoint::new(self.local_ips[slot as usize], 520);
         let endpoints = Endpoints::new(local_endpoint, remote_endpoint);
 
         // parse packet from message
@@ -158,29 +157,22 @@ impl Protocol for RipRouter {
                     .process_request(router_address, packet);
 
                 for packet in packets.iter() {
-                    let message = Message::new(RipPacket::build(packet));
+                    let response_message = Message::new(RipPacket::build(packet));
                     let id = self.id();
                     let udp = udp.clone();
                     let protocols = protocols.clone();
 
-                    // send response message back to router
-                    if let Some(name) = self.name.clone() {
-                        println!("{} has sent a packet", name)
-                    }
                     tokio::spawn(async move {
-                        let result = udp.open_and_listen(id, endpoints, protocols.clone()).await;
+                        let result = udp.open_for_sending(id, endpoints, protocols.clone()).await;
                         let session = match result {
                             Ok(session) => session,
                             Err(_) => return,
                         };
-                        let _ = session.send(message, protocols);
+                        let _ = session.send(response_message, protocols);
                     });
                 }
             }
             Operation::Response => {
-                if let Some(name) = self.name.clone() {
-                    println!("{} has received a response", name);
-                }
                 // update router table accordingly
                 protocols
                     .protocol::<ArpRouter>()

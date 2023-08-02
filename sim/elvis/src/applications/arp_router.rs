@@ -76,9 +76,6 @@ impl ArpRouter {
     /// processes the packet of an incoming rip request and returns relevent
     /// information to calling process
     pub fn process_request(&self, neighbor_ip: Ipv4Address, packet: RipPacket) -> Vec<RipPacket> {
-        if let Some(name) = self.name.clone() {
-            println!("{} is processing a request", name);
-        }
         let mut output: Vec<RipPacket> = Vec::new();
         let mut entries = packet.entries;
 
@@ -101,8 +98,6 @@ impl ArpRouter {
             }
 
             if frame.len() > 0 {
-                // println!("name {:?}", self.name);
-                // println!("{:?}", frame);
                 output.push(RipPacket::new_response(frame));
             }
 
@@ -110,7 +105,6 @@ impl ArpRouter {
         }
 
         // otherwise obtain the metrics for each entry that exists on the routing table
-        println!("modifying entries");
 
         for mut entry in entries.iter_mut() {
             if let Some(route) = self
@@ -124,8 +118,6 @@ impl ArpRouter {
                 entry.metric = INFINITY;
             }
         }
-
-        println!("I got a request, my ip table is: {:#?}", self.ip_table);
 
         output.push(RipPacket::new_response(entries));
         output

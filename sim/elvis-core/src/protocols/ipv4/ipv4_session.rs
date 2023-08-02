@@ -9,7 +9,7 @@ use crate::{
     protocol::DemuxError,
     protocols::{pci::PciSession, utility::Endpoints},
     session::SendError,
-    Control, Network, Session, Transport,
+    Control, Session, Transport,
 };
 use std::{
     any::TypeId,
