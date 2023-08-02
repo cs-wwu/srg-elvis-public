@@ -96,7 +96,7 @@ impl Session for Ipv4Session {
         message.header(header);
 
         self.pci_session
-        .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
+            .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
 
         Ok(())
     }

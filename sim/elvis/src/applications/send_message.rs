@@ -5,7 +5,10 @@ use elvis_core::{
     protocols::{dhcp::dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
     Control, Protocol, Session, Shutdown, Transport,
 };
-use std::{sync::{Arc, RwLock}, time::Duration};
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use tokio::sync::Barrier;
 
 /// An application that sends a single message over the network.
@@ -95,7 +98,7 @@ impl Protocol for SendMessage {
         if let Some(duration) = self.delay {
             tokio::time::sleep(duration).await;
         }
-        
+
         for message in messages {
             session
                 .send(message, protocols.clone())

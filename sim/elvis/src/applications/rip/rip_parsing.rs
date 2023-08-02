@@ -1,4 +1,3 @@
-
 use std::error::Error;
 use std::fmt::{self, Formatter};
 
@@ -13,7 +12,6 @@ use elvis_core::{protocols::ipv4::Ipv4Address, protocols::utility::BytesExt};
 const VERSION: u8 = 2;
 const AFI_2: u16 = 2;
 const INFINITY: u32 = 16;
-
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct RipPacket {
@@ -32,7 +30,10 @@ impl fmt::Debug for RipPacket {
 
 impl fmt::Debug for RipEntry {
     fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
-        println!("{} {} {} {}", self.address_family_id, self.ip_address, self.next_hop, self.metric);
+        print!(
+            "ip: {} next hop: {} metric: {}",
+            self.ip_address, self.next_hop, self.metric
+        );
         Ok(())
     }
 }

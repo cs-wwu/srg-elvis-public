@@ -2,7 +2,7 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, Tcp, Udp, ipv4::Ipv4Address},
+    protocols::{ipv4::Ipv4Address, Endpoint, Tcp, Udp},
     shutdown::ExitStatus,
     Control, Protocol, Session, Shutdown, Transport,
 };

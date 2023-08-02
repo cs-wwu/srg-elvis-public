@@ -8,7 +8,7 @@ use crate::{
     network::Mac,
     protocol::{DemuxError, StartError},
     protocols::pci::Pci,
-    Control, FxDashMap, IpTable, Protocol, Session, Shutdown, Network,
+    Control, FxDashMap, IpTable, Network, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;

@@ -101,7 +101,8 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
             address: destination,
             port: 0xbeef,
         },
-    ).delay(Duration::from_secs(5));
+    )
+    .delay(Duration::from_secs(5));
 
     let machines = vec![
         // send message
@@ -153,7 +154,6 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
     ];
 
     run_internet_with_timeout(&machines, Duration::from_secs(20)).await
-
 }
 
 /* routes packet from source 0 to one of the given destinations 1,2,3
@@ -162,28 +162,47 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
     R3 only has information about destinations 1, 2 and 3
 
                                (3)- 1
-                               |     
-    0 -(0)- R1 -(1)- R2 -(2)- R3 -(4)- 2 
+                               |
+    0 -(0)- R1 -(1)- R2 -(2)- R3 -(4)- 2
                                |
                                (5)- 3
-                            
+
 */
 #[allow(dead_code)]
 pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
-    let router_table_1: IpTable<(Option<Ipv4Address>, PciSlot)> = [
-        (IPS[0], (None, 0)),
+    let router1_ips: [Ipv4Address; 2] = [
+        Ipv4Address::new([123, 46, 67, 89]),
+        Ipv4Address::new([123, 46, 67, 90]),
+    ];
+
+    let router2_ips: [Ipv4Address; 2] = [
+        Ipv4Address::new([123, 46, 68, 89]),
+        Ipv4Address::new([123, 46, 68, 90]),
+    ];
+
+    let router3_ips: [Ipv4Address; 4] = [
+        Ipv4Address::new([123, 46, 69, 89]),
+        Ipv4Address::new([123, 46, 69, 90]),
+        Ipv4Address::new([123, 46, 69, 91]),
+        Ipv4Address::new([123, 46, 69, 92]),
+    ];
+
+    let router_table_1: IpTable<(Option<Ipv4Address>, PciSlot)> =
+        [(IPS[0], (None, 0))].into_iter().collect();
+
+    let router_table_3: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (IPS[1], (None, 1)),
+        (IPS[2], (None, 2)),
+        (IPS[3], (None, 3)),
     ]
     .into_iter()
     .collect();
 
-    let router_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> =
-        [(IPS[2], (None, 1)), (IPS[3], (None, 2))]
-            .into_iter()
-            .collect();
+    let networks: Vec<_> = (0..6).map(|_| Network::basic()).collect();
 
-    let networks: Vec<_> = (0..).map(|_| Network::basic()).collect();
-    let ip_table_1 = build_ip_table(&ROUTER1_IPS);
-    let ip_table_2 = build_ip_table(&ROUTER2_IPS);
+    let ip_table_1 = build_ip_table(&router1_ips);
+    let ip_table_2 = build_ip_table(&router2_ips);
+    let ip_table_3 = build_ip_table(&router3_ips);
 
     let send_message = SendMessage::new(
         vec![Message::new(b"Hello World!")],
@@ -191,7 +210,8 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
             address: destination,
             port: 0xbeef,
         },
-    ).delay(Duration::from_secs(5));
+    )
+    .delay(Duration::from_secs(10));
 
     let machines = vec![
         // send message
@@ -204,35 +224,39 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
-                    default_gateway: ROUTER1_IPS[0]
+                    default_gateway: router1_ips[0]
                 }
             ),
         ],
         // Routers
         new_machine![
-            Pci::new([
-                networks[0].clone(),
-                networks[1].clone(),
-                networks[2].clone(),
-                networks[3].clone()
-            ]),
+            Pci::new([networks[0].clone(), networks[1].clone(),]),
             Ipv4::new(ip_table_1),
             Arp::basic(),
             Udp::new(),
-            ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec()),
-            RipRouter::new(ROUTER1_IPS.to_vec())
+            ArpRouter::new(router_table_1, router1_ips.to_vec()).debug(String::from("R1")),
+            RipRouter::new(router1_ips.to_vec()).debug(String::from("R1"))
+        ],
+        new_machine![
+            Pci::new([networks[1].clone(), networks[2].clone(),]),
+            Ipv4::new(ip_table_2),
+            Arp::basic(),
+            Udp::new(),
+            ArpRouter::new(Default::default(), router2_ips.to_vec()).debug(String::from("R2")),
+            RipRouter::new(router2_ips.to_vec()).debug(String::from("R2"))
         ],
         new_machine![
             Pci::new([
                 networks[2].clone(),
+                networks[3].clone(),
                 networks[4].clone(),
-                networks[5].clone(),
+                networks[5].clone()
             ]),
-            Ipv4::new(ip_table_2),
+            Ipv4::new(ip_table_3),
             Arp::basic(),
             Udp::new(),
-            ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec()),
-            RipRouter::new(ROUTER2_IPS.to_vec())
+            ArpRouter::new(router_table_3, router3_ips.to_vec()).debug(String::from("R3")),
+            RipRouter::new(router3_ips.to_vec()).debug(String::from("R3"))
         ],
         // Destinations
         build_capture(networks[3].clone(), IPS[1], 1),
@@ -241,13 +265,11 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
     ];
 
     run_internet_with_timeout(&machines, Duration::from_secs(20)).await
-
 }
 
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    #[tracing_test::traced_test]
     async fn rip_router() {
         let test1 = super::rip_router(super::IPS[1]);
         let test2 = super::rip_router(super::IPS[2]);
@@ -258,5 +280,16 @@ mod tests {
         assert_eq!(test2.await, super::ExitStatus::Status(2));
         assert_eq!(test3.await, super::ExitStatus::Status(3));
         assert_eq!(test4.await, super::ExitStatus::Status(4));
+    }
+
+    #[tokio::test]
+    async fn rip_pitchfork() {
+        let test1 = super::pitchfork(super::IPS[1]);
+        let test2 = super::pitchfork(super::IPS[2]);
+        let test3 = super::pitchfork(super::IPS[3]);
+
+        assert_eq!(test1.await, super::ExitStatus::Status(1));
+        assert_eq!(test2.await, super::ExitStatus::Status(2));
+        assert_eq!(test3.await, super::ExitStatus::Status(3));
     }
 }

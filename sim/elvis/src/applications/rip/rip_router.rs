@@ -17,9 +17,10 @@ use crate::applications::ArpRouter;
 use super::rip_parsing::{Operation, RipPacket};
 
 // number of seconds between each update
-const UPDATE: u64 = 1;
+const UPDATE_INTERVAL: u64 = 1;
 pub struct RipRouter {
     local_ips: Vec<Ipv4Address>,
+    name: Option<String>,
 }
 
 impl RipRouter {
@@ -31,43 +32,36 @@ impl RipRouter {
     ) -> Self {
         RipRouter {
             local_ips: local_ips.clone(),
+            name: None,
         }
     }
 
-    pub async fn run(
-        sessions: Vec<Arc<dyn Session>>,
-        protocols: ProtocolMap,
-    ) {
+    pub fn debug(mut self, name: String) -> Self {
+        self.name = Some(name);
+        self
+    }
+
+    pub async fn run(sessions: Vec<Arc<dyn Session>>, protocols: ProtocolMap) {
         // send initial full table request for each udp session
         let ftr = Message::new(RipPacket::new_full_table_request().build());
 
         // possible bug: if a router does not receive this request then there is a chance that
         // its route is never discovered.
         for session in sessions.iter() {
-            match session.send(ftr.clone(), protocols.clone()) {
-                Ok(_) => {}
-                Err(_) => {
-                    return;
-                }
-            }
+            session.send(ftr.clone(), protocols.clone()).unwrap();
         }
 
         // every UPDATE seconds send a broadcast update to each of the
         // routers udp sessions to update the routers table
-        // loop {
-        //     tokio::time::sleep(Duration::from_secs(UPDATE)).await;
+        loop {
+            tokio::time::sleep(Duration::from_secs(UPDATE_INTERVAL)).await;
 
-        //     // obtain all routes not directly connected to the router
-        //     let packets = protocols.protocol::<ArpRouter>().expect("RipRouter requires ArpRouter").generate_request();
-
-        //     // broadcast request to all adjacent routes
-        //     for packet in packets.iter() {
-        //         let message = Message::new(packet.build());
-        //         for session in sessions.iter() {
-        //             session.send(message.clone(), protocols.clone()).unwrap();
-        //         }
-        //     }
-        // }
+            // todo! (eulerfrog) figure out how to not send full table requests every
+            // time a router wants an update
+            for session in sessions.iter() {
+                session.send(ftr.clone(), protocols.clone()).unwrap();
+            }
+        }
     }
 }
 
@@ -79,20 +73,20 @@ impl Protocol for RipRouter {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-
         let udp = protocols
             .clone()
             .protocol::<Udp>()
             .expect("RipRouter requires Udp");
-        
+
         initialized.wait().await;
-        
+
         let mut sessions = Vec::<Arc<dyn Session>>::new();
 
         let remote_endpoint = Endpoint::new(Ipv4Address::SUBNET, 520);
         let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, 520);
 
-        udp.listen(self.id(), broadcast_endpoint, protocols.clone()).ok();
+        udp.listen(self.id(), broadcast_endpoint, protocols.clone())
+            .ok();
 
         for ip in self.local_ips.iter() {
             let local_endpoint = Endpoint::new(*ip, 520);
@@ -110,13 +104,10 @@ impl Protocol for RipRouter {
                 Ok(out) => out,
                 Err(_) => return Err(StartError::Other),
             };
-            
+
             sessions.push(session);
         }
-        
-        
-        // todo! (eulerfrog) add handle to allow router to shut down and stop sending
-        // requests
+
         tokio::spawn(Self::run(sessions, protocols));
 
         Ok(())
@@ -143,7 +134,7 @@ impl Protocol for RipRouter {
         if self.local_ips[slot as usize] == router_address {
             return Ok(());
         }
- 
+
         let remote_endpoint = Endpoint::new(router_address, 512);
         let local_endpoint = Endpoint::new(self.local_ips[slot as usize], 512);
         let endpoints = Endpoints::new(local_endpoint, remote_endpoint);
@@ -160,8 +151,11 @@ impl Protocol for RipRouter {
                     .protocol::<Udp>()
                     .expect("Rip requires UDP to work")
                     .clone();
-                let packets = protocols.protocol::<ArpRouter>().expect("RipRouter requires ArpRouter").process_request(router_address, packet);
-                println!("{}", packets.len());
+
+                let packets = protocols
+                    .protocol::<ArpRouter>()
+                    .expect("RipRouter requires ArpRouter")
+                    .process_request(router_address, packet);
 
                 for packet in packets.iter() {
                     let message = Message::new(RipPacket::build(packet));
@@ -170,6 +164,9 @@ impl Protocol for RipRouter {
                     let protocols = protocols.clone();
 
                     // send response message back to router
+                    if let Some(name) = self.name.clone() {
+                        println!("{} has sent a packet", name)
+                    }
                     tokio::spawn(async move {
                         let result = udp.open_and_listen(id, endpoints, protocols.clone()).await;
                         let session = match result {
@@ -181,8 +178,14 @@ impl Protocol for RipRouter {
                 }
             }
             Operation::Response => {
+                if let Some(name) = self.name.clone() {
+                    println!("{} has received a response", name);
+                }
                 // update router table accordingly
-                protocols.protocol::<ArpRouter>().expect("RipRouter requires ArpRouter").process_response(router_address, slot, packet);
+                protocols
+                    .protocol::<ArpRouter>()
+                    .expect("RipRouter requires ArpRouter")
+                    .process_response(router_address, slot, packet);
             }
         }
 

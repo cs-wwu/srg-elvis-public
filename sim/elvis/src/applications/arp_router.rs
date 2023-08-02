@@ -27,6 +27,7 @@ const INFINITY: u32 = 16;
 pub struct ArpRouter {
     ip_table: RwLock<IpTable<Rte>>,
     local_ips: Vec<Ipv4Address>,
+    name: Option<String>,
 }
 
 impl ArpRouter {
@@ -40,7 +41,13 @@ impl ArpRouter {
         Self {
             ip_table: RwLock::new(ip_table.into()),
             local_ips,
+            name: None,
         }
+    }
+
+    pub fn debug(mut self, name: String) -> Self {
+        self.name = Some(name);
+        self
     }
 
     // generate rip packets for each entry in the router that has a
@@ -69,6 +76,9 @@ impl ArpRouter {
     /// processes the packet of an incoming rip request and returns relevent
     /// information to calling process
     pub fn process_request(&self, neighbor_ip: Ipv4Address, packet: RipPacket) -> Vec<RipPacket> {
+        if let Some(name) = self.name.clone() {
+            println!("{} is processing a request", name);
+        }
         let mut output: Vec<RipPacket> = Vec::new();
         let mut entries = packet.entries;
 
@@ -91,7 +101,8 @@ impl ArpRouter {
             }
 
             if frame.len() > 0 {
-                println!("{:?}", frame);
+                // println!("name {:?}", self.name);
+                // println!("{:?}", frame);
                 output.push(RipPacket::new_response(frame));
             }
 
@@ -126,12 +137,12 @@ impl ArpRouter {
         neighbor_slot: PciSlot,
         packet: RipPacket,
     ) {
-        // processs response
-        println!("got here");
+        if let Some(name) = self.name.clone() {
+            println!("{} is processing a request", name);
+        }
+
         let entries = packet.entries;
         let mut ip_table_ref = self.ip_table.write().unwrap();
-
-        println!("packet length {}", entries.len());
 
         for entry in entries {
             // cost of going to new route is metric provided by packet
@@ -161,7 +172,6 @@ impl ArpRouter {
             }
         }
         println!("{:?}", ip_table_ref);
-
     }
 }
 
