@@ -132,6 +132,7 @@ impl Protocol for Ipv4 {
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         initialized.wait().await;
+        *self.info.write().unwrap() = Vec::<Ipv4Info>::with_capacity(protocols.protocol::<Pci>().unwrap().slot_count());
         Ok(())
     }
 
@@ -181,6 +182,7 @@ impl Protocol for Ipv4 {
         let pci_demux_info = control
             .get::<pci::DemuxInfo>()
             .ok_or(DemuxError::MissingContext)?;
+        //TODO(Justice) Check if info entry exists for caller, create if not
         let recipient = Recipient::with_mac(pci_demux_info.slot, pci_demux_info.source);
         let session = Arc::new(Ipv4Session {
             upstream,
