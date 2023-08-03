@@ -156,7 +156,6 @@ impl DnsMessage {
 
         domain_name.insert(domain_name.len(), 0);
 
-        println!("{:?}", domain_name);
         domain_name
     }
 
