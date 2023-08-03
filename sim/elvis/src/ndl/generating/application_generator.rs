@@ -31,13 +31,17 @@ pub fn send_message_builder(
         app.options.contains_key("message"),
         "Send_Message application doesn't contain message."
     );
+    let local_ip = match app.options.contains_key("local_ip") {
+        true => ip_string_to_ip(app.options.get("local_ip").unwrap().to_string(), "local_ip declaration").into(),
+        false => Ipv4Address::new([127, 0, 0, 1]),
+    };
 
     let to = app.options.get("to").unwrap().to_string();
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message = app.options.get("message").unwrap().to_owned();
     let message = Message::new(message);
     let messages = vec![message];
-
+    println!("Local ip for machines: {:?}", local_ip);
     // Determines whether or not we are using an IP or a name to send this message
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Send_Message declaration");
@@ -49,7 +53,7 @@ pub fn send_message_builder(
                 address: to.into(),
                 port,
             },
-        )
+        ).local_ip(local_ip)
     } else {
         SendMessage::new(
             messages,
@@ -59,7 +63,7 @@ pub fn send_message_builder(
                 }),
                 port,
             },
-        )
+        ).local_ip(local_ip)
     }
 }
 
