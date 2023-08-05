@@ -6,6 +6,7 @@ use super::{
 use crate::{
     machine::ProtocolMap,
     message::Message,
+    network::Delivery,
     protocol::DemuxError,
     protocols::{pci::PciSession, utility::Endpoints},
     session::SendError,
@@ -94,13 +95,31 @@ impl Session for Ipv4Session {
             }
         };
         message.header(header);
-
         if self.addresses.remote == Ipv4Address::SUBNET {
             self.pci_session.send_pci(
                 message,
                 Some(Network::BROADCAST_MAC),
                 TypeId::of::<Ipv4>(),
             )?;
+        } else if crate::subnetting::Ipv4Net::LOOPBACK.contains(self.addresses.remote) {
+            // address is a loopback address (127.0.0.1/8),
+            // so we send the things directly to our own tap slot.
+            let delivery = Delivery {
+                message,
+                sender: self.pci_session.mac(),
+                destination: Some(self.pci_session.mac()),
+                protocol: TypeId::of::<Ipv4>(),
+            };
+            match self.pci_session.receive(delivery) {
+                Ok(_) => {}
+                Err(_) => {
+                    tracing::error!(
+                        "Failed to send to loopback address {:?}",
+                        self.addresses.remote
+                    );
+                    return Err(SendError::Other);
+                }
+            }
         } else {
             self.pci_session
                 .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;

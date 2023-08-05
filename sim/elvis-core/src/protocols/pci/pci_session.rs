@@ -80,6 +80,7 @@ impl PciSession {
                 Err(ReceiveError::Protocol(delivery.protocol))?
             }
         };
+
         protocol.demux(delivery.message, self.clone(), control, protocols)?;
         Ok(())
     }
