@@ -25,9 +25,6 @@ pub struct RipRouter {
 
 impl RipRouter {
     pub fn new(
-        // Maps subnet to a given router ip.
-        // Setting route to none sets the destination ip to the destination
-        // ip in the received packet so the router can send to a local network.
         local_ips: Vec<Ipv4Address>,
     ) -> Self {
         RipRouter {

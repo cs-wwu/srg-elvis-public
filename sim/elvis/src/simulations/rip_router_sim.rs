@@ -161,11 +161,11 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
     R2-R4 have no routing information
     R5 only has information about destinations 1, 2 and 3
 
-                               (3)- 1
+                               (5)- 1
                                |
-    0 -(0)- R1 -(1)- R2 -(2)- R3 -(4)- 2
+    0 -(0)- R1 -(1)- .. -(4)- R4 -(6)- 2
                                |
-                               (5)- 3
+                               (7)- 3
 
 */
 #[allow(dead_code)]
@@ -293,6 +293,10 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
     ];
 
     run_internet_with_timeout(&machines, Duration::from_secs(10)).await
+}
+
+pub async fn junction(destination: Ipv4Address) -> ExitStatus {
+    todo!()
 }
 
 #[cfg(test)]

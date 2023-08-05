@@ -57,7 +57,7 @@ impl ArpRouter {
         let mut entries: Vec<RipEntry> = Vec::new();
 
         for entry in self.ip_table.read().unwrap().iter() {
-            if let Some(next_hop) = entry.1.destination {
+            if let Some(next_hop) = entry.1.next_hop {
                 let rip_entry =
                     RipEntry::new_entry(entry.0.id(), next_hop, entry.0.mask(), entry.1.metric);
 
@@ -105,7 +105,6 @@ impl ArpRouter {
         }
 
         // otherwise obtain the metrics for each entry that exists on the routing table
-
         for mut entry in entries.iter_mut() {
             if let Some(route) = self
                 .ip_table
@@ -129,10 +128,6 @@ impl ArpRouter {
         neighbor_slot: PciSlot,
         packet: RipPacket,
     ) {
-        if let Some(name) = self.name.clone() {
-            println!("{} is processing a request", name);
-        }
-
         let entries = packet.entries;
         let mut ip_table_ref = self.ip_table.write().unwrap();
 
@@ -163,7 +158,6 @@ impl ArpRouter {
                 }
             }
         }
-        println!("{:?}", ip_table_ref);
     }
 }
 
@@ -229,7 +223,7 @@ impl Protocol for ArpRouter {
             .get_recipient(ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
 
-        let gateway = match rte.destination {
+        let gateway = match rte.next_hop {
             Some(address) => address,
             // allows router to send packet back to local network
             None => ipv4_header.destination,

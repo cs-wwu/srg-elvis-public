@@ -98,7 +98,7 @@ impl<T: Copy> IpTable<T> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Rte {
-    pub destination: Option<Ipv4Address>,
+    pub next_hop: Option<Ipv4Address>,
     pub mask: Ipv4Mask,
     pub slot: PciSlot,
     pub metric: u32,
@@ -106,13 +106,13 @@ pub struct Rte {
 
 impl Rte {
     pub fn new(
-        destination: Option<Ipv4Address>,
+        next_hop: Option<Ipv4Address>,
         mask: Ipv4Mask,
         slot: PciSlot,
         metric: u32,
     ) -> Self {
         Self {
-            destination,
+            next_hop,
             mask,
             slot,
             metric,

@@ -247,6 +247,7 @@ pub async fn ping_pong() {
 
     let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
     assert_eq!(status, ExitStatus::Exited);
+    
 }
 
 #[cfg(test)]
