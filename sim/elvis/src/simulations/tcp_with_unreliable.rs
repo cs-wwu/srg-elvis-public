@@ -29,10 +29,9 @@ pub async fn tcp_with_unreliable() {
         port: 0xbeef,
     };
 
-    let ip_table: IpTable<Recipient> =
-        [(Ipv4Address::from([127, 0, 0, 1]), Recipient::with_mac(0, 1))]
-            .into_iter()
-            .collect();
+    let sm_addr = Ipv4Address::new([6, 0, 0, 0]);
+
+    let ip_table: IpTable<Recipient> = [(sm_addr, Recipient::with_mac(0, 1))].into_iter().collect();
 
     let message: Vec<_> = (0..8000).map(|i| i as u8).collect();
     let message = Message::new(message);
@@ -41,7 +40,9 @@ pub async fn tcp_with_unreliable() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![message.clone()], endpoint).transport(Transport::Tcp)
+            SendMessage::new(vec![message.clone()], endpoint)
+                .transport(Transport::Tcp)
+                .local_ip(sm_addr),
         ],
         new_machine![
             Tcp::new(),
