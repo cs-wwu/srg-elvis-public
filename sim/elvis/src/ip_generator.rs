@@ -69,6 +69,27 @@ impl IpGenerator {
         result
     }
 
+    /// Generates a single ip address asked for
+    /// by the caller and blocks it out.
+    /// Returns Some(ip) if it is available and
+    /// it returns None otherwise
+    pub fn fetch_specific_ip(&mut self, ip: Ipv4Address) -> Option<Ipv4Address> {
+        // Create an immutable copy to enable traversing
+        let before_range = self.available_ranges.clone();
+
+        // Check each available range in the before_range part to see if the specific IP is within it
+        for av_range in before_range.iter() {
+            if av_range.start <= ip && ip <= av_range.end {
+                // Found the specific IP within an available range
+                // Block the specific IP and return it to the user
+                self.block_subnet(Ipv4Net::new_short(ip, 32));
+                return Some(ip);
+            }
+        }
+        // Return None if the specific IP was not found
+        None
+    }
+
     /// Generates a single IP address,
     /// then blocks it out so it can't be generated again.
     /// Returns `Some(ip)` if there is an IP address available.
