@@ -21,14 +21,14 @@ use {std::any::TypeId, std::sync::Arc, tokio::sync::Barrier};
 /// Serves as a tool for looking up the ['Ipv4Address'] of a host using its
 /// known machine name (domain), and as the storage for an individual machine's
 /// name to IP mappings.
-pub struct DnsClient {
+pub struct DnsResolver {
     /// Mapping of names to IPs that is unique to each machine. When a machine
     /// connects to a host using DNS, the mapping is saved in the connecting
     /// machines DNS protocol.
     name_to_ip: FxDashMap<String, Ipv4Address>,
 }
 
-impl DnsClient {
+impl DnsResolver {
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
         Self {
@@ -120,7 +120,7 @@ impl DnsClient {
 }
 
 #[async_trait::async_trait]
-impl Protocol for DnsClient {
+impl Protocol for DnsResolver {
     fn id(&self) -> TypeId {
         self.type_id()
     }
@@ -146,7 +146,7 @@ impl Protocol for DnsClient {
     }
 }
 
-impl Default for DnsClient {
+impl Default for DnsResolver {
     fn default() -> Self {
         Self::new()
     }
@@ -169,7 +169,7 @@ mod tests {
     /// Checks HashMap functionality
     fn add_and_lookup_mapping() {
         // Initialize struct
-        let dns: DnsClient = DnsClient::new();
+        let dns: DnsResolver = DnsResolver::new();
 
         // Create and add mapping
         let name: String = String::from("Name");
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     // Checks appropriate behaviour on cache miss.
     fn cache_miss() {
-        let dns: DnsClient = DnsClient::new();
+        let dns: DnsResolver = DnsResolver::new();
 
         // Create and do NOT add mapping
         let name: String = String::from("Arbitrary");

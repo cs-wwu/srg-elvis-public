@@ -5,7 +5,7 @@ use tokio::time::Duration;
 use elvis_core::{
     new_machine,
     protocols::{
-        dns::{dns_client::DnsClient, dns_server::DnsServer},
+        dns::{dns_resolver::DnsResolver, dns_server::DnsServer},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         socket_api::socket::SocketType,
         tcp::Tcp,
@@ -77,7 +77,8 @@ pub async fn dns_basic_many() {
                 Ipv4::new(ip_table.clone()),
                 Pci::new([network.clone()]),
                 SocketAPI::new(Some(client_ip_addresses[i as usize])),
-                DnsClient::new(),
+                DnsResolver
+::new(),
                 DnsTestClient::new(0xbeef, SocketType::Datagram),
             ])
     }

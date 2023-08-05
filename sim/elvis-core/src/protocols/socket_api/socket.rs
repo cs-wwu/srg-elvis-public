@@ -4,7 +4,7 @@ use crate::{
     message::Chunk,
     protocol::{DemuxError, NotifyType},
     protocols::{
-        dns::dns_client::DnsClient,
+        dns::dns_resolver::DnsResolver,
         utility::{Endpoint, Endpoints},
     },
     Message, Session, Shutdown,
@@ -111,7 +111,7 @@ impl Socket {
     /// TODO(HenryEricksonIV) Used by calling application when the ip address
     /// of the endpoint is not known to the calling application.
     /// Intended to call 'connect()' with an ip provided by the local
-    /// 'DnsClient'.
+    /// 'DnsResolver'.
     pub async fn connect_by_name(
         &self,
         domain_name: String,
@@ -119,7 +119,7 @@ impl Socket {
     ) -> Result<(), SocketError> {
         let ip_from_domain = self
             .protocols
-            .protocol::<DnsClient>()
+            .protocol::<DnsResolver>()
             .unwrap()
             .get_host_by_name(domain_name, self.protocols.clone())
             .await
