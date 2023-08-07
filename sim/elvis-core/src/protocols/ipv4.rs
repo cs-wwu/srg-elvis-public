@@ -12,7 +12,7 @@ use crate::{
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
-use std::{any::TypeId, sync::{Arc, RwLock}};
+use std::{any::TypeId, sync::{Arc, RwLock, RwLockWriteGuard}};
 use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
@@ -35,7 +35,7 @@ mod test_header_builder;
 pub struct Ipv4 {
     listen_bindings: FxDashMap<Ipv4Address, TypeId>,
     recipients: IpTable<Recipient>,
-    info: Vec<RwLock<Ipv4Info>>,
+    info: RwLock<Vec<Ipv4Info>>
 }
 
 impl Ipv4 {
@@ -129,7 +129,7 @@ impl Protocol for Ipv4 {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         initialized.wait().await;
         *self.info.write().unwrap() = Vec::<Ipv4Info>::with_capacity(protocols.protocol::<Pci>().unwrap().slot_count());
@@ -182,7 +182,23 @@ impl Protocol for Ipv4 {
         let pci_demux_info = control
             .get::<pci::DemuxInfo>()
             .ok_or(DemuxError::MissingContext)?;
-        //TODO(Justice) Check if info entry exists for caller, create if not
+        
+        // Check for existing Ipv4Info structs for the slot received from
+        if self.info.read().unwrap().is_empty() {
+            // Definitely doesnt exist
+            let new_info = Ipv4Info::new(pci_demux_info.slot);
+            self.info.write().unwrap().push(new_info)
+        } else {
+            // might exist
+           match Ipv4Info::contains(self.info.write().unwrap(),
+           protocols.protocol::<Pci>().unwrap().slot_count(),
+           pci_demux_info.slot) {
+                    // If exists, do nothing. If not, create a new struct
+                    Ok(()) => {},
+                    Err(_e) => self.info.write().unwrap().push(Ipv4Info::new(pci_demux_info.slot)),
+                }
+        }
+
         let recipient = Recipient::with_mac(pci_demux_info.slot, pci_demux_info.source);
         let session = Arc::new(Ipv4Session {
             upstream,
@@ -237,6 +253,7 @@ pub struct Ipv4Info {
 }
 
 impl Ipv4Info {
+    // Creates a new instance of the struct
     pub fn new(tap_slot: PciSlot) -> Self {
         Self {
             tap_slot,
@@ -245,6 +262,23 @@ impl Ipv4Info {
             default_gateway: None,
             dns_server: None,
         }
+    }
+
+    // Searches an Ipv4's 'info' field for an Ipv4Info with the same slot as the sender
+    // Note(Justice): This is messy. It's O(Pci slots) and would make more sense as a for loop
+    // The type on info isnt iterable and no machine should have so many tap slots that
+    // it should be an issue. Can be optomized via a better search algorithm
+    pub fn contains(info: RwLockWriteGuard<'_, Vec<Ipv4Info>>, ceiling: usize, sender_slot: u32) -> Result<(), ContainsFailure>  {
+        let mut i = 0;
+        
+        while (i < ceiling) {
+            if info[i].tap_slot == sender_slot {
+                ()
+            }
+            i += 1;
+        }
+
+        Err(ContainsFailure::Ipv4InfoNotPresent(sender_slot))
     }
 }
 
@@ -268,4 +302,10 @@ pub enum OpenAndListenError {
     Open(#[from] OpenError),
     #[error("{0}")]
     Listen(#[from] ListenError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
+pub enum ContainsFailure {
+    #[error("The info vector is missing entry for {0}")]
+    Ipv4InfoNotPresent(u32),
 }
