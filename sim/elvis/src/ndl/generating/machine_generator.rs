@@ -1,7 +1,9 @@
 //! Generates machines from a given parse
 use std::collections::HashMap;
 
-use crate::ndl::generating::{application_generator::*, protocol_generator::*, generator_utils::ip_string_to_ip};
+use crate::ndl::generating::{
+    application_generator::*, generator_utils::ip_string_to_ip, protocol_generator::*,
+};
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::machine::ProtocolMapBuilder;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
@@ -57,7 +59,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     cur_name = cur_name + "-" + &temp_machine_count.to_string();
                 }
             }
-            // Create a name to ip mapping
+            // Create a name to ip mapping if a name has been provided
             if !cur_name.is_empty() {
                 for app in &machine.interfaces.applications {
                     assert!(
@@ -78,7 +80,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             "Machine {cur_name} contains count and {app_name} application"
                         );
                         
-
+                        // Get the local ip of the application
                         let ip = ip_string_to_ip(if app_name == "send_message" {
                             app.options.get("ip")
                                 .map_or("127.0.0.1".to_string(), |ip_str| ip_str.to_string())
@@ -192,7 +194,9 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     match option.1.as_str() {
                         "UDP" => protocol_map = protocol_map.with(Udp::new()),
                         "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
-                        "ARP" => protocol_map = protocol_map.with(arp_builder()),
+                        "ARP" => protocol_map = protocol_map.with(arp_builder(
+                            &name_to_ip,
+                            &protocol.options)),
                         _ => {
                             panic!(
                                 "Invalid Protocol found in machine. Found: {}",
