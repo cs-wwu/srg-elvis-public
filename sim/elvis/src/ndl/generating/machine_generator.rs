@@ -2,7 +2,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::ndl::generating::{
-    application_generator::*, generator_utils::ip_string_to_ip,
+    application_generator::*, generator_utils::ip_string_to_ip, protocol_generator::*
 };
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::machine::ProtocolMapBuilder;

@@ -5,6 +5,7 @@ mod generator_data;
 mod generator_utils;
 mod machine_generator;
 mod network_generator;
+mod protocol_generator;
 pub use generator::core_generator;
 use machine_generator::machine_generator;
 use network_generator::network_generator;
