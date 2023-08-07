@@ -3,21 +3,22 @@
 use std::collections::HashMap;
 
 use crate::applications::{Forward, PingPong};
-use crate::ndl::generating::generator_utils::ip_or_name;
+use crate::ip_generator::IpGenerator;
+use crate::ndl::generating::generator_utils::{ip_or_name, ip_available};
 use crate::ndl::parsing::parsing_data::*;
 use crate::{
     applications::{Capture, SendMessage},
     ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
 };
-use elvis_core::network::Mac;
-use elvis_core::protocols::ipv4::Ipv4Address;
+use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::{Endpoint, Endpoints};
-use elvis_core::Message;
-
+use elvis_core::{IpTable, Message};
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
+    ip_table: &mut IpTable<Recipient>,
+    ip_gen: &mut HashMap<String, IpGenerator>,
 ) -> SendMessage {
     assert!(
         app.options.contains_key("port"),
@@ -31,17 +32,28 @@ pub fn send_message_builder(
         app.options.contains_key("message"),
         "Send_Message application doesn't contain message."
     );
-    let local_ip = match app.options.contains_key("local_ip") {
-        true => ip_string_to_ip(app.options.get("local_ip").unwrap().to_string(), "local_ip declaration").into(),
-        false => Ipv4Address::new([127, 0, 0, 1]),
-    };
+
+    let target_ip = app.options.get("ip")
+        .map(|ip_str| ip_string_to_ip(ip_str.to_string(), "ip for send_message").into())
+        .unwrap_or_else(|| Ipv4Address::new([127, 0, 0, 1])); //Default to local ip if none is provided
+
+    //Check if ip is available
+    match ip_available(target_ip, ip_gen) {
+        Ok(ip) => {
+            ip_table.add_direct(ip, Recipient::new(0, None));
+        }
+        Err(err) => {
+            panic!("Send_Message error: {}", err);
+        }
+    }
+    
+    
 
     let to = app.options.get("to").unwrap().to_string();
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message = app.options.get("message").unwrap().to_owned();
     let message = Message::new(message);
     let messages = vec![message];
-    println!("Local ip for machines: {:?}", local_ip);
     // Determines whether or not we are using an IP or a name to send this message
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Send_Message declaration");
@@ -53,7 +65,8 @@ pub fn send_message_builder(
                 address: to.into(),
                 port,
             },
-        ).local_ip(local_ip)
+        )
+        .local_ip(target_ip)
     } else {
         SendMessage::new(
             messages,
@@ -63,12 +76,17 @@ pub fn send_message_builder(
                 }),
                 port,
             },
-        ).local_ip(local_ip)
+        )
+        .local_ip(target_ip)
     }
 }
 
 /// Builds the [Capture] application for a machine
-pub fn capture_builder(app: &Application) -> Capture {
+pub fn capture_builder(
+    app: &Application,
+    ip_table: &mut IpTable<Recipient>,
+    ip_gen: &mut HashMap<String, IpGenerator>,) -> Capture {
+
     assert!(
         app.options.contains_key("port"),
         "Capture application doesn't contain port."
@@ -92,6 +110,17 @@ pub fn capture_builder(app: &Application) -> Capture {
         .unwrap()
         .parse::<u32>()
         .expect("Invalid u32 found in Capture for message count");
+
+    //Check if ip is available
+    match ip_available(ip.into(), ip_gen) {
+        Ok(ip) => {
+            ip_table.add_direct(ip, Recipient::new(0, None));
+        }
+        Err(err) => {
+            panic!("Capture error: {}", err);
+        }
+    }
+
     Capture::new(
         Endpoint {
             address: ip.into(),
@@ -106,6 +135,8 @@ pub fn capture_builder(app: &Application) -> Capture {
 pub fn forward_message_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
+    ip_table: &mut IpTable<Recipient>,
+    ip_gen: &mut HashMap<String, IpGenerator>,
 ) -> Forward {
     assert!(
         app.options.contains_key("local_port"),
@@ -131,6 +162,17 @@ pub fn forward_message_builder(
     );
     let local_port = string_to_port(app.options.get("local_port").unwrap().to_string());
     let remote_port = string_to_port(app.options.get("remote_port").unwrap().to_string());
+
+    //Check if ip is available
+    match ip_available(ip.into(), ip_gen) {
+        Ok(ip) => {
+            ip_table.add_direct(ip, Recipient::new(0, None));
+        }
+        Err(err) => {
+            panic!("Forward error: {}", err);
+        }
+    }
+
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Forward declaration");
         Forward::new(Endpoints {
@@ -165,10 +207,10 @@ pub fn forward_message_builder(
 /// TODO: Currently shows errors in the log. I believe this is from an underlying PingPong issue.
 pub fn ping_pong_builder(
     app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>,
-    ip_to_mac: &HashMap<Ipv4Address, Mac>,
-    name_to_mac: &HashMap<String, u64>,
-) -> PingPong {
+    name_to_ip: &HashMap<String, Ipv4Address>, 
+    ip_table: &mut IpTable<Recipient>,
+    ip_gen: &mut HashMap<String, IpGenerator>,) -> PingPong {
+
     assert!(
         app.options.contains_key("local_port"),
         "Forward application doesn't contain local port."
@@ -193,6 +235,16 @@ pub fn ping_pong_builder(
         app.options.get("ip").unwrap().to_string(),
         "PingPong declaration",
     );
+    //Check if ip is available
+    match ip_available(ip.into(), ip_gen) {
+        Ok(ip) => {
+            ip_table.add_direct(ip, Recipient::new(0, None));
+        }
+        Err(err) => {
+            panic!("PingPong error: {}", err);
+        }
+    }
+
     let to = app.options.get("to").unwrap().to_string();
     let local_port = string_to_port(app.options.get("local_port").unwrap().to_string());
     let remote_port = string_to_port(app.options.get("remote_port").unwrap().to_string());
@@ -204,6 +256,7 @@ pub fn ping_pong_builder(
         _ => false,
     };
     if ip_or_name(to.clone()) {
+        //case : to is an IP
         let to = ip_string_to_ip(to, "Forward declaration");
         // case where ip to mac doesn't have a mac
         let endpoints = Endpoints {
@@ -216,14 +269,9 @@ pub fn ping_pong_builder(
                 port: remote_port,
             },
         };
-        if !ip_to_mac.contains_key(&to.into()) {
-            PingPong::new(starter, endpoints)
-        }
-        // case where ip to mac does have a mac
-        else {
-            PingPong::new(starter, endpoints).remote_mac(*ip_to_mac.get(&to.into()).unwrap())
-        }
+        PingPong::new(starter, endpoints)
     } else {
+        // case : to is a machine nameRZs
         let endpoints = Endpoints {
             local: Endpoint {
                 address: ip.into(),
@@ -236,10 +284,6 @@ pub fn ping_pong_builder(
                 port: remote_port,
             },
         };
-        PingPong::new(starter, endpoints).remote_mac(
-            *name_to_mac
-                .get(&to)
-                .unwrap_or_else(|| panic!("Invalid name for 'to' in forward, found: {to}")),
-        )
+        PingPong::new(starter, endpoints)
     }
 }

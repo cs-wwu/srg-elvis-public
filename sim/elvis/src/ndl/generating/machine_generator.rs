@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::machine::ProtocolMapBuilder;
-use elvis_core::network::Mac;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Pci;
 use elvis_core::protocols::{ipv4::Ipv4, udp::Udp};
@@ -15,14 +14,16 @@ use super::generator_data::NetworkInfo;
 
 /// Machine Generator generates machines from a given [Machines] struct and places them in the [Internet]
 pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvis_core::Machine> {
+
     // Focusing on Interfaces, protocols, and applications
-    let mut name_to_mac: HashMap<String, Mac> = HashMap::new();
     let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();
-    let mut ip_to_mac: HashMap<Ipv4Address, Mac> = HashMap::new();
-    let mut cur_mac: u64 = 0;
+    let mut ip_gen = networks.ip_hash.clone();
+
     for machine in machines.iter() {
         let mut cur_name: String = String::new();
         let mut machine_count: u64 = 1;
+
+        // Get the machine count if there is one
         if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("count") {
             machine_count = machine
                 .options
@@ -39,7 +40,11 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 });
             assert!(machine_count > 0, "Machine count less than 1.");
         }
+        // Loop through the count for each machine
         for temp_machine_count in 0..machine_count {
+
+            // Create a name for each machine where one is specified
+            // If the machine > 1 append the number to maintain unique names
             if machine.options.is_some() && machine.options.as_ref().unwrap().contains_key("name") {
                 cur_name = machine
                     .options
@@ -51,9 +56,8 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 if machine_count > 1 {
                     cur_name = cur_name + "-" + &temp_machine_count.to_string();
                 }
-                name_to_mac.insert(cur_name.clone(), cur_mac);
             }
-
+            // Create a name to ip mapping
             if !cur_name.is_empty() {
                 for app in &machine.interfaces.applications {
                     assert!(
@@ -61,30 +65,44 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                         "Machine application does not contain a name"
                     );
                     let app_name = app.options.get("name").unwrap().as_str();
-                    if app_name == "capture" || app_name == "forward" || app_name == "ping_pong" {
+                    if app_name == "capture" || app_name == "forward" || app_name == "ping_pong" || app_name == "send_message" {
                         assert!(
-                            app.options.contains_key("ip"),
+                            app.options.contains_key("ip") || app_name == "send_message",
                             "{app_name} application doesn't contain ip."
                         );
 
                         // This check makes sure counts do not appear on recieving machines.
                         // Can be removed when ELVIS allows for this.
                         assert!(
-                            machine_count == 1,
+                            machine_count == 1  || app_name == "send_message",
                             "Machine {cur_name} contains count and {app_name} application"
                         );
+                        
 
-                        let ip = ip_string_to_ip(
-                            app.options.get("ip").unwrap().to_string(),
-                            format!("{app_name} declaration").as_str(),
-                        );
+                        let ip = ip_string_to_ip(if app_name == "send_message" {
+                            app.options.get("ip")
+                                .map_or("127.0.0.1".to_string(), |ip_str| ip_str.to_string())
+                        } else {
+                            app.options.get("ip")
+                                .unwrap_or_else(|| panic!("{app_name} application doesn't contain ip."))
+                                .to_string()
+                        }, "Application IP");
 
+                        // TODO uncomment when ndl can support multiple local
+                        // ips via unique names (can be done now but will require changing lots of .ndl files)
+
+                        // Create a unique name for machines with multiple local ips
+                        // let new_mach_name = match app_name {
+                        //     "capture" => cur_name.clone() + "-capture",
+                        //     "forward" => cur_name.clone() + "-forward",
+                        //     "ping_pong" => cur_name.clone() + "-ping-pong",
+                        //     "send_message" => cur_name.clone() + "-send-message",
+                        //     _ => panic!("Unsupported application encountered: {:?}", app_name),
+                        // };
                         name_to_ip.insert(cur_name.clone(), ip.into());
-                        ip_to_mac.insert(ip.into(), cur_mac);
                     }
                 }
             }
-            cur_mac += 1;
         }
     }
     let mut machine_list = Vec::new();
@@ -107,6 +125,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     "name" => {
                         _cur_machine_name = option.1.clone();
                     }
+                    
                     _ => {}
                 }
             }
@@ -116,8 +135,9 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
             let mut networks_to_be_added = Vec::new();
             let mut protocol_map = ProtocolMapBuilder::new();
             let mut ip_table = IpTable::<Recipient>::new();
+            // let mut cur_ip_gen: HashMap<String, IpGenerator> = HashMap::new();
 
-            for (net_num, net) in (0_u32..).zip(machine.interfaces.networks.iter()) {
+            for net in machine.interfaces.networks.iter() {
                 // TODO: maybe still need an error test
                 assert!(
                     networks.nets.contains_key(
@@ -129,23 +149,43 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     net.options.get("id").unwrap(),
                     networks.nets.keys().sorted().join(" , ")
                 );
-                let network_adding = networks.nets.get(net.options.get("id").unwrap()).unwrap();
+                //Save the relevant network id's and their corresponding data for later use
+                let net_id = net.options.get("id").unwrap();
+                let network_adding = networks.nets.get(net_id).unwrap();
                 networks_to_be_added.push(network_adding.clone());
+                // cur_ip_gen.insert(net_id.clone(), ip_gen.get(net_id).unwrap().clone());
+            }
+            for app in &machine.interfaces.applications {
+                assert!(
+                    app.options.contains_key("name"),
+                    "Machine application does not contain a name"
+                );
+                let app_name = app.options.get("name").unwrap().as_str();
+                match app_name {
+                    "send_message" => {
+                        protocol_map = protocol_map.with(send_message_builder(app, &name_to_ip, &mut ip_table, &mut ip_gen))
+                    }
 
-                let ips = networks
-                    .ip_hash
-                    .get(net.options.get("id").unwrap())
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "No IPs found for network with id {}",
-                            net.options.get("id").unwrap()
-                        )
-                    });
+                    "capture" => {
+                        protocol_map = protocol_map.with(capture_builder(app, &mut ip_table, &mut ip_gen));
+                    }
 
-                // todo! (eulerfrog) change this to use local ips
-                for ip in ips {
-                    let mac = ip_to_mac.get(ip).cloned();
-                    ip_table.add_direct(*ip, Recipient::new(net_num, mac));
+                    "forward" => {
+                        protocol_map = protocol_map.with(forward_message_builder(app, &name_to_ip, &mut ip_table, &mut ip_gen))
+                    }
+
+                    "ping_pong" => {
+                        protocol_map = protocol_map.with(ping_pong_builder(
+                            app,
+                            &name_to_ip,
+                            &mut ip_table,
+                            &mut ip_gen
+                        ))
+                    }
+
+                    _ => {
+                        panic!("Invalid application in machine. Got application {app_name}");
+                    }
                 }
             }
             protocol_map = protocol_map.with(Pci::new(networks_to_be_added));
@@ -163,40 +203,11 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     }
                 }
             }
-            for app in &machine.interfaces.applications {
-                assert!(
-                    app.options.contains_key("name"),
-                    "Machine application does not contain a name"
-                );
-                let app_name = app.options.get("name").unwrap().as_str();
-                match app_name {
-                    "send_message" => {
-                        protocol_map = protocol_map.with(send_message_builder(app, &name_to_ip))
-                    }
 
-                    "capture" => {
-                        protocol_map = protocol_map.with(capture_builder(app));
-                    }
-
-                    "forward" => {
-                        protocol_map = protocol_map.with(forward_message_builder(app, &name_to_ip))
-                    }
-
-                    "ping_pong" => {
-                        protocol_map = protocol_map.with(ping_pong_builder(
-                            app,
-                            &name_to_ip,
-                            &ip_to_mac,
-                            &name_to_mac,
-                        ))
-                    }
-
-                    _ => {
-                        panic!("Invalid application in machine. Got application {app_name}");
-                    }
-                }
-            }
-
+            //Update IpGenerators with newly used ips
+            // for (id, value) in cur_ip_gen {
+            //     ip_gen.insert(id, value);
+            // }
             machine_list.push(elvis_core::Machine::new(protocol_map.build()));
         }
     }

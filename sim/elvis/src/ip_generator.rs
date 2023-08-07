@@ -35,6 +35,14 @@ impl IpGenerator {
         ))
     }
 
+    ///Returns an IpGenerator with all IP addresses blocked
+    pub fn none() -> Self {
+        let mut ip_gen = Self::all();
+        let all_ips = Ipv4Net::new_short([0, 0, 0, 0], 0);
+        ip_gen.block_subnet(all_ips);
+        return ip_gen;
+    }
+
     /// Returns an IpGenerator with all reserved IP addresses blocked out.
     ///
     /// <https://en.wikipedia.org/wiki/Reserved_IP_addresses#IPv4>
