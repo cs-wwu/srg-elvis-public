@@ -1,7 +1,7 @@
 //! Generates machines from a given parse
 use std::collections::HashMap;
 
-use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
+use crate::ndl::generating::{application_generator::*, protocol_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::machine::ProtocolMapBuilder;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
@@ -135,7 +135,6 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
             let mut networks_to_be_added = Vec::new();
             let mut protocol_map = ProtocolMapBuilder::new();
             let mut ip_table = IpTable::<Recipient>::new();
-            // let mut cur_ip_gen: HashMap<String, IpGenerator> = HashMap::new();
 
             for net in machine.interfaces.networks.iter() {
                 // TODO: maybe still need an error test
@@ -153,7 +152,6 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 let net_id = net.options.get("id").unwrap();
                 let network_adding = networks.nets.get(net_id).unwrap();
                 networks_to_be_added.push(network_adding.clone());
-                // cur_ip_gen.insert(net_id.clone(), ip_gen.get(net_id).unwrap().clone());
             }
             for app in &machine.interfaces.applications {
                 assert!(
@@ -194,6 +192,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     match option.1.as_str() {
                         "UDP" => protocol_map = protocol_map.with(Udp::new()),
                         "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
+                        "ARP" => protocol_map = protocol_map.with(arp_builder()),
                         _ => {
                             panic!(
                                 "Invalid Protocol found in machine. Found: {}",
@@ -203,11 +202,6 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     }
                 }
             }
-
-            //Update IpGenerators with newly used ips
-            // for (id, value) in cur_ip_gen {
-            //     ip_gen.insert(id, value);
-            // }
             machine_list.push(elvis_core::Machine::new(protocol_map.build()));
         }
     }

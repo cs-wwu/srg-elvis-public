@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use elvis_core::protocols::{ipv4::Ipv4Address, arp::subnetting::Ipv4Net};
+use elvis_core::protocols::{arp::subnetting::Ipv4Net, ipv4::Ipv4Address};
 
 use crate::ip_generator::IpGenerator;
 
@@ -64,21 +64,20 @@ pub fn ip_or_name(s: String) -> bool {
 /// Checks if a requested ip is still available
 /// If available it is blocked for future use and returns the IP
 /// If unavailable None is returned and the value is currently in use by another machine
-pub fn ip_available(target_ip: Ipv4Address, ip_gen: &mut HashMap<String, IpGenerator>) -> Result<Ipv4Address, &str> {
-
-    //Assume this works for now, there is something I dont understand in IpGenerator
-    return Ok(target_ip);
+pub fn ip_available(
+    target_ip: Ipv4Address,
+    ip_gen: &mut HashMap<String, IpGenerator>,
+) -> Result<Ipv4Address, &str> {
     const LOCAL_IP: Ipv4Address = Ipv4Address::new([127, 0, 0, 1]);
 
     //Find if the requested local_ip is still available for use.
     if target_ip != LOCAL_IP {
-        for gen in ip_gen.values_mut() {
-            println!("Target {} is one generator {:?}", target_ip, gen);
-            if gen.is_available(Ipv4Net::new_short(target_ip, 32)) {
-                break;
-            }
+        if !ip_gen
+            .values_mut()
+            .any(|gen| !gen.is_available(Ipv4Net::new_short(target_ip, 32)))
+        {
+            return Err("IP not available");
         }
-        return Err("IP not available");
     }
     //If local ip was found then block it in all other ip generators
     for gen in ip_gen.values_mut() {
