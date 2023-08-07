@@ -1,13 +1,14 @@
 //! Generates machines from a given parse
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ndl::generating::{
-    application_generator::*, generator_utils::ip_string_to_ip, protocol_generator::*,
+    application_generator::*, generator_utils::ip_string_to_ip,
 };
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::machine::ProtocolMapBuilder;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Pci;
+use elvis_core::protocols::Arp;
 use elvis_core::protocols::{ipv4::Ipv4, udp::Udp};
 use elvis_core::IpTable;
 use itertools::Itertools;
@@ -112,6 +113,8 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
         let mut machine_count = 1;
         let mut _cur_machine_name: String;
         if machine.options.is_some() {
+
+            // Parse machine parameters if there are any
             for option in machine.options.as_ref().unwrap() {
                 match option.0.as_str() {
                     // TODO: Checks may be able to be removed as we checked up above in the stack
@@ -138,6 +141,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
             let mut protocol_map = ProtocolMapBuilder::new();
             let mut ip_table = IpTable::<Recipient>::new();
 
+            //add networks to the machine
             for net in machine.interfaces.networks.iter() {
                 // TODO: maybe still need an error test
                 assert!(
@@ -155,6 +159,9 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 let network_adding = networks.nets.get(net_id).unwrap();
                 networks_to_be_added.push(network_adding.clone());
             }
+            protocol_map = protocol_map.with(Pci::new(networks_to_be_added));
+            
+            //build all apps the machine has
             for app in &machine.interfaces.applications {
                 assert!(
                     app.options.contains_key("name"),
@@ -188,7 +195,16 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     }
                 }
             }
-            protocol_map = protocol_map.with(Pci::new(networks_to_be_added));
+
+            // List of required protocols for each machine. Since they are required
+            // a default version of the protocal can be automatically added to the machines
+            // without needing user input in NDL files. If the user prefers to specify
+            // them that is also supported.
+            let required_protocols: HashSet<&str> = ["IPv4", "ARP"].iter().copied().collect();
+            let mut encountered_protocols: HashSet<&str> = HashSet::new();
+
+            // Creates the user specified protocols and adds them to the protocol map
+            // Generated protocols are recorded to allow automatic addition of required protocols
             for protocol in &machine.interfaces.protocols {
                 for option in &protocol.options {
                     match option.1.as_str() {
@@ -204,8 +220,24 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             )
                         }
                     }
+                    // Add the encountered protocol name to the HashSet
+                    encountered_protocols.insert(option.1.as_str());
                 }
             }
+
+            // Check for missing required protocols and add them if necessary
+            for required_protocol in &required_protocols {
+                if !encountered_protocols.contains(required_protocol) {
+                    match *required_protocol {
+                        "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
+                        "ARP" => protocol_map = protocol_map.with(Arp::basic()),
+                        _ => {
+                            panic!("Missing required protocol: {}", required_protocol);
+                        }
+                    }
+                }
+            }
+
             machine_list.push(elvis_core::Machine::new(protocol_map.build()));
         }
     }

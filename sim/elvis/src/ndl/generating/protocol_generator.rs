@@ -10,7 +10,7 @@ use elvis_core::protocols::arp::subnetting::{Ipv4Mask, SubnetInfo};
 use elvis_core::protocols::ipv4::Ipv4Address;
 use elvis_core::protocols::Arp;
 
-pub fn protocol_builder(name_to_ip : &HashMap<String, Ipv4Address>, options: &HashMap<String, String>) -> Arp {
+pub fn arp_builder(name_to_ip : &HashMap<String, Ipv4Address>, options: &HashMap<String, String>) -> Arp {
     if options.contains_key("local") {
         assert!(
             options.contains_key("default"),
