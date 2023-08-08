@@ -116,20 +116,18 @@ pub async fn dhcp_basic_release() {
     // While the above assertion ensures they're one of the two mentioned values
     assert!(client1
         .into_inner()
-        .protocol::<DhcpClient>()
+        .protocol::<Ipv4>()
         .unwrap()
-        .ip_address
+        .info
         .read()
-        .unwrap()
-        .is_some());
+        .unwrap()[0].ip_address.is_some());
     assert!(client2
         .into_inner()
-        .protocol::<DhcpClient>()
+        .protocol::<Ipv4>()
         .unwrap()
-        .ip_address
+        .info
         .read()
-        .unwrap()
-        .is_some());
+        .unwrap()[0].ip_address.is_some());
 }
 
 #[cfg(test)]

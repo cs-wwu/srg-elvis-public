@@ -35,7 +35,7 @@ mod test_header_builder;
 pub struct Ipv4 {
     listen_bindings: FxDashMap<Ipv4Address, TypeId>,
     recipients: IpTable<Recipient>,
-    info: RwLock<Vec<Ipv4Info>>
+    pub info: RwLock<Vec<Ipv4Info>>
 }
 
 impl Ipv4 {
@@ -183,7 +183,7 @@ impl Protocol for Ipv4 {
             .get::<pci::DemuxInfo>()
             .ok_or(DemuxError::MissingContext)?;
         
-        // Check for existing Ipv4Info structs for the slot received from
+        // Check for existing Ipv4Info structs for the receiving slot
         if self.info.read().unwrap().is_empty() {
             // Definitely doesnt exist
             let new_info = Ipv4Info::new(pci_demux_info.slot);
@@ -194,7 +194,7 @@ impl Protocol for Ipv4 {
            protocols.protocol::<Pci>().unwrap().slot_count(),
            pci_demux_info.slot) {
                     // If exists, do nothing. If not, create a new struct
-                    Ok(()) => {},
+                    Ok(_index) => {},
                     Err(_e) => self.info.write().unwrap().push(Ipv4Info::new(pci_demux_info.slot)),
                 }
         }
@@ -265,20 +265,21 @@ impl Ipv4Info {
     }
 
     // Searches an Ipv4's 'info' field for an Ipv4Info with the same slot as the sender
+    // Returns either the index of the slot or an error
     // Note(Justice): This is messy. It's O(Pci slots) and would make more sense as a for loop
     // The type on info isnt iterable and no machine should have so many tap slots that
     // it should be an issue. Can be optomized via a better search algorithm
-    pub fn contains(info: RwLockWriteGuard<'_, Vec<Ipv4Info>>, ceiling: usize, sender_slot: u32) -> Result<(), ContainsFailure>  {
+    pub fn contains(info: RwLockWriteGuard<'_, Vec<Ipv4Info>>, ceiling: usize, receiver_slot: u32) -> Result<usize, ContainsFailure>  {
         let mut i = 0;
         
-        while (i < ceiling) {
-            if info[i].tap_slot == sender_slot {
-                ()
+        while i < ceiling {
+            if info[i].tap_slot == receiver_slot {
+                return Ok(i)
             }
             i += 1;
         }
 
-        Err(ContainsFailure::Ipv4InfoNotPresent(sender_slot))
+        Err(ContainsFailure::Ipv4InfoNotPresent(receiver_slot))
     }
 }
 

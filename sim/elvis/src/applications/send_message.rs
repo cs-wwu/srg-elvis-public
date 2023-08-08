@@ -2,7 +2,7 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{dhcp::dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
+    protocols::{dhcp::dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp, Ipv4},
     Control, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, RwLock};
@@ -58,7 +58,11 @@ impl Protocol for SendMessage {
         initialized.wait().await;
 
         let local_address = match protocols.protocol::<DhcpClient>() {
-            Some(dhcp) => dhcp.ip_address().await,
+            Some(_dhcp) => protocols.protocol::<Ipv4>()
+            .unwrap()
+            .info
+            .read()
+            .unwrap()[0].ip_address.unwrap(),
             None => self.local_ip,
         };
 
