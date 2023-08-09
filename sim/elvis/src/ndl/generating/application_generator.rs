@@ -287,3 +287,52 @@ pub fn ping_pong_builder(
         PingPong::new(starter, endpoints)
     }
 }
+
+pub fn rip_router_builder(
+    app: &Application,
+    name_to_ip: &HashMap<String, Ipv4Address>, 
+    ip_table: &mut IpTable<Recipient>,
+    ip_gen: &mut HashMap<String, IpGenerator>,) -> {
+
+    //checking we have an ip address parameter
+    assert!(
+        app.options.contains_key("ip"),
+        "rip_router does not have an ip adddress."
+    );
+    //router ips
+
+    //TODO support multiple local ips, figure out a good way for ndl input
+    let ip_string = app.options.get("ip").unwrap().to_string();
+    let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
+    //TODO check local ips with ip_generator
+    //TODO create a ip table from the local ips
+
+    //router table
+    let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
+        Some(table) => {
+            let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
+                IpTable::<(Ipv4Address, PciSlot)>::new();
+            for entry in table.iter() {
+                //look at add direct method 
+                assert!(
+                    entry.contains_key("dest"),
+                    "Router entry doesnt have a dest parameter"
+                );
+                assert!(
+                    entry.contains_key("pci_slot"),
+                    "Router entry doesnt have a pci_slot parameter"
+                );
+
+                //TODO destination should support subnets
+                //TODO create router table
+            }
+            router_table
+        }
+        None => {
+            panic!("Issue building arp router table, possibly none passed")
+        }
+    };
+    //TODO create an arp router with ip_table and router table
+    //TODO create rip router with the ip_table
+    
+}

@@ -124,6 +124,7 @@ fn get_type(input: &str) -> Res<&str, DecType> {
             tag_no_case("Protocol"),
             tag_no_case("Applications"),
             tag_no_case("Application"),
+            tag_no_case("RouterEntry"),
         )),
     )(input)
     .map(|(next_input, res)| (next_input, res.into()))

@@ -16,6 +16,7 @@ pub enum DecType {
     Protocol,
     Applications,
     Application,
+    RouterTable,
 }
 
 pub type Res<T, U> = IResult<T, U, VerboseError<T>>;
@@ -26,6 +27,7 @@ pub type Protocols = Vec<Protocol>;
 pub type Applications = Vec<Application>;
 pub type Machines = Vec<Machine>;
 pub type IPs = Vec<IP>;
+pub type RouterTable = Vec<Params>;
 
 /// Holds the various types stored inside a [Machine].
 ///
@@ -99,6 +101,7 @@ pub struct IP {
 pub struct Application {
     pub dectype: DecType,
     pub options: Params,
+    pub router_table: Option<RouterTable>,
 }
 
 /// Used to store the core parsed Sim.
