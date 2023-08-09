@@ -305,6 +305,14 @@ pub fn rip_router_builder(
     let ip_string = app.options.get("ip").unwrap().to_string();
     let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
     //TODO check local ips with ip_generator
+    match ip_available(router_ip.into(), ip_gen) {
+        Ok(router_ip) => {
+            ip_table.add_direct(router_ip, Recipient::new(0, None));
+        }
+        Err(err) => {
+            panic!("Rip router builder error: {}", err);
+        }
+    }
     //TODO create a ip table from the local ips
 
     //router table
