@@ -119,6 +119,13 @@ impl Ipv4 {
             }
         }
     }
+
+    pub fn ip_for_slot(&self, slot: usize) -> Option<Ipv4Address> {
+        if let Some(ip_address) = self.info.read().unwrap()[slot].ip_address {
+            return Some(ip_address);
+        }
+        None
+    }
 }
 
 // TODO(hardint): Add a static IP lookup table in the constructor so that

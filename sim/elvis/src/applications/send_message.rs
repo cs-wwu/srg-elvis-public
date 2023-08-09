@@ -252,9 +252,7 @@ impl Protocol for SendMessage {
         }
 
         let local_address = match protocols.protocol::<DhcpClient>() {
-            Some(dhcp) => dhcp.ip_address(&protocols.protocol::<Ipv4>()
-            .unwrap()
-            .info, 0).await,
+            Some(_dhcp) => protocols.protocol::<Ipv4>().unwrap().ip_for_slot(0).expect("Tap slot doesn't have an IP"),
             None => self.local_ip,
         };
 

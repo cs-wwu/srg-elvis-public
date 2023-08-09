@@ -29,7 +29,7 @@ impl DhcpClient {
         }
     }
 
-    pub async fn ip_address(&self, ipv4_info: &RwLock<Vec<Ipv4Info>>, slot: usize) -> Ipv4Address {
+    pub async fn ip_for_slot(&self, ipv4_info: &RwLock<Vec<Ipv4Info>>, slot: usize) -> Ipv4Address {
         if let Some(ip_address) = ipv4_info.read().unwrap()[slot].ip_address {
             return ip_address;
         }
