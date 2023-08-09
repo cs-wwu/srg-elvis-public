@@ -71,17 +71,14 @@ pub fn ip_available(
     const LOCAL_IP: Ipv4Address = Ipv4Address::new([127, 0, 0, 1]);
 
     //Find if the requested local_ip is still available for use.
-    if target_ip != LOCAL_IP {
-        if !ip_gen
+    if target_ip != LOCAL_IP && !ip_gen
             .values_mut()
-            .any(|gen| !gen.is_available(Ipv4Net::new_short(target_ip, 32)))
-        {
-            return Err("IP not available");
-        }
+            .any(|gen| !gen.is_available(Ipv4Net::new_short(target_ip, 32))) {
+        return Err("IP not available");
     }
     //If local ip was found then block it in all other ip generators
     for gen in ip_gen.values_mut() {
         gen.block_subnet(Ipv4Net::new_short(target_ip, 32));
     }
-    return Ok(target_ip);
+    Ok(target_ip)
 }

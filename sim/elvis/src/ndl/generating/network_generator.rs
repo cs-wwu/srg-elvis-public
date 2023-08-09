@@ -34,7 +34,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
             for (option_id, value) in ip.options {
                 match option_id.to_ascii_lowercase().as_str() {
                     "range" => {
-                        let temp: Vec<&str> = value.split('/').collect();
+                        let temp: Vec<&str> = value.split('-').collect();
                         assert_eq!(
                             temp.len(),
                             2,
@@ -80,7 +80,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                             panic!("Network {}: Invalid ending IP subnet number. Expected <u8> found: {}", id, temp[1])
                         });
                         assert!(mask <= 32, "Invalid mask value");
-                        let net = Ipv4Net::new_short(start_ip, mask.into());
+                        let net = Ipv4Net::new_short(start_ip, mask);
                         assert!(
                             ip_gen.is_available(net),
                             "Network {}: Duplicate ip sound in subnet: {:?}",
@@ -109,7 +109,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                 }
             }
         }
-
+        ip_gen.block_reserved_ips();
         ip_gen_hash.insert(id, ip_gen);
     }
     NetworkInfo {
