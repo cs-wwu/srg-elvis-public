@@ -48,32 +48,7 @@ impl IpGenerator {
     /// <https://en.wikipedia.org/wiki/Reserved_IP_addresses#IPv4>
     pub fn blocked_out() -> Self {
         let mut result = Self::all();
-
-        let mut block = |ip: [u8; 4], mask: u32| {
-            result.block_subnet(Ipv4Net::new(
-                Ipv4Address::from(ip),
-                Ipv4Mask::from_bitcount(mask),
-            ));
-        };
-
-        block([0, 0, 0, 0], 8);
-        block([10, 0, 0, 0], 8);
-        block([100, 64, 0, 0], 10);
-        block([127, 0, 0, 0], 8);
-        block([169, 254, 0, 0], 16);
-        block([172, 16, 0, 0], 12);
-        block([192, 0, 0, 0], 24);
-        block([192, 0, 2, 0], 24);
-        block([192, 88, 99, 0], 24);
-        block([192, 168, 0, 0], 16);
-        block([198, 18, 0, 0], 15);
-        block([198, 51, 100, 0], 24);
-        block([203, 0, 113, 0], 24);
-        block([224, 0, 0, 0], 4);
-        block([233, 252, 0, 0], 24);
-        block([240, 0, 0, 0], 4);
-        block([255, 255, 255, 255], 32);
-
+        result.block_reserved_ips();
         result
     }
 
