@@ -302,6 +302,9 @@ pub fn rip_router_builder(
     //router ips
 
     //TODO support multiple local ips, figure out a good way for ndl input
+        // we could add a count for number of ip's
+        // then the names are ip1 ip2 ect and we can make the strings to check for them within a loop
+
     let ip_string = app.options.get("ip").unwrap().to_string();
     let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
     //TODO check local ips with ip_generator
@@ -331,8 +334,22 @@ pub fn rip_router_builder(
                     "Router entry doesnt have a pci_slot parameter"
                 );
 
+                //code is mostly copied from boris-ellie-ndl-router 
+                let dest_string = entry.get("dest").unwrap().to_string();
+                let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
+
                 //TODO destination should support subnets
+                // ip and mask might work here, not sure though
+                let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
+                let dest = Ipv4Net::new(
+                    pre_dest.0,
+                    Ipv4Mask::from_bitcount(pre_dest.1),
+                );
+                let pci_slot = pci_slot_string.parse().unwrap();
+                
                 //TODO create router table
+                router_table.add(dest, pci_slot);
+                
             }
             router_table
         }
