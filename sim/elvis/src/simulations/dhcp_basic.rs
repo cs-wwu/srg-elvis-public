@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::applications::{
     dhcp_server::{DhcpServer, IpRange},
     Capture, SendMessage,
@@ -49,14 +51,14 @@ pub async fn dhcp_basic_offer() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             DhcpClient::new(DHCP_SERVER_IP, None),
-            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
+            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT).delay(Duration::from_secs(1)),
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             DhcpClient::new(DHCP_SERVER_IP, None),
-            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
+            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT).delay(Duration::from_secs(1)),
         ],
     ];
 

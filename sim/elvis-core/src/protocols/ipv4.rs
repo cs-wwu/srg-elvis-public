@@ -187,7 +187,7 @@ impl Protocol for Ipv4 {
         if self.info.read().unwrap().is_empty() {
             // Definitely doesnt exist
             let new_info = Ipv4Info::new(pci_demux_info.slot);
-            self.info.write().unwrap().push(new_info)
+            self.info.write().unwrap().push(new_info);
         } else {
             // might exist
            match Ipv4Info::contains(self.info.write().unwrap(),
@@ -241,6 +241,7 @@ impl Recipient {
     }
 }
 
+/// A struct that maps network config options to a network interface (Pci slot)
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Ipv4Info {
     // The slot this struct maps to
@@ -264,8 +265,8 @@ impl Ipv4Info {
         }
     }
 
-    // Searches an Ipv4's 'info' field for an Ipv4Info with the same slot as the sender
-    // Returns either the index of the slot or an error
+    /// Searches an Ipv4's 'info' field for an Ipv4Info with the same slot as the sender
+    /// Returns either the index of the slot or an error
     // Note(Justice): This is messy. It's O(Pci slots) and would make more sense as a for loop
     // The type on info isnt iterable and no machine should have so many tap slots that
     // it should be an issue. Can be optomized via a better search algorithm

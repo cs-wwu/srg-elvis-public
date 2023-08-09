@@ -29,6 +29,13 @@ impl DhcpClient {
         }
     }
 
+    pub async fn ip_address(&self, ipv4_info: &RwLock<Vec<Ipv4Info>>, slot: usize) -> Ipv4Address {
+        if let Some(ip_address) = ipv4_info.read().unwrap()[slot].ip_address {
+            return ip_address;
+        }
+        self.notify.notified().await; 
+        ipv4_info.read().unwrap()[slot].ip_address.unwrap()
+    }
 }
 
 #[async_trait::async_trait]
@@ -91,7 +98,7 @@ impl Protocol for DhcpClient {
                 let pci_demux_info = control
                     .get::<pci::DemuxInfo>()
                     .ok_or(DemuxError::MissingContext)?;
-
+                
                 let ipv4_info = &protocols.protocol::<Ipv4>().unwrap().info;
                 let slot_index = Ipv4Info::contains(ipv4_info.write().unwrap(),
                 protocols.protocol::<Pci>().unwrap().slot_count(),
