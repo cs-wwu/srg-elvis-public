@@ -91,17 +91,6 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                                 .to_string()
                         }, "Application IP");
 
-                        // TODO uncomment when ndl can support multiple local
-                        // ips via unique names (can be done now but will require changing lots of .ndl files)
-
-                        // Create a unique name for machines with multiple local ips
-                        // let new_mach_name = match app_name {
-                        //     "capture" => cur_name.clone() + "-capture",
-                        //     "forward" => cur_name.clone() + "-forward",
-                        //     "ping_pong" => cur_name.clone() + "-ping-pong",
-                        //     "send_message" => cur_name.clone() + "-send-message",
-                        //     _ => panic!("Unsupported application encountered: {:?}", app_name),
-                        // };
                         name_to_ip.insert(cur_name.clone(), ip.into());
                     }
                 }

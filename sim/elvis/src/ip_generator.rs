@@ -40,7 +40,7 @@ impl IpGenerator {
         let mut ip_gen = Self::all();
         let all_ips = Ipv4Net::new_short([0, 0, 0, 0], 0);
         ip_gen.block_subnet(all_ips);
-        return ip_gen;
+        ip_gen
     }
 
     /// Returns an IpGenerator with all reserved IP addresses blocked out.
@@ -77,27 +77,37 @@ impl IpGenerator {
         result
     }
 
-    /// Generates a single ip address asked for
-    /// by the caller and blocks it out.
-    /// Returns Some(ip) if it is available and
-    /// it returns None otherwise
-    pub fn fetch_specific_ip(&mut self, ip: Ipv4Address) -> Option<Ipv4Address> {
-        // Create an immutable copy to enable traversing
-        let before_range = self.available_ranges.clone();
+    /// Takes an existing IpGenerator an blockd all reserved IP addresses
+    ///
+    /// <https://en.wikipedia.org/wiki/Reserved_IP_addresses#IPv4>
+    pub fn block_reserved_ips(&mut self){
 
-        // Check each available range in the before_range part to see if the specific IP is within it
-        for av_range in before_range.iter() {
-            if av_range.start <= ip && ip <= av_range.end {
-                // Found the specific IP within an available range
-                // Block the specific IP and return it to the user
-                self.block_subnet(Ipv4Net::new_short(ip, 32));
-                return Some(ip);
-            }
-        }
-        // Return None if the specific IP was not found
-        None
+        let mut block = |ip: [u8; 4], mask: u32| {
+            self.block_subnet(Ipv4Net::new(
+                Ipv4Address::from(ip),
+                Ipv4Mask::from_bitcount(mask),
+            ));
+        };
+
+        block([0, 0, 0, 0], 8);
+        block([10, 0, 0, 0], 8);
+        block([100, 64, 0, 0], 10);
+        block([127, 0, 0, 0], 8);
+        block([169, 254, 0, 0], 16);
+        block([172, 16, 0, 0], 12);
+        block([192, 0, 0, 0], 24);
+        block([192, 0, 2, 0], 24);
+        block([192, 88, 99, 0], 24);
+        block([192, 168, 0, 0], 16);
+        block([198, 18, 0, 0], 15);
+        block([198, 51, 100, 0], 24);
+        block([203, 0, 113, 0], 24);
+        block([224, 0, 0, 0], 4);
+        block([233, 252, 0, 0], 24);
+        block([240, 0, 0, 0], 4);
+        block([255, 255, 255, 255], 32);
     }
-
+    
     /// Generates a single IP address,
     /// then blocks it out so it can't be generated again.
     /// Returns `Some(ip)` if there is an IP address available.
