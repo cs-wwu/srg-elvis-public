@@ -304,6 +304,43 @@ pub fn rip_router_builder(
     //TODO support multiple local ips, figure out a good way for ndl input
         // we could add a count for number of ip's
         // then the names are ip1 ip2 ect and we can make the strings to check for them within a loop
+        //maybe something along the lines of: 
+    /*
+    //getting the number of ips
+    assert!(
+        app.options.contains_key("count"),
+        "rip_router does not have an ip adddress."
+    );
+    let count_string = entry.get("count").unwrap().to_string();
+    let count : u32 = count_string.parse().unwrap();
+    if n <1{
+        panic!("Invalid count in rip router: {}", err);
+    }
+    let base_string = "ip";
+    //getting each ip
+    for n in 1..=count {
+        let mut new_ip = base_string.clone();
+        new_ip.push(n);
+        assert!(
+            app.options.contains_key(new_ip),
+            "rip_router does not have an ip adddress."
+        );
+        let multiple_ip_string = entry.get("count").unwrap().to_string();
+        let multiple_ip = name_or_string_ip_to_ip(multiple_ip_string, name_to_ip);;
+        match ip_available(multiple_ip.into(), ip_gen) {
+            Ok(multiple_ip) => {
+                ip_table.add_direct(multiple_ip, Recipient::new(0, None));
+            }
+            Err(err) => {
+                panic!("Rip router builder error: {}", err);
+            }
+        }
+        // we could also save them into another data structure if desired 
+
+    }
+    
+    */
+
 
     let ip_string = app.options.get("ip").unwrap().to_string();
     let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
@@ -339,7 +376,7 @@ pub fn rip_router_builder(
                 let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
 
                 //TODO destination should support subnets
-                // ip and mask might work here, not sure though
+                // get_ip_and_mask might work here, not sure though
                 let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
                 let dest = Ipv4Net::new(
                     pre_dest.0,
@@ -360,4 +397,48 @@ pub fn rip_router_builder(
     //TODO create an arp router with ip_table and router table
     //TODO create rip router with the ip_table
     
+}
+
+pub fn name_or_string_ip_to_ip(
+    ip_string : String,
+    name_to_ip: &HashMap<String, Ipv4Address>,
+) 
+-> Ipv4Address{
+    let final_ip;
+    if ip_or_name (ip_string.clone()){
+        final_ip = Ipv4Address::new(ip_string_to_ip(ip_string, "Arp router"));
+    } else {
+        if name_to_ip.contains_key(&ip_string){
+            final_ip = name_to_ip.get(&ip_string).unwrap().clone();
+        } else {
+            // here we could seperate the ip addresss from the mask
+            println!("Unable to idenify name or ip {}", ip_string);
+            panic!("name unknown in name_or_string_ip_to_ip")
+        }
+    }
+    final_ip
+}
+
+//takes a string and the naming table and returns the ip adress and mask 
+pub fn get_ip_and_mask(s: String, name_to_ip: &HashMap<String, Ipv4Address>,) -> (Ipv4Address, u32) {
+    let seperate : Vec<&str> = s.split('/').collect();
+    let address: Ipv4Address;
+    let mask: u32;
+    if seperate.len() == 2 {
+        address = Ipv4Address::new(ip_string_to_ip(seperate[0].to_string(), "Arp router"));
+        mask = seperate[1].parse().unwrap();
+    } else if seperate.len() == 1 {
+        if ip_or_name(seperate[0].to_string().clone()) {
+            address = Ipv4Address::new(ip_string_to_ip(seperate[0].to_string(), "Arp router"));
+            mask = 32;
+        } else if name_to_ip.contains_key(seperate[0]){
+            address = name_to_ip.get(seperate[0]).unwrap().clone();
+            mask = 32;
+        } else {
+            panic!("Something went wrong in get_ip_and_mask");
+        }
+    } else {
+        panic!("Something went wrong in get_ip_and_mask");
+    }
+    (address, mask)
 }
