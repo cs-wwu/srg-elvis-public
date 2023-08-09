@@ -26,7 +26,7 @@ impl IpGenerator {
     }
 
     /// Creates a new `IpGenerator` which can generate any IP in this subnet.
-    pub fn new_sub_ends(net: Ipv4Net) -> Self {
+    pub fn new_sub(net: Ipv4Net) -> Self {
         let range = IpRange::new(net.id(), net.broadcast());
         IpGenerator::new(range)
     }
@@ -34,7 +34,7 @@ impl IpGenerator {
     /// Creates an `IpGenerator` which can generate any IP in this subnet,
     /// *except* for the first and last IPs in the net
     /// (since these are the IDs and broadcast addresses).
-    pub fn new_sub(net: Ipv4Net) -> Self {
+    pub fn new_sub_no_ends(net: Ipv4Net) -> Self {
         let start = add(net.id(), 1);
         let end = add(net.id(), -1);
 
