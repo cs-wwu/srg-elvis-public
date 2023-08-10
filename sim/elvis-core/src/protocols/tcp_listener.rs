@@ -22,12 +22,12 @@ impl TcpListener {
         let socket = SocketAPI::new_socket(
             &sockets_api,
             ProtocolFamily::INET,
-            SocketType::Datagram,
+            SocketType::Stream,
             protocols.clone(),
         )
         .await?;
         socket.bind(socket_address)?;
-        socket.listen(10)?;
+        socket.listen(1000)?;
 
         Ok(Self {
             local_socket: socket,

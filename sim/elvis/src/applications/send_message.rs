@@ -2,7 +2,9 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{dhcp::dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp, Ipv4},
+    protocols::{
+        dhcp::dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Ipv4, Tcp, Udp,
+    },
     Control, Protocol, Session, Shutdown, Transport,
 };
 use std::{
@@ -77,7 +79,7 @@ impl Protocol for SendMessage {
                 .protocol::<Ipv4>()
                 .unwrap()
                 .ip_for_slot(0)
-                .expect("Tap slot doesn't have an IP"),
+                .expect("Tap slot doesn't have an IP address"),
             None => self.local_ip,
         };
 
@@ -103,7 +105,6 @@ impl Protocol for SendMessage {
                 .await
                 .unwrap(),
         };
-
 
         for message in messages {
             session

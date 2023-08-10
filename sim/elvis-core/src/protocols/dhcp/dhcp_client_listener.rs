@@ -8,6 +8,8 @@ use crate::{
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
+/// A struct designed to observe a DhcpClient and respond to address acquisition
+/// Specifically for testing Release functionality as it stands
 #[derive(Debug, Default)]
 pub struct DhcpClientListener {
     pub first_ip: Option<Ipv4Address>,
@@ -22,6 +24,7 @@ impl DhcpClientListener {
         }
     }
 
+    /// Respond to a client acquiring a new IP address, telling them whether to release
     pub fn update(&mut self, addr: Ipv4Address) -> Option<DhcpMessage> {
         match self.first_ip {
             None => {

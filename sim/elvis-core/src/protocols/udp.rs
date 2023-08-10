@@ -5,7 +5,7 @@ use crate::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::ipv4::{Ipv4},
+    protocols::ipv4::Ipv4,
     Control, FxDashMap, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
@@ -20,7 +20,7 @@ pub use udp_parsing::UdpHeader;
 
 use super::{
     ipv4::{self, ipv4_parsing::Ipv4Header, Ipv4Address, Recipient},
-    utility::{Endpoint, Endpoints}
+    utility::{Endpoint, Endpoints},
 };
 
 /// An implementation of the User Datagram Protocol.

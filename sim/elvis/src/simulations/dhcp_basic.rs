@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use crate::applications::{
-    dhcp_server::{DhcpServer, IpRange},
-    Capture, SendMessage,
+use crate::{
+    applications::{dhcp_server::DhcpServer, Capture, SendMessage},
+    ip_generator::IpRange,
 };
 use elvis_core::{
     new_machine,
@@ -51,14 +51,16 @@ pub async fn dhcp_basic_offer() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             DhcpClient::new(DHCP_SERVER_IP, None),
-            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT).delay(Duration::from_secs(1)),
+            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT)
+                .delay(Duration::from_secs(1)),
         ],
         new_machine![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             DhcpClient::new(DHCP_SERVER_IP, None),
-            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT).delay(Duration::from_secs(1)),
+            SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT)
+                .delay(Duration::from_secs(1)),
         ],
     ];
 
@@ -109,10 +111,11 @@ pub async fn dhcp_basic_release() {
             .protocol::<DhcpServer>()
             .unwrap()
             .ip_generator
-            .read()
+            .write()
             .unwrap()
-            .current,
-        3
+            .fetch_ip()
+            .unwrap(),
+        Ipv4Address::from(3)
     );
     // It's not consistent which machine gets [0.0.0.1] or [0.0.0.2] so just asserting that they have *some* IP
     // While the above assertion ensures they're one of the two mentioned values
@@ -122,14 +125,18 @@ pub async fn dhcp_basic_release() {
         .unwrap()
         .info
         .read()
-        .unwrap()[0].ip_address.is_some());
+        .unwrap()[0]
+        .ip_address
+        .is_some());
     assert!(client2
         .into_inner()
         .protocol::<Ipv4>()
         .unwrap()
         .info
         .read()
-        .unwrap()[0].ip_address.is_some());
+        .unwrap()[0]
+        .ip_address
+        .is_some());
 }
 
 #[cfg(test)]

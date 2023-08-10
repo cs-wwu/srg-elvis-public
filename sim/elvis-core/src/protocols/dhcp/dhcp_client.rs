@@ -1,6 +1,5 @@
 use super::dhcp_client_listener::DhcpClientListener;
 use super::dhcp_parsing::{DhcpMessage, MessageType};
-use crate::protocols::ipv4::Ipv4Info;
 use crate::protocols::{pci, Ipv4};
 use crate::{
     machine::ProtocolMap,
@@ -9,10 +8,11 @@ use crate::{
     protocols::{ipv4::Ipv4Address, Endpoint, Endpoints, Udp},
     Control, Protocol, Session, Shutdown,
 };
-use std::sync::{Arc, RwLock};
 use pci::Pci;
+use std::sync::{Arc, RwLock};
 use tokio::sync::{Barrier, Notify};
 
+/// An implementation of a DHCP client
 #[derive(Default)]
 pub struct DhcpClient {
     server_ip: Ipv4Address,
@@ -27,14 +27,6 @@ impl DhcpClient {
             notify: Default::default(),
             listener: RwLock::new(listen),
         }
-    }
-
-    pub async fn ip_for_slot(&self, ipv4_info: &RwLock<Vec<Ipv4Info>>, slot: usize) -> Ipv4Address {
-        if let Some(ip_address) = ipv4_info.read().unwrap()[slot].ip_address {
-            return ip_address;
-        }
-        self.notify.notified().await; 
-        ipv4_info.read().unwrap()[slot].ip_address.unwrap()
     }
 }
 
@@ -68,6 +60,7 @@ impl Protocol for DhcpClient {
             .unwrap();
 
         // Request an ip from the server
+        // Todo(Justice): Have each slot request its own IP
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
         udp.send(response_message, protocols).unwrap();
@@ -98,12 +91,15 @@ impl Protocol for DhcpClient {
                 let pci_demux_info = control
                     .get::<pci::DemuxInfo>()
                     .ok_or(DemuxError::MissingContext)?;
-                
-                let ipv4_info = &protocols.protocol::<Ipv4>().unwrap().info;
-                let slot_index = Ipv4Info::contains(ipv4_info.write().unwrap(),
-                protocols.protocol::<Pci>().unwrap().slot_count(),
-                pci_demux_info.slot).expect("No corresponding Ipv4Info struct found");
-                ipv4_info.write().unwrap()[slot_index].ip_address = Some(parsed_msg.your_ip);                
+
+                let ipv4 = protocols.protocol::<Ipv4>().unwrap();
+                let slot_index = ipv4
+                    .contains(
+                        protocols.protocol::<Pci>().unwrap().slot_count(),
+                        pci_demux_info.slot,
+                    )
+                    .expect("No corresponding Ipv4Info struct found");
+                ipv4.info.write().unwrap()[slot_index].ip_address = Some(parsed_msg.your_ip);
                 self.notify.notify_waiters();
 
                 if self.listener.read().unwrap().is_some() {
@@ -118,7 +114,7 @@ impl Protocol for DhcpClient {
                         caller
                             .send(DhcpMessage::to_message(release).unwrap(), protocols.clone())
                             .unwrap();
-                        ipv4_info.write().unwrap()[slot_index].ip_address = None;
+                        ipv4.info.write().unwrap()[slot_index].ip_address = None;
                         caller
                             .send(
                                 DhcpMessage::to_message(DhcpMessage::default()).unwrap(),
