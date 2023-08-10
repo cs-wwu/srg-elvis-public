@@ -400,6 +400,7 @@ pub fn rip_router_builder(
     //TODO create an arp router with ip_table and router table
     //TODO create rip router with the ip_table
     
+    
 }
 
 //takes in a string and checks if its a name, or an ip address
