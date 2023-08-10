@@ -2,7 +2,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::ndl::generating::{
-    application_generator::*, generator_utils::ip_string_to_ip, protocol_generator::*
+    application_generator::*, generator_utils::ip_string_to_ip,
 };
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::machine::ProtocolMapBuilder;
@@ -126,6 +126,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
         }
 
         for _count in 0..machine_count {
+            let mut net_ids = Vec::new();
             let mut networks_to_be_added = Vec::new();
             let mut protocol_map = ProtocolMapBuilder::new();
             let mut ip_table = IpTable::<Recipient>::new();
@@ -146,6 +147,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 //Save the relevant network id's and their corresponding data for later use
                 let net_id = net.options.get("id").unwrap();
                 let network_adding = networks.nets.get(net_id).unwrap();
+                net_ids.push(net_id.to_string());
                 networks_to_be_added.push(network_adding.clone());
             }
             protocol_map = protocol_map.with(Pci::new(networks_to_be_added));
@@ -159,15 +161,15 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 let app_name = app.options.get("name").unwrap().as_str();
                 match app_name {
                     "send_message" => {
-                        protocol_map = protocol_map.with(send_message_builder(app, &name_to_ip, &mut ip_table, &mut ip_gen))
+                        protocol_map = protocol_map.with(send_message_builder(app, &name_to_ip, &mut ip_table, &mut ip_gen, &net_ids))
                     }
 
                     "capture" => {
-                        protocol_map = protocol_map.with(capture_builder(app, &mut ip_table, &mut ip_gen));
+                        protocol_map = protocol_map.with(capture_builder(app, &mut ip_table, &mut ip_gen, &net_ids));
                     }
 
                     "forward" => {
-                        protocol_map = protocol_map.with(forward_message_builder(app, &name_to_ip, &mut ip_table, &mut ip_gen))
+                        protocol_map = protocol_map.with(forward_message_builder(app, &name_to_ip, &mut ip_table, &mut ip_gen, &net_ids))
                     }
 
                     "ping_pong" => {
@@ -175,7 +177,8 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             app,
                             &name_to_ip,
                             &mut ip_table,
-                            &mut ip_gen
+                            &mut ip_gen,
+                            &net_ids
                         ))
                     }
 

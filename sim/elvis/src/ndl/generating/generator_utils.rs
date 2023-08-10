@@ -67,14 +67,15 @@ pub fn ip_or_name(s: String) -> bool {
 pub fn ip_available(
     target_ip: Ipv4Address,
     ip_gen: &mut HashMap<String, IpGenerator>,
-) -> Result<Ipv4Address, &str> {
+    cur_net_ids: &Vec<String>,
+) -> Result<Ipv4Address, String> {
     const LOCAL_IP: Ipv4Address = Ipv4Address::new([127, 0, 0, 1]);
 
     //Find if the requested local_ip is still available for use.
-    if target_ip != LOCAL_IP && !ip_gen
-            .values_mut()
-            .any(|gen| !gen.is_available(Ipv4Net::new_short(target_ip, 32))) {
-        return Err("IP not available");
+    if target_ip != LOCAL_IP && !cur_net_ids
+        .iter()
+        .any(|id| !ip_gen.get(id).expect("Invalid network ID").is_available(Ipv4Net::new_short(target_ip, 32))) {
+        return Err("IP not available".to_string());
     }
     //If local ip was found then block it in all other ip generators
     for gen in ip_gen.values_mut() {
