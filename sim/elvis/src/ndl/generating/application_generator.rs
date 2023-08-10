@@ -305,6 +305,8 @@ pub fn rip_router_builder(
         // we could add a count for number of ip's
         // then the names are ip1 ip2 ect and we can make the strings to check for them within a loop
         //maybe something along the lines of: 
+        // the ndl line would be [application='rip_router' count='2' ip1 = 'insert ip here' ip2 = insert ip here']
+    
     /*
     //getting the number of ips
     assert!(
@@ -377,6 +379,7 @@ pub fn rip_router_builder(
 
                 //TODO destination should support subnets
                 // get_ip_and_mask might work here, not sure though
+                // do we need to match the destiations with the ip gen???
                 let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
                 let dest = Ipv4Net::new(
                     pre_dest.0,
@@ -399,6 +402,9 @@ pub fn rip_router_builder(
     
 }
 
+//takes in a string and checks if its a name, or an ip address
+// if its a name it returns the coresponding ip address in ipv4 formatt
+// if its just a regular ip address it returns it in the correct formatt
 pub fn name_or_string_ip_to_ip(
     ip_string : String,
     name_to_ip: &HashMap<String, Ipv4Address>,
