@@ -69,10 +69,10 @@ pub fn ip_available(
     ip_gen: &mut HashMap<String, IpGenerator>,
     cur_net_ids: &Vec<String>,
 ) -> Result<Ipv4Address, String> {
-    const LOCAL_IP: Ipv4Address = Ipv4Address::new([127, 0, 0, 1]);
+    let local_ip: Ipv4Net = Ipv4Net::new_short([127, 0, 0, 0], 8);
 
     //Find if the requested local_ip is still available for use.
-    if target_ip != LOCAL_IP && !cur_net_ids
+    if !local_ip.contains(target_ip) && !cur_net_ids
         .iter()
         .any(|id| !ip_gen.get(id).expect("Invalid network ID").is_available(Ipv4Net::new_short(target_ip, 32))) {
         return Err("IP not available".to_string());

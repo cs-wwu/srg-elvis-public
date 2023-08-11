@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::applications::{Forward, PingPong};
 use crate::ip_generator::IpGenerator;
-use crate::ndl::generating::generator_utils::{ip_or_name, ip_available};
+use crate::ndl::generating::generator_utils::{ip_available, ip_or_name};
 use crate::ndl::parsing::parsing_data::*;
 use crate::{
     applications::{Capture, SendMessage},
@@ -36,7 +36,9 @@ pub fn send_message_builder(
         "Send_Message application doesn't contain message."
     );
 
-    let target_ip = app.options.get("ip")
+    let target_ip = app
+        .options
+        .get("ip")
         .map(|ip_str| ip_string_to_ip(ip_str.to_string(), "ip for send_message").into())
         .unwrap_or_else(|| Ipv4Address::new([127, 0, 0, 1])); //Default to local ip if none is provided
 
@@ -198,7 +200,7 @@ pub fn forward_message_builder(
 /// TODO: Currently shows errors in the log. I believe this is from an underlying PingPong issue.
 pub fn ping_pong_builder(
     app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>, 
+    name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
     cur_net_ids: &Vec<String>,
