@@ -288,6 +288,8 @@ pub fn ping_pong_builder(
     }
 }
 
+
+// builds a rip router 
 pub fn rip_router_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>, 
@@ -402,6 +404,85 @@ pub fn rip_router_builder(
     
     
 }
+
+
+pub fn arp_router_builder(
+    app: &Application,
+    name_to_ip: &HashMap<String, Ipv4Address>, 
+    ip_table: &mut IpTable<Recipient>,
+    ip_gen: &mut HashMap<String, IpGenerator>,) -> ArpRouter{
+
+    //checking we have an ip address parameter
+    assert!(
+        app.options.contains_key("ip"),
+        "rip_router does not have an ip adddress."
+    );
+
+    let ip_string = app.options.get("ip").unwrap().to_string();
+    let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
+    //TODO check local ips with ip_generator
+    match ip_available(router_ip.into(), ip_gen) {
+        Ok(router_ip) => {
+            ip_table.add_direct(router_ip, Recipient::new(0, None));
+        }
+        Err(err) => {
+            panic!("Rip router builder error: {}", err);
+        }
+    }
+    //TODO create a ip table from the local ips
+
+    //router table
+    let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
+        Some(table) => {
+            let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
+                IpTable::<(Ipv4Address, PciSlot)>::new();
+            for entry in table.iter() {
+                //look at add direct method 
+                assert!(
+                    entry.contains_key("dest"),
+                    "Router entry doesnt have a dest parameter"
+                );
+                assert!(
+                    entry.contains_key("pci_slot"),
+                    "Router entry doesnt have a pci_slot parameter"
+                );
+                assert!(
+                    entry.contains_key("next_hop"),
+                    "Router entry doesnt have a next_hop parameter"
+                );
+
+                //code is mostly copied from boris-ellie-ndl-router 
+                let dest_string = entry.get("dest").unwrap().to_string();
+                let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
+                let next_hop_string = entry.get("next_hop").unwrap().to_string();
+
+                //TODO destination should support subnets
+                // get_ip_and_mask might work here, not sure though
+                // do we need to match the destiations with the ip gen???
+                let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
+                let dest = Ipv4Net::new(
+                    pre_dest.0,
+                    Ipv4Mask::from_bitcount(pre_dest.1),
+                );
+                let pci_slot = pci_slot_string.parse().unwrap();
+                let next_hop = name_or_string_ip_to_ip( next_hop_string, name_to_ip);
+                
+                //TODO create router table
+                router_table.add(dest, pci_slot);
+                
+            }
+            router_table
+        }
+        None => {
+            panic!("Issue building arp router table, possibly none passed")
+        }
+    };
+    
+    
+}
+
+
+
 
 //takes in a string and checks if its a name, or an ip address
 // if its a name it returns the coresponding ip address in ipv4 formatt
