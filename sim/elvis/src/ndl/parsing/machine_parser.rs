@@ -463,6 +463,9 @@ fn machine_applications_parser(
         return Err("Invalid formatting".to_string());
     }
     //While there are more applications to be parsed
+    let app_dectype;
+    let app_options;
+    let app_router_table;
     while !remaining_string.is_empty() {
         let application = general_parser(&remaining_string[num_tabs as usize..], line_num);
         match application {
