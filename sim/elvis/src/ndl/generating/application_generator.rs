@@ -429,7 +429,6 @@ pub fn arp_router_builder(
             panic!("Rip router builder error: {}", err);
         }
     }
-    //TODO create a ip table from the local ips
 
     //router table
     let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
@@ -437,7 +436,6 @@ pub fn arp_router_builder(
             let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
                 IpTable::<(Ipv4Address, PciSlot)>::new();
             for entry in table.iter() {
-                //look at add direct method 
                 assert!(
                     entry.contains_key("dest"),
                     "Router entry doesnt have a dest parameter"
@@ -450,13 +448,10 @@ pub fn arp_router_builder(
                     entry.contains_key("next_hop"),
                     "Router entry doesnt have a next_hop parameter"
                 );
-
-                //code is mostly copied from boris-ellie-ndl-router 
                 let dest_string = entry.get("dest").unwrap().to_string();
                 let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
                 let next_hop_string = entry.get("next_hop").unwrap().to_string();
 
-                //TODO destination should support subnets
                 // get_ip_and_mask might work here, not sure though
                 // do we need to match the destiations with the ip gen???
                 let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
@@ -468,7 +463,7 @@ pub fn arp_router_builder(
                 let next_hop = name_or_string_ip_to_ip( next_hop_string, name_to_ip);
                 
                 //TODO create router table
-                router_table.add(dest, pci_slot);
+                router_table.add(dest, (next_hop, pci_slot));
                 
             }
             router_table
@@ -477,6 +472,7 @@ pub fn arp_router_builder(
             panic!("Issue building arp router table, possibly none passed")
         }
     };
+    ArpRouter::new(finished_table, router_ip)
     
     
 }
