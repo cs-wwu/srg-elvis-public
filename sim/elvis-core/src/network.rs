@@ -19,7 +19,12 @@
 //!   Each session also acts as an identifier so that peers on the network can
 //!   exchange messages directly.
 
-use crate::{protocols::pci::PciSession, FxDashMap, Message};
+use crate::{
+    protocols::pci::PciSession,
+    FxDashMap,
+    Message,
+    queues::Port,
+};
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
     any::TypeId,
@@ -29,6 +34,8 @@ use std::{
 use tokio::{sync::Notify, time::sleep};
 
 type Taps = Arc<FxDashMap<Mac, Arc<PciSession>>>;
+
+type Ports = Arc<FxDashMap<Mac, Port>>;
 
 /// A network that allows the exchange of [`Message`]s between
 /// [`Machine`](crate::Machine)s.
@@ -46,6 +53,7 @@ pub struct Network {
     throughput_permit: Arc<Notify>,
     taps: Taps,
     next_mac: Mutex<Mac>,
+    ports: Ports,
 }
 
 impl Default for Network {
@@ -69,6 +77,7 @@ impl Network {
             throughput_permit,
             taps: Default::default(),
             next_mac: Default::default(),
+            ports: Default::default(),
         }
     }
 
