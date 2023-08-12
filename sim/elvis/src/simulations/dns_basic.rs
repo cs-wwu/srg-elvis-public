@@ -24,7 +24,7 @@ use elvis_core::{
 /// retrieved Ipv4 address to interact with the non-DNS server.
 pub async fn dns_basic() {
     let network = Network::basic();
-    let dns_server_ip_address = Ipv4Address::DNS_AUTH;
+    let dns_server_ip_address = Ipv4Address::DNS_ROOT_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     let client1_ip_address: Ipv4Address = [123, 45, 67, 60].into();
     let ip_table: IpTable<Recipient> = [
@@ -63,7 +63,7 @@ pub async fn dns_basic() {
         ],
     ];
 
-    run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
+    run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
 }
 
 #[cfg(test)]

@@ -25,10 +25,10 @@ use elvis_core::{
 /// retrieved Ipv4 address to interact with the non-DNS server.
 pub async fn dns_basic_many() {
     let network = Network::basic();
-    let dns_server_ip_address = Ipv4Address::DNS_AUTH;
+    let dns_server_ip_address = Ipv4Address::DNS_ROOT_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     
-    let num_clients: u32 = 999;
+    let num_clients: u32 = 1000;
 
     let mut client_ip_addresses: Vec<Ipv4Address> = vec![];
 
@@ -77,8 +77,7 @@ pub async fn dns_basic_many() {
                 Ipv4::new(ip_table.clone()),
                 Pci::new([network.clone()]),
                 SocketAPI::new(Some(client_ip_addresses[i as usize])),
-                DnsResolver
-::new(),
+                DnsResolver::new(),
                 DnsTestClient::new(0xbeef, SocketType::Datagram),
             ])
     }

@@ -10,47 +10,29 @@ use crate::{
         socket_api::socket::{ProtocolFamily, SocketType},
         SocketAPI,
     },
-    Control, FxDashMap, Protocol, Session, Shutdown,
+    Control, Protocol, Session, Shutdown,
 };
 
-use super::dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord};
+use super::{dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord, DnsRTypes}, dns_cache::DnsCache};
 
-use std::any::Any;
+use std::{any::Any};
 use {std::any::TypeId, std::sync::Arc, tokio::sync::Barrier};
 
 /// Serves as a tool for looking up the ['Ipv4Address'] of a host using its
 /// known machine name (domain), and as the storage for an individual machine's
-/// name to IP mappings.
+/// name to resource record mappings.
 pub struct DnsResolver {
     /// Mapping of names to IPs that is unique to each machine. When a machine
     /// connects to a host using DNS, the mapping is saved in the connecting
     /// machines DNS protocol.
-    name_to_ip: FxDashMap<String, Ipv4Address>,
+    cache: DnsCache
 }
 
 impl DnsResolver {
     /// Creates a new instance of the protocol.
     pub fn new() -> Self {
         Self {
-            name_to_ip: Default::default(),
-        }
-    }
-
-    /// Creates a new shared handle to an instance of the protocol.
-    pub fn _shared(self) -> Arc<Self> {
-        Arc::new(self)
-    }
-
-    /// Adds a new mapping to the name_to_ip cache.
-    pub fn add_mapping(&self, name: String, ip: Ipv4Address) {
-        self.name_to_ip.insert(name, ip);
-    }
-
-    /// Checks local name_to_ip cache for ['Ipv4Address'] given a name.
-    pub fn get_mapping(&self, name: &str) -> Result<Ipv4Address, DnsClientError> {
-        match self.name_to_ip.get(name) {
-            Some(e) => Ok(*e),
-            None => Err(DnsClientError::Cache),
+            cache: DnsCache::new(),
         }
     }
 
@@ -61,13 +43,18 @@ impl DnsResolver {
         name: String,
         protocols: ProtocolMap,
     ) -> Result<Ipv4Address, DnsClientError> {
-        match self.get_mapping(&name) {
+        match self.cache.get_mapping(&name) {
             // Cache hit
-            Ok(ip) => Ok(ip),
-
+            Ok(rr) => Ok(
+                rr.to_ipv4()
+            ),
             // Cache miss
-            Err(_ip) => {
-                let message = self.create_request(&name).unwrap().to_message().unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
+            Err(_) => {
+                let message = self
+                    .create_request(&name)
+                    .unwrap()
+                    .to_message()
+                    .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
                 let sockets = protocols
                     .protocol::<SocketAPI>()
@@ -80,7 +67,7 @@ impl DnsResolver {
                     .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
                 // "Connect" the socket to a remote address
-                let remote_sock_addr = Endpoint::new(Ipv4Address::DNS_AUTH, 53);
+                let remote_sock_addr = Endpoint::new(Ipv4Address::DNS_ROOT_AUTH, 53);
                 socket.connect(remote_sock_addr).await.unwrap();
 
                 // Send a message
@@ -91,12 +78,11 @@ impl DnsResolver {
 
                 let res_msg = DnsMessage::from_bytes(resp.iter()).unwrap();
 
-                let name_to_add = String::from_utf8(res_msg.answer.name).unwrap();
-                let rdata = res_msg.answer.rdata;
-                let ip_to_add = Ipv4Address::new([rdata[0], rdata[1], rdata[2], rdata[3]]);
-                self.add_mapping(name_to_add, ip_to_add);
+                let name_to_add = String::from_utf8(res_msg.answer.name.clone()).unwrap();
+                self.cache.add_mapping(name_to_add, res_msg.answer);
 
-                Ok(self.get_mapping(&name).unwrap())
+
+                Ok(self.cache.get_mapping(&name).unwrap().to_ipv4())
             }
         }
     }
@@ -112,7 +98,7 @@ impl DnsResolver {
             to_rand,
             DnsMessageType::QUERY,
         );
-        let question = DnsQuestion::new(vec_name.clone());
+        let question = DnsQuestion::new(vec_name.clone(), DnsRTypes::A as u16);
         let answer = DnsResourceRecord::new(vec_name, 0, Ipv4Address::new([0, 0, 0, 0]));
         let response_msg = DnsMessage::new(header, question, answer).unwrap();
         Ok(response_msg)
@@ -163,6 +149,8 @@ pub enum DnsClientError {
 #[cfg(test)]
 mod tests {
 
+    use crate::protocols::dns::dns_cache::DnsCacheError;
+
     use super::*;
 
     #[test]
@@ -172,13 +160,15 @@ mod tests {
         let dns: DnsResolver = DnsResolver::new();
 
         // Create and add mapping
-        let name: String = String::from("Name");
+        let domain_name: &str = "Name";
+        let name: Vec<u8> = Vec::from("Name");
         let ip: Ipv4Address = Ipv4Address::CURRENT_NETWORK;
-        dns.add_mapping(name.clone(), ip);
+        let rr: DnsResourceRecord = DnsResourceRecord::new(name, 1, ip);
+        dns.cache.add_mapping(domain_name.to_string(), rr);
 
         // Verify that lookup matches what was added
-        let check = dns.get_mapping(&name);
-        assert_eq!(Ok(ip), check);
+        let check = dns.cache.get_mapping(&domain_name).unwrap();
+        assert_eq!(ip, check.to_ipv4());
     }
 
     #[test]
@@ -190,7 +180,7 @@ mod tests {
         let name: String = String::from("Arbitrary");
 
         // Verify that lookup returns dns cache miss error.
-        let check = dns.get_mapping(&name);
-        assert_eq!(Err(DnsClientError::Cache), check);
+        let check = dns.cache.get_mapping(&name);
+        assert_eq!(Err(DnsCacheError::Cache), check);
     }
 }
