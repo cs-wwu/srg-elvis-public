@@ -214,7 +214,7 @@ impl NetworkBuilder {
 /// A [`Message`] in flight over a network. A delivery includes the information
 /// usually included in a data-link frame and thus abstracts over different
 /// network technologies.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct Delivery {
     /// The message being sent
     pub message: Message,
