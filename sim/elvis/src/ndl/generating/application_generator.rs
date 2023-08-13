@@ -292,7 +292,7 @@ pub fn rip_router_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>, 
     ip_table: &mut IpTable<Recipient>,
-    ip_gen: &mut HashMap<String, IpGenerator>,) -> {
+    ip_gen: &mut HashMap<String, IpGenerator>,) {
 
     //checking we have an ip address parameter
     assert!(
@@ -358,45 +358,45 @@ pub fn rip_router_builder(
     //TODO create a ip table from the local ips
 
     //router table
-    let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
-        Some(table) => {
-            let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
-                IpTable::<(Ipv4Address, PciSlot)>::new();
-            for entry in table.iter() {
-                //look at add direct method 
-                assert!(
-                    entry.contains_key("dest"),
-                    "Router entry doesnt have a dest parameter"
-                );
-                assert!(
-                    entry.contains_key("pci_slot"),
-                    "Router entry doesnt have a pci_slot parameter"
-                );
+    // let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
+    //     Some(table) => {
+    //         let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
+    //             IpTable::<(Ipv4Address, PciSlot)>::new();
+    //         for entry in table.iter() {
+    //             //look at add direct method 
+    //             assert!(
+    //                 entry.contains_key("dest"),
+    //                 "Router entry doesnt have a dest parameter"
+    //             );
+    //             assert!(
+    //                 entry.contains_key("pci_slot"),
+    //                 "Router entry doesnt have a pci_slot parameter"
+    //             );
 
-                //code is mostly copied from boris-ellie-ndl-router 
-                let dest_string = entry.get("dest").unwrap().to_string();
-                let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
+    //             //code is mostly copied from boris-ellie-ndl-router 
+    //             let dest_string = entry.get("dest").unwrap().to_string();
+    //             let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
 
-                //TODO destination should support subnets
-                // get_ip_and_mask might work here, not sure though
-                // do we need to match the destiations with the ip gen???
-                let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
-                let dest = Ipv4Net::new(
-                    pre_dest.0,
-                    Ipv4Mask::from_bitcount(pre_dest.1),
-                );
-                let pci_slot = pci_slot_string.parse().unwrap();
+    //             //TODO destination should support subnets
+    //             // get_ip_and_mask might work here, not sure though
+    //             // do we need to match the destiations with the ip gen???
+    //             let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
+    //             let dest = Ipv4Net::new(
+    //                 pre_dest.0,
+    //                 Ipv4Mask::from_bitcount(pre_dest.1),
+    //             );
+    //             let pci_slot = pci_slot_string.parse().unwrap();
                 
-                //TODO create router table
-                router_table.add(dest, pci_slot);
+    //             //TODO create router table
+    //             router_table.add(dest, pci_slot);
                 
-            }
-            router_table
-        }
-        None => {
-            panic!("Issue building arp router table, possibly none passed")
-        }
-    };
+    //         }
+    //         router_table
+    //     }
+    //     None => {
+    //         panic!("Issue building arp router table, possibly none passed")
+    //     }
+    // };
     //TODO create an arp router with ip_table and router table
     //TODO create rip router with the ip_table
     

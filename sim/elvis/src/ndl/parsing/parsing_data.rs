@@ -16,7 +16,7 @@ pub enum DecType {
     Protocol,
     Applications,
     Application,
-    RouterTable,
+    RouterEntry,
 }
 
 pub type Res<T, U> = IResult<T, U, VerboseError<T>>;
@@ -101,7 +101,7 @@ pub struct IP {
 pub struct Application {
     pub dectype: DecType,
     pub options: Params,
-    pub router_table: Option<RouterTable>,
+    pub router_table: Option<(RouterTable, IPs)>,
 }
 
 /// Used to store the core parsed Sim.
@@ -128,7 +128,8 @@ impl From<&str> for DecType {
             "protocol" => DecType::Protocol,
             "applications" => DecType::Applications,
             "application" => DecType::Application,
-            _ => unimplemented!("No other dec types supported"),
+            "routerentry" => DecType::RouterEntry,
+            _ => unimplemented!("Dectype not supported, {} found", i),
         }
     }
 }
