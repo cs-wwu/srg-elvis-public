@@ -414,30 +414,12 @@ pub fn arp_router_builder(
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,) -> ArpRouter{
 
-    //checking we have an ip address parameter
-    assert!(
-        app.options.contains_key("ip"),
-        "rip_router does not have an ip adddress."
-    );
-    /* 
-    let ip_string = app.options.get("ip").unwrap().to_string();
-    let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
-    
-    match ip_available(router_ip.into(), ip_gen) {
-        Ok(router_ip) => {
-            ip_table.add_direct(router_ip, Recipient::new(0, None));
-        }
-        Err(err) => {
-            panic!("Rip router builder error: {}", err);
-        }
-    }*/
-
     //router table
     let mut local_router_ips: Vec<Ipv4Address> = Vec::new();
-    let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
+    let finished_table: IpTable<(Option<Ipv4Address>, PciSlot)> = match &app.router_table {
         Some((table, ips)) => {
-            let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
-                IpTable::<(Ipv4Address, PciSlot)>::new();
+            let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> =
+                IpTable::<(Option<Ipv4Address>, PciSlot)>::new();
             for entry in table.iter() {
                 assert!(
                     entry.contains_key("dest"),
@@ -462,11 +444,12 @@ pub fn arp_router_builder(
                     pre_dest.0,
                     Ipv4Mask::from_bitcount(pre_dest.1),
                 );
-                let pci_slot = pci_slot_string.parse().unwrap();
+                let pci_slot = pci_slot_string.parse::<u32>().unwrap();
                 let next_hop = name_or_string_ip_to_ip( next_hop_string, name_to_ip);
                 
                 //TODO create router table
-                router_table.add(dest, (next_hop, pci_slot));
+                router_table.add(dest, (Some(next_hop), pci_slot));
+                //router_table.add(dest, pci_slot);
                 
             }
             for entry in ips.iter(){
