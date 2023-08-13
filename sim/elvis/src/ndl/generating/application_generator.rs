@@ -435,7 +435,7 @@ pub fn arp_router_builder(
     //router table
     let mut local_router_ips: Vec<Ipv4Address> = Vec::new();
     let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
-        Some(table, ips) => {
+        Some((table, ips)) => {
             let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
                 IpTable::<(Ipv4Address, PciSlot)>::new();
             for entry in table.iter() {
@@ -470,9 +470,9 @@ pub fn arp_router_builder(
                 
             }
             for entry in ips.iter(){
-                if entry.contains_key("ip"){
-                    let ip_string = app.options.get("ip").unwrap().to_string();
-                    let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
+               // if entry.contains_key("ip"){
+                    //let ip_string = app.options.get("ip").unwrap().to_string();
+                    let router_ip = ip_string_to_ip( entry.options.get("ip").unwrap().clone(), "Arp router");
                     
                     match ip_available(router_ip.into(), ip_gen) {
                         Ok(router_ip) => {
@@ -482,23 +482,38 @@ pub fn arp_router_builder(
                             panic!("Rip router builder error: {}", err);
                         }
                     }
-                    local_router_ips.push(router_ip);
-                } else if entry.contains_key("range"){
+                    local_router_ips.push(router_ip.into());
+                    
+                 /*}else if entry.contains_key("range"){
                     let range_string = app.options.get("range").unwrap().to_string();
                     let temp: Vec<&str> = range_string.split('-').collect();
-                        assert_eq!(
-                            temp.len(),
-                            2,
-                            "Network {}: Invalid IP range format, expected 2 values found {}",
-                            id,
-                            temp.len()
-                        );
+                    assert_eq!(
+                        temp.len(),
+                        2,
+                        "Invalid IP range format, expected 2 values found {}",
+                        temp.len()
+                    );
+                    let mut start_ip = ip_string_to_ip(temp[0].to_string(), &id);
+                    let end_ip_slice = temp[1].parse::<u8>().unwrap_or_else(|_| {
+                        panic!("Network {}: Invalid ending IP range number. Expected <u8> found: {}", id, temp[1])
+                    });
+                    assert!(
+                        end_ip_slice >= start_ip[3],
+                        "Invalid Cidr format, end IP value ({}) greater than start IP value ({})",
+                        end_ip_slice, start_ip[3]
+                    );
+                    while start_ip[3] <= end_ip_slice {
+                        
+                        local_router_ips.push(start_ip.into());
+                        start_ip[3] += 1;
+                    }
+
 
                 } else if entry.contains_key("subnet"){
 
                 } else {
                     panic!("arp router builder bad ip entry")
-                }
+                }*/
             }
             router_table
         }
