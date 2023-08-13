@@ -7,12 +7,14 @@ use crate::ip_generator::IpGenerator;
 use crate::ndl::generating::generator_utils::{ip_or_name, ip_available};
 use crate::ndl::parsing::parsing_data::*;
 use crate::{
-    applications::{Capture, SendMessage},
+    applications::{Capture, SendMessage, ArpRouter},
     ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
 };
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
+use elvis_core::protocols::arp::subnetting::{Ipv4Net, Ipv4Mask};
 use elvis_core::protocols::{Endpoint, Endpoints};
 use elvis_core::{IpTable, Message};
+use elvis_core::machine::PciSlot;
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
     app: &Application,
@@ -294,7 +296,7 @@ pub fn rip_router_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>, 
     ip_table: &mut IpTable<Recipient>,
-    ip_gen: &mut HashMap<String, IpGenerator>,) -> {
+    ip_gen: &mut HashMap<String, IpGenerator>,) {
 
     //checking we have an ip address parameter
     assert!(
@@ -387,10 +389,10 @@ pub fn rip_router_builder(
                     pre_dest.0,
                     Ipv4Mask::from_bitcount(pre_dest.1),
                 );
-                let pci_slot = pci_slot_string.parse().unwrap();
+                let pci_slot = pci_slot_string.parse::<u32>().unwrap();
                 
                 //TODO create router table
-                router_table.add(dest, pci_slot);
+                //router_table.add(dest, pci_slot);
                 
             }
             router_table
@@ -417,10 +419,10 @@ pub fn arp_router_builder(
         app.options.contains_key("ip"),
         "rip_router does not have an ip adddress."
     );
-
+    /* 
     let ip_string = app.options.get("ip").unwrap().to_string();
     let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
-    //TODO check local ips with ip_generator
+    
     match ip_available(router_ip.into(), ip_gen) {
         Ok(router_ip) => {
             ip_table.add_direct(router_ip, Recipient::new(0, None));
@@ -428,11 +430,12 @@ pub fn arp_router_builder(
         Err(err) => {
             panic!("Rip router builder error: {}", err);
         }
-    }
+    }*/
 
     //router table
+    let mut local_router_ips: Vec<Ipv4Address> = Vec::new();
     let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
-        Some(table) => {
+        Some(table, ips) => {
             let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
                 IpTable::<(Ipv4Address, PciSlot)>::new();
             for entry in table.iter() {
@@ -466,13 +469,44 @@ pub fn arp_router_builder(
                 router_table.add(dest, (next_hop, pci_slot));
                 
             }
+            for entry in ips.iter(){
+                if entry.contains_key("ip"){
+                    let ip_string = app.options.get("ip").unwrap().to_string();
+                    let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
+                    
+                    match ip_available(router_ip.into(), ip_gen) {
+                        Ok(router_ip) => {
+                            ip_table.add_direct(router_ip, Recipient::new(0, None));
+                        }
+                        Err(err) => {
+                            panic!("Rip router builder error: {}", err);
+                        }
+                    }
+                    local_router_ips.push(router_ip);
+                } else if entry.contains_key("range"){
+                    let range_string = app.options.get("range").unwrap().to_string();
+                    let temp: Vec<&str> = range_string.split('-').collect();
+                        assert_eq!(
+                            temp.len(),
+                            2,
+                            "Network {}: Invalid IP range format, expected 2 values found {}",
+                            id,
+                            temp.len()
+                        );
+
+                } else if entry.contains_key("subnet"){
+
+                } else {
+                    panic!("arp router builder bad ip entry")
+                }
+            }
             router_table
         }
         None => {
             panic!("Issue building arp router table, possibly none passed")
         }
     };
-    ArpRouter::new(finished_table, router_ip)
+    ArpRouter::new(finished_table, local_router_ips)
     
     
 }

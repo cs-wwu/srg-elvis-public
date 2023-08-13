@@ -180,12 +180,12 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     }
 
                     "rip_router" => {
-                        protocol_map = protocol_map.with(rip_router_builder(
-                            app,
-                            &name_to_ip,
-                            &mut ip_table,
-                            &mut ip_gen
-                        ))
+                        // protocol_map = protocol_map.with(rip_router_builder(
+                        //     app,
+                        //     &name_to_ip,
+                        //     &mut ip_table,
+                        //     &mut ip_gen
+                        // ))
                     }
                     "arp_router" => {
                         protocol_map = protocol_map.with(arp_router_builder(
