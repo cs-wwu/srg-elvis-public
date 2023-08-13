@@ -2,7 +2,7 @@
 	[Network id='1']
 		[IP ip='123.45.67.89']
 	[Network id='3']
-		[IP range='123.45.67.90/91']
+		[IP range='123.45.67.90-91']
 [Machines]
 	[Machine name='router']
 		[Networks]

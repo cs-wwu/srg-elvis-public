@@ -211,23 +211,22 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
             // Creates the user specified protocols and adds them to the protocol map
             // Generated protocols are recorded to allow automatic addition of required protocols
             for protocol in &machine.interfaces.protocols {
-                for option in &protocol.options {
-                    match option.1.as_str() {
-                        "UDP" => protocol_map = protocol_map.with(Udp::new()),
-                        "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
-                        "ARP" => protocol_map = protocol_map.with(arp_builder(
-                            &name_to_ip,
-                            &protocol.options)),
-                        _ => {
-                            panic!(
-                                "Invalid Protocol found in machine. Found: {}",
-                                option.1.as_str()
-                            )
-                        }
+                let protocol_name: &str = protocol.options.get("name").unwrap();
+                match protocol_name {
+                    "UDP" => protocol_map = protocol_map.with(Udp::new()),
+                    "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
+                    "ARP" => protocol_map = protocol_map.with(arp_builder(
+                        &name_to_ip,
+                        &protocol.options)),
+                    _ => {
+                        panic!(
+                            "Invalid Protocol found in machine. Found: {}",
+                            protocol_name
+                        )
                     }
-                    // Add the encountered protocol name to the HashSet
-                    encountered_protocols.insert(option.1.as_str());
                 }
+                // Add the encountered protocol name to the HashSet
+                encountered_protocols.insert(protocol_name);
             }
 
             // Check for missing required protocols and add them if necessary

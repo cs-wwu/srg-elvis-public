@@ -16,6 +16,7 @@ pub fn arp_builder(name_to_ip : &HashMap<String, Ipv4Address>, options: &HashMap
             options.contains_key("default"),
             "Arp protocol doesn't contain default."
         );
+        
         let default = options.get("default").unwrap().to_string();
         let default_gateway = match ip_or_name(default.clone()) {
             true => Ipv4Address::new(ip_string_to_ip(default.clone(), "default arp id")),

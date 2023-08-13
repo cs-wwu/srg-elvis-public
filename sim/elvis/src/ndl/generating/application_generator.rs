@@ -297,113 +297,6 @@ pub fn rip_router_builder(
     name_to_ip: &HashMap<String, Ipv4Address>, 
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,) {
-
-    //checking we have an ip address parameter
-    assert!(
-        app.options.contains_key("ip"),
-        "rip_router does not have an ip adddress."
-    );
-    //router ips
-
-    //TODO support multiple local ips, figure out a good way for ndl input
-        // we could add a count for number of ip's
-        // then the names are ip1 ip2 ect and we can make the strings to check for them within a loop
-        //maybe something along the lines of: 
-        // the ndl line would be [application='rip_router' count='2' ip1 = 'insert ip here' ip2 = insert ip here']
-    
-    /*
-    //getting the number of ips
-    assert!(
-        app.options.contains_key("count"),
-        "rip_router does not have an ip adddress."
-    );
-    let count_string = entry.get("count").unwrap().to_string();
-    let count : u32 = count_string.parse().unwrap();
-    if n <1{
-        panic!("Invalid count in rip router: {}", err);
-    }
-    let base_string = "ip";
-    //getting each ip
-    for n in 1..=count {
-        let mut new_ip = base_string.clone();
-        new_ip.push(n);
-        assert!(
-            app.options.contains_key(new_ip),
-            "rip_router does not have an ip adddress."
-        );
-        let multiple_ip_string = entry.get("count").unwrap().to_string();
-        let multiple_ip = name_or_string_ip_to_ip(multiple_ip_string, name_to_ip);;
-        match ip_available(multiple_ip.into(), ip_gen) {
-            Ok(multiple_ip) => {
-                ip_table.add_direct(multiple_ip, Recipient::new(0, None));
-            }
-            Err(err) => {
-                panic!("Rip router builder error: {}", err);
-            }
-        }
-        // we could also save them into another data structure if desired 
-
-    }
-    
-    */
-
-
-    let ip_string = app.options.get("ip").unwrap().to_string();
-    let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
-    //TODO check local ips with ip_generator
-    match ip_available(router_ip.into(), ip_gen) {
-        Ok(router_ip) => {
-            ip_table.add_direct(router_ip, Recipient::new(0, None));
-        }
-        Err(err) => {
-            panic!("Rip router builder error: {}", err);
-        }
-    }
-    //TODO create a ip table from the local ips
-
-    //router table
-    // let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
-    //     Some(table) => {
-    //         let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
-    //             IpTable::<(Ipv4Address, PciSlot)>::new();
-    //         for entry in table.iter() {
-    //             //look at add direct method 
-    //             assert!(
-    //                 entry.contains_key("dest"),
-    //                 "Router entry doesnt have a dest parameter"
-    //             );
-    //             assert!(
-    //                 entry.contains_key("pci_slot"),
-    //                 "Router entry doesnt have a pci_slot parameter"
-    //             );
-
-    //             //code is mostly copied from boris-ellie-ndl-router 
-    //             let dest_string = entry.get("dest").unwrap().to_string();
-    //             let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
-
-    //             //TODO destination should support subnets
-    //             // get_ip_and_mask might work here, not sure though
-    //             // do we need to match the destiations with the ip gen???
-    //             let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
-    //             let dest = Ipv4Net::new(
-    //                 pre_dest.0,
-    //                 Ipv4Mask::from_bitcount(pre_dest.1),
-    //             );
-    //             let pci_slot = pci_slot_string.parse().unwrap();
-                
-    //             //TODO create router table
-    //             router_table.add(dest, pci_slot);
-                
-    //         }
-    //         router_table
-    //     }
-    //     None => {
-    //         panic!("Issue building arp router table, possibly none passed")
-    //     }
-    // };
-    //TODO create an arp router with ip_table and router table
-    //TODO create rip router with the ip_table
-    
     
 }
 
@@ -414,99 +307,54 @@ pub fn arp_router_builder(
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,) -> ArpRouter{
 
-    //checking we have an ip address parameter
-    assert!(
-        app.options.contains_key("ip"),
-        "rip_router does not have an ip adddress."
-    );
-    /* 
-    let ip_string = app.options.get("ip").unwrap().to_string();
-    let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
+    let router_table_entries = app.router_table.clone().unwrap().0;
+    let router_ips = app.router_table.clone().unwrap().1;
+
+    let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
+
+    for entry in router_table_entries {
+        assert!(
+            entry.contains_key("dest"),
+            "Router entry doesnt have a dest parameter"
+        );
+        assert!(
+            entry.contains_key("pci_slot"),
+            "Router entry doesnt have a pci_slot parameter"
+        );
+        assert!(
+            entry.contains_key("next_hop"),
+            "Router entry doesnt have a next_hop parameter"
+        );
+        let dest_string = entry.get("dest").unwrap().to_string();
+        let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
+        let next_hop_string = entry.get("next_hop").unwrap().to_string();
+
+        // get_ip_and_mask might work here, not sure though
+        // do we need to match the destiations with the ip gen???
+        let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
+        let dest = Ipv4Net::new(
+            pre_dest.0,
+            Ipv4Mask::from_bitcount(pre_dest.1),
+        );
+        let pci_slot = pci_slot_string.parse().unwrap();
+        let next_hop = name_or_string_ip_to_ip( next_hop_string, name_to_ip);
+        
+        router_table.add(dest, (Some(next_hop), pci_slot));
+        
+    }
+
     
-    match ip_available(router_ip.into(), ip_gen) {
-        Ok(router_ip) => {
-            ip_table.add_direct(router_ip, Recipient::new(0, None));
+    let mut local_ips = Vec::new();
+    for entry in router_ips.iter(){
+        if entry.options.contains_key("ip"){
+            let ip_string = entry.options.get("ip").unwrap().to_string();
+            let router_ip = ip_string_to_ip( ip_string, "router ip");
+            
+            local_ips.push(router_ip.into());
         }
-        Err(err) => {
-            panic!("Rip router builder error: {}", err);
-        }
-    }*/
+    }
 
-    //router table
-    let mut local_router_ips: Vec<Ipv4Address> = Vec::new();
-    let finished_table: IpTable<(Ipv4Address, u32)> = match &app.router_table {
-        Some(table, ips) => {
-            let mut router_table: IpTable<(Ipv4Address, PciSlot)> =
-                IpTable::<(Ipv4Address, PciSlot)>::new();
-            for entry in table.iter() {
-                assert!(
-                    entry.contains_key("dest"),
-                    "Router entry doesnt have a dest parameter"
-                );
-                assert!(
-                    entry.contains_key("pci_slot"),
-                    "Router entry doesnt have a pci_slot parameter"
-                );
-                assert!(
-                    entry.contains_key("next_hop"),
-                    "Router entry doesnt have a next_hop parameter"
-                );
-                let dest_string = entry.get("dest").unwrap().to_string();
-                let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
-                let next_hop_string = entry.get("next_hop").unwrap().to_string();
-
-                // get_ip_and_mask might work here, not sure though
-                // do we need to match the destiations with the ip gen???
-                let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
-                let dest = Ipv4Net::new(
-                    pre_dest.0,
-                    Ipv4Mask::from_bitcount(pre_dest.1),
-                );
-                let pci_slot = pci_slot_string.parse().unwrap();
-                let next_hop = name_or_string_ip_to_ip( next_hop_string, name_to_ip);
-                
-                //TODO create router table
-                router_table.add(dest, (next_hop, pci_slot));
-                
-            }
-            for entry in ips.iter(){
-                if entry.contains_key("ip"){
-                    let ip_string = app.options.get("ip").unwrap().to_string();
-                    let router_ip = name_or_string_ip_to_ip( ip_string, name_to_ip);
-                    
-                    match ip_available(router_ip.into(), ip_gen) {
-                        Ok(router_ip) => {
-                            ip_table.add_direct(router_ip, Recipient::new(0, None));
-                        }
-                        Err(err) => {
-                            panic!("Rip router builder error: {}", err);
-                        }
-                    }
-                    local_router_ips.push(router_ip);
-                } else if entry.contains_key("range"){
-                    let range_string = app.options.get("range").unwrap().to_string();
-                    let temp: Vec<&str> = range_string.split('-').collect();
-                        assert_eq!(
-                            temp.len(),
-                            2,
-                            "Network {}: Invalid IP range format, expected 2 values found {}",
-                            id,
-                            temp.len()
-                        );
-
-                } else if entry.contains_key("subnet"){
-
-                } else {
-                    panic!("arp router builder bad ip entry")
-                }
-            }
-            router_table
-        }
-        None => {
-            panic!("Issue building arp router table, possibly none passed")
-        }
-    };
-    ArpRouter::new(finished_table, local_router_ips)
+    ArpRouter::new(router_table, local_ips)
     
     
 }
