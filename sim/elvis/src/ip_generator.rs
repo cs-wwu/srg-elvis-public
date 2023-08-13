@@ -20,11 +20,30 @@ impl IpGenerator {
     /// Creates a new `IpGenerator` which can generate IPs between the
     /// range's start and end (inclusive).
     pub fn new(range: IpRange) -> Self {
-        let mut result = Self {
-            available_ranges: BTreeSet::new(),
-        };
+        let mut result = Self::none();
         result.return_range(range);
         result
+    }
+
+    /// Creates a new `IpGenerator` which can generate any IP in this subnet.
+    pub fn new_sub(net: Ipv4Net) -> Self {
+        let range = IpRange::new(net.id(), net.broadcast());
+        IpGenerator::new(range)
+    }
+
+    /// Creates an `IpGenerator` which can generate any IP in this subnet,
+    /// *except* for the first and last IPs in the net
+    /// (since these are the IDs and broadcast addresses).
+    pub fn new_sub_no_ends(net: Ipv4Net) -> Self {
+        let start = add(net.id(), 1);
+        let end = add(net.id(), -1);
+
+        // if overflow occured, then there would be no IP addresses in the
+        // network, so we can just generate none
+        match (start, end) {
+            (Some(start), Some(end)) => IpGenerator::new(IpRange::new(start, end)),
+            _other => IpGenerator::none(),
+        }
     }
 
     /// Returns an IpGenerator that can generate all IP addresses.
@@ -37,10 +56,9 @@ impl IpGenerator {
 
     ///Returns an IpGenerator with all IP addresses blocked
     pub fn none() -> Self {
-        let mut ip_gen = Self::all();
-        let all_ips = Ipv4Net::new_short([0, 0, 0, 0], 0);
-        ip_gen.block_subnet(all_ips);
-        ip_gen
+        Self {
+            available_ranges: BTreeSet::new(),
+        }
     }
 
     /// Returns an IpGenerator with all reserved IP addresses blocked out.
@@ -48,40 +66,14 @@ impl IpGenerator {
     /// <https://en.wikipedia.org/wiki/Reserved_IP_addresses#IPv4>
     pub fn blocked_out() -> Self {
         let mut result = Self::all();
-
-        let mut block = |ip: [u8; 4], mask: u32| {
-            result.block_subnet(Ipv4Net::new(
-                Ipv4Address::from(ip),
-                Ipv4Mask::from_bitcount(mask),
-            ));
-        };
-
-        block([0, 0, 0, 0], 8);
-        block([10, 0, 0, 0], 8);
-        block([100, 64, 0, 0], 10);
-        block([127, 0, 0, 0], 8);
-        block([169, 254, 0, 0], 16);
-        block([172, 16, 0, 0], 12);
-        block([192, 0, 0, 0], 24);
-        block([192, 0, 2, 0], 24);
-        block([192, 88, 99, 0], 24);
-        block([192, 168, 0, 0], 16);
-        block([198, 18, 0, 0], 15);
-        block([198, 51, 100, 0], 24);
-        block([203, 0, 113, 0], 24);
-        block([224, 0, 0, 0], 4);
-        block([233, 252, 0, 0], 24);
-        block([240, 0, 0, 0], 4);
-        block([255, 255, 255, 255], 32);
-
+        result.block_reserved_ips();
         result
     }
 
     /// Takes an existing IpGenerator an blockd all reserved IP addresses
     ///
     /// <https://en.wikipedia.org/wiki/Reserved_IP_addresses#IPv4>
-    pub fn block_reserved_ips(&mut self){
-
+    pub fn block_reserved_ips(&mut self) {
         let mut block = |ip: [u8; 4], mask: u32| {
             self.block_subnet(Ipv4Net::new(
                 Ipv4Address::from(ip),
@@ -107,7 +99,7 @@ impl IpGenerator {
         block([240, 0, 0, 0], 4);
         block([255, 255, 255, 255], 32);
     }
-    
+
     /// Generates a single IP address,
     /// then blocks it out so it can't be generated again.
     /// Returns `Some(ip)` if there is an IP address available.

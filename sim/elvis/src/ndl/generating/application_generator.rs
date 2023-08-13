@@ -4,14 +4,15 @@ use std::collections::HashMap;
 
 use crate::applications::{Forward, PingPong};
 use crate::ip_generator::IpGenerator;
-use crate::ndl::generating::generator_utils::{ip_or_name, ip_available};
+use crate::ndl::generating::generator_utils::{ip_available, ip_or_name};
 use crate::ndl::parsing::parsing_data::*;
 use crate::{
     applications::{Capture, SendMessage, ArpRouter},
     ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
 };
+use elvis_core::protocols::Arp;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
-use elvis_core::protocols::arp::subnetting::{Ipv4Net, Ipv4Mask};
+use elvis_core::protocols::arp::subnetting::{Ipv4Net, Ipv4Mask, SubnetInfo};
 use elvis_core::protocols::{Endpoint, Endpoints};
 use elvis_core::{IpTable, Message};
 use elvis_core::machine::PciSlot;
@@ -21,6 +22,7 @@ pub fn send_message_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
+    cur_net_ids: &Vec<String>,
 ) -> SendMessage {
     assert!(
         app.options.contains_key("port"),
@@ -35,19 +37,16 @@ pub fn send_message_builder(
         "Send_Message application doesn't contain message."
     );
 
-    let target_ip = app.options.get("ip")
+    let target_ip = app
+        .options
+        .get("ip")
         .map(|ip_str| ip_string_to_ip(ip_str.to_string(), "ip for send_message").into())
         .unwrap_or_else(|| Ipv4Address::new([127, 0, 0, 1])); //Default to local ip if none is provided
 
-    //Check if ip is available
-    match ip_available(target_ip, ip_gen) {
-        Ok(ip) => {
-            ip_table.add_direct(ip, Recipient::new(0, None));
-        }
-        Err(err) => {
-            panic!("Send_Message error: {}", err);
-        }
-    }
+    // Check if IP is available
+    let ip = ip_available(target_ip.into(), ip_gen, cur_net_ids).expect("send_message IP unavailable");
+
+    ip_table.add_direct(ip, Recipient::new(0, None));
     
     
 
@@ -87,7 +86,9 @@ pub fn send_message_builder(
 pub fn capture_builder(
     app: &Application,
     ip_table: &mut IpTable<Recipient>,
-    ip_gen: &mut HashMap<String, IpGenerator>,) -> Capture {
+    ip_gen: &mut HashMap<String, IpGenerator>,
+    cur_net_ids: &Vec<String>,
+) -> Capture {
 
     assert!(
         app.options.contains_key("port"),
@@ -113,15 +114,10 @@ pub fn capture_builder(
         .parse::<u32>()
         .expect("Invalid u32 found in Capture for message count");
 
-    //Check if ip is available
-    match ip_available(ip.into(), ip_gen) {
-        Ok(ip) => {
-            ip_table.add_direct(ip, Recipient::new(0, None));
-        }
-        Err(err) => {
-            panic!("Capture error: {}", err);
-        }
-    }
+    // Check if IP is available
+    let ip = ip_available(ip.into(), ip_gen, cur_net_ids).expect("capture IP unavailable");
+
+    ip_table.add_direct(ip, Recipient::new(0, None));
 
     Capture::new(
         Endpoint {
@@ -139,6 +135,7 @@ pub fn forward_message_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
+    cur_net_ids: &Vec<String>,
 ) -> Forward {
     assert!(
         app.options.contains_key("local_port"),
@@ -165,15 +162,10 @@ pub fn forward_message_builder(
     let local_port = string_to_port(app.options.get("local_port").unwrap().to_string());
     let remote_port = string_to_port(app.options.get("remote_port").unwrap().to_string());
 
-    //Check if ip is available
-    match ip_available(ip.into(), ip_gen) {
-        Ok(ip) => {
-            ip_table.add_direct(ip, Recipient::new(0, None));
-        }
-        Err(err) => {
-            panic!("Forward error: {}", err);
-        }
-    }
+    // Check if IP is available
+    let ip = ip_available(ip.into(), ip_gen, cur_net_ids).expect("forward IP unavailable");
+
+    ip_table.add_direct(ip, Recipient::new(0, None));
 
     if ip_or_name(to.clone()) {
         let to = ip_string_to_ip(to, "Forward declaration");
@@ -209,9 +201,11 @@ pub fn forward_message_builder(
 /// TODO: Currently shows errors in the log. I believe this is from an underlying PingPong issue.
 pub fn ping_pong_builder(
     app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>, 
+    name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
-    ip_gen: &mut HashMap<String, IpGenerator>,) -> PingPong {
+    ip_gen: &mut HashMap<String, IpGenerator>,
+    cur_net_ids: &Vec<String>,
+) -> PingPong {
 
     assert!(
         app.options.contains_key("local_port"),
@@ -237,15 +231,10 @@ pub fn ping_pong_builder(
         app.options.get("ip").unwrap().to_string(),
         "PingPong declaration",
     );
-    //Check if ip is available
-    match ip_available(ip.into(), ip_gen) {
-        Ok(ip) => {
-            ip_table.add_direct(ip, Recipient::new(0, None));
-        }
-        Err(err) => {
-            panic!("PingPong error: {}", err);
-        }
-    }
+    // Check if IP is available
+    let ip = ip_available(ip.into(), ip_gen, cur_net_ids).expect("ping_pong IP unavailable");
+
+    ip_table.add_direct(ip, Recipient::new(0, None));
 
     let to = app.options.get("to").unwrap().to_string();
     let local_port = string_to_port(app.options.get("local_port").unwrap().to_string());
@@ -407,4 +396,37 @@ pub fn get_ip_and_mask(s: String, name_to_ip: &HashMap<String, Ipv4Address>,) ->
         panic!("Something went wrong in get_ip_and_mask");
     }
     (address, mask)
+}
+
+
+pub fn arp_builder(name_to_ip : &HashMap<String, Ipv4Address>, options: &HashMap<String, String>) -> Arp {
+    if options.contains_key("local") {
+        assert!(
+            options.contains_key("default"),
+            "Arp protocol doesn't contain default."
+        );
+        
+        let default = options.get("default").unwrap().to_string();
+        let default_gateway = match ip_or_name(default.clone()) {
+            true => Ipv4Address::new(ip_string_to_ip(default.clone(), "default arp id")),
+            false => {
+                match name_to_ip.contains_key(&default) {
+                    true => *name_to_ip.get(&default).unwrap(),
+                    false => panic!("Invalid name for default arp gateway"),
+                }
+            },
+        };
+        Arp::basic().preconfig_subnet(
+            Ipv4Address::new(ip_string_to_ip(
+                options.get("local").unwrap().to_string(),
+                "local arp ip",
+            )),
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(32),
+                default_gateway,
+            },
+        )
+    } else {
+        Arp::basic()
+    }
 }
