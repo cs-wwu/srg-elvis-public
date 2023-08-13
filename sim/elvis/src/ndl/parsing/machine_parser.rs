@@ -468,15 +468,20 @@ fn machine_applications_parser(
     let app_router_table;
     while !remaining_string.is_empty() {
         let application = general_parser(&remaining_string[num_tabs as usize..], line_num);
+        let mut app_dectype : Option<DecType> = None;
+        let mut app_options : Option<Params> = None;
+        //Parse the next application
         match application {
             Ok(n) => {
                 // Verify the Application is of the correct type
                 if n.0 == DecType::Application {
                     // Store the Application
-                    app_dectype = n.0;
-                    app_options = n.1;
+                    app_dectype = Some(n.0);
+                    app_options = Some(n.1);
                     remaining_string = n.2;
-                } else if n.0 != DecType::Application {
+                }
+                //No application was found on the current line
+                else if n.0 != DecType::Application {
                     return Err(general_error(
                         num_tabs,
                         applications_line_num,
@@ -490,6 +495,7 @@ fn machine_applications_parser(
                     ));
                 }
             }
+            //General parses was unable to parse the line
             Err(e) => {
                 return Err(general_error(
                     num_tabs - 2,
@@ -500,106 +506,83 @@ fn machine_applications_parser(
             }
         }
         t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
-        match t {
-            // next line doesn't have enough tabs thus a network isn't being declared
-            t if t < num_tabs => {
-                apps.push(Application {
-                    dectype: app_dectype,
-                    options: app_options,
-                    router_table: app_router_table,
-                });
+        if t < num_tabs {
+            apps.push(Application {
+                dectype: app_dectype.unwrap(),
+                options: app_options.unwrap(),
+                router_table: None,
+            });
+            break;
+        }
+        else if t > num_tabs {
+            //Parse router entries
+            let router_table = router_entry_parser(
+                &mut remaining_string,
+                num_tabs + 1,
+                line_num,
+            ).expect("Router entries failed");
+            apps.push(Application {
+                dectype: app_dectype.unwrap(),
+                options: app_options.unwrap(),
+                router_table: Some(router_table),
+            });
+            t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
+            if t < num_tabs {
                 break;
             }
-            // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
-            t if t > num_tabs => {
-                let router_entry = router_entry_parser(
-                    DecType::RouterTable,
-                    remaining_string.clone(),
-                    num_tabs + 1,
-                    line_num,
-                );
-                match router_entry {
-                    Ok(n) => {
-                        app_router_table = Some(n.0);
-                        remaining_string = n.1;
-                        let tabs_after_entries =
-                            remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
-                        match tabs_after_entries {
-                            tabs_after_entries if tabs_after_entries < num_tabs => {
-                                apps.push(Application {
-                                    dectype: app_dectype,
-                                    options: app_options,
-                                    router_table: app_router_table,
-                                });
-                                break;
-                            }
-                            tabs_after_entries if tabs_after_entries > num_tabs => {
-                                return Err(general_error(
-                                    num_tabs,
-                                    applications_line_num,
-                                    dec,
-                                    format!(
-                                        "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
-                                        num_tabs_to_string(num_tabs + 1),
-                                        line_num,
-                                        num_tabs,
-                                        tabs_after_entries
-                                    ),
-                                ));
-                            }
-                            _ => (),
-                        }
-                    }
-                    Err(e) => {
-                        return Err(e);
-                    }
-                }
-            }
-            _ => (),
+
         }
-        apps.push(Application {
-            dectype: app_dectype,
-            options: app_options,
-            router_table: app_router_table,
-        });
+        else {
+            apps.push(Application {
+                dectype: app_dectype.unwrap(),
+                options: app_options.unwrap(),
+                router_table: None,
+            });
+        }
+        
     }
     Ok((apps, remaining_string))
 }
 
+///Parse the router entries for routers
 fn router_entry_parser(
-    dec: DecType,
-    s0: String,
+    remaining_string: &mut String,
     num_tabs: i32,
     line_num: &mut i32,
-) -> Result<(Vec<Params>, String), String> {
+) -> Result<(RouterTable, IPs), String> {
     //maping ip to hop and slot
+    let mut local_ips: Vec<IP> = Vec::new();
     let mut router_entries: Vec<Params> = RouterTable::new();
-    let mut remaining_string = s0;
+
     let mut t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
-    let router_entry_line_num = *line_num - 1;
+
     // next line doesn't have enough tabs thus a RouterEntry isn't being declared
     if t != num_tabs {
         return Err("Invalid formatting for RouterEntry".to_string());
     }
-    while !remaining_string.is_empty() {
+    while !remaining_string.is_empty() { 
         let entry = general_parser(&remaining_string[num_tabs as usize..], line_num);
         match entry {
             Ok(n) => {
                 // Verify the RouterEntry is of the correct type
-                if n.0 == DecType::RouterTable {
-                    // Store the Application entries
+                if n.0 == DecType::RouterEntry {
+                    // Store the RouterTable entries
                     router_entries.push(n.1);
-                    // router_entries.push(
-                    remaining_string = n.2;
+                    *remaining_string = n.2;
+                }
+                else if n.0 == DecType::IP {
+                    // Store the local ips
+                    local_ips.push(
+                        IP {
+                            dectype : n.0,
+                            options : n.1,
+                        }
+                    );
+                    *remaining_string = n.2;
                 }
             }
             Err(e) => {
-                return Err(general_error(
-                    num_tabs - 2,
-                    router_entry_line_num,
-                    dec,
-                    format!("{}{}", num_tabs_to_string(num_tabs + 1), e),
-                ));
+                return Err(e);
             }
         }
 
@@ -609,21 +592,10 @@ fn router_entry_parser(
             t if t < num_tabs => break,
             // next line has too many tabs meaning there is something trying to be declared inside of this type (which can't happen)
             t if t > num_tabs => {
-                return Err(general_error(
-                    num_tabs,
-                    router_entry_line_num,
-                    dec,
-                    format!(
-                        "{}Line {:?}: Invalid tab count. Expected {} tabs, got {} tabs.\n",
-                        num_tabs_to_string(num_tabs + 1),
-                        line_num,
-                        num_tabs,
-                        t
-                    ),
-                ))
+                return Err("Cannot declare new types inside of a router application".to_string());
             }
             _ => (),
         }
     }
-    Ok((router_entries, remaining_string))
+    Ok((router_entries, local_ips))
 }
