@@ -325,6 +325,7 @@ impl DnsResourceRecord {
         name_as_bytes: Vec<u8>,
         time_to_live: u32,
         record_data: Ipv4Address,
+        rec_type: u16
     ) -> DnsResourceRecord {
         DnsResourceRecord {
             name_as_labels: DomainName::from(name_as_bytes.clone()),
@@ -378,6 +379,7 @@ mod tests {
                 Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13]),
+                DnsRTypes::A as u16
             ),
         )
         .unwrap();
@@ -401,6 +403,7 @@ mod tests {
                 Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13]),
+                DnsRTypes::A as u16
             ),
         )
         .unwrap();
@@ -428,6 +431,7 @@ mod tests {
                 Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13]),
+                DnsRTypes::A as u16
             ),
         )
         .unwrap();
@@ -450,6 +454,7 @@ mod tests {
                 Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13]),
+                DnsRTypes::A as u16
             ),
         )
         .unwrap();
@@ -476,6 +481,7 @@ mod tests {
                 Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13]),
+                DnsRTypes::A as u16
             ),
         )
         .unwrap();
@@ -502,6 +508,7 @@ mod tests {
                 Vec::from("google.com"),
                 1600,
                 Ipv4Address::new([10u8, 11, 12, 13]),
+                DnsRTypes::A as u16
             ),
         )
         .unwrap();

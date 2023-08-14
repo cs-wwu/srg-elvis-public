@@ -65,11 +65,11 @@ impl Protocol for DnsTestClient {
         socket.send(req).unwrap();
 
         // Receive a message
-        let _resp = socket.recv(32).await.unwrap();
-        // println!(
-        //     "CLIENT: Response Received: {:?}",
-        //     String::from_utf8(resp).unwrap()
-        // );
+        let resp = socket.recv(32).await.unwrap();
+        println!(
+            "CLIENT: Response Received: {:?}",
+            String::from_utf8(resp).unwrap()
+        );
 
         // Send a message
         // println!("CLIENT: Sending Ackowledgement");

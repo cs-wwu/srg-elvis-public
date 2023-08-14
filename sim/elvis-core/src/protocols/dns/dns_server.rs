@@ -5,34 +5,20 @@ use crate::{
     protocols::{
         ipv4::Ipv4Address,
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
-        Endpoint, SocketAPI,
+        Endpoint, SocketAPI, dns::dns_cache::DnsCacheError,
     },
     Control, Protocol, Session, Shutdown,
 };
 
-use slab_tree::*;
 use std::{any::TypeId, sync::Arc};
-use tokio::sync::{Barrier, Mutex};
+// use futures::lock::Mutex;
+use slab_tree::Tree;
+use tokio::sync::{Barrier, MutexGuard, Mutex};
 
 use super::{dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord, DnsRTypes}, domain_name::DomainName, dns_cache::DnsCache, dns_zone_tree::{DnsZoneNode, DnsZoneTree}};
 
 
 pub const DNS_PORT_NUM: u16 = 53;
-
-// #[derive(Debug)]
-// pub struct DnsZoneNode {
-//     label: String,
-//     record_list: Vec<DnsResourceRecord>,
-// }
-
-// impl DnsZoneNode {
-//     pub fn new(label: String) -> Self {
-//         Self {
-//             label,
-//             record_list: Vec::new(),
-//         }
-//     }
-// }
 
 pub enum DnsServerType {
     // The DNS authoritative server referring to the root "." of any given domain name.
@@ -64,6 +50,7 @@ impl DnsServer {
     }
 
     async fn respond_to_query(
+        zone_tree: Arc<Mutex<Tree<DnsZoneNode>>>,
         cache: DnsCache,
         socket: Arc<Socket>,
     ) -> Result<(), DnsServerError> {
@@ -73,12 +60,36 @@ impl DnsServer {
         let req_msg = DnsMessage::from_bytes(response.iter().cloned()).unwrap();
 
         let name: String = DomainName::from(req_msg.question.qname.to_owned()).into();
-        let rr: DnsResourceRecord = match DnsCache::get_mapping(&cache, &name) {
+
+        //DEBUG PRINTS
+        // SHOWS THAT WE CAN LOOK UP A QNAME IN THE ZONE TREE!!!
+        println!("{:?}", name);
+        let tree = DnsZoneTree{tree: zone_tree};
+        // tree.get_best_zone_match(name.to_owned().into()).await;
+
+        let records: Vec<DnsResourceRecord> = tree.get_best_zone_match(name.to_owned().into()).await.unwrap();
+
+        let cache_lookup: Result<DnsResourceRecord, DnsCacheError> = match DnsCache::get_mapping(&cache, &name) {
+            Ok(rr) => Ok(rr),
+            Err(_) => Err(DnsCacheError::Cache)
+        };
+
+        let rr: DnsResourceRecord = match cache_lookup {
             Ok(rr) => rr,
             Err(_) => {
-                return Err(DnsServerError::Cache);
+                records[0].to_owned()
             }
         };
+        // if cache_lookup.is_err() {
+        //     for r in records {
+        //         if r.name_as_labels == DomainName::from(name.to_owned()) {
+        //             rr = r;
+        //             break
+        //         }
+        //     }
+        // } else {
+        //     rr = cache_lookup.unwrap()
+        // }
 
         // Send a message
         let dns_res_msg = DnsServer::create_response(req_msg, rr).unwrap();
@@ -104,18 +115,20 @@ impl DnsServer {
     /// Continuously accepts new connections and spawns new tokio tasks to 
     /// handle communication with each requester.
     pub async fn accept_loop(
+        zone_tree: Arc<Mutex<Tree<DnsZoneNode>>>,
         cache: DnsCache,
         listen_socket: Arc<Socket>
     ) -> Result<(), DnsServerError> {
         loop {
             let table = cache.clone();
+            let tree = zone_tree.clone();
             // Accept an incoming connection
             let socket = match listen_socket.accept().await {
                 Ok(sock) => sock,
                 Err(_) => return Ok(()),
             };
             tokio::spawn(async move {
-                DnsServer::respond_to_query(table, socket).await.unwrap();
+                DnsServer::respond_to_query(tree, table, socket).await.unwrap();
             });
         }
     }
@@ -130,63 +143,88 @@ impl Protocol for DnsServer {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
 
-        // let mut zone_tree = Arena::<String>::new();
-        let root = DnsZoneNode{
-            label: ".".to_string(),
-            record_list: [
+        let root = DnsZoneNode::new(
+            ".".to_string(), 
+            [
                 DnsResourceRecord::new(
-                    Vec::from("google.com".as_bytes()),
-                    1,
-                    [123, 45, 67, 60].into()
-                ),
-                DnsResourceRecord::new(
-                    Vec::from("testserver.com".as_bytes()),
-                    1,
-                    [123, 45, 67, 15].into()
+                Vec::from("com".as_bytes()),
+                1,
+                [4, 4, 4, 4].into(),
+                DnsRTypes::PTR as u16
                 )
             ].to_vec()
-        };
+        );
 
-        let child = DnsZoneNode{
-            label: "google.com".to_string(),
-            record_list: [
+        let child_one = DnsZoneNode::new(
+            "com".to_string(),
+            [
                 DnsResourceRecord::new(
-                    Vec::from("foo".as_bytes()),
-                    1,
-                    [123, 45, 67, 60].into()
+                Vec::from("google.com".as_bytes()),
+                1,
+                [123, 45, 67, 60].into(),
+                DnsRTypes::A as u16
                 ),
                 DnsResourceRecord::new(
-                    Vec::from("bar".as_bytes()),
-                    1,
-                    [123, 45, 67, 15].into()
+                Vec::from("testserver.com".as_bytes()),
+                1,
+                [123, 45, 67, 15].into(),
+                DnsRTypes::A as u16
                 )
             ].to_vec()
-        };
+        );
+
+        let child_two = DnsZoneNode::new(
+            "google".to_string(),
+            [
+                DnsResourceRecord::new(
+                Vec::from("google.com".as_bytes()),
+                1,
+                [123, 45, 67, 60].into(),
+                DnsRTypes::A as u16
+                )
+            ].to_vec()
+        );
+
+        let child_three = DnsZoneNode::new(
+            "testserver".to_string(),
+            [
+                DnsResourceRecord::new(
+                Vec::from("testserver.com".as_bytes()),
+                1,
+                [123, 45, 67, 15].into(),
+                DnsRTypes::A as u16
+                )
+            ].to_vec()
+        );
 
         // SLAB TREE
 
         self.zone_tree.tree_add_root(root).await;
         let root_id = self.zone_tree.tree.lock().await.root_id().unwrap();
-        self.zone_tree.tree_add_child(root_id, child).await;
+        let child_one_id = self.zone_tree.tree_add_child(root_id, child_one).await;
+        self.zone_tree.tree_add_child(child_one_id, child_two).await;
+        self.zone_tree.tree_add_child(child_one_id, child_three).await;
 
         // self.tree_print().await;
         
         // Adds mappings to the dns server cache. This is a stand-in method of
         // doing it. TODO (HenryEricksonIV)
-        self.cache.add_mapping(
-            "testserver.com".to_string(),
-            DnsResourceRecord::new(
-                Vec::from("testserver.com".as_bytes()),
-                1,
-                [123, 45, 67, 15].into()
-            ));
-        self.cache.add_mapping(
-            "google.com".to_string(),
-            DnsResourceRecord::new(
-                Vec::from("google.com".as_bytes()),
-                1,
-                [123, 45, 67, 60].into()
-            ));
+        // self.cache.add_mapping(
+        //     "testserver.com".to_string(),
+        //     DnsResourceRecord::new(
+        //         Vec::from("testserver.com".as_bytes()),
+        //         1,
+        //         [123, 45, 67, 15].into(),
+        //         DnsRTypes::A as u16
+        //     ));
+        // self.cache.add_mapping(
+        //     "google.com".to_string(),
+        //     DnsResourceRecord::new(
+        //         Vec::from("google.com".as_bytes()),
+        //         1,
+        //         [123, 45, 67, 60].into(),
+        //         DnsRTypes::A as u16
+        //     ));
 
         let sockets = protocols
             .protocol::<SocketAPI>()
@@ -212,8 +250,9 @@ impl Protocol for DnsServer {
         // Spawn tokio task to continuously accept incoming 
         // connections in a loop.
         let table = self.cache.clone();
+        let tree = self.zone_tree.tree.clone();
         tokio::spawn(async move {
-                DnsServer::accept_loop(table, listen_socket).await.unwrap()
+                DnsServer::accept_loop(tree, table, listen_socket).await.unwrap()
             }
         );
         Ok(())

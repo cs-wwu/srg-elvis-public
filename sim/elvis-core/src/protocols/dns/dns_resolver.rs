@@ -99,7 +99,7 @@ impl DnsResolver {
             DnsMessageType::QUERY,
         );
         let question = DnsQuestion::new(vec_name.clone(), DnsRTypes::A as u16);
-        let answer = DnsResourceRecord::new(vec_name, 0, Ipv4Address::new([0, 0, 0, 0]));
+        let answer = DnsResourceRecord::new(vec_name, 0, Ipv4Address::new([0, 0, 0, 0]), DnsRTypes::A as u16);
         let response_msg = DnsMessage::new(header, question, answer).unwrap();
         Ok(response_msg)
     }
@@ -163,7 +163,7 @@ mod tests {
         let domain_name: &str = "Name";
         let name: Vec<u8> = Vec::from("Name");
         let ip: Ipv4Address = Ipv4Address::CURRENT_NETWORK;
-        let rr: DnsResourceRecord = DnsResourceRecord::new(name, 1, ip);
+        let rr: DnsResourceRecord = DnsResourceRecord::new(name, 1, ip, DnsRTypes::A as u16);
         dns.cache.add_mapping(domain_name.to_string(), rr);
 
         // Verify that lookup matches what was added

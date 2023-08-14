@@ -2,8 +2,6 @@
 pub struct DomainName(pub Vec<String>);
 
 impl DomainName {
-    pub const ROOT: &str = ".";
-
     pub fn new(domain_as_labels: Vec<String>) -> DomainName {
         Self(domain_as_labels)
     }
