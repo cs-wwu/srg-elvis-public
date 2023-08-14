@@ -45,6 +45,8 @@ pub mod arp_sims;
 
 pub mod subnet_sims;
 
+pub mod video_streaming;
+
 mod tcp_gigabyte_bench;
 pub use tcp_gigabyte_bench::tcp_gigabyte_bench;
 
