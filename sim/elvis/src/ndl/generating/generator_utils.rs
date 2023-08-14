@@ -72,9 +72,14 @@ pub fn ip_available(
     let local_ip: Ipv4Net = Ipv4Net::new_short([127, 0, 0, 0], 8);
 
     //Find if the requested local_ip is still available for use.
-    if !local_ip.contains(target_ip) && !cur_net_ids
-        .iter()
-        .any(|id| !ip_gen.get(id).expect("Invalid network ID").is_available(Ipv4Net::new_short(target_ip, 32))) {
+    if !local_ip.contains(target_ip)
+        && !cur_net_ids.iter().any(|id| {
+            !ip_gen
+                .get(id)
+                .expect("Invalid network ID")
+                .is_available(Ipv4Net::new_short(target_ip, 32))
+        })
+    {
         return Err("IP not available".to_string());
     }
     //If local ip was found then block it in all other ip generators
@@ -82,4 +87,77 @@ pub fn ip_available(
         gen.block_subnet(Ipv4Net::new_short(target_ip, 32));
     }
     Ok(target_ip)
+}
+
+pub fn generate_router_entry(entry: HashMap<String, String>) -> (Ipv4Net, Option<Ipv4Address>, u32) {
+    assert!(
+        entry.contains_key("dest"),
+        "Router entry doesnt have a dest parameter"
+    );
+    assert!(
+        entry.contains_key("pci_slot"),
+        "Router entry doesnt have a pci_slot parameter"
+    );
+
+    let dest_string = entry.get("dest").unwrap().to_string();
+    let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
+
+    let next_hop = if entry.contains_key("next_hop") {
+        Some(Ipv4Address::new(ip_string_to_ip(
+            entry.get("next_hop").unwrap().to_string(),
+            "next hop",
+        )))
+    } else {
+        None
+    };
+    let dest = Ipv4Net::new_short(ip_string_to_ip(dest_string, "dest"), 32);
+    let pci_slot : u32 = pci_slot_string.parse().unwrap();
+
+    return (dest, next_hop, pci_slot);
+}
+
+//takes in a string and checks if its a name, or an ip address
+// if its a name it returns the coresponding ip address in ipv4 formatt
+// if its just a regular ip address it returns it in the correct formatt
+pub fn name_or_string_ip_to_ip(
+    ip_string: String,
+    name_to_ip: &HashMap<String, Ipv4Address>,
+) -> Ipv4Address {
+    let final_ip;
+    if ip_or_name(ip_string.clone()) {
+        final_ip = Ipv4Address::new(ip_string_to_ip(ip_string, "Arp router"));
+    } else {
+        if name_to_ip.contains_key(&ip_string) {
+            final_ip = name_to_ip.get(&ip_string).unwrap().clone();
+        } else {
+            // here we could seperate the ip addresss from the mask
+            println!("Unable to idenify name or ip {}", ip_string);
+            panic!("name unknown in name_or_string_ip_to_ip")
+        }
+    }
+    final_ip
+}
+
+//takes a string and the naming table and returns the ip adress and mask
+pub fn get_ip_and_mask(s: String, name_to_ip: &HashMap<String, Ipv4Address>) -> (Ipv4Address, u32) {
+    let seperate: Vec<&str> = s.split('/').collect();
+    let address: Ipv4Address;
+    let mask: u32;
+    if seperate.len() == 2 {
+        address = Ipv4Address::new(ip_string_to_ip(seperate[0].to_string(), "Arp router"));
+        mask = seperate[1].parse().unwrap();
+    } else if seperate.len() == 1 {
+        if ip_or_name(seperate[0].to_string().clone()) {
+            address = Ipv4Address::new(ip_string_to_ip(seperate[0].to_string(), "Arp router"));
+            mask = 32;
+        } else if name_to_ip.contains_key(seperate[0]) {
+            address = name_to_ip.get(seperate[0]).unwrap().clone();
+            mask = 32;
+        } else {
+            panic!("Something went wrong in get_ip_and_mask");
+        }
+    } else {
+        panic!("Something went wrong in get_ip_and_mask");
+    }
+    (address, mask)
 }

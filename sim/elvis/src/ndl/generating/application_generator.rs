@@ -2,20 +2,18 @@
 //! Future applications can go here for easy import to the machine generator
 use std::collections::HashMap;
 
-use crate::applications::{Forward, PingPong};
+use crate::applications::{rip::rip_router::RipRouter, ArpRouter, Forward, PingPong, Capture, SendMessage};
 use crate::ip_generator::IpGenerator;
-use crate::ndl::generating::generator_utils::{ip_available, ip_or_name};
+use crate::ndl::generating::generator_utils::*;
 use crate::ndl::parsing::parsing_data::*;
-use crate::{
-    applications::{Capture, SendMessage, ArpRouter},
-    ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
-};
-use elvis_core::protocols::Arp;
+use crate::
+    ndl::generating::generator_utils::{ip_string_to_ip, string_to_port};
+use elvis_core::machine::PciSlot;
+use elvis_core::protocols::arp::subnetting::{Ipv4Mask, SubnetInfo};
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
-use elvis_core::protocols::arp::subnetting::{Ipv4Net, Ipv4Mask, SubnetInfo};
+use elvis_core::protocols::Arp;
 use elvis_core::protocols::{Endpoint, Endpoints};
 use elvis_core::{IpTable, Message};
-use elvis_core::machine::PciSlot;
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
     app: &Application,
@@ -44,11 +42,10 @@ pub fn send_message_builder(
         .unwrap_or_else(|| Ipv4Address::new([127, 0, 0, 1])); //Default to local ip if none is provided
 
     // Check if IP is available
-    let ip = ip_available(target_ip.into(), ip_gen, cur_net_ids).expect("send_message IP unavailable");
+    let ip =
+        ip_available(target_ip.into(), ip_gen, cur_net_ids).expect("send_message IP unavailable");
 
     ip_table.add_direct(ip, Recipient::new(0, None));
-    
-    
 
     let to = app.options.get("to").unwrap().to_string();
     let port = string_to_port(app.options.get("port").unwrap().to_string());
@@ -89,7 +86,6 @@ pub fn capture_builder(
     ip_gen: &mut HashMap<String, IpGenerator>,
     cur_net_ids: &Vec<String>,
 ) -> Capture {
-
     assert!(
         app.options.contains_key("port"),
         "Capture application doesn't contain port."
@@ -206,7 +202,6 @@ pub fn ping_pong_builder(
     ip_gen: &mut HashMap<String, IpGenerator>,
     cur_net_ids: &Vec<String>,
 ) -> PingPong {
-
     assert!(
         app.options.contains_key("local_port"),
         "Forward application doesn't contain local port."
@@ -279,141 +274,97 @@ pub fn ping_pong_builder(
     }
 }
 
-
-// builds a rip router 
+// builds a rip router
 pub fn rip_router_builder(
     app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>, 
+    name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
-    ip_gen: &mut HashMap<String, IpGenerator>,) {
-    
-}
-
-
-pub fn arp_router_builder(
-    app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>, 
-    ip_table: &mut IpTable<Recipient>,
-    ip_gen: &mut HashMap<String, IpGenerator>,) -> ArpRouter{
-
+    ip_gen: &mut HashMap<String, IpGenerator>,
+    cur_net_ids: &Vec<String>,
+) -> (ArpRouter, RipRouter) {
     let router_table_entries = app.router_table.clone().unwrap().0;
     let router_ips = app.router_table.clone().unwrap().1;
 
     let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
 
-    for entry in router_table_entries {
-        assert!(
-            entry.contains_key("dest"),
-            "Router entry doesnt have a dest parameter"
-        );
-        assert!(
-            entry.contains_key("pci_slot"),
-            "Router entry doesnt have a pci_slot parameter"
-        );
-        assert!(
-            entry.contains_key("next_hop"),
-            "Router entry doesnt have a next_hop parameter"
-        );
-        let dest_string = entry.get("dest").unwrap().to_string();
-        let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
-        let next_hop_string = entry.get("next_hop").unwrap().to_string();
-
-        // get_ip_and_mask might work here, not sure though
-        // do we need to match the destiations with the ip gen???
-        let pre_dest = get_ip_and_mask(dest_string, name_to_ip);
-        let dest = Ipv4Net::new(
-            pre_dest.0,
-            Ipv4Mask::from_bitcount(pre_dest.1),
-        );
-        let pci_slot = pci_slot_string.parse().unwrap();
-        let next_hop = name_or_string_ip_to_ip( next_hop_string, name_to_ip);
-        
-        router_table.add(dest, (Some(next_hop), pci_slot));
-        
+    for router_entry in router_table_entries {
+        let line = generate_router_entry(router_entry);
+        router_table.add(line.0, (line.1, line.2));
     }
 
-    
     let mut local_ips = Vec::new();
-    for entry in router_ips.iter(){
-        if entry.options.contains_key("ip"){
+    for entry in router_ips.iter() {
+        if entry.options.contains_key("ip") {
             let ip_string = entry.options.get("ip").unwrap().to_string();
-            let router_ip = ip_string_to_ip( ip_string, "router ip");
-            
-            local_ips.push(router_ip.into());
+
+            let ip = ip_available(
+                ip_string_to_ip(ip_string, "router ip").into(),
+                ip_gen,
+                cur_net_ids,
+            )
+            .expect("ArpRouter local IP unavailable");
+            ip_table.add_direct(ip, Recipient::new(0, None));
+            local_ips.push(ip.into());
+        }
+    }
+    let rip = RipRouter::new(local_ips.clone());
+    let arp = ArpRouter::new(router_table, local_ips);
+    return (arp, rip);
+
+}
+
+pub fn arp_router_builder(
+    app: &Application,
+    name_to_ip: &HashMap<String, Ipv4Address>,
+    ip_table: &mut IpTable<Recipient>,
+    ip_gen: &mut HashMap<String, IpGenerator>,
+    cur_net_ids: &Vec<String>,
+) -> ArpRouter {
+    let router_table_entries = app.router_table.clone().unwrap().0;
+    let router_ips = app.router_table.clone().unwrap().1;
+
+    let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
+
+    for router_entry in router_table_entries {
+        let line = generate_router_entry(router_entry);
+        router_table.add(line.0, (line.1, line.2));
+    }
+
+    let mut local_ips = Vec::new();
+    for entry in router_ips.iter() {
+        if entry.options.contains_key("ip") {
+            let ip_string = entry.options.get("ip").unwrap().to_string();
+
+            let ip = ip_available(
+                ip_string_to_ip(ip_string, "router ip").into(),
+                ip_gen,
+                cur_net_ids,
+            )
+            .expect("ArpRouter local IP unavailable");
+            ip_table.add_direct(ip, Recipient::new(0, None));
+            local_ips.push(ip.into());
         }
     }
 
     ArpRouter::new(router_table, local_ips)
-    
-    
 }
 
-
-
-
-//takes in a string and checks if its a name, or an ip address
-// if its a name it returns the coresponding ip address in ipv4 formatt
-// if its just a regular ip address it returns it in the correct formatt
-pub fn name_or_string_ip_to_ip(
-    ip_string : String,
+pub fn arp_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
-) 
--> Ipv4Address{
-    let final_ip;
-    if ip_or_name (ip_string.clone()){
-        final_ip = Ipv4Address::new(ip_string_to_ip(ip_string, "Arp router"));
-    } else {
-        if name_to_ip.contains_key(&ip_string){
-            final_ip = name_to_ip.get(&ip_string).unwrap().clone();
-        } else {
-            // here we could seperate the ip addresss from the mask
-            println!("Unable to idenify name or ip {}", ip_string);
-            panic!("name unknown in name_or_string_ip_to_ip")
-        }
-    }
-    final_ip
-}
-
-//takes a string and the naming table and returns the ip adress and mask 
-pub fn get_ip_and_mask(s: String, name_to_ip: &HashMap<String, Ipv4Address>,) -> (Ipv4Address, u32) {
-    let seperate : Vec<&str> = s.split('/').collect();
-    let address: Ipv4Address;
-    let mask: u32;
-    if seperate.len() == 2 {
-        address = Ipv4Address::new(ip_string_to_ip(seperate[0].to_string(), "Arp router"));
-        mask = seperate[1].parse().unwrap();
-    } else if seperate.len() == 1 {
-        if ip_or_name(seperate[0].to_string().clone()) {
-            address = Ipv4Address::new(ip_string_to_ip(seperate[0].to_string(), "Arp router"));
-            mask = 32;
-        } else if name_to_ip.contains_key(seperate[0]){
-            address = name_to_ip.get(seperate[0]).unwrap().clone();
-            mask = 32;
-        } else {
-            panic!("Something went wrong in get_ip_and_mask");
-        }
-    } else {
-        panic!("Something went wrong in get_ip_and_mask");
-    }
-    (address, mask)
-}
-
-
-pub fn arp_builder(name_to_ip : &HashMap<String, Ipv4Address>, options: &HashMap<String, String>) -> Arp {
+    options: &HashMap<String, String>,
+) -> Arp {
     if options.contains_key("local") {
         assert!(
             options.contains_key("default"),
             "Arp protocol doesn't contain default."
         );
-        
+
         let default = options.get("default").unwrap().to_string();
         let default_gateway = match ip_or_name(default.clone()) {
             true => Ipv4Address::new(ip_string_to_ip(default.clone(), "default arp id")),
-            false => {
-                match name_to_ip.contains_key(&default) {
-                    true => *name_to_ip.get(&default).unwrap(),
-                    false => panic!("Invalid name for default arp gateway"),
-                }
+            false => match name_to_ip.contains_key(&default) {
+                true => *name_to_ip.get(&default).unwrap(),
+                false => panic!("Invalid name for default arp gateway"),
             },
         };
         Arp::basic().preconfig_subnet(
