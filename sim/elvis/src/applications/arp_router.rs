@@ -1,24 +1,33 @@
 use elvis_core::{
+    ip_table::Rte,
     machine::PciSlot,
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
+        arp::subnetting::Ipv4Net,
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
         AddressPair, Arp, Ipv4, Pci,
     },
     Control, IpTable, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
+use std::{cmp::min, sync::RwLock};
 use tokio::sync::Barrier;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+use super::rip_parsing::{RipEntry, RipPacket};
+
+// entry representing next hop, outgoing interface, metric and route change flag
+const INFINITY: u32 = 16;
+
+#[derive(Debug)]
 /// Static router that uses arp to route messages to the correct location
 /// created by providing a table mapping subnet to router ip and pci slot
 /// requires a local ip to be specified for each pci session
 pub struct ArpRouter {
-    ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
+    ip_table: RwLock<IpTable<Rte>>,
     local_ips: Vec<Ipv4Address>,
+    name: Option<String>,
 }
 
 impl ArpRouter {
@@ -30,8 +39,124 @@ impl ArpRouter {
         local_ips: Vec<Ipv4Address>,
     ) -> Self {
         Self {
-            ip_table,
+            ip_table: RwLock::new(ip_table.into()),
             local_ips,
+            name: None,
+        }
+    }
+
+    pub fn debug(mut self, name: String) -> Self {
+        self.name = Some(name);
+        self
+    }
+
+    // generate rip packets for each entry in the router that has a
+    // destination router to send to
+    pub fn generate_request(&self) -> Vec<RipPacket> {
+        let mut output: Vec<RipPacket> = Vec::new();
+        let mut entries: Vec<RipEntry> = Vec::new();
+
+        for entry in self.ip_table.read().unwrap().iter() {
+            if let Some(next_hop) = entry.1.next_hop {
+                let rip_entry =
+                    RipEntry::new_entry(entry.0.id(), next_hop, entry.0.mask(), entry.1.metric);
+
+                entries.push(rip_entry);
+            }
+
+            if entries.len() == 25 {
+                output.push(RipPacket::new_request(entries));
+                entries = Vec::new();
+            }
+        }
+
+        output
+    }
+
+    /// processes the packet of an incoming rip request and returns relevent
+    /// information to calling process
+    pub fn process_request(&self, neighbor_ip: Ipv4Address, packet: RipPacket) -> Vec<RipPacket> {
+        let mut output: Vec<RipPacket> = Vec::new();
+        let mut entries = packet.entries;
+
+        // if entries is 1 and metric and address family id of that entry is
+        // 0, process whole table request
+        if entries.len() == 1 && entries[0].address_family_id == 0 {
+            let mut frame: Vec<RipEntry> = Vec::new();
+
+            for entry in self.ip_table.read().unwrap().iter() {
+                let element: RipEntry =
+                    RipEntry::new_entry(entry.0.id(), neighbor_ip, entry.0.mask(), entry.1.metric);
+
+                frame.push(element);
+
+                // every 25th entry add the current frame to the output vector
+                if frame.len() == 25 {
+                    output.push(RipPacket::new_response(frame));
+                    frame = Vec::new();
+                }
+            }
+
+            if frame.len() > 0 {
+                output.push(RipPacket::new_response(frame));
+            }
+
+            return output;
+        }
+
+        // otherwise obtain the metrics for each entry that exists on the routing table
+        for mut entry in entries.iter_mut() {
+            if let Some(route) = self
+                .ip_table
+                .read()
+                .unwrap()
+                .get_recipient(entry.ip_address)
+            {
+                entry.metric = route.metric;
+            } else {
+                entry.metric = INFINITY;
+            }
+        }
+
+        output.push(RipPacket::new_response(entries));
+        output
+    }
+
+    pub fn process_response(
+        &self,
+        neighbor_ip: Ipv4Address,
+        neighbor_slot: PciSlot,
+        packet: RipPacket,
+    ) {
+        let entries = packet.entries;
+        let mut ip_table_ref = self.ip_table.write().unwrap();
+
+        for entry in entries {
+            // cost of going to new route is metric provided by packet
+            // + the cost of traveling to that destination
+            let metric = min(entry.metric + 1, INFINITY);
+
+            let destination = entry.ip_address;
+            let mask = entry.subnet_mask;
+
+            match ip_table_ref.get_recipient(destination) {
+                Some(recipient) => {
+                    if recipient.metric > metric {
+                        ip_table_ref.add(
+                            Ipv4Net::new(destination, mask),
+                            Rte::new(Some(neighbor_ip), mask, neighbor_slot, metric),
+                        );
+                    }
+                }
+                None => {
+                    if metric < INFINITY {
+                        ip_table_ref.add(
+                            Ipv4Net::new(destination, mask),
+                            Rte::new(Some(neighbor_ip), mask, neighbor_slot, metric),
+                        );
+                    }
+                }
+            }
         }
     }
 }
@@ -91,17 +216,20 @@ impl Protocol for ArpRouter {
 
         message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
 
-        let pair = self
+        let rte = self
             .ip_table
+            .read()
+            .unwrap()
             .get_recipient(ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
 
-        let gateway = match pair.0 {
+        let gateway = match rte.next_hop {
             Some(address) => address,
             // allows router to send packet back to local network
             None => ipv4_header.destination,
         };
-        let slot = pair.1;
+
+        let slot = rte.slot;
 
         let arp = protocols.protocol::<Arp>().unwrap();
 

@@ -1,11 +1,9 @@
-use std::collections::BTreeMap;
-use std::fmt;
-
+use crate::machine::PciSlot;
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
+use std::collections::BTreeMap;
+use std::fmt;
 use std::fmt::Debug;
-
-#[derive(Clone, Eq, PartialEq)]
 
 /// An IpTable is a type of map that maps (Ipv4, Ipv4Mask) to the given type T
 /// this mapping is different from a traditional HashMap/TreeMap in a sense
@@ -13,6 +11,8 @@ use std::fmt::Debug;
 /// When the ipv4 address is provided the table starts with the highest
 /// mask on the table and applies it to the provided ipv4address then
 /// checks if the masked ipv4address, mask pair is in the table
+#[derive(Eq, PartialEq)]
+
 pub struct IpTable<T> {
     table: BTreeMap<Obm, T>,
 }
@@ -90,6 +90,34 @@ impl<T: Copy> IpTable<T> {
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = (Ipv4Net, T)> + '_ {
         self.table.iter().map(|(net, value)| (net.0, *value))
     }
+
+    // pub fn iter_mut(&mut self) -> IterMut<Obm, T> {
+    //     self.table.iter_mut()
+    // }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Rte {
+    pub next_hop: Option<Ipv4Address>,
+    pub mask: Ipv4Mask,
+    pub slot: PciSlot,
+    pub metric: u32,
+}
+
+impl Rte {
+    pub fn new(
+        next_hop: Option<Ipv4Address>,
+        mask: Ipv4Mask,
+        slot: PciSlot,
+        metric: u32,
+    ) -> Self {
+        Self {
+            next_hop,
+            mask,
+            slot,
+            metric,
+        }
+    }
 }
 
 /// Allows conversion of Recipients into IpTable
@@ -101,6 +129,14 @@ impl From<Recipients> for IpTable<Recipient> {
             table.add_direct(*pair.0, *pair.1);
         }
         table
+    }
+}
+
+impl<T: Copy> Clone for IpTable<T> {
+    fn clone(&self) -> Self {
+        Self {
+            table: self.table.clone(),
+        }
     }
 }
 
@@ -144,6 +180,16 @@ impl<'a, T: Copy> FromIterator<(&'a str, T)> for IpTable<T> {
         let mut table = Self::new();
         for pair in iter {
             table.add_cidr(pair.0, pair.1);
+        }
+        table
+    }
+}
+
+impl From<IpTable<(Option<Ipv4Address>, PciSlot)>> for IpTable<Rte> {
+    fn from(other: IpTable<(Option<Ipv4Address>, PciSlot)>) -> IpTable<Rte> {
+        let mut table = IpTable::new();
+        for entry in other.iter() {
+            table.add(entry.0, Rte::new(entry.1 .0, entry.0.mask(), entry.1 .1, 1));
         }
         table
     }

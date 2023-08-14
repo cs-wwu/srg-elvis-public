@@ -50,3 +50,10 @@ pub use tcp_stream::tcp_stream;
 
 mod udp_broadcast;
 pub use udp_broadcast::udp_broadcast_basic;
+
+mod rip_router_sim;
+pub use rip_router_sim::rip_router;
+
+mod localhost;
+pub use localhost::localhost;
+

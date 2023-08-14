@@ -8,7 +8,7 @@ use crate::{
     network::Mac,
     protocol::{DemuxError, StartError},
     protocols::pci::Pci,
-    Control, FxDashMap, IpTable, Protocol, Session, Shutdown,
+    Control, FxDashMap, IpTable, Network, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
@@ -42,6 +42,7 @@ pub enum ProtocolNumber {
     RESERVED = 255,
     DEFAULT = 0,
 }
+
 // Enum for which upstream protocol to use
 // see https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
 // for more info about protocol numbers
@@ -61,7 +62,6 @@ impl From<u8> for ProtocolNumber {
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     listen_bindings: FxDashMap<(Ipv4Address, ProtocolNumber), TypeId>,
-
     recipients: IpTable<Recipient>,
 }
 
@@ -106,9 +106,11 @@ impl Ipv4 {
             }
         };
 
-        // if ARP exists, and recipient does not specify a destination MAC, then try to figure out a destination MAC
-        // don't try to send arp requests if the remote enpoint is the broadcast address
-        if recipient.mac.is_none() {
+        // if sending to 255.255.255.255, use broadcast mac
+        if endpoints.remote == Ipv4Address::SUBNET {
+            recipient.mac = Some(Network::BROADCAST_MAC);
+        } else if recipient.mac.is_none() {
+            // if ARP exists, and recipient does not specify a destination MAC, then try to figure out a destination MAC
             if let Some(arp) = protocols.protocol::<Arp>() {
                 arp.listen(endpoints.local);
                 let resolved_mac = arp
@@ -188,6 +190,7 @@ impl Protocol for Ipv4 {
         };
         control.insert(header);
         message.remove_front(header.ihl as usize * 4);
+
         let endpoints = AddressPair {
             local: header.destination,
             remote: header.source,
@@ -210,8 +213,9 @@ impl Protocol for Ipv4 {
                     Some(binding) => *binding,
                     None => {
                         tracing::error!(
-                            "Could not find a listen binding for the local address {}",
-                            endpoints.local
+                            "Could not find a listen binding for the local address {} {:?}",
+                            endpoints.local,
+                            self.listen_bindings
                         );
                         Err(DemuxError::MissingSession)?
                     }

@@ -39,9 +39,10 @@ const ROUTER2_IPS: [Ipv4Address; 4] = [
 
 pub fn build_ip_table(addresses: &[Ipv4Address]) -> IpTable<Recipient> {
     let mut router_table = IpTable::<Recipient>::new();
-
+    let mut slot = 0;
     for address in addresses.iter() {
-        router_table.add_direct(*address, Recipient::new(0, None));
+        router_table.add_direct(*address, Recipient::new(slot, None));
+        slot += 1;
     }
     router_table
 }
@@ -67,6 +68,7 @@ pub fn build_capture(network: Arc<Network>, address: Ipv4Address, exit_status: u
       o or (n)   :  network
 
     - or | or /  :  connection
+
 */
 
 /*routes packet from destination 0 to one of the given destinations 1,2,3
