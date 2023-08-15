@@ -193,27 +193,25 @@ impl Protocol for DnsServer {
         let child_one_id = self.zone_tree.tree_add_child(root_id, child_one).await;
         self.zone_tree.tree_add_child(child_one_id, child_two).await;
         self.zone_tree.tree_add_child(child_one_id, child_three).await;
-
-        // self.tree_print().await;
         
         // Adds mappings to the dns server cache. This is a stand-in method of
         // doing it. TODO (HenryEricksonIV)
-        // self.cache.add_mapping(
-        //     "testserver.com".to_string(),
-        //     DnsResourceRecord::new(
-        //         Vec::from("testserver.com".as_bytes()),
-        //         1,
-        //         [123, 45, 67, 15].into(),
-        //         DnsRTypes::A as u16
-        //     ));
-        // self.cache.add_mapping(
-        //     "google.com".to_string(),
-        //     DnsResourceRecord::new(
-        //         Vec::from("google.com".as_bytes()),
-        //         1,
-        //         [123, 45, 67, 60].into(),
-        //         DnsRTypes::A as u16
-        //     ));
+        self.cache.add_mapping(
+            "testserver.com".to_string(),
+            DnsResourceRecord::new(
+                Vec::from("testserver.com".as_bytes()),
+                1,
+                [123, 45, 67, 15].into(),
+                DnsRTypes::A as u16
+            ));
+        self.cache.add_mapping(
+            "google.com".to_string(),
+            DnsResourceRecord::new(
+                Vec::from("google.com".as_bytes()),
+                1,
+                [123, 45, 67, 60].into(),
+                DnsRTypes::A as u16
+            ));
 
         let sockets = protocols
             .protocol::<SocketAPI>()
