@@ -502,7 +502,10 @@ fn machine_applications_parser(
                 ));
             }
         }
+        //Check remaining string to identify indentation of next line
         t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
+
+        //Case: there are no more applications to parse
         if t < num_tabs {
             apps.push(Application {
                 dectype: app_dectype.unwrap(),
@@ -511,6 +514,7 @@ fn machine_applications_parser(
             });
             break;
         }
+        //Case: next line is indented which means router entries are being provided
         else if t > num_tabs {
             //Parse router entries
             let router_table = router_entry_parser(
@@ -523,12 +527,14 @@ fn machine_applications_parser(
                 options: app_options.unwrap(),
                 router_table: Some(router_table),
             });
+            //Check if there is another application after router entries
             t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
             if t < num_tabs {
                 break;
             }
 
         }
+        //Case: Same indentation means there is another application on the next line
         else {
             apps.push(Application {
                 dectype: app_dectype.unwrap(),

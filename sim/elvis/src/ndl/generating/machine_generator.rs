@@ -169,15 +169,32 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 let app_name = app.options.get("name").unwrap().as_str();
                 match app_name {
                     "send_message" => {
-                        protocol_map = protocol_map.with(send_message_builder(app, &name_to_ip, &mut ip_table, &mut ip_gen, &net_ids))
+                        protocol_map = protocol_map.with(send_message_builder(
+                            app,
+                            &name_to_ip,
+                            &mut ip_table,
+                            &mut ip_gen,
+                            &net_ids
+                        ))
                     }
-
                     "capture" => {
-                        protocol_map = protocol_map.with(capture_builder(app, &mut ip_table, &mut ip_gen, &net_ids));
+                        protocol_map = protocol_map.with(capture_builder(
+                            app,
+                            &name_to_ip,
+                            &mut ip_table,
+                            &mut ip_gen,
+                            &net_ids
+                        ))
                     }
 
                     "forward" => {
-                        protocol_map = protocol_map.with(forward_message_builder(app, &name_to_ip, &mut ip_table, &mut ip_gen, &net_ids))
+                        protocol_map = protocol_map.with(forward_message_builder(
+                            app,
+                            &name_to_ip,
+                            &mut ip_table,
+                            &mut ip_gen,
+                            &net_ids
+                        ))
                     }
 
                     "ping_pong" => {

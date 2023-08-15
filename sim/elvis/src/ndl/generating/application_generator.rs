@@ -82,6 +82,7 @@ pub fn send_message_builder(
 /// Builds the [Capture] application for a machine
 pub fn capture_builder(
     app: &Application,
+    name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
     cur_net_ids: &Vec<String>,
@@ -310,7 +311,6 @@ pub fn rip_router_builder(
     let rip = RipRouter::new(local_ips.clone());
     let arp = ArpRouter::new(router_table, local_ips);
     return (arp, rip);
-
 }
 
 pub fn arp_router_builder(
