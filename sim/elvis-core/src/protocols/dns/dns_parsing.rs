@@ -405,7 +405,7 @@ mod tests {
         assert_eq!(head.id, 1337);
         assert_eq!(head.properties, 32768);
         assert_eq!(head.qdcount, 0);
-        assert_eq!(head.ancount, 0);
+        assert_eq!(head.ancount, 1);
         assert_eq!(head.nscount, 0);
         assert_eq!(head.arcount, 0);
     }
@@ -433,7 +433,7 @@ mod tests {
         assert_eq!(head_final.id, 1337);
         assert_eq!(head_final.properties, 0);
         assert_eq!(head_final.qdcount, 0);
-        assert_eq!(head_final.ancount, 0);
+        assert_eq!(head_final.ancount, 1);
         assert_eq!(head_final.nscount, 0);
         assert_eq!(head_final.arcount, 0);
     }
