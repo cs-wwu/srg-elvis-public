@@ -78,8 +78,8 @@ impl DnsResolver {
 
                 let res_msg = DnsMessage::from_bytes(resp.iter()).unwrap();
 
-                let name_to_add = String::from_utf8(res_msg.answer.name.clone()).unwrap();
-                self.cache.add_mapping(name_to_add, res_msg.answer);
+                let name_to_add = String::from_utf8(res_msg.question.qname.clone()).unwrap();
+                self.cache.add_mapping(name_to_add, res_msg.answers[0].to_owned());
 
 
                 Ok(self.cache.get_mapping(&name).unwrap().to_ipv4())
@@ -97,10 +97,11 @@ impl DnsResolver {
             // Temporary. Still need to implement unique transaction id's.
             to_rand,
             DnsMessageType::QUERY,
+            1
         );
         let question = DnsQuestion::new(vec_name.clone(), DnsRTypes::A as u16);
-        let answer = DnsResourceRecord::new(vec_name, 0, Ipv4Address::new([0, 0, 0, 0]), DnsRTypes::A as u16);
-        let response_msg = DnsMessage::new(header, question, answer).unwrap();
+        let answers = Vec::from([DnsResourceRecord::new(vec_name, 0, Ipv4Address::new([0, 0, 0, 0]), DnsRTypes::A as u16)]);
+        let response_msg = DnsMessage::new(header, question, answers).unwrap();
         Ok(response_msg)
     }
 }

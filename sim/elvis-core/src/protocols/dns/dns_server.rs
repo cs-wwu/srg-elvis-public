@@ -55,7 +55,7 @@ impl DnsServer {
         socket: Arc<Socket>,
     ) -> Result<(), DnsServerError> {
         // Receive a message
-        let response = socket.recv(80).await.unwrap();
+        let response = socket.recv(200).await.unwrap();
 
         let req_msg = DnsMessage::from_bytes(response.iter().cloned()).unwrap();
 
@@ -70,26 +70,16 @@ impl DnsServer {
         let records: Vec<DnsResourceRecord> = tree.get_best_zone_match(name.to_owned().into()).await.unwrap();
 
         let cache_lookup: Result<DnsResourceRecord, DnsCacheError> = match DnsCache::get_mapping(&cache, &name) {
-            Ok(rr) => Ok(rr),
+            Ok(r) => Ok(r),
             Err(_) => Err(DnsCacheError::Cache)
         };
 
-        let rr: DnsResourceRecord = match cache_lookup {
-            Ok(rr) => rr,
+        let rr: Vec<DnsResourceRecord> = match cache_lookup {
+            Ok(rr) => Vec::from([rr]),
             Err(_) => {
-                records[0].to_owned()
+                records.to_owned()
             }
         };
-        // if cache_lookup.is_err() {
-        //     for r in records {
-        //         if r.name_as_labels == DomainName::from(name.to_owned()) {
-        //             rr = r;
-        //             break
-        //         }
-        //     }
-        // } else {
-        //     rr = cache_lookup.unwrap()
-        // }
 
         // Send a message
         let dns_res_msg = DnsServer::create_response(req_msg, rr).unwrap();
@@ -103,12 +93,11 @@ impl DnsServer {
     /// (HenryEricksonIV).
     pub fn create_response(
         query_msg: DnsMessage,
-        answer_rr: DnsResourceRecord,
+        answers: Vec<DnsResourceRecord>,
     ) -> Result<DnsMessage, DnsServerError> {
-        let header = DnsHeader::new(query_msg.header.id, DnsMessageType::RESPONSE);
+        let header = DnsHeader::new(query_msg.header.id, DnsMessageType::RESPONSE, answers.len() as u16);
         let question = DnsQuestion::new(query_msg.question.qname, DnsRTypes::A as u16);
-        let answer = answer_rr;
-        let response_msg = DnsMessage::new(header, question, answer).unwrap();
+        let response_msg = DnsMessage::new(header, question, answers).unwrap();
         Ok(response_msg)
     }
 
