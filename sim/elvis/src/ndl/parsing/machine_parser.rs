@@ -213,6 +213,7 @@ fn machine_parser(
                                 }
 
                                 Err(e) => {
+                                    println!("Message: \n{}", e);
                                     return Err(general_error(
                                         num_tabs,
                                         machine_line_num,
@@ -479,6 +480,23 @@ fn machine_applications_parser(
                 }
                 //No application was found on the current line
                 else if n.0 != DecType::Application {
+                    println!("error 1:\n{}",format!(
+                        "{}Line {:?}: expected type Application and got type {:?} instead.\n",
+                        num_tabs_to_string(num_tabs + 1),
+                        *line_num - 1,
+                        n.0
+                    ));
+                    println!("Formatted error \n{}", general_error(
+                        num_tabs,
+                        applications_line_num,
+                        dec.clone(),
+                        format!(
+                            "{}Line {:?}: expected type Application and got type {:?} instead.\n",
+                            num_tabs_to_string(num_tabs + 1),
+                            *line_num - 1,
+                            n.0
+                        ),
+                    ));
                     return Err(general_error(
                         num_tabs,
                         applications_line_num,
@@ -494,6 +512,8 @@ fn machine_applications_parser(
             }
             //General parses was unable to parse the line
             Err(e) => {
+                println!("error 2:\n{}",format!("{}{}", num_tabs_to_string(num_tabs + 1), e));
+
                 return Err(general_error(
                     num_tabs - 2,
                     applications_line_num,
@@ -517,11 +537,25 @@ fn machine_applications_parser(
         //Case: next line is indented which means router entries are being provided
         else if t > num_tabs {
             //Parse router entries
-            let router_table = router_entry_parser(
+            let router_table = match router_entry_parser(
                 &mut remaining_string,
                 num_tabs + 1,
                 line_num,
-            ).expect("Router entries failed");
+            ){
+                Ok(n) => n,
+                Err(e) => return Err(general_error(
+                    num_tabs,
+                    applications_line_num,
+                    dec,
+                    format!(
+                        "{}Line {:?}: Router information cannot be parsed: {}\n",
+                        num_tabs_to_string(num_tabs + 1),
+                        *line_num - 1,
+                        e
+                    ),
+                )),
+            };
+
             apps.push(Application {
                 dectype: app_dectype.unwrap(),
                 options: app_options.unwrap(),
@@ -563,7 +597,7 @@ fn router_entry_parser(
     if t != num_tabs {
         return Err("Invalid formatting for RouterEntry".to_string());
     }
-    while !remaining_string.is_empty() { 
+    while !remaining_string.is_empty() {
         let entry = general_parser(&remaining_string[num_tabs as usize..], line_num);
         match entry {
             Ok(n) => {
@@ -583,8 +617,12 @@ fn router_entry_parser(
                     );
                     *remaining_string = n.2;
                 }
+                else {
+                    return Err("Invalid router sub-type".to_string());
+                }
             }
             Err(e) => {
+                // General parser error
                 return Err(e);
             }
         }

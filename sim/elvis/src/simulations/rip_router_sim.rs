@@ -31,9 +31,9 @@ const ROUTER1_IPS: [Ipv4Address; 4] = [
 ];
 
 const ROUTER2_IPS: [Ipv4Address; 3] = [
-    Ipv4Address::new([123, 45, 66, 92]),
-    Ipv4Address::new([123, 45, 66, 93]),
-    Ipv4Address::new([123, 45, 66, 94]),
+    Ipv4Address::new([123, 45, 66, 96]),
+    Ipv4Address::new([123, 45, 66, 97]),
+    Ipv4Address::new([123, 45, 66, 98]),
 ];
 
 pub fn build_ip_table(addresses: &[Ipv4Address]) -> IpTable<Recipient> {

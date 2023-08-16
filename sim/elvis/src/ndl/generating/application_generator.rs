@@ -309,7 +309,9 @@ pub fn rip_router_builder(
         }
     }
     let rip = RipRouter::new(local_ips.clone());
-    let arp = ArpRouter::new(router_table, local_ips);
+    let arp = ArpRouter::new(router_table.clone(), local_ips.clone());
+    println!("Router table: {:?}", router_table.clone());
+    println!("Router local ips: {:?}", local_ips.clone());
     return (arp, rip);
 }
 
