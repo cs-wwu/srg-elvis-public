@@ -44,7 +44,7 @@ impl Protocol for TcpStreamClient {
         ];
         stream.write(msg1.clone()).await.unwrap();
 
-        // Recieve bytes from the server using read_exact 
+        // Recieve bytes from the server using read_exact
         let max_bytes: usize = 4;
         let received_msg1: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
 
@@ -65,7 +65,7 @@ impl Protocol for TcpStreamClient {
         ];
         stream.write(msg2.clone()).await.unwrap();
 
-        // Recieve bytes from the server using read_exact 
+        // Recieve bytes from the server using read_exact
         let max_bytes: usize = 4;
         let received_msg2: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
 
