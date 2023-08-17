@@ -1,17 +1,18 @@
 use crate::{
-    applications::{dhcp_server::DhcpServer, Capture, SendMessage},
+    applications::{dhcp_server::DhcpServer, Capture, SendMessage, OnReceive},
     ip_generator::*,
 };
 use elvis_core::{
     new_machine,
     protocols::{
-        dhcp::{dhcp_client::DhcpClient, dhcp_client_listener::DhcpClientListener},
+        dhcp::{dhcp_client::DhcpClient, dhcp_client_listener::DhcpClientListener, dhcp_client::CurrentState},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, IpTable, Message, Network,
+    run_internet, run_internet_with_timeout, IpTable, Message, Network,
 };
+use tokio::time::{Duration, sleep};
 
 // Sim to test basic IP address allocation from server
 pub async fn dhcp_basic_offer() {
@@ -59,8 +60,7 @@ pub async fn dhcp_basic_offer() {
             SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
         ],
     ];
-
-    run_internet(&machines).await;
+    run_internet(&machines);
 }
 
 // Sim to test clients returning IP to server
@@ -133,6 +133,54 @@ pub async fn dhcp_basic_release() {
         .is_some());
 }
 
+pub async fn dhcp_lease_test() {
+    let network = Network::basic();
+    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
+    const RECV_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 0]);
+    const RECV_ENDPOINT: Endpoint = Endpoint::new(RECV_IP, 0);
+    let ip_table: IpTable<Recipient> = [
+        (DHCP_SERVER_IP, Recipient::with_mac(0, 0)),
+        (RECV_IP, Recipient::with_mac(0, 1)),
+    ]
+    .into_iter()
+    .collect();
+    let dummy = "Hi";
+    let dummy2 = 3;
+
+    let machines = vec![
+        // Server
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpServer::new(DHCP_SERVER_IP, IpRange::new(1.into(), 255.into())),
+        ],
+        // This machine waits so the machines don't stop running prematurely.
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            OnReceive::new(move |dummy, dummy2| {sleep(Duration::from_secs(8));}, RECV_ENDPOINT),
+        ],
+        // This machine and the next will get their IP addresses from the DHCP server and then send
+        // messages to the sleep machine.
+        new_machine![
+            Udp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            DhcpClient::new(DHCP_SERVER_IP, None),
+            SendMessage::new(vec![Message::new("Hi")], RECV_ENDPOINT),
+        ],
+    ];
+    run_internet(&machines);
+
+    let client = machines.get(2).unwrap();
+    let time = 5;
+
+    assert_eq!(3, 3);
+
+}
+
 #[cfg(test)]
 mod tests {
     #[tokio::test]
@@ -142,5 +190,9 @@ mod tests {
     #[tokio::test]
     async fn dhcp_basic_release() {
         super::dhcp_basic_release().await;
+    }
+    #[tokio::test]
+    async fn dhcp_lease_test() {
+        super::dhcp_lease_test().await;
     }
 }

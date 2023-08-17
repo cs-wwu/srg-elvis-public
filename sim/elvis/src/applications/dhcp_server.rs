@@ -57,15 +57,23 @@ impl Protocol for DhcpServer {
         match message.msg_type {
             MessageType::Discover => {
                 let mut response = DhcpMessage::default();
-                // Todo: Gracefully handle the case of no addresses available
-                let ip = self.ip_generator.write().unwrap().fetch_ip();
-                if ip.is_none() {
-                    response.op = 2;
-                    response.msg_type = MessageType::Nack;
+                //if new machine on system
+                if message.your_ip == Ipv4Address::new([0, 0, 0, 0]) {
+                    let ip = self.ip_generator.write().unwrap().fetch_ip();
+                    //if no ips are available, reject
+                    if ip.is_none() {
+                        response.op = 2;
+                        response.msg_type = MessageType::Nack;
+                    } else {
+                        response.your_ip = ip.unwrap();
+                        response.op = 2;
+                        response.msg_type = MessageType::Offer;
+                    }
+                //if machine looking to renew ip (second renewal)
                 } else {
-                    response.your_ip = ip.unwrap();
                     response.op = 2;
-                    response.msg_type = MessageType::Offer;
+                    response.your_ip = message.your_ip;
+                    response.msg_type = MessageType::Ack;
                 }
                 let response = DhcpMessage::to_message(response).unwrap();
                 caller.send(response, protocols).unwrap();

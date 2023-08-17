@@ -3,7 +3,7 @@
 mod basic;
 pub use basic::basic;
 mod dhcp_basic;
-pub use dhcp_basic::{dhcp_basic_offer, dhcp_basic_release};
+pub use dhcp_basic::{dhcp_basic_offer, dhcp_basic_release, dhcp_lease_test};
 
 mod socket_basic;
 pub use socket_basic::socket_basic;
