@@ -5,13 +5,14 @@ use crate::{
 use elvis_core::{
     new_machine_arc,
     protocols::{
-        dhcp::dhcp_client::DhcpClient,
+        dhcp::{dhcp_client::DhcpClient, dhcp_client::CurrentState},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Arp, Endpoint, Pci,
     },
     run_internet_with_timeout, IpTable, Message, Network,
 };
+use tokio::time::{Duration, sleep};
 use std::time::Duration;
 
 // Sim to test basic IP address allocation from server
