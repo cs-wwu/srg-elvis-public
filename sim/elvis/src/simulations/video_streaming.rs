@@ -1,5 +1,4 @@
-use crate::applications::{streaming_server, streaming_client, 
-    };
+use crate::applications::{streaming_server::VideoServer, streaming_client::StreamingClient};
 
 use std::time::Duration;
 use elvis_core::{
@@ -29,6 +28,13 @@ pub async fn video_streaming() {
     let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     let server_socket_address: Endpoint = Endpoint::new(server_ip_address, 80);
 
+    let ip_table: IpTable<Recipient> = [
+        (server_ip_address, Recipient::with_mac(0, 0)),
+        (client1_ip_address, Recipient::with_mac(0, 1)),
+    ]
+    .into_iter()
+    .collect();
+
     let machines = vec![
         // server #1
         new_machine![
@@ -36,7 +42,7 @@ pub async fn video_streaming() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
-            WebServer::new(WebServerType::Yahoo, Some(13)),
+            VideoServer::new(),
         ],
         // client #1
         new_machine![
@@ -44,11 +50,12 @@ pub async fn video_streaming() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client1_ip_address)),
-            SimpleWebClient::new(server_socket_address),
+            StreamingClient::new(server_socket_address),
         ],
     ];
 
     run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
+    //println!("Running internet with timeout...");
 }
 
 #[cfg(test)]

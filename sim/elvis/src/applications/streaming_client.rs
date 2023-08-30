@@ -61,7 +61,8 @@ impl Protocol for StreamingClient {
                 video_segment
             );
 
-            stream.write(request.as_bytes()).await.unwrap();
+            // arg used to be request.as_bytes(), dunno why I had to change it, might still need it to be that
+            stream.write(request).await.unwrap();
             //stream.flush().unwrap(); flush is not implemented for TcpStream at the moment
 
             
