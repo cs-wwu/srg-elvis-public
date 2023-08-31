@@ -1,8 +1,9 @@
 //! Generates networks from a given parse
 
-use crate::ndl::generating::generator_utils::ip_string_to_ip;
 use crate::ndl::parsing::parsing_data::*;
-use elvis_core::{protocols::ipv4::Ipv4Address, Network};
+use crate::{ip_generator::IpGenerator, ndl::generating::generator_utils::ip_string_to_ip};
+use elvis_core::protocols::arp::subnetting::Ipv4Net;
+use elvis_core::Network;
 use std::collections::{HashMap, HashSet};
 
 use super::generator_data::NetworkInfo;
@@ -18,22 +19,23 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
     // HashMap(network_1, (Network, Iptable))
 
     // Networks contains a hashmap linking ids to networks
-    // IP_hash contains a hashmap linking ids to vectors of ips
+    // IP_gen_hash contains a hashmap linking ids to IpGenerator with possible IPs
     let mut networks = HashMap::new();
-    let mut ip_hash = HashMap::new();
+    let mut ip_gen_hash = HashMap::new();
 
     for (id, net) in n {
         // insert networks into the hashmap
         let network = Network::basic();
         networks.insert(id.clone(), network);
 
-        let mut ip_vec: Vec<Ipv4Address> = Vec::new();
+        let mut ip_gen: IpGenerator = IpGenerator::none();
         let mut temp_ips = HashSet::new();
+        //Loop through the entries in each network ids
         for ip in net.ip {
             for (option_id, value) in ip.options {
                 match option_id.to_ascii_lowercase().as_str() {
                     "range" => {
-                        let temp: Vec<&str> = value.split('/').collect();
+                        let temp: Vec<&str> = value.split('-').collect();
                         assert_eq!(
                             temp.len(),
                             2,
@@ -42,39 +44,69 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                             temp.len()
                         );
 
+                        //find the start and end of the specified range
                         let mut start_ip = ip_string_to_ip(temp[0].to_string(), &id);
-                        let end_ip = temp[1].parse::<u8>().unwrap_or_else(|_| {
+                        let end_ip_slice = temp[1].parse::<u8>().unwrap_or_else(|_| {
                             panic!("Network {}: Invalid ending IP range number. Expected <u8> found: {}", id, temp[1])
                         });
 
                         assert!(
-                            end_ip >= start_ip[3],
+                            end_ip_slice >= start_ip[3],
                             "Network {}: Invalid Cidr format, end IP value ({}) greater than start IP value ({})",
-                            id, end_ip, start_ip[3]
+                            id, end_ip_slice, start_ip[3]
                         );
 
-                        while start_ip[3] <= end_ip {
+                        //loop through the range adding each specified IP
+                        while start_ip[3] <= end_ip_slice {
                             assert!(
                                 !temp_ips.contains(&start_ip),
                                 "Network {id}: Duplicate IP found in range: {start_ip:?}"
                             );
 
-                            ip_vec.push(start_ip.into());
+                            ip_gen.return_ip(start_ip.into());
                             temp_ips.insert(start_ip);
                             start_ip[3] += 1;
                         }
                     }
-                    "ip" => {
-                        let real_ip = ip_string_to_ip(value, &id);
-                        assert!(
-                            !temp_ips.contains(&real_ip),
-                            "Network {id}: Duplicate IP found in IP: {real_ip:?}"
+                    "subnet" => {
+                        let temp: Vec<&str> = value.split('/').collect();
+                        assert_eq!(
+                            temp.len(),
+                            2,
+                            "Network {}: Invalid IP subnet format, expected 2 values found {}",
+                            id,
+                            temp.len()
                         );
 
-                        ip_vec.push(real_ip.into());
-                        temp_ips.insert(real_ip);
+                        // Get the subnet and its mask
+                        let start_ip = ip_string_to_ip(temp[0].to_string(), &id);
+                        let mask = temp[1].parse::<u32>().unwrap_or_else(|_| {
+                            panic!("Network {}: Invalid ending IP subnet number. Expected <u8> found: {}", id, temp[1])
+                        });
+                        assert!(mask <= 32, "Invalid mask value");
+
+                        // Create the subnet and add it to the generator
+                        let net = Ipv4Net::new_short(start_ip, mask);
+                        assert!(
+                            ip_gen.is_available(net),
+                            "Network {}: Duplicate ip sound in subnet: {:?}",
+                            id,
+                            net
+                        );
+                        ip_gen.return_subnet(net);
+                    }
+                    "ip" => {
+                        let ip = ip_string_to_ip(value, &id);
+                        assert!(
+                            !temp_ips.contains(&ip),
+                            "Network {id}: Duplicate IP found in IP: {ip:?}"
+                        );
+
+                        ip_gen.return_ip(ip.into());
+                        temp_ips.insert(ip);
                     }
                     _ => {
+                        // Any other case is currently unsupported
                         panic!(
                             "Network {}: Invalid network argument provided. Found: {}",
                             id,
@@ -84,12 +116,12 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                 }
             }
         }
-        // let ip_table: IpToNetwork = ips.into_iter().collect();
-        // networks.insert(id, (network, ip_table, ip_list));
-        ip_hash.insert(id, ip_vec);
+        //Make blocked IPs unavailable and add IPs to the hash with current network id
+        ip_gen.block_reserved_ips();
+        ip_gen_hash.insert(id, ip_gen);
     }
     NetworkInfo {
         nets: networks,
-        ip_hash,
+        ip_hash: ip_gen_hash,
     }
 }

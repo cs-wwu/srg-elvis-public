@@ -1,6 +1,7 @@
 [Networks]
     [Network id='3']
-        [IP ip='123.45.67.89']
+        [IP range='123.45.67.85-91']
+        [IP ip='127.0.0.1']
 [Machines]
     [Machine name='sender']
         [Networks]

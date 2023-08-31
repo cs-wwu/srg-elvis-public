@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
     network::Mac,
@@ -7,7 +9,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    run_internet, IpTable, Message, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
 
 /// Simulates a message being repeatedly forwarded on a single network.
@@ -20,9 +22,12 @@ pub async fn telephone_single() {
 
     let message = Message::new("Hello!");
     let remote = 0u32.to_be_bytes().into();
+
+    let local: Ipv4Address = [127, 0, 0, 1].into();
+
     let mut machines = vec![new_machine![
         Udp::new(),
-        Ipv4::new([(remote, Recipient::with_mac(0, 1))].into_iter().collect(),),
+        Ipv4::new([(local, Recipient::with_mac(0, 1))].into_iter().collect(),),
         Pci::new([network.clone()]),
         SendMessage::new(vec![message.clone()], Endpoint::new(remote, 0xbeef))
     ]];
@@ -30,7 +35,7 @@ pub async fn telephone_single() {
     for i in 0u32..(END - 1) {
         let local: Ipv4Address = i.to_be_bytes().into();
         let remote: Ipv4Address = (i + 1).to_be_bytes().into();
-        let table = [(remote, Recipient::with_mac(0, i as Mac + 2))]
+        let table = [(local, Recipient::with_mac(0, i as Mac + 2))]
             .into_iter()
             .collect();
         machines.push(new_machine![
@@ -52,7 +57,9 @@ pub async fn telephone_single() {
         Capture::new(Endpoint::new(local, 0xbeef), 1)
     ]);
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     let received = machines
         .into_iter()
         .last()

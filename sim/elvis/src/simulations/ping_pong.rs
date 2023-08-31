@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::applications::PingPong;
 use elvis_core::{
     new_machine,
@@ -6,7 +8,7 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Endpoints, Pci,
     },
-    run_internet, IpTable, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
 const IP_ADDRESS_1: Ipv4Address = Ipv4Address::new([123, 45, 67, 89]);
@@ -28,9 +30,10 @@ pub async fn ping_pong() {
             port: 0xface,
         },
     };
+
     let ip_table: IpTable<Recipient> = [
-        (IP_ADDRESS_1, Recipient::with_mac(0, 0)),
-        (IP_ADDRESS_2, Recipient::with_mac(0, 1)),
+        (IP_ADDRESS_2, Recipient::with_mac(0, 0)),
+        (IP_ADDRESS_1, Recipient::with_mac(0, 1)),
     ]
     .into_iter()
     .collect();
@@ -50,15 +53,17 @@ pub async fn ping_pong() {
         ],
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Exited);
 
     // TODO(hardint): Should check here that things actually ran correctly
 }
 
 #[cfg(test)]
 mod tests {
+
     #[tokio::test]
     pub async fn ping_pong() {
-        super::ping_pong().await
+        super::ping_pong().await;
     }
 }
