@@ -4,10 +4,10 @@ use elvis_core::{
     network::{Latency, NetworkBuilder},
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Tcp,
     },
-    run_internet, IpTable, Transport,
+    run_internet_with_timeout, ExitStatus, IpTable, Transport,
 };
 use std::time::Duration;
 
@@ -28,9 +28,10 @@ pub async fn tcp_with_unreliable() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
-        .into_iter()
-        .collect();
+
+    let sm_addr = Ipv4Address::new([6, 0, 0, 0]);
+
+    let ip_table: IpTable<Recipient> = [(sm_addr, Recipient::with_mac(0, 1))].into_iter().collect();
 
     let message: Vec<_> = (0..8000).map(|i| i as u8).collect();
     let message = Message::new(message);
@@ -39,7 +40,9 @@ pub async fn tcp_with_unreliable() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            SendMessage::new(vec![message.clone()], endpoint).transport(Transport::Tcp)
+            SendMessage::new(vec![message.clone()], endpoint)
+                .transport(Transport::Tcp)
+                .local_ip(sm_addr),
         ],
         new_machine![
             Tcp::new(),
@@ -49,7 +52,8 @@ pub async fn tcp_with_unreliable() {
         ],
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
+    assert_eq!(status, ExitStatus::Exited);
 }
 
 #[cfg(test)]

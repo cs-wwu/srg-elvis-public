@@ -58,7 +58,12 @@ impl Tcp {
                 let downstream = protocols
                     .protocol::<Ipv4>()
                     .unwrap()
-                    .open_and_listen(TypeId::of::<Self>(), endpoints.into(), protocols.clone())
+                    .open_and_listen(
+                        TypeId::of::<Self>(),
+                        endpoints.into(),
+                        protocols.clone(),
+                        ipv4::ProtocolNumber::TCP,
+                    )
                     .await?;
                 let session = TcpSession::new(
                     Tcb::open(endpoints, rand::random(), downstream.pci_session().mtu()),
@@ -84,6 +89,7 @@ impl Tcp {
             TypeId::of::<Self>(),
             endpoint.address,
             protocols,
+            ipv4::ProtocolNumber::TCP,
         )?)
     }
 }

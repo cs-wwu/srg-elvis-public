@@ -160,17 +160,12 @@ impl ArpInner for BasicArpInner {
             }
         };
 
-        // discard packet if we are not recipient
-        if !self.local_ips.contains_key(&packet.target_ip) {
-            return Ok(());
-        }
-
         // put packet's ip and mac in the table
         self.arp_table.set_mac(packet.sender_ip, packet.sender_mac);
 
         // if it was a request, send a reply
         let request = packet;
-        if request.oper == Operation::Request {
+        if request.oper == Operation::Request && self.local_ips.contains_key(&request.target_ip) {
             let sesh_info = control
                 .get::<DemuxInfo>()
                 .expect("Context should contain PCI demux info");
