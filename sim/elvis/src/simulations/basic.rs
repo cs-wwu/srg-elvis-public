@@ -1,13 +1,15 @@
+use std::time::Duration;
+
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
     new_machine,
     protocols::{
-        ipv4::{Ipv4, Recipient},
+        ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet, IpTable, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
 /// Runs a basic simulation.
@@ -21,7 +23,10 @@ pub async fn basic() {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
     };
-    let ip_table: IpTable<Recipient> = [(endpoint.address, Recipient::with_mac(0, 1))]
+
+    let local_address: Ipv4Address = [127, 0, 0, 1].into();
+
+    let ip_table: IpTable<Recipient> = [(local_address, Recipient::with_mac(0, 1))]
         .into_iter()
         .collect();
 
@@ -35,13 +40,15 @@ pub async fn basic() {
         ],
         new_machine![
             Udp::new(),
-            Ipv4::new(ip_table),
+            Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
             Capture::new(endpoint, 1),
         ],
     ];
 
-    run_internet(&machines).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Exited);
+
     let received = machines
         .into_iter()
         .nth(1)
@@ -50,6 +57,7 @@ pub async fn basic() {
         .protocol::<Capture>()
         .unwrap()
         .message();
+
     assert_eq!(received, Some(message));
 }
 
