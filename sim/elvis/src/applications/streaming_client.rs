@@ -1,15 +1,11 @@
 use std::time::Duration;
 
-use crate::applications::{streaming_server, tcp_listener_server, tcp_stream_client};
-
-use elvis_core::protocols::{tcp_listener, socket_api::socket::{ProtocolFamily::INET, Socket}};
-
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::Ipv4Address, socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream,
+        Endpoint, TcpStream,
     },
     Control, Protocol, Session, Shutdown,
 };
@@ -18,12 +14,15 @@ use tokio::sync::Barrier;
 
 pub struct StreamingClient {
     server_address: Endpoint,
-    pub bytes_recieved: RwLock<u32>,
+    pub bytes_recieved: RwLock<usize>,
 }
 
 impl StreamingClient {
     pub fn new(server_address: Endpoint) -> Self {
-        Self { server_address, bytes_recieved: RwLock::new(0)}
+        Self { 
+            server_address, 
+            bytes_recieved: RwLock::new(0),
+        }
     }
 }
 
@@ -42,6 +41,8 @@ impl Protocol for StreamingClient {
         let mut buffer = Vec::new();
         let mut video_segment = "video_segment_low";
 
+        let mut total_rcvd = 0;
+
         loop {
             let buffer_len = buffer.iter().map(Vec::len).sum::<usize>();
             let buffer_cap = buffer.capacity();
@@ -55,7 +56,7 @@ impl Protocol for StreamingClient {
 
             let request = format!(
                 "GET /{} HTTP/1.1\r\n\
-                Host: localhost:8080\r\n\
+                Host: localhost\r\n\
                 Connection: Keep-Alive\r\n\
                 \r\n\r\n",
                 video_segment
@@ -67,6 +68,8 @@ impl Protocol for StreamingClient {
 
             
             let mut buf = [0; 100];
+            let mut recvd_low = 0;
+            
             match stream.read().await {
                 // had to change this from 0 to a vec, dunno why yet
                 Ok(bytes_read) if bytes_read.is_empty() => {
@@ -74,20 +77,27 @@ impl Protocol for StreamingClient {
                     break Ok(());
                 }
                 Ok(bytes_read) => {
-                    let response_text = String::from_utf8_lossy(&bytes_read);
-                    process_http_response(&mut buffer, &response_text);
-                    let buffer_len = buffer.iter().map(Vec::len).sum::<usize>();
-                    println!("Buffer length: {}", buffer_len);
-                    let buffer_cap = buffer.capacity();
-                    println!("Buffer capacity: {}", buffer_cap);
+                    // counts number and type of bytes recieved from client
+                    recvd_low = bytes_read.iter().filter(|&n| *n == 3).count();
+                    total_rcvd += recvd_low;
+                    println!("total recieved: {}", total_rcvd);
 
-                    play_video_segments(&mut buffer);
+                    let response_text = String::from_utf8_lossy(&bytes_read);
+                    process_http_response(&mut buffer, &response_text).await;
+                    let buffer_len = buffer.iter().map(Vec::len).sum::<usize>();
+                    //println!("Buffer length: {}", buffer_len); // debugging
+                    let buffer_cap = buffer.capacity();
+                    //println!("Buffer capacity: {}", buffer_cap); // debugging
+
+                    play_video_segments(&mut buffer).await;
                 }
                 Err(err) => {
                     println!("Error reading from server: {:?}", err);
                     break Ok(());
                 }
             }
+            // report bytes_recieved
+            *self.bytes_recieved.write().unwrap() = total_rcvd;
         }
     }
     
@@ -102,11 +112,8 @@ impl Protocol for StreamingClient {
     }
 }
 
-
-
-
 // Define a function to process the HTTP response and store the video segment in the buffer
-fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
+async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
     // Split the response into headers and body
     let mut parts = response.splitn(2, "\r\n\r\n");
     if let (Some(headers), Some(body)) = (parts.next(), parts.next()) {
@@ -124,21 +131,21 @@ fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
 
 
 // Define a function to play the video segments in the buffer
-fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
-    let buffer_len = buffer.len();
-    println!("Buffer length: {}", buffer_len);
+async fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
+    //let buffer_len = buffer.len(); // debugging
+    //println!("Buffer length: {}", buffer_len); // debugging
 
     while let Some(segment) = buffer.pop() {
         println!("Playing video segment: {:?}", segment);
         // Process and play the video segment
 
         // Sleep for a duration before playing the next video segment
-        sleep(Duration::from_secs(1));
+        sleep(Duration::from_secs(1)).await;
     }
 }
 
 
 // Simulate sleep function since it's not included in the code snippet
-fn sleep(duration: Duration) {
+async fn sleep(duration: Duration) {
     std::thread::sleep(duration);
 }

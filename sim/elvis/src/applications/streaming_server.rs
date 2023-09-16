@@ -1,22 +1,15 @@
-
-use std::thread;
-use std::time::{Duration, Instant};
-
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::Ipv4Address, socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream,
+        socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream,
     },
     Control, Protocol, Session, Shutdown,
 };
 
-use std::{error::Error, str, sync::Arc};
+use std::{str, sync::Arc};
 use tokio::sync::Barrier;
-
-use crate::applications::{streaming_client, tcp_listener_server, tcp_stream_client};
-
 
 pub struct VideoServer {
     pub bytes_sent: u32,
@@ -41,29 +34,23 @@ impl Protocol for VideoServer{
 
         let listener = TcpListener::bind(local_host, protocols).await.unwrap();
 
-        let start_time = Instant::now();
-        let timeout_duration = Duration::from_secs(10);
-
         // Continuously listen for and accept new connections
         loop {
-            let stream = match listener.accept().await {
+            let _stream = match listener.accept().await {
                 Ok(stream) => {
                     // Spawn a new thread to handle the request
-                    thread::spawn(move || {
-                        handle_http_get_request(stream);
+                    tokio::spawn(async move {
+                        handle_http_get_request(stream).await;
                     });
                 }
                 Err(SocketError::Shutdown) => {
                     println!("Error accepting incoming connection");
+                    // This prevents the program from panicking on shutdown
                     shutdown.shut_down();
                     return Ok(());
                 }
                 Err(_) => panic!(),
-
-                // maybe add server timeout option somewhere, although that might need
-                // to be in a different part of Elvis
             };
-
         }
     }
 
@@ -84,7 +71,6 @@ async fn handle_http_get_request(mut stream: TcpStream) {
     loop {
         // Read the request line by line
         let mut headers = String::new();
-        let mut buffer = [0; 1024];
         loop {
             match stream.read().await {
                 Ok(bytes_read) => {
