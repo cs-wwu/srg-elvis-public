@@ -39,8 +39,24 @@ pub use tcp_stream_client::TcpStreamClient;
 pub mod tcp_listener_server;
 pub use tcp_listener_server::TcpListenerServer;
 
+pub mod web_server;
+pub use web_server::WebServer;
+
+pub mod simple_web_client;
+pub use simple_web_client::SimpleWebClient;
+
+pub mod user_behavior;
+pub use user_behavior::UserBehavior;
+
+pub mod dhcp_server;
+pub use dhcp_server::DhcpServer;
+
+pub mod barebones_client;
+pub use barebones_client::BareBonesClient;
+
+pub mod barebones_server;
+pub use barebones_server::BareBonesServer;
+
 pub mod multi_capture;
 pub use multi_capture::Counter;
 pub use multi_capture::MultiCapture;
-
-pub mod dhcp_server;

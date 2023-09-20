@@ -8,6 +8,7 @@ use elvis_core::{
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
+/// Server designed to test TcpListener and TcpStream
 pub struct TcpListenerServer {
     _client_address: Endpoint, // I don't know why, but the simulation breaks when this is removed
     server_address: Endpoint,
@@ -31,7 +32,6 @@ impl Protocol for TcpListenerServer {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         drop(_shutdown);
-
         // Create a new TcpListener bound to the server address
         let listener: TcpListener = TcpListener::bind(self.server_address, protocols)
             .await
