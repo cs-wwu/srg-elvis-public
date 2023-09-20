@@ -604,7 +604,7 @@ fn modular_arithmetic() {
     let (mut alice, mut bob) = established_pair(u32::MAX - 1, 53);
 
     // alice sends message to bob
-    let message = Message::new("what the dog doin");
+    let message: Message = Message::new("what the dog doin");
     alice.send(message.clone());
     let seg = alice.segments()[0].clone();
     bob.segment_arrives(seg);
