@@ -1,0 +1,39 @@
+[package]
+name = "elvis"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+elvis-core = { path = "../elvis-core" }
+tokio = { version = "1.23.0", features = ["rt", "rt-multi-thread", "time", "macros", "signal", "signal", "sync"] }
+rand = { version = "0.8.5", features = ["small_rng"] }
+dashmap = "5.4.0"
+thiserror = "1.0.37"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["json"] }
+chrono = "0.4"
+clap = { version = "4.0.18", features = ["derive"] }
+console-subscriber = "*"
+itertools = "0.8"
+rustc-hash = "1.1.0"
+nom = "7"
+async-trait = "0.1.68"
+csv = "1.2.2"
+rand_distr = "0.4.3"
+serde = {version = "1.0.144", features = ["derive", "rc"]}
+select = "0.6.0"
+url = "2.2.2"
+futures = "0.3.17"
+
+[dev-dependencies]
+criterion = { version = "0.4.0", features = [ "async_tokio", "html_reports" ] }
+anyhow = "1.0.66"
+ntest = "0.9"
+tracing-test = "0.2.4"
+
+#[[bench]]
+#name = "scaled_sim_benchmark"
+#harness = false
+[[bench]]
+name = "benchmarks"
+harness = false
