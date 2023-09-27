@@ -41,6 +41,7 @@ impl Protocol for StreamingClient {
         let mut buffer = Vec::new();
         let mut video_segment = "video_segment_low";
 
+        // for reporting to video_streaming
         let mut total_rcvd = 0;
 
         loop {
@@ -48,6 +49,7 @@ impl Protocol for StreamingClient {
             let buffer_cap = buffer.capacity();
             let buffer_space = buffer_cap - buffer_len;
 
+            // increases quality of video segment based on available buffer space
             if buffer_space > 0 && buffer_space < 4 {
                 video_segment = "video_segment_med";
             } else if buffer_space >= 4 {
@@ -56,7 +58,7 @@ impl Protocol for StreamingClient {
 
             let request = format!(
                 "GET /{} HTTP/1.1\r\n\
-                Host: localhost\r\n\
+                Host: local_host\r\n\
                 Connection: Keep-Alive\r\n\
                 \r\n\r\n",
                 video_segment
@@ -67,8 +69,9 @@ impl Protocol for StreamingClient {
             //stream.flush().unwrap(); flush is not implemented for TcpStream at the moment
 
             
-            let mut buf = [0; 100];
             let mut recvd_low = 0;
+            let mut recvd_med = 0;
+            let mut recvd_high = 0;
             
             match stream.read().await {
                 // had to change this from 0 to a vec, dunno why yet
@@ -77,18 +80,19 @@ impl Protocol for StreamingClient {
                     break Ok(());
                 }
                 Ok(bytes_read) => {
-                    // counts number and type of bytes recieved from client
-                    recvd_low = bytes_read.iter().filter(|&n| *n == 3).count();
+                    // counts number and type of bytes recieved from server
+                    recvd_low = bytes_read.iter().filter(|&n| *n == 1).count();
                     total_rcvd += recvd_low;
+                    recvd_med = bytes_read.iter().filter(|&n| *n == 2).count();
+                    total_rcvd += recvd_med;
+                    recvd_high = bytes_read.iter().filter(|&n| *n == 3).count();
+                    total_rcvd += recvd_high;
                     println!("total recieved: {}", total_rcvd);
 
                     let response_text = String::from_utf8_lossy(&bytes_read);
                     process_http_response(&mut buffer, &response_text).await;
-                    let buffer_len = buffer.iter().map(Vec::len).sum::<usize>();
-                    //println!("Buffer length: {}", buffer_len); // debugging
-                    let buffer_cap = buffer.capacity();
-                    //println!("Buffer capacity: {}", buffer_cap); // debugging
 
+                    // simulate playing the video segments
                     play_video_segments(&mut buffer).await;
                 }
                 Err(err) => {
@@ -132,7 +136,7 @@ async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
 
 // Define a function to play the video segments in the buffer
 async fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
-    //let buffer_len = buffer.len(); // debugging
+    //let buffer_len = buffer.iter().map(Vec::len).sum::<usize>(); // debugging
     //println!("Buffer length: {}", buffer_len); // debugging
 
     while let Some(segment) = buffer.pop() {

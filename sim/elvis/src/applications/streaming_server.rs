@@ -117,11 +117,11 @@ fn generate_http_response(request: &str) -> String {
         }
         "/video_segment_med" => {
             // Simulated video segment data
-            vec![2u8; 20] // dummy video segment data
+            vec![2u8; 30] // dummy video segment data
         }
         "/video_segment_high" => {
             // Simulated video segment data
-            vec![3u8; 40] // dummy video segment data
+            vec![3u8; 80] // dummy video segment data
         }
         _ => {
             // If the requested resource is not found, return an empty response
@@ -142,4 +142,3 @@ fn generate_http_response(request: &str) -> String {
 
     String::from_utf8(response_bytes).unwrap()
 }
-
