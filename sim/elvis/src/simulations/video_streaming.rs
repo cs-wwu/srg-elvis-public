@@ -1,19 +1,18 @@
-use crate::applications::{
-    streaming_server::VideoServer, streaming_client::StreamingClient};
+use crate::applications::{streaming_client::StreamingClient, streaming_server::VideoServer};
 
-use std::time::Duration;
 use elvis_core::{
     new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, SocketAPI, Tcp,
     },
-    IpTable, Network, run_internet_with_timeout,
+    run_internet_with_timeout, IpTable, Network,
 };
+use std::time::Duration;
 
 /**
  * Runs a basic video server and client simulation.
- * 
+ *
  * In this simulation, a client requests video data from a streaming server, which
  * then sends the data to the client. The client will then "play" the video in the form
  * of printing the bytes it recieved to the terminal (I've commented it out, but it can be
@@ -21,7 +20,6 @@ use elvis_core::{
  * via a specified duration.
  */
 pub async fn video_streaming() {
-
     let network = Network::basic();
     let server_ip_address: Ipv4Address = [100, 42, 0, 1].into();
     let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
@@ -73,11 +71,11 @@ pub async fn video_streaming() {
         ],
     ];
 
-    let duration = 30;
+    let duration = 15;
     run_internet_with_timeout(&machines, Duration::from_secs(duration)).await;
 
     let mut machines_iter = machines.into_iter();
-    let _server = machines_iter.next().unwrap();    
+    let _server = machines_iter.next().unwrap();
 
     // check that the client received the minimum number of bytes before terminating
     for _i in 0..3 {
@@ -88,10 +86,10 @@ pub async fn video_streaming() {
             .unwrap()
             .bytes_recieved;
         let num_bytes_recvd = *lock.read().unwrap();
-        
-        // min bytes sent to each client should be 
+
+        // min bytes sent to each client should be
         // duration * low bitrate segment (currently 10)
-        let target_bytes = 10 * duration;        
+        let target_bytes = 10 * duration;
         assert!(num_bytes_recvd >= target_bytes.try_into().unwrap());
     }
 }

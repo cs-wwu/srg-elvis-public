@@ -12,11 +12,14 @@ use elvis_core::{
 use std::{str, sync::{Arc, RwLock}};
 use tokio::sync::Barrier;
 
+
 pub struct StreamingClient {
     server_address: Endpoint,
     pub bytes_recieved: RwLock<usize>,
 }
 
+// Client designed to test and work with streaming_server. Connects to server,
+// requests video segments, and "plays" them until shut down. 
 impl StreamingClient {
     pub fn new(server_address: Endpoint) -> Self {
         Self { 
@@ -36,15 +39,20 @@ impl Protocol for StreamingClient {
     ) -> Result<(), StartError> {
         
         let local_host = Endpoint::new([100, 42, 0, 1].into(), 80);  // Temp workaround since local host isn't implemented
+
+        // Create a new TcpStream connected to the server address
         let mut stream = TcpStream::connect(local_host, protocols).await.unwrap();
 
-        let mut buffer = Vec::new();
-        let mut video_segment = "video_segment_low";
+        let mut buffer = Vec::new();       
 
         // for reporting to video_streaming
         let mut total_rcvd = 0;
 
+        // default segment is low quality
+        let mut video_segment = "video_segment_low";
+
         loop {
+            // buffer space computation for quality adjustment
             let buffer_len = buffer.iter().map(Vec::len).sum::<usize>();
             let buffer_cap = buffer.capacity();
             let buffer_space = buffer_cap - buffer_len;
@@ -56,6 +64,7 @@ impl Protocol for StreamingClient {
                 video_segment = "video_segment_high";
             }
 
+            // Http get request that will be sent to server
             let request = format!(
                 "GET /{} HTTP/1.1\r\n\
                 Host: local_host\r\n\
@@ -64,7 +73,7 @@ impl Protocol for StreamingClient {
                 video_segment
             );
 
-            // arg used to be request.as_bytes(), dunno why I had to change it, might still need it to be that
+            // Send the request to the server
             stream.write(request).await.unwrap();
             //stream.flush().unwrap(); flush is not implemented for TcpStream at the moment
 
@@ -100,7 +109,7 @@ impl Protocol for StreamingClient {
                     break Ok(());
                 }
             }
-            // report bytes_recieved
+            // report bytes_recieved to video_streaming
             *self.bytes_recieved.write().unwrap() = total_rcvd;
         }
     }
@@ -114,16 +123,16 @@ impl Protocol for StreamingClient {
     ) -> Result<(), DemuxError> {
         Ok(())
     }
-}
+} 
 
-// Define a function to process the HTTP response and store the video segment in the buffer
+// Processes the HTTP response and stores the video segment in the buffer
 async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
-    // Split the response into headers and body
+    // Splits the response into headers and body
     let mut parts = response.splitn(2, "\r\n\r\n");
     if let (Some(headers), Some(body)) = (parts.next(), parts.next()) {
-        // Check if the response was successful
+        // Checks if the response was successful
         if headers.contains("200 OK") {
-            // Store the video segment data in the buffer
+            // Stores the video segment data in the buffer
             buffer.push(body.trim().as_bytes().to_vec());
         } else {
             println!("Request failed. Response: {}", headers);
@@ -134,22 +143,19 @@ async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
 }
 
 
-// Define a function to play the video segments in the buffer
+// Plays the video segments in the buffer
 async fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
     //let buffer_len = buffer.iter().map(Vec::len).sum::<usize>(); // debugging
     //println!("Buffer length: {}", buffer_len); // debugging
 
     while let Some(segment) = buffer.pop() {
         println!("Playing video segment: {:?}", segment);
-        // Process and play the video segment
-
+        
         // Sleep for a duration before playing the next video segment
         sleep(Duration::from_secs(1)).await;
     }
 }
 
-
-// Simulate sleep function since it's not included in the code snippet
 async fn sleep(duration: Duration) {
     std::thread::sleep(duration);
 }
