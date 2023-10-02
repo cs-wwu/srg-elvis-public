@@ -288,7 +288,7 @@ pub fn arp_builder(
                 false => panic!("Invalid name for default arp gateway"),
             },
         };
-        Arp::basic().preconfig_subnet(
+        Arp::new().preconfig_subnet(
             Ipv4Address::new(ip_string_to_ip(
                 options.get("local").unwrap().to_string(),
                 "local arp ip",
@@ -299,6 +299,6 @@ pub fn arp_builder(
             },
         )
     } else {
-        Arp::basic()
+        Arp::new()
     }
 }
