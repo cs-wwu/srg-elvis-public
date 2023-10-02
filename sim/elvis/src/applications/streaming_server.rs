@@ -23,7 +23,6 @@ impl VideoServer {
 /**
  * streaming_server works in tandem with streaming_client. This server is designed to
  * wait for http requests from a client, then process and respond when one comes through.
- * 
  */
 #[async_trait::async_trait]
 impl Protocol for VideoServer {
@@ -75,7 +74,7 @@ async fn handle_http_get_request(mut stream: TcpStream) {
         let mut headers = String::new();
         loop {
             match stream.read().await {
-                Ok(bytes_read) => {                    
+                Ok(bytes_read) => {
                     let request = String::from_utf8_lossy(&bytes_read);
                     headers.push_str(&request);
 

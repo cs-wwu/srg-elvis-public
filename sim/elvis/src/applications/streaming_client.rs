@@ -4,26 +4,29 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{
-        Endpoint, TcpStream,
-    },
+    protocols::{Endpoint, TcpStream},
     Control, Protocol, Session, Shutdown,
 };
-use std::{str, sync::{Arc, RwLock}};
+use std::{
+    str,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Barrier;
-
 
 pub struct StreamingClient {
     server_address: Endpoint,
     pub bytes_recieved: RwLock<usize>,
 }
 
-// Client designed to test and work with streaming_server. Connects to server,
-// requests video segments, and "plays" them until shut down. 
+/**Client designed to test and work with streaming_server. Connects to server,
+ * requests video segments, and "plays" them until shut down. I have commented out
+ * the "playing" part, but if needed for debugging or to see it working in real time
+ * it can be uncommented.
+**/
 impl StreamingClient {
     pub fn new(server_address: Endpoint) -> Self {
-        Self { 
-            server_address, 
+        Self {
+            server_address,
             bytes_recieved: RwLock::new(0),
         }
     }
@@ -37,13 +40,12 @@ impl Protocol for StreamingClient {
         _initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        
-        let local_host = Endpoint::new([100, 42, 0, 1].into(), 80);  // Temp workaround since local host isn't implemented
-
         // Create a new TcpStream connected to the server address
-        let mut stream = TcpStream::connect(local_host, protocols).await.unwrap();
+        let mut stream = TcpStream::connect(self.server_address, protocols)
+            .await
+            .unwrap();
 
-        let mut buffer = Vec::new();       
+        let mut buffer = Vec::new();
 
         // for reporting to video_streaming
         let mut total_rcvd = 0;
@@ -75,28 +77,21 @@ impl Protocol for StreamingClient {
 
             // Send the request to the server
             stream.write(request).await.unwrap();
-            //stream.flush().unwrap(); flush is not implemented for TcpStream at the moment
 
-            
-            let mut recvd_low = 0;
-            let mut recvd_med = 0;
-            let mut recvd_high = 0;
-            
+            // Read the response from the server
             match stream.read().await {
-                // had to change this from 0 to a vec, dunno why yet
                 Ok(bytes_read) if bytes_read.is_empty() => {
                     println!("Connection closed by the server");
                     break Ok(());
                 }
                 Ok(bytes_read) => {
                     // counts number and type of bytes recieved from server
-                    recvd_low = bytes_read.iter().filter(|&n| *n == 1).count();
-                    total_rcvd += recvd_low;
-                    recvd_med = bytes_read.iter().filter(|&n| *n == 2).count();
-                    total_rcvd += recvd_med;
-                    recvd_high = bytes_read.iter().filter(|&n| *n == 3).count();
-                    total_rcvd += recvd_high;
-                    println!("total recieved: {}", total_rcvd);
+                    // low quality bytes recvd
+                    total_rcvd += bytes_read.iter().filter(|&n| *n == 1).count();
+                    // medium quality
+                    total_rcvd += bytes_read.iter().filter(|&n| *n == 2).count();
+                    // high quality
+                    total_rcvd += bytes_read.iter().filter(|&n| *n == 3).count();
 
                     let response_text = String::from_utf8_lossy(&bytes_read);
                     process_http_response(&mut buffer, &response_text).await;
@@ -113,7 +108,7 @@ impl Protocol for StreamingClient {
             *self.bytes_recieved.write().unwrap() = total_rcvd;
         }
     }
-    
+
     fn demux(
         &self,
         _message: Message,
@@ -123,7 +118,7 @@ impl Protocol for StreamingClient {
     ) -> Result<(), DemuxError> {
         Ok(())
     }
-} 
+}
 
 // Processes the HTTP response and stores the video segment in the buffer
 async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
@@ -142,15 +137,12 @@ async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
     }
 }
 
-
 // Plays the video segments in the buffer
 async fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
-    //let buffer_len = buffer.iter().map(Vec::len).sum::<usize>(); // debugging
-    //println!("Buffer length: {}", buffer_len); // debugging
+    while let Some(_segment) = buffer.pop() {
+        // for debugging or example
+        //println!("Playing video segment: {:?}", segment);
 
-    while let Some(segment) = buffer.pop() {
-        println!("Playing video segment: {:?}", segment);
-        
         // Sleep for a duration before playing the next video segment
         sleep(Duration::from_secs(1)).await;
     }

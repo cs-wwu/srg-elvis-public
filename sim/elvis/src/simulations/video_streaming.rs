@@ -98,7 +98,6 @@ pub async fn video_streaming() {
 mod tests {
     #[tokio::test]
     pub async fn video_streaming() {
-        println!("Running video streaming test...");
         super::video_streaming().await;
     }
 }
