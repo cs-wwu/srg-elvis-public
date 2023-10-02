@@ -8,6 +8,7 @@ use elvis_core::{
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
+/// Client designed to test TcpListener and TcpStream
 pub struct TcpStreamClient {
     _client_address: Endpoint, // I don't know why, but the simulation breaks when this is removed
     server_address: Endpoint,
@@ -44,7 +45,7 @@ impl Protocol for TcpStreamClient {
         ];
         stream.write(msg1.clone()).await.unwrap();
 
-        // Recieve bytes from the server using read_exact 
+        // Recieve bytes from the server using read_exact
         let max_bytes: usize = 4;
         let received_msg1: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
 
@@ -65,7 +66,7 @@ impl Protocol for TcpStreamClient {
         ];
         stream.write(msg2.clone()).await.unwrap();
 
-        // Recieve bytes from the server using read_exact 
+        // Recieve bytes from the server using read_exact
         let max_bytes: usize = 4;
         let received_msg2: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
 

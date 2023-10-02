@@ -69,6 +69,7 @@ impl Protocol for DhcpClient {
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
         udp.send(response_message, protocols).unwrap();
+
         Ok(())
     }
 

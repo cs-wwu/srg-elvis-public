@@ -98,6 +98,7 @@ impl Protocol for Capture {
     ) -> Result<(), DemuxError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
+
         if *self.cur_count.read().unwrap() >= self.message_count {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
                 if let Some(status) = self.exit_status {
