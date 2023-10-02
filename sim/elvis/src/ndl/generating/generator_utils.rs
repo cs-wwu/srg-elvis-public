@@ -1,5 +1,11 @@
 //! Various methods that are used to assist generating the simulation.
 
+use std::collections::HashMap;
+
+use elvis_core::protocols::{arp::subnetting::Ipv4Net, ipv4::Ipv4Address};
+
+use crate::ip_generator::IpGenerator;
+
 /// Converts from either a hex value or decimal value in a String and turns it into a u16 as a port.
 ///
 /// Ex: Converts 0xbeef into u16
@@ -53,4 +59,32 @@ pub fn ip_or_name(s: String) -> bool {
     }
 
     true
+}
+
+/// Checks if a requested ip is still available
+/// If available it is blocked for future use and returns the IP
+/// If unavailable None is returned and the value is currently in use by another machine
+pub fn ip_available(
+    target_ip: Ipv4Address,
+    ip_gen: &mut HashMap<String, IpGenerator>,
+    cur_net_ids: &[String],
+) -> Result<Ipv4Address, String> {
+    let local_ip: Ipv4Net = Ipv4Net::new_short([127, 0, 0, 0], 8);
+
+    //Find if the requested local_ip is still available for use.
+    if !local_ip.contains(target_ip)
+        && !cur_net_ids.iter().any(|id| {
+            !ip_gen
+                .get(id)
+                .expect("Invalid network ID")
+                .is_available(Ipv4Net::new_short(target_ip, 32))
+        })
+    {
+        return Err("IP not available".to_string());
+    }
+    //If local ip was found then block it in all other ip generators
+    for gen in ip_gen.values_mut() {
+        gen.block_subnet(Ipv4Net::new_short(target_ip, 32));
+    }
+    Ok(target_ip)
 }

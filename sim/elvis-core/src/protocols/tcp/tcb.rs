@@ -106,7 +106,7 @@ impl Tcb {
             SendSequenceSpace {
                 iss,
                 una: iss,
-                nxt: iss + 1,
+                nxt: iss.wrapping_add(1),
                 ..Default::default()
             },
             ReceiveSequenceSpace::default(),
@@ -209,7 +209,7 @@ impl Tcb {
                         .ack(self.rcv.nxt)
                         .wnd(self.rcv.wnd),
                 );
-                self.snd.nxt += 1;
+                self.snd.nxt = self.snd.nxt.wrapping_add(1);
                 self.state = State::FinWait1;
                 CloseResult::Ok
             }
@@ -221,7 +221,7 @@ impl Tcb {
                         .ack(self.rcv.nxt)
                         .wnd(self.rcv.wnd),
                 );
-                self.snd.nxt += 1;
+                self.snd.nxt = self.snd.nxt.wrapping_add(1);
                 self.state = State::LastAck;
                 CloseResult::Ok
             }
@@ -468,7 +468,7 @@ impl Tcb {
                     // remote FIN. Acknowledge it and restart the 2 MSL timeout.
                     self.enqueue(
                         self.header_builder(self.snd.nxt)
-                            .ack(seg.seq + 1)
+                            .ack(seg.seq.wrapping_add(1))
                             .wnd(self.rcv.wnd),
                     );
                     self.timeouts.time_wait = Some(MSL * 2);
@@ -509,7 +509,7 @@ impl Tcb {
             match self.state {
                 State::SynSent => {
                     self.rcv.irs = seg.seq;
-                    self.rcv.nxt = seg.seq + 1;
+                    self.rcv.nxt = seg.seq.wrapping_add(1);
                     self.snd.wnd = seg.wnd;
                     self.snd.wl1 = seg.seq;
                     self.snd.wl2 = seg.ack;
@@ -563,7 +563,8 @@ impl Tcb {
                     // If we got here, we already know that SEQ > RCV.NXT.
                     // Text should also be in the window, but let's check:
                     assert!(
-                        self.is_in_rcv_window(seg.seq) || self.is_in_rcv_window(seg.seq + text_len)
+                        self.is_in_rcv_window(seg.seq)
+                            || self.is_in_rcv_window(seg.seq.wrapping_add(text_len))
                     );
                     let already_received = self
                         .rcv
@@ -574,7 +575,7 @@ impl Tcb {
                     let unreceived = text_len - already_received;
                     let space_available = self.rcv.wnd as u32 - self.incoming.text.len() as u32;
                     let accept = unreceived.min(space_available);
-                    self.rcv.nxt += accept;
+                    self.rcv.nxt = self.rcv.nxt.wrapping_add(accept);
                     text.slice(already_received as usize..(already_received + accept) as usize);
                     self.incoming.text.concatenate(text);
                     // TODO(hardint): Aggregate and piggyback ACK segments
@@ -591,12 +592,13 @@ impl Tcb {
 
         if seg.ctl.fin() {
             if self.state != State::SynSent {
-                let last_text_byte = seg.seq + text_len;
-                if self.rcv.nxt == last_text_byte || self.rcv.nxt == last_text_byte + 1 {
+                let last_text_byte = seg.seq.wrapping_add(text_len);
+                if self.rcv.nxt == last_text_byte || self.rcv.nxt == last_text_byte.wrapping_add(1)
+                {
                     // We acknowledged all the non-control bytes in the segment or we
                     // have already acknowledged the FIN. Advance over the FIN and
                     // acknowledge it.
-                    self.rcv.nxt = last_text_byte + 1;
+                    self.rcv.nxt = last_text_byte.wrapping_add(1);
                     self.enqueue(
                         self.header_builder(self.snd.nxt)
                             .ack(self.rcv.nxt)
@@ -642,7 +644,7 @@ impl Tcb {
         while let Some(transmit) = self.outgoing.retransmit.get(i) {
             let seq = transmit.segment.header.seq;
             let seg_len = transmit.segment.seg_len() as u32;
-            if mod_lt(snd_una, seq + seg_len) {
+            if mod_lt(snd_una, seq.wrapping_add(seg_len)) {
                 i += 1;
             } else {
                 self.outgoing.retransmit.remove(i);
@@ -728,7 +730,7 @@ impl Tcb {
         // Test segment acceptability. See Table 6.
         if seg_len == 0 {
             if self.rcv.wnd == 0 {
-                mod_bounded(self.rcv.nxt - 1, Leq, seq, Leq, self.rcv.nxt)
+                mod_bounded(self.rcv.nxt.wrapping_sub(1), Leq, seq, Leq, self.rcv.nxt)
             } else {
                 self.is_in_rcv_window(seq)
             }
@@ -736,7 +738,8 @@ impl Tcb {
             // When the receive window is zero, only ACKs are acceptible.
             false
         } else {
-            self.is_in_rcv_window(seq) || self.is_in_rcv_window(seq + seg_len - 1)
+            self.is_in_rcv_window(seq)
+                || self.is_in_rcv_window(seq.wrapping_add(seg_len).wrapping_sub(1))
         }
     }
 
@@ -744,11 +747,11 @@ impl Tcb {
     /// revision to sequence number validation linked above.
     fn is_in_rcv_window(&self, n: u32) -> bool {
         mod_bounded(
-            self.rcv.nxt - 1,
+            self.rcv.nxt.wrapping_sub(1),
             Leq,
             n,
             Lt,
-            self.rcv.nxt + self.rcv.wnd as u32,
+            self.rcv.nxt.wrapping_add(self.rcv.wnd as u32),
         )
     }
 }
@@ -774,7 +777,7 @@ pub fn segment_arrives_closed(
     } else {
         TcpHeaderBuilder::new(seg.dst_port, seg.src_port, 0)
             .rst()
-            .ack(seg.seq + text_len)
+            .ack(seg.seq.wrapping_add(text_len))
     }
     .build(local, remote, [].into_iter(), 0)
     .ok()
@@ -809,7 +812,7 @@ pub fn segment_arrives_listen(
             .map(ListenResult::Response)
     } else if seg.ctl.syn() {
         // Third:
-        let rcv_nxt = seg.seq + 1;
+        let rcv_nxt = seg.seq.wrapping_add(1);
         let mut tcb = Tcb::new(
             Endpoints {
                 local: Endpoint {
@@ -827,7 +830,7 @@ pub fn segment_arrives_listen(
             SendSequenceSpace {
                 iss,
                 una: iss,
-                nxt: iss + 1,
+                nxt: iss.wrapping_add(1),
                 wnd: seg.wnd,
                 wl1: seg.seq,
                 wl2: seg.ack,
