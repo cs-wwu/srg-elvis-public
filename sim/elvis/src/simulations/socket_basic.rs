@@ -43,7 +43,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::basic().preconfig_subnet(server_ip_address, info),
+            Arp::new().preconfig_subnet(server_ip_address, info),
             SocketAPI::new(Some(server_ip_address)),
             SocketServer::new(0xbeef, SocketType::Stream)
         ],
@@ -52,7 +52,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::basic().preconfig_subnet(client1_ip_address, info),
+            Arp::new().preconfig_subnet(client1_ip_address, info),
             SocketAPI::new(Some(client1_ip_address)),
             SocketClient::new(1, server_ip_address, 0xbeef, SocketType::Stream)
         ],
@@ -61,7 +61,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::basic().preconfig_subnet(client2_ip_address, info),
+            Arp::new().preconfig_subnet(client2_ip_address, info),
             SocketAPI::new(Some(client2_ip_address)),
             SocketClient::new(2, server_ip_address, 0xbeef, SocketType::Stream)
         ],
@@ -70,7 +70,7 @@ pub async fn socket_basic() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::basic().preconfig_subnet(client3_ip_address, info),
+            Arp::new().preconfig_subnet(client3_ip_address, info),
             SocketAPI::new(Some(client3_ip_address)),
             SocketClient::new(3, server_ip_address, 0xbeef, SocketType::Stream)
         ],

@@ -37,7 +37,7 @@ pub async fn dns_basic() {
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
-            Arp::basic(),
+            Arp::new(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(dns_server_ip_address)),
             DnsServer::new(1), // Argument is for number of connections this server will at most have open. WiP workaround solution for now.
@@ -46,7 +46,7 @@ pub async fn dns_basic() {
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
-            Arp::basic(),
+            Arp::new(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
             DnsTestServer::new(0xbeef, SocketType::Datagram)
@@ -55,7 +55,7 @@ pub async fn dns_basic() {
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
-            Arp::basic(),
+            Arp::new(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client1_ip_address)),
             DnsClient::new(),
