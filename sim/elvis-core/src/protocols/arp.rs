@@ -4,25 +4,27 @@
 //! [`Arp`] is also used to do subnetting. See [`Arp::set_subnet`] and [`subnetting`] for more info.
 //! Currently, ELVIS/Arp do not support *any* of the reserved Ipv4 addresses.
 pub mod arp_parsing;
-pub mod internals;
 pub mod subnetting;
 
-use self::internals::*;
-
+use std::any::TypeId;
 use std::sync::Arc;
+use std::time::Duration;
 
+use tokio::sync::watch;
 use tokio::sync::Barrier;
 
 use crate::machine::ProtocolMap;
 use crate::protocol::{DemuxError, StartError};
 use crate::protocols::ipv4::*;
 use crate::session::SendError;
+use crate::FxDashMap;
 use crate::{machine::PciSlot, network::Mac, Control, Message, Protocol, Session, Shutdown};
 
 use self::arp_parsing::{ArpPacket, Operation};
-use self::subnetting::SubnetInfo;
+use self::subnetting::{Ipv4Net, SubnetInfo};
 
-use super::pci::DemuxInfo;
+use super::pci::{DemuxInfo, PciSession};
+use super::Pci;
 
 /// Arp stands for Address Resolution Protocol. Its job is to figure out another (Ipv4-using) machine's MAC
 /// address, and send messages to that MAC, instead of broadcasting them to the whole network.
@@ -44,15 +46,98 @@ use super::pci::DemuxInfo;
 ///
 /// The machine you are sending messages to MUST also have an Arp protocol, and a local IP address
 /// (set by [`Ipv4::listen`] or [`Arp::listen`]).
+
+/// The basic ArpInner. Functions like [`Arp`] says it should.
+#[derive(Default)]
 pub struct Arp {
-    /// The ARP innards.
-    /// I wanted to be able to implement 2 versions of ARP: a debug version and a normal version.
-    /// Rust doesn't support inheritance, so I did this instead
-    /// Is this a terrible idea? I hope not
-    inner: Box<dyn ArpInner>,
+    /// This machine's local IPs
+    local_ips: FxDashMap<Ipv4Address, Option<SubnetInfo>>,
+    /// The ARP table that maps IP addresses to MACs
+    arp_table: ArpTable,
+    /// These functions get called when resolve() and demux() are called,
+    /// respectively
+    resolve_hook: Option<Box<dyn Fn(AddressPair, PciSlot) + Send + Sync + 'static>>,
+    demux_hook: Option<Box<dyn Fn(Message) + Send + Sync + 'static>>,
+}
+
+fn send_arp_request(pci_session: Arc<PciSession>, addrs: AddressPair) -> Result<(), SendError> {
+    let local_mac = pci_session.mac();
+    let packet = ArpPacket::new_request(local_mac, addrs.local, addrs.remote);
+    pci_session.send_pci(packet.build().into(), None, TypeId::of::<Arp>())
+}
+
+#[async_trait::async_trait]
+impl Protocol for Arp {
+    async fn start(
+        &self,
+        _shutdown: Shutdown,
+        initialized: Arc<Barrier>,
+        _protocols: ProtocolMap,
+    ) -> Result<(), StartError> {
+        initialized.wait().await;
+        Ok(())
+    }
+
+    fn demux(
+        &self,
+        message: Message,
+        _caller: Arc<dyn Session>,
+        control: Control,
+        protocols: ProtocolMap,
+    ) -> Result<(), DemuxError> {
+        if let Some(demux_hook) = &self.demux_hook {
+            demux_hook(message.clone());
+        }
+
+        // try to convert message to arp packet
+        let packet = match ArpPacket::from_bytes(message.iter()) {
+            Ok(message) => message,
+            Err(e) => {
+                tracing::error!("Failed to parse ARP packet: {}", e);
+                return Ok(());
+            }
+        };
+
+        // put packet's ip and mac in the table
+        self.arp_table.set_mac(packet.sender_ip, packet.sender_mac);
+
+        // if it was a request, send a reply
+        let request = packet;
+        if request.oper == Operation::Request && self.local_ips.contains_key(&request.target_ip) {
+            let sesh_info = control
+                .get::<DemuxInfo>()
+                .expect("Context should contain PCI demux info");
+            let new_sesh = protocols
+                .protocol::<Pci>()
+                .expect("Pci should be in protocols")
+                .open(sesh_info.slot);
+            let reply = ArpPacket::new_reply(
+                new_sesh.mac(),
+                request.target_ip, // the reply's sender IP (us) is the request's target IP
+                request.sender_mac,
+                request.sender_ip,
+            );
+            let result = new_sesh.send_pci(
+                reply.build().into(),
+                Some(request.sender_mac),
+                TypeId::of::<Arp>(),
+            );
+
+            if let Err(e) = result {
+                tracing::error!("failed to send ARP reply: {:?}", e);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Arp {
+    /// The duration to wait before sending another ARP request
+    pub const RESEND_DELAY: Duration = Duration::from_millis(200);
+    /// The number of times we should try sending ARP requests before giving up
+    pub const RESEND_TRIES: u32 = 10;
+
     /// Attempts to resolve the MAC address of the given IP address.
     ///
     /// # Arguments
@@ -78,31 +163,64 @@ impl Arp {
     ///
     /// If the local IP address is not on the same network as the remote address (according to the subnet info),
     /// then this will resolve the MAC address of the router.
-    /// (This is for the Ipv4 protocol, because it wants to send messages to the router's MAC address
-    /// in this case.)
     ///
     /// If no default gateway is specified in the subnet info, this returns `Err`.
     pub async fn resolve(
         &self,
-        endpoints: AddressPair,
+        mut endpoints: AddressPair,
         tap_slot: PciSlot,
         protocols: ProtocolMap,
     ) -> Result<Mac, NoResponseError> {
-        self.inner.resolve(endpoints, tap_slot, protocols).await
-    }
+        if let Some(resolve_hook) = &self.resolve_hook {
+            resolve_hook(endpoints, tap_slot);
+        }
 
-    /// Adds the given IP address to this ARP session's list of local IPs.
-    /// Arp will ignore arp requests and replies that it recieves
-    /// if they do not match one of its local IPs.
-    /// (Will also be set by the [`Arp::resolve`] method.)
-    pub fn listen(&self, local_ip: Ipv4Address) {
-        self.inner.listen(local_ip);
-    }
+        self.listen(endpoints.local);
+        // SUBNETTING:
+        // If the given endpoints.remote is on the same network as this one,
+        // then we want to resolve its MAC address.
+        // If the given endpoints.remote is NOT on the same network,
+        // then we want to resolve the ROUTER's MAC address, because
+        // we would want to send our messages to that.
+        let subnet = {
+            match self.local_ips.get(&endpoints.local) {
+                Some(inner) => *inner,
+                None => None,
+            }
+        };
 
-    /// Sets the subnet of a local IP address,
-    /// for use with the [`Arp::resolve`] method.
-    pub fn set_subnet(&self, local_ip: Ipv4Address, subnet: SubnetInfo) {
-        self.inner.set_subnet(local_ip, subnet);
+        if let Some(subnet) = subnet {
+            let mask = subnet.mask;
+            if Ipv4Net::new(endpoints.local, mask).id() != Ipv4Net::new(endpoints.remote, mask).id()
+            {
+                endpoints.remote = subnet.default_gateway;
+            }
+        };
+
+        let dest_ip = endpoints.remote;
+        // if the mac can be resolved right away, return that
+        if let Some(status) = self.arp_table.get_clone(dest_ip) {
+            return status;
+        }
+
+        // otherwise, send out arp requests and wait
+        let pci_session = protocols
+            .protocol::<Pci>()
+            .expect("Pci should be in protocols")
+            .open(tap_slot);
+
+        for _ in 0..Self::RESEND_TRIES {
+            send_arp_request(pci_session.clone(), endpoints)?;
+            // wait before sending another request
+            let result =
+                tokio::time::timeout(Self::RESEND_DELAY, self.arp_table.get_mac(dest_ip)).await;
+            if let Ok(status) = result {
+                return status;
+            }
+        }
+        self.arp_table.fail_mac(dest_ip);
+
+        Err(NoResponseError)
     }
 
     /// Sets the subnet of a local IP address.
@@ -113,73 +231,103 @@ impl Arp {
         self
     }
 
-    /// Creates an [`Arp`] from the given [`ArpInner`].
-    /// This allows you replace Arp with your own drop-in implementation.
-    /// See [`internals`] for more information.
-    pub fn from_inner(inner: impl ArpInner) -> Arp {
-        Arp::from(inner)
+    /// Sets the subnet of a local IP address,
+    /// for use with the [`Arp::resolve`] method.
+    pub fn set_subnet(&self, local_ip: Ipv4Address, subnet: SubnetInfo) {
+        self.local_ips.insert(local_ip, Some(subnet));
     }
 
-    /// Creates a basic [`Arp`] object.
-    pub fn basic() -> Arp {
-        Self::from(BasicArpInner::new())
+    /// Adds the given IP address to this ARP session's list of local IPs.
+    /// (Will also be set by the [`Arp::resolve`] method.)
+    pub fn listen(&self, local_ip: Ipv4Address) {
+        use dashmap::mapref::entry::Entry;
+        // This is important to make sure we don't destroy the subnetting info when adding our local ip
+        if let Entry::Vacant(entry) = self.local_ips.entry(local_ip) {
+            entry.insert(None);
+        }
     }
 
-    /// Creates a Debug Arp object.
-    ///
-    /// When [`DebugArpInner::resolve`] is called, `resolve_hook` will also be called.
-    ///
-    /// When [`DebugArpInner::demux`] is called, `demux_hook` will also be called.
-    pub fn debug<R, D>(resolve_hook: R, demux_hook: D) -> Self
+    /// Creates a new [`Arp`] object.
+    pub fn new() -> Arp {
+        Arp::default()
+    }
+
+    /// Registers a callback.
+    /// Whenever [`Arp::resolve`] is called,
+    /// `func` will also be called.
+    pub fn resolve_hook<R>(mut self, func: R) -> Self
     where
         R: Fn(AddressPair, PciSlot) + Send + Sync + 'static,
+    {
+        self.resolve_hook = Some(Box::new(func));
+        self
+    }
+
+    /// Registers a callback.
+    /// Whenever [`Arp::demux`] is called,
+    /// `func` will also be called.
+    pub fn demux_hook<D>(mut self, func: D) -> Self
+    where
         D: Fn(Message) + Send + Sync + 'static,
     {
-        Self::from(DebugArpInner::new(resolve_hook, demux_hook))
+        self.demux_hook = Some(Box::new(func));
+        self
     }
 }
 
-#[async_trait::async_trait]
-impl Protocol for Arp {
-    async fn start(
-        &self,
-        shutdown: Shutdown,
-        initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
-    ) -> Result<(), StartError> {
-        self.inner.start(shutdown, initialized, protocols)
+/// A struct representing an arp table.
+/// Like a DashMap, but you can wait for a MAC to be set.
+pub struct ArpTable {
+    table: FxDashMap<Ipv4Address, MacStatus>,
+    /// () is sent through this when the table is updated
+    update: watch::Sender<()>,
+}
+
+type MacStatus = Result<Mac, NoResponseError>;
+
+impl ArpTable {
+    pub fn set_mac(&self, ip: Ipv4Address, mac: Mac) {
+        self.table.insert(ip, Ok(mac));
+        self.update.send_replace(());
     }
 
-    /// This should be called when an ARP request or reply is received.
-    /// Processes the given Message (which should be an IPv4 over ethernet ARP packet).
-    /// Adds the sender's IP and MAC to the ARP table.
-    /// If this is an Arp request, send back an Arp reply.
-    fn demux(
-        &self,
-        message: Message,
-        caller: Arc<dyn Session>,
-        control: Control,
-        protocols: ProtocolMap,
-    ) -> Result<(), DemuxError> {
-        self.inner.demux(message, caller, control, protocols)
+    pub fn fail_mac(&self, ip: Ipv4Address) {
+        self.table.insert(ip, Err(NoResponseError));
+        self.update.send_replace(());
+    }
+
+    pub fn remove_mac(&self, ip: Ipv4Address) {
+        self.table.remove(&ip);
+    }
+
+    /// waits for a mac status to be set, then returns it
+    pub async fn get_mac(&self, ip: Ipv4Address) -> MacStatus {
+        let mut recv = self.update.subscribe();
+        loop {
+            if let Some(value) = self.get_clone(ip) {
+                return value;
+            }
+
+            // if the mac wasn't there, wait for it
+            recv.changed().await.expect("sender should not be dropped");
+        }
+    }
+
+    /// tries to get the current mac status from the arp table.
+    /// returns none if a mac status has not been set.
+    pub fn get_clone(&self, ip: Ipv4Address) -> Option<MacStatus> {
+        self.table.get(&ip).map(|entry| *entry)
     }
 }
 
-impl<I: ArpInner> From<I> for Arp {
-    fn from(value: I) -> Arp {
-        Arp {
-            inner: Box::new(value) as Box<dyn ArpInner>,
+impl Default for ArpTable {
+    fn default() -> Self {
+        Self {
+            table: FxDashMap::default(),
+            update: watch::channel(()).0,
         }
     }
 }
-
-impl Default for Arp {
-    /// Alias for [`Self::basic`].
-    fn default() -> Self {
-        Self::basic()
-    }
-}
-
 #[derive(Debug, Clone, Copy, thiserror::Error, PartialEq, Eq, Hash)]
 #[error("didn't get response for mac address")]
 pub struct NoResponseError;
