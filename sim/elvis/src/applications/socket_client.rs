@@ -68,6 +68,10 @@ impl Protocol for SocketClient {
         socket.connect(remote_sock_addr).await.unwrap();
         println!("CLIENT {}: Connected", self.client_id);
 
+        // Error checking, these calls *should* return errors.
+        if let Ok(_) = socket.listen(10) { return Err(StartError::Other) }
+        if let Ok(_) = socket.connect(remote_sock_addr).await { return Err(StartError::Other) }
+
         // Send a message
         let req = "Ground Control to Major Tom";
         println!("CLIENT {}: Sending Request: {:?}", self.client_id, req);
