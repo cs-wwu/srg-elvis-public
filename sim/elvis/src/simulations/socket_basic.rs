@@ -23,7 +23,7 @@ use elvis_core::{
 /// receives the "ackowledgement" messages, and shuts down the simulation.
 pub async fn socket_basic(transport: SocketType, num_clients: u8) {
     let network = Network::basic();
-    let server_ip_address: Ipv4Address = [111, 111, 11, 00].into();
+    let server_ip_address: Ipv4Address = [111, 111, 11, 0].into();
 
     let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
         .into_iter()
@@ -55,7 +55,9 @@ pub async fn socket_basic(transport: SocketType, num_clients: u8) {
         ])
     }
 
-    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    println!("Number of machines: {:?}", machines.len());
+
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
     assert_eq!(status, ExitStatus::Exited);
 }
 
@@ -73,23 +75,23 @@ mod tests {
         super::socket_basic(SocketType::Datagram, 1).await;
     }
 
-    // #[tokio::test]
-    // async fn socket_basic_tcp_10_clients() {
-    //     super::socket_basic(SocketType::Stream, 10).await;
-    // }
+    #[tokio::test]
+    async fn socket_basic_tcp_10_clients() {
+        super::socket_basic(SocketType::Stream, 10).await;
+    }
 
-    // #[tokio::test]
-    // async fn socket_basic_udp_10_clients() {
-    //     super::socket_basic(SocketType::Datagram, 10).await;
-    // }
+    #[tokio::test]
+    async fn socket_basic_udp_10_clients() {
+        super::socket_basic(SocketType::Datagram, 10).await;
+    }
 
-    // #[tokio::test]
-    // async fn socket_basic_tcp_100_clients() {
-    //     super::socket_basic(SocketType::Stream, 100).await;
-    // }
+    #[tokio::test]
+    async fn socket_basic_tcp_100_clients() {
+        super::socket_basic(SocketType::Stream, 100).await;
+    }
 
-    // #[tokio::test]
-    // async fn socket_basic_udp_100_clients() {
-    //     super::socket_basic(SocketType::Datagram, 100).await;
-    // }
+    #[tokio::test]
+    async fn socket_basic_udp_100_clients() {
+        super::socket_basic(SocketType::Datagram, 100).await;
+    }
 }

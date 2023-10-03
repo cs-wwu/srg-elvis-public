@@ -82,8 +82,15 @@ impl Protocol for SocketServer {
         listen_socket.bind(local_sock_addr).unwrap();
 
         // Listen for incoming connections, with a maximum backlog of 10
-        listen_socket.listen(10).unwrap();
+        listen_socket.listen(num_clients).unwrap();
         println!("\nSERVER: Listening for incoming connections");
+
+        // Wait on ititialization before sending or receiving any message from the network
+        initialized.wait().await;
+
+        // Error checking, these calls *should* return errors.
+        if let Ok(_) = listen_socket.listen(num_clients) { return Err(StartError::Other) }
+        if let Ok(_) = listen_socket.connect(local_sock_addr).await { return Err(StartError::Other) }
 
         // Error checking, a second socket should not be able to listen on the same port
         let listen_socket_2 = sockets
@@ -91,14 +98,7 @@ impl Protocol for SocketServer {
             .await
             .unwrap();
         listen_socket_2.bind(local_sock_addr).unwrap();
-        if let Ok(_) = listen_socket_2.listen(10) { return Err(StartError::Other) }
-
-        // Wait on ititialization before sending or receiving any message from the network
-        initialized.wait().await;
-
-        // Error checking, these calls *should* return errors.
-        if let Ok(_) = listen_socket.listen(10) { return Err(StartError::Other) }
-        if let Ok(_) = listen_socket.connect(local_sock_addr).await { return Err(StartError::Other) }
+        if let Ok(_) = listen_socket_2.listen(num_clients) { return Err(StartError::Other) }
 
         let mut tasks = Vec::new();
         // Continuously accept incoming connections in a loop, spawning a
