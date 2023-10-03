@@ -55,6 +55,7 @@ pub fn machines_parser(
             }
 
             Err(e) => {
+
                 return Err(general_error(
                     num_tabs,
                     machines_line_num,
@@ -213,12 +214,11 @@ fn machine_parser(
                                 }
 
                                 Err(e) => {
-                                    println!("Message: \n{}", e);
                                     return Err(general_error(
                                         num_tabs,
                                         machine_line_num,
                                         dec,
-                                        format!("{}{}", num_tabs_to_string(num_tabs + 1), e),
+                                        format!("{}{}", num_tabs_to_string(num_tabs -1), e),
                                     ));
                                 }
                             }
@@ -385,7 +385,9 @@ fn machine_protocols_parser(
     //While there are more protocols to parse
     while !remaining_string.is_empty() {
         //Find the specific protocol
+
         let protocol = general_parser(&remaining_string[num_tabs as usize..], line_num);
+
         match protocol {
             Ok(n) => {
                 // Verfiy the protocol is of the correct type
@@ -419,7 +421,6 @@ fn machine_protocols_parser(
                 ));
             }
         }
-
         t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
         match t {
             // next line doesn't have enough tabs thus a network isn't being declared
@@ -480,23 +481,6 @@ fn machine_applications_parser(
                 }
                 //No application was found on the current line
                 else if n.0 != DecType::Application {
-                    println!("error 1:\n{}",format!(
-                        "{}Line {:?}: expected type Application and got type {:?} instead.\n",
-                        num_tabs_to_string(num_tabs + 1),
-                        *line_num - 1,
-                        n.0
-                    ));
-                    println!("Formatted error \n{}", general_error(
-                        num_tabs,
-                        applications_line_num,
-                        dec.clone(),
-                        format!(
-                            "{}Line {:?}: expected type Application and got type {:?} instead.\n",
-                            num_tabs_to_string(num_tabs + 1),
-                            *line_num - 1,
-                            n.0
-                        ),
-                    ));
                     return Err(general_error(
                         num_tabs,
                         applications_line_num,
@@ -504,7 +488,7 @@ fn machine_applications_parser(
                         format!(
                             "{}Line {:?}: expected type Application and got type {:?} instead.\n",
                             num_tabs_to_string(num_tabs + 1),
-                            *line_num - 1,
+                            *line_num-1,
                             n.0
                         ),
                     ));
@@ -512,10 +496,9 @@ fn machine_applications_parser(
             }
             //General parses was unable to parse the line
             Err(e) => {
-                println!("error 2:\n{}",format!("{}{}", num_tabs_to_string(num_tabs + 1), e));
-
+                
                 return Err(general_error(
-                    num_tabs - 2,
+                    num_tabs,
                     applications_line_num,
                     dec,
                     format!("{}{}", num_tabs_to_string(num_tabs + 1), e),
@@ -550,7 +533,7 @@ fn machine_applications_parser(
                     format!(
                         "{}Line {:?}: Router information cannot be parsed: {}\n",
                         num_tabs_to_string(num_tabs + 1),
-                        *line_num - 1,
+                        *line_num,
                         e
                     ),
                 )),

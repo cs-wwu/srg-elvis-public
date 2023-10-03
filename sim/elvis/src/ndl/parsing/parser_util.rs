@@ -98,7 +98,6 @@ pub fn num_tabs_to_string(num_tabs: i32) -> String {
 
 /// Formats a general error message and returns that String.
 pub fn general_error(num_tabs: i32, line_num: i32, dec: DecType, msg: String) -> String {
-    println!("Num indents from error {}", num_tabs);
     format!(
         "{}Line {:?}: Unable to parse inside of {:?} due to: \n{}",
         num_tabs_to_string(num_tabs),
