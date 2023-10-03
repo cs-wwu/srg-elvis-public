@@ -70,7 +70,7 @@ impl Protocol for SocketServer {
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = self.local_port;
         let transport = self.transport;
-        let num_clients = self.num_clients.into();
+        let num_clients = self.num_clients;
 
         let listen_socket = sockets
             .new_socket(ProtocolFamily::INET, transport, protocols.clone())
@@ -89,8 +89,12 @@ impl Protocol for SocketServer {
         initialized.wait().await;
 
         // Error checking, these calls *should* return errors.
-        if let Ok(_) = listen_socket.listen(num_clients) { return Err(StartError::Other) }
-        if let Ok(_) = listen_socket.connect(local_sock_addr).await { return Err(StartError::Other) }
+        if listen_socket.listen(num_clients).is_ok() {
+            return Err(StartError::Other);
+        }
+        if listen_socket.connect(local_sock_addr).await.is_ok() {
+            return Err(StartError::Other);
+        }
 
         // Error checking, a second socket should not be able to listen on the same port
         let listen_socket_2 = sockets
@@ -98,7 +102,9 @@ impl Protocol for SocketServer {
             .await
             .unwrap();
         listen_socket_2.bind(local_sock_addr).unwrap();
-        if let Ok(_) = listen_socket_2.listen(num_clients) { return Err(StartError::Other) }
+        if listen_socket_2.listen(num_clients).is_ok() {
+            return Err(StartError::Other);
+        }
 
         let mut tasks = Vec::new();
         // Continuously accept incoming connections in a loop, spawning a
