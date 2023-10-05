@@ -16,17 +16,14 @@ use elvis_core::{
 
 /// Runs a basic server-client simulation using sockets.
 ///
-/// In this simulation, three client machines send "request" messages to a
+/// In this simulation, several client machines send "request" messages to a
 /// server machine. The server receives the requests, and sends back
 /// "response" messages to each client. The clients receive those
 /// responses, and each send back an "ackowledgement" message. The server
 /// receives the "ackowledgement" messages, and shuts down the simulation.
-pub async fn socket_basic() {
+pub async fn socket_basic(transport: SocketType, num_clients: u8) {
     let network = Network::basic();
-    let server_ip_address: Ipv4Address = [123, 45, 67, 89].into();
-    let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
-    let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
-    let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
+    let server_ip_address: Ipv4Address = [111, 111, 11, 0].into();
 
     let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
         .into_iter()
@@ -37,54 +34,64 @@ pub async fn socket_basic() {
         default_gateway: Ipv4Address::from([1, 1, 1, 1]),
     };
 
-    let machines = vec![
-        new_machine![
+    let mut machines = vec![new_machine![
+        Udp::new(),
+        Tcp::new(),
+        Ipv4::new(ip_table.clone()),
+        Pci::new([network.clone()]),
+        Arp::new().preconfig_subnet(server_ip_address, info),
+        SocketAPI::new(Some(server_ip_address)),
+        SocketServer::new(0xbeef, transport, num_clients.into())
+    ]];
+    for i in 1..=num_clients {
+        machines.push(new_machine![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            Arp::new().preconfig_subnet(server_ip_address, info),
-            SocketAPI::new(Some(server_ip_address)),
-            SocketServer::new(0xbeef, SocketType::Stream)
-        ],
-        new_machine![
-            Udp::new(),
-            Tcp::new(),
-            Ipv4::new(ip_table.clone()),
-            Pci::new([network.clone()]),
-            Arp::new().preconfig_subnet(client1_ip_address, info),
-            SocketAPI::new(Some(client1_ip_address)),
-            SocketClient::new(1, server_ip_address, 0xbeef, SocketType::Stream)
-        ],
-        new_machine![
-            Udp::new(),
-            Tcp::new(),
-            Ipv4::new(ip_table.clone()),
-            Pci::new([network.clone()]),
-            Arp::new().preconfig_subnet(client2_ip_address, info),
-            SocketAPI::new(Some(client2_ip_address)),
-            SocketClient::new(2, server_ip_address, 0xbeef, SocketType::Stream)
-        ],
-        new_machine![
-            Udp::new(),
-            Tcp::new(),
-            Ipv4::new(ip_table.clone()),
-            Pci::new([network.clone()]),
-            Arp::new().preconfig_subnet(client3_ip_address, info),
-            SocketAPI::new(Some(client3_ip_address)),
-            SocketClient::new(3, server_ip_address, 0xbeef, SocketType::Stream)
-        ],
-    ];
+            Arp::new().preconfig_subnet([111, 111, 11, i].into(), info),
+            SocketAPI::new(Some([111, 111, 11, i].into())),
+            SocketClient::new(i.into(), server_ip_address, 0xbeef, transport)
+        ])
+    }
 
-    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    println!("Number of machines: {:?}", machines.len());
+
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
     assert_eq!(status, ExitStatus::Exited);
 }
 
 #[cfg(test)]
 mod tests {
+    use elvis_core::protocols::socket_api::socket::SocketType;
 
     #[tokio::test]
-    async fn socket_basic() {
-        super::socket_basic().await;
+    async fn socket_basic_tcp() {
+        super::socket_basic(SocketType::Stream, 1).await;
+    }
+
+    #[tokio::test]
+    async fn socket_basic_udp() {
+        super::socket_basic(SocketType::Datagram, 1).await;
+    }
+
+    #[tokio::test]
+    async fn socket_basic_tcp_10_clients() {
+        super::socket_basic(SocketType::Stream, 10).await;
+    }
+
+    #[tokio::test]
+    async fn socket_basic_udp_10_clients() {
+        super::socket_basic(SocketType::Datagram, 10).await;
+    }
+
+    #[tokio::test]
+    async fn socket_basic_tcp_100_clients() {
+        super::socket_basic(SocketType::Stream, 100).await;
+    }
+
+    #[tokio::test]
+    async fn socket_basic_udp_100_clients() {
+        super::socket_basic(SocketType::Datagram, 100).await;
     }
 }
