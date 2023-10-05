@@ -184,13 +184,17 @@ mod tests {
             Fragments::Fragmented(fragmented) => fragmented,
             _ => panic!("Expected fragmented packet"),
         };
-        let [actual_1, actual_2] = fragmented.as_slice() else { panic!("Expected two fragments") };
+        let [actual_1, actual_2] = fragmented.as_slice() else {
+            panic!("Expected two fragments")
+        };
 
         let fragmented = match fragment(actual_2.0, actual_2.1.clone(), MTU_2) {
             Fragments::Fragmented(fragmented) => fragmented,
             _ => panic!("Expected fragmented packet"),
         };
-        let [actual_2, actual_3] = fragmented.as_slice() else { panic!("Expected two fragments") };
+        let [actual_2, actual_3] = fragmented.as_slice() else {
+            panic!("Expected two fragments")
+        };
 
         assert_eq!(actual_1.0, expected_1);
         assert_eq!(actual_1.1.len(), (MTU_1 - HEADER_OCTETS) as usize);

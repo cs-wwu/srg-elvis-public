@@ -123,14 +123,18 @@ mod tests {
             Fragments::Fragmented(fragments) => fragments,
             _ => panic!("Expected fragments"),
         };
-        let [a1, a2] = a.as_slice() else { panic!("Expected two fragments") };
+        let [a1, a2] = a.as_slice() else {
+            panic!("Expected two fragments")
+        };
 
         let header_b = TestHeaderBuilder::new(LEN).identification(420).build();
         let b = match fragment(header_b, expected_b.clone(), MTU) {
             Fragments::Fragmented(fragments) => fragments,
             _ => panic!("Expected fragments"),
         };
-        let [b1, b2] = b.as_slice() else { panic!("Expected two fragments") };
+        let [b1, b2] = b.as_slice() else {
+            panic!("Expected two fragments")
+        };
 
         let mut reassembly = Reassembly::new();
 

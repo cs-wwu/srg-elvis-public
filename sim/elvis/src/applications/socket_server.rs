@@ -18,13 +18,16 @@ pub struct SocketServer {
     local_port: u16,
     /// Whether to use UDP or TCP
     transport: SocketType,
+    /// The number of clients to accept
+    num_clients: usize,
 }
 
 impl SocketServer {
-    pub fn new(local_port: u16, transport: SocketType) -> Self {
+    pub fn new(local_port: u16, transport: SocketType, num_clients: usize) -> Self {
         Self {
             local_port,
             transport,
+            num_clients,
         }
     }
 }
@@ -45,8 +48,11 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 
     // Receive a message (Also example usage of recv_msg)
     // println!("SERVER: Waiting for awkowledgement...");
-    let _ack = socket.recv_msg().await.unwrap();
-    println!("SERVER: Ackowledgement Received");
+    let ack = socket.recv_msg().await.unwrap();
+    println!(
+        "SERVER: Ackowledgement Received: {:?}",
+        String::from_utf8(ack.to_vec()).unwrap()
+    );
 }
 
 #[async_trait::async_trait]
@@ -64,9 +70,10 @@ impl Protocol for SocketServer {
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = self.local_port;
         let transport = self.transport;
+        let num_clients = self.num_clients;
 
         let listen_socket = sockets
-            .new_socket(ProtocolFamily::INET, transport, protocols)
+            .new_socket(ProtocolFamily::INET, transport, protocols.clone())
             .await
             .unwrap();
 
@@ -75,11 +82,29 @@ impl Protocol for SocketServer {
         listen_socket.bind(local_sock_addr).unwrap();
 
         // Listen for incoming connections, with a maximum backlog of 10
-        listen_socket.listen(10).unwrap();
+        listen_socket.listen(num_clients).unwrap();
         println!("\nSERVER: Listening for incoming connections");
 
         // Wait on ititialization before sending or receiving any message from the network
         initialized.wait().await;
+
+        // Error checking, these calls *should* return errors.
+        if listen_socket.listen(num_clients).is_ok() {
+            return Err(StartError::Other);
+        }
+        if listen_socket.connect(local_sock_addr).await.is_ok() {
+            return Err(StartError::Other);
+        }
+
+        // Error checking, a second socket should not be able to listen on the same port
+        let listen_socket_2 = sockets
+            .new_socket(ProtocolFamily::INET, transport, protocols)
+            .await
+            .unwrap();
+        listen_socket_2.bind(local_sock_addr).unwrap();
+        if listen_socket_2.listen(num_clients).is_ok() {
+            return Err(StartError::Other);
+        }
 
         let mut tasks = Vec::new();
         // Continuously accept incoming connections in a loop, spawning a
@@ -99,7 +124,7 @@ impl Protocol for SocketServer {
             // served, stops accepting new connections after the third,
             // and shuts down the simulation once communication with
             // the third has ended
-            if tasks.len() >= 3 {
+            if tasks.len() >= num_clients {
                 while !tasks.is_empty() {
                     tasks.pop().unwrap().await.unwrap()
                 }
