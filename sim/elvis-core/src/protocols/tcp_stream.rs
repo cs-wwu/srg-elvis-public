@@ -3,10 +3,9 @@ use super::{
     Endpoint,
 };
 use crate::{machine::ProtocolMap, message::Chunk, protocols::SocketAPI};
-use std::sync::Arc;
 
 pub struct TcpStream {
-    pub local_socket: Arc<Socket>,
+    pub local_socket: Socket,
 }
 
 impl TcpStream {
@@ -16,7 +15,7 @@ impl TcpStream {
         protocols: ProtocolMap,
     ) -> Result<Self, SocketError> {
         let sockets_api = protocols.protocol::<SocketAPI>().unwrap();
-        let socket = SocketAPI::new_socket(
+        let mut socket = SocketAPI::new_socket(
             &sockets_api,
             ProtocolFamily::INET,
             SocketType::Stream,
@@ -45,8 +44,8 @@ impl TcpStream {
         self.local_socket.send(message)
     }
 
-    /// Receives at most 'bytes' data from the remote socket bound to the local socket
-    pub async fn read_exact(&mut self, bytes: usize) -> Result<Vec<u8>, SocketError> {
-        self.local_socket.recv(bytes).await
-    }
+    // /// Receives at most 'bytes' data from the remote socket bound to the local socket
+    // pub async fn read_exact(&mut self, bytes: usize) -> Result<Vec<u8>, SocketError> {
+    //     self.local_socket.recv(bytes).await
+    // }
 }

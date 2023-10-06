@@ -52,13 +52,13 @@ impl DnsServer {
 
     async fn respond_to_query(
         table: FxDashMap<String, Ipv4Address>,
-        socket: Arc<Socket>,
+        mut socket: Socket,
     ) -> Result<(), DnsServerError> {
         // Receive a message
         println!("SERVER: Waiting for request...");
-        let response = socket.recv(80).await.unwrap();
+        let response = socket.recv_msg().await.unwrap();
 
-        let req_msg = DnsMessage::from_bytes(response.iter().cloned()).unwrap();
+        let req_msg = DnsMessage::from_bytes(response.iter()).unwrap();
         println!("SERVER: Request Received");
 
         let name = req_msg.question.query_name().unwrap();
@@ -112,7 +112,7 @@ impl Protocol for DnsServer {
         let local_port = 53;
         let transport = SocketType::Datagram;
 
-        let listen_socket = sockets
+        let mut listen_socket = sockets
             .new_socket(ProtocolFamily::INET, transport, protocols)
             .await
             .unwrap();

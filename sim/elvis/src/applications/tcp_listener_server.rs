@@ -33,17 +33,18 @@ impl Protocol for TcpListenerServer {
     ) -> Result<(), StartError> {
         drop(_shutdown);
         // Create a new TcpListener bound to the server address
-        let listener: TcpListener = TcpListener::bind(self.server_address, protocols)
+        let mut listener: TcpListener = TcpListener::bind(self.server_address, protocols)
             .await
             .unwrap();
 
         // Accept an incoming connection to create new TcpStream
-        let mut stream: TcpStream = TcpListener::accept(&listener).await.unwrap();
+        let mut stream: TcpStream = TcpListener::accept(&mut listener).await.unwrap();
 
         // TESTING TcpStream::read_exact()
         // Read up to 4 bytes from the client
-        let max_bytes: usize = 4;
-        let mut msg1: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
+        // let max_bytes: usize = 4;
+        // let mut msg1: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
+        let mut msg1: Vec<u8> = stream.read().await.unwrap();
 
         // Add 1 to each number in the vec
         for n in &mut msg1 {

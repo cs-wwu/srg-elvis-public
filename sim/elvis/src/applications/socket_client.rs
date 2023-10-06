@@ -55,7 +55,7 @@ impl Protocol for SocketClient {
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
 
-        let socket = sockets
+        let mut socket = sockets
             .new_socket(ProtocolFamily::INET, self.transport, protocols)
             .await
             .unwrap();
@@ -82,11 +82,11 @@ impl Protocol for SocketClient {
         socket.send(req).unwrap();
 
         // Receive a message
-        let resp = socket.recv(32).await.unwrap();
+        let resp = socket.recv_msg().await.unwrap();
         println!(
             "CLIENT {}: Response Received: {:?}",
             self.client_id,
-            String::from_utf8(resp).unwrap()
+            String::from_utf8(resp.to_vec()).unwrap()
         );
 
         // Send a message

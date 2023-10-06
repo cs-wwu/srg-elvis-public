@@ -17,7 +17,7 @@ use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
 };
-use tokio::sync::{Barrier, Notify};
+use tokio::sync::{Barrier, Notify, mpsc::{self, Receiver, Sender}};
 
 pub mod socket;
 use socket::{ProtocolFamily, Socket, SocketError, SocketType};
@@ -39,7 +39,8 @@ pub struct SocketAPI {
     local_address: Option<Ipv4Address>,
     local_ports: RwLock<u16>,
     next_fd: RwLock<u64>,
-    sockets: Arc<FxDashMap<u64, Arc<Socket>>>,
+    // sockets: Arc<FxDashMap<u64, Arc<Socket>>>,
+    socket_channels: FxDashMap<u64, Sender<Endpoint>>,
     socket_sessions: FxDashMap<Endpoints, Arc<SocketSession>>,
     listen_bindings: FxDashMap<Endpoint, u64>,
     notify_init: Notify,
@@ -53,7 +54,8 @@ impl SocketAPI {
             local_address,
             local_ports: RwLock::new(49152),
             next_fd: RwLock::new(0),
-            sockets: Default::default(),
+            // sockets: Default::default(),
+            socket_channels: Default::default(),
             socket_sessions: Default::default(),
             listen_bindings: Default::default(),
             notify_init: Notify::new(),
@@ -72,7 +74,7 @@ impl SocketAPI {
         domain: ProtocolFamily,
         sock_type: SocketType,
         protocols: ProtocolMap,
-    ) -> Result<Arc<Socket>, SocketError> {
+    ) -> Result<Socket, SocketError> {
         let fd = {
             let mut lock = self.next_fd.write().unwrap();
             let fd = *lock;
@@ -80,21 +82,21 @@ impl SocketAPI {
             fd
         };
         self.notify_init.notified().await;
-        let socket = Arc::new(Socket::new(
+        let socket = Socket::new(
             domain,
             sock_type,
             fd,
             protocols,
             self.clone(),
             self.shutdown.read().unwrap().as_ref().unwrap().clone(),
-        ));
+        );
         self.notify_init.notify_one();
-        match self.sockets.entry(fd) {
-            Entry::Occupied(_) => {
-                return Err(SocketError::Other);
-            }
-            Entry::Vacant(entry) => entry.insert(socket.clone()),
-        };
+        // match self.sockets.entry(fd) {
+        //     Entry::Occupied(_) => {
+        //         return Err(SocketError::Other);
+        //     }
+        //     Entry::Vacant(entry) => entry.insert(socket.clone()),
+        // };
         Ok(socket)
     }
 
@@ -122,7 +124,7 @@ impl SocketAPI {
         &self,
         local: Endpoint,
         remote: Endpoint,
-    ) -> Result<Arc<SocketSession>, SocketError> {
+    ) -> Result<(Arc<SocketSession>, Receiver<Message>), SocketError> {
         let listen_local = Endpoint::new(self.local_address.unwrap(), local.port);
         let listen_identifier = Endpoints::new(listen_local, remote);
         let session = match self.socket_sessions.entry(listen_identifier) {
@@ -131,30 +133,33 @@ impl SocketAPI {
                 return Err(SocketError::AcceptError);
             }
         };
+        let (sender, receiver) = mpsc::channel(100);
         let identifier = Endpoints::new(local, remote);
+        *session.upstream.write().unwrap() = Some(sender);
         self.socket_sessions.insert(identifier, session.clone());
-        Ok(session)
+        Ok((session, receiver))
     }
 
     /// Called from Socket::connect() and Socket::accept()
     /// Creates a new socket_session based on IP address and port and returns it
     pub async fn open_with_fd(
         &self,
-        fd: u64,
+        _fd: u64,
         socket_id: Endpoints,
+        transport: SocketType,
         protocols: ProtocolMap,
-    ) -> Result<Arc<dyn Session>, OpenError> {
+    ) -> Result<(Arc<dyn Session>, Receiver<Message>), OpenError> {
         match self.socket_sessions.entry(socket_id) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
                 Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
-                let sock = match self.sockets.entry(fd) {
-                    Entry::Occupied(sock) => sock.get().clone(),
-                    Entry::Vacant(_) => return Err(OpenError::NoSocketForFd(fd)),
-                };
-                let downstream = match sock.sock_type {
+                // let sock = match self.sockets.entry(fd) {
+                //     Entry::Occupied(sock) => sock.get().clone(),
+                //     Entry::Vacant(_) => return Err(OpenError::NoSocketForFd(fd)),
+                // };
+                let downstream = match transport {
                     SocketType::Datagram => {
                         protocols
                             .protocol::<Udp>()
@@ -170,13 +175,14 @@ impl SocketAPI {
                             .await?
                     }
                 };
+                let (sender, receiver) = mpsc::channel(100);
                 let session = Arc::new(SocketSession {
-                    upstream: RwLock::new(Some(sock)),
+                    upstream: RwLock::new(Some(sender)),
                     downstream,
                     stored_messages: RwLock::new(VecDeque::new()),
                 });
                 entry.insert(session.clone());
-                Ok(session)
+                Ok((session, receiver))
             }
         }
     }
@@ -185,26 +191,30 @@ impl SocketAPI {
         &self,
         fd: u64,
         address: Endpoint,
+        transport: SocketType,
         protocols: ProtocolMap,
-    ) -> Result<(), ListenError> {
-        let sock = match self.sockets.entry(fd) {
-            Entry::Occupied(sock) => sock.get().clone(),
-            Entry::Vacant(_) => return Err(ListenError::NoSocketForFd(fd)),
-        };
+    ) -> Result<Receiver<Endpoint>, ListenError> {
+        // let sock = match self.sockets.entry(fd) {
+        //     Entry::Occupied(sock) => sock.get().clone(),
+        //     Entry::Vacant(_) => return Err(ListenError::NoSocketForFd(fd)),
+        // };
         if self.listen_bindings.get(&address).is_some() {
             return Err(ListenError::Existing(address));
         }
         self.listen_bindings.insert(address, fd);
-        match sock.sock_type {
-            SocketType::Datagram => Ok(protocols
+        let (sender, receiver) = mpsc::channel(100);
+        self.socket_channels.insert(fd, sender);
+        match transport {
+            SocketType::Datagram => protocols
                 .protocol::<Udp>()
                 .expect("No such protocol")
-                .listen(TypeId::of::<Self>(), address, protocols)?),
-            SocketType::Stream => Ok(protocols
+                .listen(TypeId::of::<Self>(), address, protocols)?,
+            SocketType::Stream => protocols
                 .protocol::<Tcp>()
                 .expect("No such protocol")
-                .listen(TypeId::of::<Self>(), address, protocols)?),
-        }
+                .listen(TypeId::of::<Self>(), address, protocols)?,
+        };
+        return Ok(receiver);
     }
 }
 
@@ -280,7 +290,7 @@ impl Protocol for SocketAPI {
                         }
                     },
                 };
-                let socket = match self.sockets.entry(*binding) {
+                let sender = match self.socket_channels.entry(*binding) {
                     Entry::Occupied(sock) => sock.get().clone(),
                     Entry::Vacant(_) => {
                         return Err(DemuxError::MissingSession);
@@ -292,7 +302,7 @@ impl Protocol for SocketAPI {
                     stored_messages: RwLock::new(VecDeque::new()),
                 });
                 session.stored_messages.write().unwrap().push_back(message);
-                socket.add_listen_address(identifier.remote);
+                sender.try_send(identifier.remote);
                 entry.insert(session);
             }
         };
@@ -333,7 +343,7 @@ impl Protocol for SocketAPI {
                                 }
                             },
                         };
-                        let socket = match self.sockets.entry(*binding) {
+                        let sender = match self.socket_channels.entry(*binding) {
                             Entry::Occupied(sock) => sock.get().clone(),
                             Entry::Vacant(_) => {
                                 return;
@@ -344,7 +354,7 @@ impl Protocol for SocketAPI {
                             downstream: caller,
                             stored_messages: RwLock::new(VecDeque::new()),
                         });
-                        socket.add_listen_address(identifier.remote);
+                        sender.try_send(identifier.remote);
                         entry.insert(session);
                     }
                 };

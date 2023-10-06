@@ -74,7 +74,7 @@ impl DnsClient {
                     .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))
                     .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
-                let socket = sockets
+                let mut socket = sockets
                     .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
                     .await
                     .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)

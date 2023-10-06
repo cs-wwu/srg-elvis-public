@@ -32,13 +32,13 @@ impl SocketServer {
     }
 }
 
-async fn communicate_with_client(socket: Arc<Socket>) {
+async fn communicate_with_client(mut socket: Socket) {
     // Receive a message
     println!("SERVER: Waiting for request...");
-    let req = socket.recv(32).await.unwrap();
+    let req = socket.recv_msg().await.unwrap();
     println!(
         "SERVER: Request Received: {:?}",
-        String::from_utf8(req).unwrap()
+        String::from_utf8(req.to_vec()).unwrap()
     );
 
     // Send a message
@@ -72,7 +72,7 @@ impl Protocol for SocketServer {
         let transport = self.transport;
         let num_clients = self.num_clients;
 
-        let listen_socket = sockets
+        let mut listen_socket = sockets
             .new_socket(ProtocolFamily::INET, transport, protocols.clone())
             .await
             .unwrap();
@@ -97,7 +97,7 @@ impl Protocol for SocketServer {
         }
 
         // Error checking, a second socket should not be able to listen on the same port
-        let listen_socket_2 = sockets
+        let mut listen_socket_2 = sockets
             .new_socket(ProtocolFamily::INET, transport, protocols)
             .await
             .unwrap();

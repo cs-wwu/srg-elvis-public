@@ -87,7 +87,7 @@ impl Protocol for WebServer {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let local_host = Endpoint::new([100, 42, 0, 0].into(), 80); // Temporary work around until localhost is implemented
-        let listener = TcpListener::bind(local_host, protocols).await.unwrap();
+        let mut listener = TcpListener::bind(local_host, protocols).await.unwrap();
 
         // Create DistributionData objects from .csv files
         let image_size = WebServer::read_csv(&self.data_folder, "image_size.csv").unwrap();

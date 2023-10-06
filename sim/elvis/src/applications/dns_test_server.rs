@@ -29,13 +29,13 @@ impl DnsTestServer {
     }
 }
 
-async fn communicate_with_client(socket: Arc<Socket>) {
+async fn communicate_with_client(mut socket: Socket) {
     // Receive a message
     println!("SERVER: Waiting for request...");
-    let req = socket.recv(32).await.unwrap();
+    let req = socket.recv_msg().await.unwrap();
     println!(
         "SERVER: Request Received: {:?}",
-        String::from_utf8(req).unwrap()
+        String::from_utf8(req.to_vec()).unwrap()
     );
 
     // Send a message
@@ -64,7 +64,7 @@ impl Protocol for DnsTestServer {
         let local_port = self.local_port;
         let transport = self.transport;
 
-        let listen_socket = sockets
+        let mut listen_socket = sockets
             .new_socket(ProtocolFamily::INET, transport, protocols)
             .await
             .unwrap();
