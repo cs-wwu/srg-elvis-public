@@ -1,6 +1,7 @@
 //! Generates applications from parsing data for machines
 //! Future applications can go here for easy import to the machine generator
 use std::collections::HashMap;
+use std::time::Duration;
 
 use crate::applications::{rip::rip_router::RipRouter, ArpRouter, Forward, PingPong, Capture, SendMessage};
 use crate::ip_generator::IpGenerator;
@@ -14,6 +15,8 @@ use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Arp;
 use elvis_core::protocols::{Endpoint, Endpoints};
 use elvis_core::{IpTable, Message};
+
+
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
     app: &Application,
@@ -64,7 +67,7 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip)
+        .local_ip(target_ip)//.delay(Duration::from_secs(5))
     } else {
         SendMessage::new(
             messages,
@@ -75,7 +78,7 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip)
+        .local_ip(target_ip)//.delay(Duration::from_secs(5))
     }
 }
 

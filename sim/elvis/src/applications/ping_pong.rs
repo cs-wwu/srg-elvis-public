@@ -87,7 +87,7 @@ impl Protocol for PingPong {
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
-
+        print!("ping pong got message");
         if ttl % 2 == 0 {
             tracing::info!("Pong {}", ttl);
         } else {
