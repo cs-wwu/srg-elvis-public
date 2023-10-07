@@ -218,7 +218,3 @@ fn machine_fail_invalid_router_entry_type() {
         }
     }
 }
-
-// parsing_machine_fail_invalid_applications_type
-// machine_fail_invalid_router_entry_subtype
-// machine_fail_invalid_router_entry_type

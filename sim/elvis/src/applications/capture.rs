@@ -92,7 +92,6 @@ impl Protocol for Capture {
                     .unwrap();
             }
         }
-
         *self.shutdown.write().unwrap() = Some(shutdown);
         initialized.wait().await;
         Ok(())
@@ -110,6 +109,7 @@ impl Protocol for Capture {
 
         if *self.cur_count.read().unwrap() >= self.message_count {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
+                print!("Capture shutdown");
                 if let Some(status) = self.exit_status {
                     shutdown.shut_down_with_status(ExitStatus::Status(status));
                 } else {
