@@ -118,14 +118,14 @@ impl Protocol for RipRouter {
     ) -> Result<(), DemuxError> {
         // all messages at this point should be from udp port 520
         // messages are either request or response
-
+        
         // obtain the pci slot that the message was received from
         let demux_info = *control.get::<DemuxInfo>().ok_or(DemuxError::Other)?;
         let ipv4_header_info = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
 
         let slot = demux_info.slot;
         let router_address = ipv4_header_info.source;
-
+        println!("Incoming router address {:?}", router_address);
         // discard packets coming from this router
         if self.local_ips[slot as usize] == router_address {
             return Ok(());
@@ -143,6 +143,10 @@ impl Protocol for RipRouter {
 
         match packet.header.command {
             Operation::Request => {
+                if let Some(name) = self.name.clone(){
+                    println!("Router {} being request info", name);
+                }
+                
                 let udp = protocols
                     .protocol::<Udp>()
                     .expect("Rip requires UDP to work")
@@ -160,6 +164,7 @@ impl Protocol for RipRouter {
                     let protocols = protocols.clone();
 
                     tokio::spawn(async move {
+                        println!("Endpoints: {:?}", endpoints);
                         let result = udp.open_for_sending(id, endpoints, protocols.clone()).await;
                         let session = match result {
                             Ok(session) => session,
@@ -167,10 +172,14 @@ impl Protocol for RipRouter {
                         };
                         let _ = session.send(response_message, protocols);
                     });
+                    println!("Response sent");
                 }
             }
             Operation::Response => {
                 // update router table accordingly
+                if let Some(name) = self.name.clone(){
+                    println!("Router {} being response info", name);
+                }
                 protocols
                     .protocol::<ArpRouter>()
                     .expect("RipRouter requires ArpRouter")

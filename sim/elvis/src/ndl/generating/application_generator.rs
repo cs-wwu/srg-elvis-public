@@ -67,7 +67,7 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip)//.delay(Duration::from_secs(5))
+        .local_ip(target_ip).delay(Duration::from_secs(5))
     } else {
         SendMessage::new(
             messages,
@@ -78,7 +78,7 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip)//.delay(Duration::from_secs(5))
+        .local_ip(target_ip).delay(Duration::from_secs(5))
     }
 }
 
@@ -290,8 +290,9 @@ pub fn rip_router_builder(
     let router_ips = app.router_table.clone().unwrap().1;
 
     let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
-
+    let mut name = "1";
     for router_entry in router_table_entries {
+        name = "2";
         let line = generate_router_entry(router_entry);
         router_table.add(line.0, (line.1, line.2));
     }
@@ -311,7 +312,8 @@ pub fn rip_router_builder(
             local_ips.push(ip.into());
         }
     }
-    let rip = RipRouter::new(local_ips.clone());
+    
+    let rip = RipRouter::new(local_ips.clone()).debug(name.to_string());
     let arp = ArpRouter::new(router_table.clone(), local_ips.clone());
     println!("Router table: {:?}", router_table.clone());
     println!("Router local ips: {:?}", local_ips.clone());
