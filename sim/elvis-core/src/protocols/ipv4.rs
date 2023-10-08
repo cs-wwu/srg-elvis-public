@@ -237,7 +237,6 @@ impl Protocol for Ipv4 {
         let pci_demux_info = control
             .get::<pci::DemuxInfo>()
             .ok_or(DemuxError::MissingContext)?;
-        let recipient = Recipient::with_mac(pci_demux_info.slot, pci_demux_info.source);
 
         // open PCI session for sending back
         let pci_session = protocols.protocol::<Pci>().unwrap().open(
