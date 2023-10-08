@@ -108,7 +108,7 @@ impl Protocol for ArpRouter {
         let arp = protocols.protocol::<Arp>().unwrap();
 
         let address_pair = AddressPair {
-            local: self.local_ips[slot as usize],
+            local: self.local_ips[slot],
             remote: gateway,
         };
 

@@ -95,7 +95,7 @@ impl Pci {
         destination: Option<Mac>,
         protocol: EtherType,
     ) -> Arc<PciSession> {
-        let connection = self.connections[slot as usize].clone();
+        let connection = self.connections[slot].clone();
         let sesh = PciSession {
             slot,
             connection,
