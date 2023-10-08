@@ -13,22 +13,21 @@
 //!   (using `my_network.clone()`). This is similar to adding a networking card
 //!   to a computer. This way, a machine can attach to multiple different networks.
 //! - When [`Pci::start`](crate::protocols::Pci) is called,
-//!   a new [`PciSession`] will be created for each network in the Pci's constructor.
+//!   a new connection will be created for each network in the Pci's constructor.
 //!   Also called "taps", these sessions are access points to the network that can be
 //!   used to send and receive messages.
 //!   Each session also acts as an identifier so that peers on the network can
 //!   exchange messages directly.
 
-use crate::{protocols::pci::PciSession, FxDashMap, Message};
+use crate::{machine::PciSlot, protocols::pci::Pci, FxDashMap, Message};
 use rand::{distributions::Uniform, prelude::Distribution};
 use std::{
-    any::TypeId,
     sync::{Arc, Mutex},
     time::Duration,
 };
 use tokio::{sync::Notify, time::sleep};
 
-type Taps = Arc<FxDashMap<Mac, Arc<PciSession>>>;
+type Taps = FxDashMap<Mac, (Arc<Pci>, PciSlot)>;
 
 /// A network that allows the exchange of [`Message`]s between
 /// [`Machine`](crate::Machine)s.
@@ -85,8 +84,11 @@ impl Network {
         mac
     }
 
-    pub(crate) fn register_tap(self: &Arc<Self>, mac: Mac, session: Arc<PciSession>) {
-        self.taps.insert(mac, session);
+    /// Registers a Pci with a network.
+    /// When a message for the `mac` is received, it will be sent to the `pci` on slot
+    /// `slot`.
+    pub(crate) fn register_tap(self: &Arc<Self>, mac: Mac, pci: Arc<Pci>, slot: PciSlot) {
+        self.taps.insert(mac, (pci, slot));
     }
 
     /// Called at the beginning of the simulation to start the network running
@@ -111,12 +113,7 @@ impl Network {
         match delivery.destination {
             None | Some(Self::BROADCAST_MAC) => {
                 for tap in self.taps.iter() {
-                    match tap.receive(delivery.clone()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!("Failed to deliver a message: {}", e)
-                        }
-                    }
+                    Pci::receive(&tap.0, tap.1, delivery.clone());
                 }
             }
 
@@ -131,12 +128,7 @@ impl Network {
                     }
                     .clone()
                 };
-                match tap.receive(delivery) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        tracing::error!("Failed to deliver a message: {}", e)
-                    }
-                }
+                Pci::receive(&tap.0, tap.1, delivery);
             }
         }
     }
@@ -215,7 +207,7 @@ pub(crate) struct Delivery {
     /// destination is `None`, the message should be broadcast.
     pub destination: Option<Mac>,
     /// The protocol that should respond to the packet, usually an IP protocol
-    pub protocol: TypeId,
+    pub protocol: crate::protocols::pci::EtherType,
 }
 
 /// A network maximum transmission unit.
@@ -223,7 +215,8 @@ pub(crate) struct Delivery {
 /// The largest number of bytes that can be sent over the network at once.
 pub type Mtu = u16;
 
-/// A MAC address that uniquely identifies a [`PciSession`] on a network.
+/// A MAC address that uniquely identifies a
+/// [`PciSession`](crate::protocols::pci::PciSession) on a network.
 pub type Mac = u64;
 
 /// A data transfer rate

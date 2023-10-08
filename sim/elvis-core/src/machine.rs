@@ -7,7 +7,7 @@ use std::{
 use tokio::{sync::Barrier, task::JoinSet};
 
 /// A tap's PCI slot index
-pub type PciSlot = u32;
+pub type PciSlot = usize;
 
 type ArcAny = Arc<dyn Any + Send + Sync + 'static>;
 type AnyMap = FxHashMap<TypeId, (ArcAny, Arc<dyn Protocol>)>;

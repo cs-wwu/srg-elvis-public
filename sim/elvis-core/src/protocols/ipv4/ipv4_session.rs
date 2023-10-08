@@ -1,16 +1,16 @@
 use super::{
     ipv4_parsing::{Ipv4Header, Ipv4HeaderBuilder},
     reassembly::{Reassembly, ReceivePacketResult},
-    Ipv4, Ipv4Address, Recipient,
+    Ipv4, Ipv4Address,
 };
 use crate::{
     machine::ProtocolMap,
     message::Message,
     network::Delivery,
     protocol::DemuxError,
-    protocols::{pci::PciSession, utility::Endpoints},
+    protocols::{pci::PciSession, utility::Endpoints, Pci},
     session::SendError,
-    Control, Network, Session, Transport,
+    Control, Session, Transport,
 };
 use std::{
     any::TypeId,
@@ -26,8 +26,6 @@ pub struct Ipv4Session {
     pub(super) pci_session: Arc<PciSession>,
     /// The identifying information for this session
     pub(super) addresses: AddressPair,
-    /// Information about how and where to send packets
-    pub(super) recipient: Recipient,
     // TODO(hardint): Since this lock is held for a relatively long time, would
     // a Tokio lock or message passing be a better option?
     /// Used for reassembling fragmented packets
@@ -77,7 +75,7 @@ impl Ipv4Session {
 
 impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip_all)]
-    fn send(&self, mut message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
         let length = message.iter().count();
         let transport: Transport = self.upstream.try_into().or(Err(SendError::Other))?;
         let header = match Ipv4HeaderBuilder::new(
@@ -95,34 +93,21 @@ impl Session for Ipv4Session {
             }
         };
         message.header(header);
-        if self.addresses.remote == Ipv4Address::SUBNET {
-            self.pci_session.send_pci(
-                message,
-                Some(Network::BROADCAST_MAC),
-                TypeId::of::<Ipv4>(),
-            )?;
-        } else if crate::subnetting::Ipv4Net::LOOPBACK.contains(self.addresses.remote) {
+        if crate::subnetting::Ipv4Net::LOOPBACK.contains(self.addresses.remote) {
             // address is a loopback address (127.0.0.1/8),
-            // so we send the things directly to our own tap slot.
+            // so we send the things directly to our own pci.
             let delivery = Delivery {
                 message,
                 sender: self.pci_session.mac(),
                 destination: Some(self.pci_session.mac()),
-                protocol: TypeId::of::<Ipv4>(),
+                protocol: Ipv4::ETHERTYPE,
             };
-            match self.pci_session.receive(delivery) {
-                Ok(_) => {}
-                Err(_) => {
-                    tracing::error!(
-                        "Failed to send to loopback address {:?}",
-                        self.addresses.remote
-                    );
-                    return Err(SendError::Other);
-                }
-            }
+            let pci = protocols
+                .protocol::<Pci>()
+                .expect("machine should have PCI");
+            pci.receive(0, delivery);
         } else {
-            self.pci_session
-                .send_pci(message, self.recipient.mac, TypeId::of::<Ipv4>())?;
+            self.pci_session.send_pci(message)?;
         }
 
         Ok(())

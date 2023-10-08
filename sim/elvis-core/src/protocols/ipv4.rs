@@ -66,6 +66,8 @@ pub struct Ipv4 {
 }
 
 impl Ipv4 {
+    pub const ETHERTYPE: crate::protocols::pci::EtherType = 0x800;
+
     /// Creates a new instance of the protocol.
     pub fn new(recipients: IpTable<Recipient>) -> Self {
         Self {
@@ -106,8 +108,13 @@ impl Ipv4 {
             }
         };
 
+        // turn 255.255.255.255 into broadcast MAC
+        if endpoints.remote == Ipv4Address::SUBNET {
+            recipient.mac = Some(crate::Network::BROADCAST_MAC);
+        }
+
         // if ARP exists, and recipient does not specify a destination MAC, then try to figure out a destination MAC
-        // don't try to send arp requests if the remote enpoint is the broadcast address
+        // don't try to send arp requests if the remote endpoint is the broadcast address
         if recipient.mac.is_none() {
             if let Some(arp) = protocols.protocol::<Arp>() {
                 arp.listen(endpoints.local);
@@ -118,13 +125,16 @@ impl Ipv4 {
             }
         }
 
-        let pci_session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
+        let pci_session = protocols.protocol::<Pci>().unwrap().open(
+            recipient.slot,
+            recipient.mac,
+            Self::ETHERTYPE,
+        );
         let session = Arc::new(Ipv4Session {
             pci_session,
             upstream,
             reassembly: Default::default(),
             addresses: endpoints,
-            recipient,
         });
         Ok(session)
     }
@@ -164,8 +174,13 @@ impl Protocol for Ipv4 {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        let self_arc = protocols.protocol::<Ipv4>().unwrap();
+        protocols
+            .protocol::<Pci>()
+            .unwrap()
+            .listen(self_arc, Self::ETHERTYPE);
         initialized.wait().await;
         Ok(())
     }
@@ -223,17 +238,20 @@ impl Protocol for Ipv4 {
             .get::<pci::DemuxInfo>()
             .ok_or(DemuxError::MissingContext)?;
         let recipient = Recipient::with_mac(pci_demux_info.slot, pci_demux_info.source);
+
+        // open PCI session for sending back
+        let pci_session = protocols.protocol::<Pci>().unwrap().open(
+            pci_demux_info.slot,
+            Some(pci_demux_info.source),
+            Self::ETHERTYPE,
+        );
         let session = Arc::new(Ipv4Session {
             upstream,
-            pci_session: protocols
-                .protocol::<Pci>()
-                .unwrap()
-                .open(pci_demux_info.slot),
+            pci_session,
             addresses: AddressPair {
                 local: header.destination,
                 remote: header.source,
             },
-            recipient,
             reassembly: Default::default(),
         });
         session.receive(header, message, control, protocols)?;

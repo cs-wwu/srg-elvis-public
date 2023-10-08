@@ -9,7 +9,7 @@ use elvis_core::{
     },
     Control, IpTable, Protocol, Session, Shutdown,
 };
-use std::{any::TypeId, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Barrier;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -52,6 +52,8 @@ impl Protocol for ArpRouter {
             .protocol::<Arp>()
             .expect("Arp Router requires Arp");
 
+        // currently the only protocols above ipv4 are tcp and udp so
+        // listen on those ids
         ipv4.listen(
             self.id(),
             Ipv4Address::CURRENT_NETWORK,
@@ -115,10 +117,12 @@ impl Protocol for ArpRouter {
             match arp_result {
                 Err(_) => {}
                 Ok(mac) => {
-                    let session = protocols.protocol::<Pci>().unwrap().open(slot);
-                    session
-                        .send_pci(message, Some(mac), TypeId::of::<Ipv4>())
-                        .expect("failed to send");
+                    let session =
+                        protocols
+                            .protocol::<Pci>()
+                            .unwrap()
+                            .open(slot, Some(mac), Ipv4::ETHERTYPE);
+                    session.send_pci(message).expect("failed to send");
                 }
             }
         });
