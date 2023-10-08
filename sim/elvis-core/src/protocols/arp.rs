@@ -6,7 +6,6 @@
 pub mod arp_parsing;
 pub mod subnetting;
 
-use std::any::TypeId;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -18,6 +17,7 @@ use crate::protocol::{DemuxError, StartError};
 use crate::protocols::ipv4::*;
 use crate::session::SendError;
 use crate::FxDashMap;
+use crate::Network;
 use crate::{machine::PciSlot, network::Mac, Control, Message, Protocol, Session, Shutdown};
 
 use self::arp_parsing::{ArpPacket, Operation};
@@ -63,7 +63,7 @@ pub struct Arp {
 fn send_arp_request(pci_session: Arc<PciSession>, addrs: AddressPair) -> Result<(), SendError> {
     let local_mac = pci_session.mac();
     let packet = ArpPacket::new_request(local_mac, addrs.local, addrs.remote);
-    pci_session.send_pci(packet.build().into(), None, TypeId::of::<Arp>())
+    pci_session.send_pci(packet.build().into())
 }
 
 #[async_trait::async_trait]
@@ -72,8 +72,15 @@ impl Protocol for Arp {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        let arc_self = protocols
+            .protocol::<Self>()
+            .expect("ProtocolMap should contain self");
+        protocols
+            .protocol::<Pci>()
+            .expect("PCI is required for ARP")
+            .listen(arc_self, Self::ETHERTYPE);
         initialized.wait().await;
         Ok(())
     }
@@ -110,18 +117,14 @@ impl Protocol for Arp {
             let new_sesh = protocols
                 .protocol::<Pci>()
                 .expect("Pci should be in protocols")
-                .open(sesh_info.slot);
+                .open(sesh_info.slot, Some(request.sender_mac), Arp::ETHERTYPE);
             let reply = ArpPacket::new_reply(
                 new_sesh.mac(),
                 request.target_ip, // the reply's sender IP (us) is the request's target IP
                 request.sender_mac,
                 request.sender_ip,
             );
-            let result = new_sesh.send_pci(
-                reply.build().into(),
-                Some(request.sender_mac),
-                TypeId::of::<Arp>(),
-            );
+            let result = new_sesh.send_pci(reply.build().into());
 
             if let Err(e) = result {
                 tracing::error!("failed to send ARP reply: {:?}", e);
@@ -133,6 +136,8 @@ impl Protocol for Arp {
 }
 
 impl Arp {
+    /// The EtherType associated with ARP.
+    pub const ETHERTYPE: crate::protocols::pci::EtherType = 0x806;
     /// The duration to wait before sending another ARP request
     pub const RESEND_DELAY: Duration = Duration::from_millis(200);
     /// The number of times we should try sending ARP requests before giving up
@@ -207,7 +212,7 @@ impl Arp {
         let pci_session = protocols
             .protocol::<Pci>()
             .expect("Pci should be in protocols")
-            .open(tap_slot);
+            .open(tap_slot, Some(Network::BROADCAST_MAC), Arp::ETHERTYPE);
 
         for _ in 0..Self::RESEND_TRIES {
             send_arp_request(pci_session.clone(), endpoints)?;
