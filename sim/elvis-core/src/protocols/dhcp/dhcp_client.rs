@@ -60,7 +60,7 @@ impl Protocol for DhcpClient {
             .unwrap();
 
         // Request an ip from the server
-        // Todo(Justice): Have each slot request its own IP
+        // Todo(Justice): Have each slot request its own IP on their networks
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
         udp.send(response_message, protocols).unwrap();
@@ -101,7 +101,8 @@ impl Protocol for DhcpClient {
                     .expect("No corresponding Ipv4Info struct found");
                 ipv4.info.write().unwrap()[slot_index].ip_address = Some(parsed_msg.your_ip);
                 self.notify.notify_waiters();
-
+                
+                // If listener application exists, call update and respond accordingly
                 if self.listener.read().unwrap().is_some() {
                     if let Some(release) = self
                         .listener

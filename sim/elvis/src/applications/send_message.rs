@@ -69,6 +69,7 @@ impl Protocol for SendMessage {
         let transport = self.transport;
         initialized.wait().await;
 
+        // sleep to ensure dhcp has time to assign addresses
         if let Some(duration) = self.delay {
             tokio::time::sleep(duration).await;
         }
