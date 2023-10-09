@@ -12,7 +12,7 @@ use crate::{
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
-use std::{any::TypeId, sync::Arc};
+use std::{any::TypeId, sync::{Arc, Mutex}};
 use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
@@ -24,6 +24,8 @@ pub use ipv4_address::Ipv4Address;
 pub(crate) mod ipv4_session;
 pub use ipv4_session::AddressPair;
 use ipv4_session::Ipv4Session;
+
+use self::reassembly::Reassembly;
 
 use super::{pci, Arp};
 
@@ -61,7 +63,10 @@ impl From<u8> for ProtocolNumber {
 /// An implementation of the Internet Protocol.
 pub struct Ipv4 {
     listen_bindings: FxDashMap<(Ipv4Address, ProtocolNumber), TypeId>,
-
+    // TODO(hardint): Since this lock is held for a relatively long time, would
+    // a Tokio lock or message passing be a better option?
+    /// Used for reassembling fragmented packets
+    reassembly: Arc<Mutex<Reassembly>>,
     recipients: IpTable<Recipient>,
 }
 
@@ -70,6 +75,7 @@ impl Ipv4 {
     pub fn new(recipients: IpTable<Recipient>) -> Self {
         Self {
             listen_bindings: Default::default(),
+            reassembly: Arc::new(Mutex::new(Reassembly::default())),
             recipients,
         }
     }
@@ -122,7 +128,6 @@ impl Ipv4 {
         let session = Arc::new(Ipv4Session {
             pci_session,
             upstream,
-            reassembly: Default::default(),
             addresses: endpoints,
             recipient,
         });
@@ -186,7 +191,7 @@ impl Protocol for Ipv4 {
                 Err(DemuxError::Header)?
             }
         };
-        control.insert(header);
+        
         message.remove_front(header.ihl as usize * 4);
         let endpoints = AddressPair {
             local: header.destination,
@@ -219,6 +224,33 @@ impl Protocol for Ipv4 {
             }
         };
 
+        // only reassemble if necessary
+        let reassembled_message: Message;
+        if header.flags.is_last_fragment() && header.fragment_offset == 0 {
+            // no reassembling necessary
+            reassembled_message = message;
+        } else {
+            use crate::protocols::ipv4::reassembly::ReceivePacketResult;
+
+            let result = self.reassembly.lock().unwrap().receive_packet(header.clone(), message);
+            match result {
+                ReceivePacketResult::Complete(_, comp_message) => {
+                    // completed message
+                    reassembled_message = comp_message;
+                }
+                ReceivePacketResult::Incomplete(timeout, buf_id, epoch) => {
+                    let reassembly = self.reassembly.clone();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(timeout).await;
+                        reassembly.lock().unwrap().maybe_cull_segment(buf_id, epoch);
+                    });
+                    // exit because we were just reassembling
+                    return Ok(());
+                }
+            }
+        }
+
+        control.insert(header);
         let pci_demux_info = control
             .get::<pci::DemuxInfo>()
             .ok_or(DemuxError::MissingContext)?;
@@ -234,9 +266,8 @@ impl Protocol for Ipv4 {
                 remote: header.source,
             },
             recipient,
-            reassembly: Default::default(),
         });
-        session.receive(header, message, control, protocols)?;
+        session.receive(reassembled_message, control, protocols)?;
         Ok(())
     }
 }

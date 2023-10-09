@@ -1,6 +1,5 @@
 use super::{
-    ipv4_parsing::{Ipv4Header, Ipv4HeaderBuilder},
-    reassembly::{Reassembly, ReceivePacketResult},
+    ipv4_parsing::Ipv4HeaderBuilder,
     Ipv4, Ipv4Address, Recipient,
 };
 use crate::{
@@ -15,7 +14,7 @@ use crate::{
 use std::{
     any::TypeId,
     fmt::{self, Debug, Formatter},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 /// The session type for [`Ipv4`].
@@ -28,41 +27,19 @@ pub struct Ipv4Session {
     pub(super) addresses: AddressPair,
     /// Information about how and where to send packets
     pub(super) recipient: Recipient,
-    // TODO(hardint): Since this lock is held for a relatively long time, would
-    // a Tokio lock or message passing be a better option?
-    /// Used for reassembling fragmented packets
-    pub(super) reassembly: Arc<Mutex<Reassembly>>,
 }
 
 impl Ipv4Session {
     pub fn receive(
         self: Arc<Self>,
-        header: Ipv4Header,
         message: Message,
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let result = self
-            .reassembly
-            .lock()
-            .unwrap()
-            .receive_packet(header, message);
-
-        match result {
-            ReceivePacketResult::Complete(_, message) => {
-                protocols
+        protocols
                     .get(self.upstream)
                     .expect("No such protocol")
                     .demux(message, self, control, protocols)?;
-            }
-            ReceivePacketResult::Incomplete(timeout, buf_id, epoch) => {
-                let reassembly = self.reassembly.clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(timeout).await;
-                    reassembly.lock().unwrap().maybe_cull_segment(buf_id, epoch);
-                });
-            }
-        }
         Ok(())
     }
 
