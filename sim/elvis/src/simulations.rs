@@ -26,9 +26,6 @@ pub use ping_pong::ping_pong;
 mod latency;
 pub use latency::latency;
 
-mod simple_reassembly;
-pub use simple_reassembly::test_reassembly;
-
 mod throughput;
 pub use throughput::throughput;
 

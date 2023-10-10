@@ -9,16 +9,23 @@ use elvis_core::{
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet_with_timeout, ExitStatus, IpTable, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, network::{Mtu, NetworkBuilder},
 };
 
 /// Runs a basic simulation.
 ///
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
-pub async fn basic() {
-    let network = Network::basic();
-    let message = Message::new("Hello!");
+/// 
+/// # Arguments
+/// 
+/// * `message` - the message to be sent
+/// 
+/// * `mtu` - the MTU of the network
+pub async fn basic(message: Message, mtu: Mtu) {
+    // Create network with given mtu
+    let network = NetworkBuilder::new().mtu(mtu).build();
+
     let endpoint = Endpoint {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef,
@@ -63,8 +70,27 @@ pub async fn basic() {
 
 #[cfg(test)]
 mod tests {
+    use elvis_core::{network::Mtu, Message};
+
     #[tokio::test]
     async fn basic() {
-        super::basic().await
+        let message = Message::new("Hello");
+        super::basic(message, Mtu::MAX).await
+    }
+
+    // A test that sets the network to a low MTU
+    
+    #[tokio::test]
+    async fn basic_reassembly() {
+        // build message made out of "bingus" repeated 8192 times
+        let size = 8192;
+        let mut message = String::with_capacity(size);
+        let word = "bingus";
+        while message.len() < size {
+            message.push_str(word);
+        }
+        let message = Message::new(message);
+
+        super::basic(message, 997).await;
     }
 }
