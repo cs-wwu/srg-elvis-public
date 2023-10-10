@@ -1,4 +1,4 @@
-use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
+use crate::protocols::{ipv4::Ipv4Address, utility::{Checksum, BytesExt}};
 use thiserror::Error as ThisError;
 
 /// The number of bytes in a UDP header
@@ -30,23 +30,22 @@ impl UdpHeader {
         source_address: Ipv4Address,
         destination_address: Ipv4Address,
     ) -> Result<Self, ParseError> {
-        let mut next =
-            || -> Result<u8, ParseError> { packet.next().ok_or(ParseError::HeaderTooShort) };
+        const HTS: ParseError = ParseError::HeaderTooShort;
 
         let mut checksum = Checksum::new();
 
-        let source_port = u16::from_be_bytes([next()?, next()?]);
+        let source_port = packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(source_port);
 
-        let destination_port = u16::from_be_bytes([next()?, next()?]);
+        let destination_port = packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(destination_port);
 
-        let length = u16::from_be_bytes([next()?, next()?]);
+        let length = packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(length);
         // This is used a second time in the pseudo header
         checksum.add_u16(length);
 
-        let expected_checksum = u16::from_be_bytes([next()?, next()?]);
+        let expected_checksum = packet.next_u16_be().ok_or(HTS)?;
 
         // Pseudo header parts
         checksum.add_u32(source_address.into());
