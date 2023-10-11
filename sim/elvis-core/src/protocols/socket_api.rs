@@ -191,6 +191,9 @@ impl SocketAPI {
             Entry::Occupied(sock) => sock.get().clone(),
             Entry::Vacant(_) => return Err(ListenError::NoSocketForFd(fd)),
         };
+        if self.listen_bindings.get(&address).is_some() {
+            return Err(ListenError::Existing(address));
+        }
         self.listen_bindings.insert(address, fd);
         match sock.sock_type {
             SocketType::Datagram => Ok(protocols
@@ -215,8 +218,19 @@ impl Protocol for SocketAPI {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        // Listen on the local IP address.
+        // This is necessary for ARP purposes.
+        // A machine must set its local IP so it can tell other machines about itself.
+        // TODO(sudobeans): SocketAPI shouldn't need to know about ARP!
+        // Seems like code smell (on ARP's part).
+        if let Some(local_address) = self.local_address {
+            if let Some(arp) = protocols.protocol::<crate::protocols::Arp>() {
+                arp.listen(local_address);
+            }
+        }
+
         *self.shutdown.write().unwrap() = Some(shutdown);
         self.notify_init.notify_one();
         initialized.wait().await;

@@ -8,6 +8,7 @@ use elvis_core::{
 use std::sync::Arc;
 use tokio::sync::Barrier;
 
+/// Client designed to test TcpListener and TcpStream
 pub struct TcpStreamClient {
     _client_address: Endpoint, // I don't know why, but the simulation breaks when this is removed
     server_address: Endpoint,

@@ -23,36 +23,35 @@ const IPS: [Ipv4Address; 6] = [
     Ipv4Address::new([123, 45, 67, 94]),
 ];
 
-const ROUTER_IPS: [Ipv4Address; 2] = [
+const ROUTER1_IPS: [Ipv4Address; 4] = [
     Ipv4Address::new([123, 45, 76, 92]),
     Ipv4Address::new([123, 45, 76, 93]),
+    Ipv4Address::new([123, 45, 76, 94]),
+    Ipv4Address::new([123, 45, 76, 95]),
 ];
 
-pub fn build_ip_table(router_table: &IpTable<(Ipv4Address, PciSlot)>) -> IpTable<Recipient> {
-    let mut ip_table = IpTable::<Recipient>::new();
-    for (net, value) in router_table.iter() {
-        ip_table.add(net, Recipient::new(value.1, None));
+const ROUTER2_IPS: [Ipv4Address; 4] = [
+    Ipv4Address::new([123, 45, 66, 92]),
+    Ipv4Address::new([123, 45, 66, 93]),
+    Ipv4Address::new([123, 45, 66, 94]),
+    Ipv4Address::new([123, 45, 66, 95]),
+];
+
+pub fn build_ip_table(addresses: &[Ipv4Address]) -> IpTable<Recipient> {
+    let mut router_table = IpTable::<Recipient>::new();
+
+    for address in addresses.iter() {
+        router_table.add_direct(*address, Recipient::new(0, None));
     }
-    ip_table
+    router_table
 }
 
-pub fn build_dest_table(address: Ipv4Address, slot: PciSlot) -> IpTable<Recipient> {
-    [(address, Recipient::new(slot, None))]
-        .into_iter()
-        .collect()
-}
-
-pub fn build_capture(
-    destination_table: IpTable<Recipient>,
-    network: Arc<Network>,
-    address: Ipv4Address,
-    exit_status: u32,
-) -> Machine {
+pub fn build_capture(network: Arc<Network>, address: Ipv4Address, exit_status: u32) -> Machine {
     new_machine![
         Udp::new(),
-        Ipv4::new(destination_table),
+        Ipv4::new(Default::default()),
         Pci::new([network]),
-        Arp::basic(),
+        Arp::new(),
         Capture::new(
             Endpoint {
                 address,
@@ -80,20 +79,20 @@ pub fn build_capture(
 */
 #[allow(dead_code)]
 pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
-    let router_table: IpTable<(Ipv4Address, PciSlot)> = [
-        (IPS[0], (IPS[0], 0)),
-        (IPS[1], (IPS[1], 1)),
-        (IPS[2], (IPS[2], 2)),
-        (IPS[3], (IPS[3], 3)),
+    // Setting route to none sets the destination ip to the destination
+    // ip in the received packet
+    let router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (IPS[0], (None, 0)),
+        (IPS[1], (None, 1)),
+        (IPS[2], (None, 2)),
+        (IPS[3], (None, 3)),
     ]
     .into_iter()
     .collect();
 
     let networks: Vec<_> = (0..4).map(|_| Network::basic()).collect();
-    let ip_table = build_ip_table(&router_table);
-    let destination_table: Vec<_> = (0..4)
-        .map(|index| build_dest_table(IPS[index], 0))
-        .collect();
+
+    let ip_table = build_ip_table(&ROUTER1_IPS);
 
     let send_message = SendMessage::new(
         vec![Message::new(b"Hello World!")],
@@ -107,18 +106,14 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
         // send message
         new_machine![
             Udp::new(),
-            Ipv4::new(
-                [(destination, Recipient::new(0, None))]
-                    .into_iter()
-                    .collect(),
-            ),
+            Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
-                    default_gateway: ROUTER_IPS[0]
+                    default_gateway: ROUTER1_IPS[0]
                 }
             ),
         ],
@@ -131,15 +126,15 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
                 networks[3].clone(),
             ]),
             Ipv4::new(ip_table.clone()),
-            Arp::basic(),
-            ArpRouter::new(router_table, ROUTER_IPS[0])
+            Arp::new(),
+            ArpRouter::new(router_table, ROUTER1_IPS.to_vec())
         ],
         // capture for destination 1
-        build_capture(destination_table[1].clone(), networks[1].clone(), IPS[1], 1),
+        build_capture(networks[1].clone(), IPS[1], 1),
         // capture for destination 2
-        build_capture(destination_table[2].clone(), networks[2].clone(), IPS[2], 2),
+        build_capture(networks[2].clone(), IPS[2], 2),
         // capture for destination 3
-        build_capture(destination_table[3].clone(), networks[3].clone(), IPS[3], 3),
+        build_capture(networks[3].clone(), IPS[3], 3),
     ];
 
     run_internet_with_timeout(&machines, Duration::from_secs(2)).await
@@ -156,21 +151,18 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
 */
 #[allow(dead_code)]
 pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
-    let router_table: IpTable<(Ipv4Address, PciSlot)> = [
-        (IPS[0], (IPS[0], 0)),
-        (IPS[1], (IPS[1], 1)),
-        (IPS[2], (IPS[2], 1)),
-        (IPS[3], (IPS[3], 1)),
-        (IPS[4], (IPS[4], 2)),
+    let router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (IPS[0], (None, 0)),
+        (IPS[1], (None, 1)),
+        (IPS[2], (None, 1)),
+        (IPS[3], (None, 1)),
+        (IPS[4], (None, 2)),
     ]
     .into_iter()
     .collect();
 
     let networks: Vec<_> = (0..3).map(|_| Network::basic()).collect();
-    let ip_table = build_ip_table(&router_table);
-    let destination_table: Vec<_> = (0..5)
-        .map(|index| build_dest_table(IPS[index], 0))
-        .collect();
+    let ip_table = build_ip_table(&ROUTER1_IPS);
 
     let send_message = SendMessage::new(
         vec![Message::new(b"Hello World!")],
@@ -184,18 +176,14 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
         // send message
         new_machine![
             Udp::new(),
-            Ipv4::new(
-                [(destination, Recipient::new(0, None))]
-                    .into_iter()
-                    .collect(),
-            ),
+            Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
-                    default_gateway: ROUTER_IPS[0]
+                    default_gateway: ROUTER1_IPS[0]
                 }
             ),
         ],
@@ -207,13 +195,13 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
                 networks[2].clone()
             ]),
             Ipv4::new(ip_table.clone()),
-            Arp::basic(),
-            ArpRouter::new(router_table, ROUTER_IPS[0])
+            Arp::new(),
+            ArpRouter::new(router_table, ROUTER1_IPS.to_vec())
         ],
-        build_capture(destination_table[1].clone(), networks[1].clone(), IPS[1], 1),
-        build_capture(destination_table[2].clone(), networks[1].clone(), IPS[2], 2),
-        build_capture(destination_table[3].clone(), networks[1].clone(), IPS[3], 3),
-        build_capture(destination_table[4].clone(), networks[2].clone(), IPS[4], 4),
+        build_capture(networks[1].clone(), IPS[1], 1),
+        build_capture(networks[1].clone(), IPS[2], 2),
+        build_capture(networks[1].clone(), IPS[3], 3),
+        build_capture(networks[2].clone(), IPS[4], 4),
     ];
 
     run_internet_with_timeout(&machines, Duration::from_secs(2)).await
@@ -231,34 +219,31 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
 */
 #[allow(dead_code)]
 pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
-    let router_table_1: IpTable<(Ipv4Address, PciSlot)> = [
-        (IPS[0], (IPS[0], 0)),
-        (IPS[1], (IPS[1], 1)),
-        (IPS[2], (ROUTER_IPS[1], 2)),
-        (IPS[3], (ROUTER_IPS[1], 2)),
-        (IPS[4], (IPS[4], 3)),
-        (IPS[5], (IPS[5], 3)),
+    let router_table_1: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (IPS[0], (None, 0)),
+        (IPS[1], (None, 1)),
+        (IPS[2], (Some(ROUTER2_IPS[0]), 2)),
+        (IPS[3], (Some(ROUTER2_IPS[0]), 2)),
+        (IPS[4], (None, 3)),
+        (IPS[5], (None, 3)),
     ]
     .into_iter()
     .collect();
 
-    let router_table_2: IpTable<(Ipv4Address, PciSlot)> = [
-        (IPS[0], (ROUTER_IPS[0], 0)),
-        (IPS[1], (ROUTER_IPS[0], 0)),
-        (IPS[2], (IPS[2], 1)),
-        (IPS[3], (IPS[3], 2)),
-        (IPS[4], (ROUTER_IPS[0], 0)),
-        (IPS[5], (ROUTER_IPS[0], 0)),
+    let router_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (IPS[0], (Some(ROUTER1_IPS[2]), 0)),
+        (IPS[1], (Some(ROUTER1_IPS[2]), 0)),
+        (IPS[2], (None, 1)),
+        (IPS[3], (None, 2)),
+        (IPS[4], (Some(ROUTER1_IPS[2]), 0)),
+        (IPS[5], (Some(ROUTER1_IPS[2]), 0)),
     ]
     .into_iter()
     .collect();
 
     let networks: Vec<_> = (0..6).map(|_| Network::basic()).collect();
-    let ip_table_1 = build_ip_table(&router_table_1);
-    let ip_table_2 = build_ip_table(&router_table_2);
-    let destination_table: Vec<_> = (0..6)
-        .map(|index| build_dest_table(IPS[index], 0))
-        .collect();
+    let ip_table_1 = build_ip_table(&ROUTER1_IPS);
+    let ip_table_2 = build_ip_table(&ROUTER2_IPS);
 
     let send_message = SendMessage::new(
         vec![Message::new(b"Hello World!")],
@@ -272,18 +257,14 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
         // send message
         new_machine![
             Udp::new(),
-            Ipv4::new(
-                [(destination, Recipient::new(0, None))]
-                    .into_iter()
-                    .collect(),
-            ),
+            Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
-                    default_gateway: ROUTER_IPS[0]
+                    default_gateway: ROUTER1_IPS[0]
                 }
             ),
         ],
@@ -295,9 +276,9 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
                 networks[2].clone(),
                 networks[3].clone()
             ]),
-            Ipv4::new(ip_table_1.clone()),
-            Arp::basic(),
-            ArpRouter::new(router_table_1, ROUTER_IPS[0])
+            Ipv4::new(ip_table_1),
+            Arp::new(),
+            ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec())
         ],
         new_machine![
             Pci::new([
@@ -305,16 +286,16 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
                 networks[4].clone(),
                 networks[5].clone(),
             ]),
-            Ipv4::new(ip_table_2.clone()),
-            Arp::basic(),
-            ArpRouter::new(router_table_2, ROUTER_IPS[1])
+            Ipv4::new(ip_table_2),
+            Arp::new(),
+            ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec())
         ],
         // Destinations
-        build_capture(destination_table[1].clone(), networks[1].clone(), IPS[1], 1),
-        build_capture(destination_table[2].clone(), networks[4].clone(), IPS[2], 2),
-        build_capture(destination_table[3].clone(), networks[5].clone(), IPS[3], 3),
-        build_capture(destination_table[4].clone(), networks[3].clone(), IPS[4], 4),
-        build_capture(destination_table[5].clone(), networks[3].clone(), IPS[5], 5),
+        build_capture(networks[1].clone(), IPS[1], 1),
+        build_capture(networks[4].clone(), IPS[2], 2),
+        build_capture(networks[5].clone(), IPS[3], 3),
+        build_capture(networks[3].clone(), IPS[4], 4),
+        build_capture(networks[3].clone(), IPS[5], 5),
     ];
 
     run_internet_with_timeout(&machines, Duration::from_secs(2)).await

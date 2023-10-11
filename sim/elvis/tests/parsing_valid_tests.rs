@@ -23,14 +23,14 @@ fn parsing_correct() {
                             dectype: DecType::IP,
                             options: HashMap::from([(
                                 "range".to_string(),
-                                "123.45.67.89/91".to_string(),
+                                "123.45.67.89-91".to_string(),
                             )]),
                         },
                         IP {
                             dectype: DecType::IP,
                             options: HashMap::from([(
                                 "range".to_string(),
-                                "123.45.67.92/94".to_string(),
+                                "123.45.67.92-94".to_string(),
                             )]),
                         },
                         IP {
@@ -52,7 +52,7 @@ fn parsing_correct() {
                         dectype: DecType::IP,
                         options: HashMap::from([(
                             "range".to_string(),
-                            "12.34.56.78/89".to_string(),
+                            "12.34.56.78-89".to_string(),
                         )]),
                     }],
                 },
@@ -106,14 +106,14 @@ fn parsing_correct_new_line() {
                             dectype: DecType::IP,
                             options: HashMap::from([(
                                 "range".to_string(),
-                                "123.45.67.89/91".to_string(),
+                                "123.45.67.89-91".to_string(),
                             )]),
                         },
                         IP {
                             dectype: DecType::IP,
                             options: HashMap::from([(
                                 "range".to_string(),
-                                "123.45.67.92/94".to_string(),
+                                "123.45.67.92-94".to_string(),
                             )]),
                         },
                         IP {
@@ -135,7 +135,7 @@ fn parsing_correct_new_line() {
                         dectype: DecType::IP,
                         options: HashMap::from([(
                             "range".to_string(),
-                            "12.34.56.78/89".to_string(),
+                            "12.34.56.78-89".to_string(),
                         )]),
                     }],
                 },

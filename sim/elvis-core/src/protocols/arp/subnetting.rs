@@ -192,6 +192,12 @@ pub struct Ipv4Net {
 }
 
 impl Ipv4Net {
+    /// The IPv4 loopback / localhost address block: 127.0.0.1/8.
+    pub const LOOPBACK: Ipv4Net = Ipv4Net {
+        network_id: Ipv4Address::new([127, 0, 0, 0]),
+        mask: Ipv4Mask::from_bitcount(8),
+    };
+
     /// Creates an Ipv4Net from an IP address and mask.
     pub fn new(ip: Ipv4Address, mask: Ipv4Mask) -> Self {
         Self {

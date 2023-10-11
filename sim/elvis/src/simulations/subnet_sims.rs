@@ -102,7 +102,7 @@ fn jack(network: &Arc<Network>) -> Machine {
         SendMessage::new(vec![Message::new(b"hi mae this is jack")], MAE).local_ip(JACK.address),
         Udp::new(),
         Ipv4::new(ip_table()),
-        Arp::basic().preconfig_subnet(JACK.address, SUBNET_INFO),
+        Arp::new().preconfig_subnet(JACK.address, SUBNET_INFO),
         Pci::new([network.clone()]),
     ]
 }
@@ -124,7 +124,7 @@ fn mae(network: &Arc<Network>) -> (Machine, broadcast::Receiver<Message>) {
         SendMessage::new(message, GUY_SOMEWHERE_ELSE).local_ip(MAE.address),
         Udp::new(),
         Ipv4::new(ip_table()),
-        Arp::basic().preconfig_subnet(MAE.address, SUBNET_INFO),
+        Arp::new().preconfig_subnet(MAE.address, SUBNET_INFO),
         Pci::new([network.clone()]),
     ];
 
@@ -152,7 +152,7 @@ fn gateway(
         MockGateway { send: r_send },
         Udp::new(),
         Ipv4::new(ip_table()),
-        Arp::debug(|_, _| {}, arp_recv_hook),
+        Arp::new().demux_hook(arp_recv_hook),
         Pci::new([network.clone()]),
     ];
 
