@@ -39,7 +39,6 @@ impl<T: Copy> IpTable<T> {
     /// then None is returned
     pub fn get_recipient(&self, address: Ipv4Address) -> Option<T> {
         for (net, value) in self.iter() {
-            let net = net;
             if net.contains(address) {
                 return Some(value);
             }

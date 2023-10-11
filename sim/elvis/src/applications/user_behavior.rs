@@ -218,7 +218,7 @@ impl UserBehavior {
                     let scraped_images = Self::get_images(&res_text);
                     let size = res_text.len();
 
-                    if scraped_urls.is_empty() && *self.num_pages_recvd.read().unwrap() == 0 {}
+                    if scraped_urls.is_empty() && *self.num_pages_recvd.read().unwrap() == 0 {};
 
                     println!("******Images found within this link******");
                     // given a list of image urls, check if it's downlaoded aka is
