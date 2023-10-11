@@ -47,6 +47,5 @@ criterion_group!(
     telephone_multi,
     telephone_single,
     tcp_gigabyte,
-    socket_basic,
 );
 criterion_main!(benches);

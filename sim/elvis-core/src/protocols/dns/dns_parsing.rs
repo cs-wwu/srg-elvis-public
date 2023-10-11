@@ -1,4 +1,4 @@
-use crate::{protocols::ipv4::Ipv4Address, Message};
+use crate::{protocols::{ipv4::Ipv4Address, utility::BytesExt}, Message};
 use thiserror::Error as ThisError;
 
 pub enum DnsMessageType {
@@ -21,46 +21,41 @@ pub struct DnsMessage {
 
 impl DnsMessage {
     pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, ParseError> {
-        let mut next =
-            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
-
+        const HTS: ParseError = ParseError::HeaderTooShort;
         // parsing bytes for the DnsHeader
-        let id = ((next()? as u16) << 8) | (next()? as u16);
-        let properties = ((next()? as u16) << 8) | (next()? as u16);
-        let qdcount = ((next()? as u16) << 8) | (next()? as u16);
-        let ancount = ((next()? as u16) << 8) | (next()? as u16);
-        let nscount = ((next()? as u16) << 8) | (next()? as u16);
-        let arcount = ((next()? as u16) << 8) | (next()? as u16);
+        let id = bytes.next_u16_be().ok_or(HTS)?;
+        let properties = bytes.next_u16_be().ok_or(HTS)?;
+        let qdcount = bytes.next_u16_be().ok_or(HTS)?;
+        let ancount = bytes.next_u16_be().ok_or(HTS)?;
+        let nscount = bytes.next_u16_be().ok_or(HTS)?;
+        let arcount = bytes.next_u16_be().ok_or(HTS)?;
 
         // parsing bytes for the DnsQuestion
         let mut qname = Vec::new();
-        let mut current = next()?;
+        let mut current = bytes.next_u8().ok_or(HTS)?;
         while current != b' ' {
             qname.push(current);
-            current = next()?
+            current = bytes.next_u8().ok_or(HTS)?
         }
-        let qtype = ((next()? as u16) << 8) | (next()? as u16);
-        let qclass = ((next()? as u16) << 8) | (next()? as u16);
+        let qtype = bytes.next_u16_be().ok_or(HTS)?;
+        let qclass = bytes.next_u16_be().ok_or(HTS)?;
 
         // parsing bytes for the DnsResourceRecord for DnsMessage answer
         let mut name = Vec::new();
         let mut rdata: Vec<u8> = Vec::new();
-        let mut current = next()?;
+        let mut current = bytes.next_u8().ok_or(HTS)?;
         while current != b' ' {
             name.push(current);
-            current = next()?
+            current = bytes.next_u8().ok_or(HTS)?
         }
-        let rec_type = ((next()? as u16) << 8) | (next()? as u16);
-        let class = ((next()? as u16) << 8) | (next()? as u16);
-        let mut ttl = next()? as u32;
-        ttl = (ttl << 8) | next()? as u32;
-        ttl = (ttl << 8) | next()? as u32;
-        ttl = (ttl << 8) | next()? as u32;
-        let rdlength = ((next()? as u16) << 8) | (next()? as u16);
+        let rec_type = bytes.next_u16_be().ok_or(HTS)?;
+        let class = bytes.next_u16_be().ok_or(HTS)?;
+        let ttl = bytes.next_u32_be().ok_or(HTS)?;
+        let rdlength = bytes.next_u16_be().ok_or(HTS)?;
 
         let mut i: u16 = 0;
         while i < rdlength {
-            rdata.push(next()?);
+            rdata.push(bytes.next_u8().ok_or(HTS)?);
             i += 1;
         }
 
