@@ -24,12 +24,6 @@ fn ping_pong(c: &mut Criterion) {
     });
 }
 
-fn socket_basic(c: &mut Criterion) {
-    c.bench_function("Socket Basic", |b| {
-        b.to_async(runtime()).iter(simulations::socket_basic)
-    });
-}
-
 fn runtime() -> Runtime {
     Runtime::new().unwrap()
 }
@@ -53,6 +47,5 @@ criterion_group!(
     telephone_multi,
     telephone_single,
     tcp_gigabyte,
-    socket_basic,
 );
 criterion_main!(benches);
