@@ -14,7 +14,6 @@ use elvis_core::{
     },
     run_internet, run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
-use std::time::Duration;
 
 // Sim to test basic IP address allocation from server
 pub async fn dhcp_basic_offer() {
