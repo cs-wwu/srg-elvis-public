@@ -3,24 +3,25 @@ use std::time::Duration;
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
+    network::{Mtu, NetworkBuilder},
     new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
-    run_internet_with_timeout, ExitStatus, IpTable, network::{Mtu, NetworkBuilder},
+    run_internet_with_timeout, ExitStatus, IpTable,
 };
 
 /// Runs a basic simulation.
 ///
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `message` - the message to be sent
-/// 
+///
 /// * `mtu` - the MTU of the network
 pub async fn basic(message: Message, mtu: Mtu) {
     // Create network with given mtu
@@ -79,7 +80,7 @@ mod tests {
     }
 
     // A test that sets the network to a low MTU
-    
+
     #[tokio::test]
     async fn basic_reassembly() {
         // build message made out of "bingus" repeated 8192 times

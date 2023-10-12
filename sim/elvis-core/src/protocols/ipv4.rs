@@ -12,7 +12,10 @@ use crate::{
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
-use std::{any::TypeId, sync::{Arc, Mutex}};
+use std::{
+    any::TypeId,
+    sync::{Arc, Mutex},
+};
 use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
@@ -191,7 +194,7 @@ impl Protocol for Ipv4 {
                 Err(DemuxError::Header)?
             }
         };
-        
+
         message.remove_front(header.ihl as usize * 4);
         let endpoints = AddressPair {
             local: header.destination,
@@ -232,7 +235,11 @@ impl Protocol for Ipv4 {
         } else {
             use crate::protocols::ipv4::reassembly::ReceivePacketResult;
 
-            let result = self.reassembly.lock().unwrap().receive_packet(header.clone(), message);
+            let result = self
+                .reassembly
+                .lock()
+                .unwrap()
+                .receive_packet(header.clone(), message);
             match result {
                 ReceivePacketResult::Complete(_, comp_message) => {
                     // completed message
