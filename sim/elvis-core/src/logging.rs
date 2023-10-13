@@ -8,6 +8,20 @@
 use crate::{protocols::ipv4::Ipv4Address, Message};
 use tracing::{event, Level};
 
+// TODO(carsonhenrich) Some kind of start
+ /// Simulation Startup event.
+ /// Used to log that the simulation has initialized and to output the information needed by visualization
+ /// Captures the following data:
+// pub fn simulation_startup_event(
+//     machines: Vec<Machine>,
+// ) {
+//     event!(
+//         target: "SIM_STARTUP",
+//         Level::TRACE,
+//         machines = serde_json::to_string(&machines).unwrap()
+//     );
+// }
+
 /// Send message event handler.
 /// Used to log any messages sent. Captures the following data:
 /// local_ip, remote_ip, local_port, remote_port, message_text
