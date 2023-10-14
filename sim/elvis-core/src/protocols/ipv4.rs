@@ -239,7 +239,7 @@ impl Protocol for Ipv4 {
                 .reassembly
                 .lock()
                 .unwrap()
-                .receive_packet(header.clone(), message);
+                .receive_packet(header, message);
             match result {
                 ReceivePacketResult::Complete(_, comp_message) => {
                     // completed message
