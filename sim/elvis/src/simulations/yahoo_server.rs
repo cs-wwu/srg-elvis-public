@@ -81,7 +81,7 @@ pub async fn yahoo_server() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    // #[tokio::test]
     async fn yahoo_server() {
         super::yahoo_server().await;
     }

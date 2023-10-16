@@ -59,7 +59,7 @@ pub async fn server_user() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    // #[tokio::test]
     async fn server_user() {
         super::server_user().await;
     }

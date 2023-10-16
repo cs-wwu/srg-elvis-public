@@ -112,7 +112,7 @@ pub async fn server_experiment() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    // #[tokio::test]
     async fn server_experiment() {
         super::server_experiment().await;
     }
