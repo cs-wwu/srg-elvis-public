@@ -1,4 +1,4 @@
-use crate::applications::{SendMessage, WaitForMessage};
+use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
     network::{Latency, NetworkBuilder},
@@ -48,7 +48,7 @@ pub async fn tcp_with_unreliable() {
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            WaitForMessage::new(endpoint, message).transport(Transport::Tcp)
+            Capture::new_set(endpoint, vec![message]).transport(Transport::Tcp)
         ],
     ];
 

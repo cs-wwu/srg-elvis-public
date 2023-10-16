@@ -59,7 +59,7 @@ pub async fn tcp_with_reliable() {
         .into_inner()
         .protocol::<Capture>()
         .unwrap()
-        .message();
+        .first_msg();
     assert_eq!(received, Some(message));
 }
 
