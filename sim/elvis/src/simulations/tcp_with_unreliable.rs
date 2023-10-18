@@ -48,7 +48,7 @@ pub async fn tcp_with_unreliable() {
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            Capture::new_set(endpoint, vec![message]).transport(Transport::Tcp)
+            Capture::new_msg(endpoint, message).transport(Transport::Tcp)
         ],
     ];
 

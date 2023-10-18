@@ -67,7 +67,7 @@ pub async fn telephone_single() {
         .into_inner()
         .protocol::<Capture>()
         .unwrap()
-        .first_msg();
+        .message();
     assert_eq!(received, Some(message));
 }
 

@@ -56,7 +56,7 @@ pub async fn basic() {
         .into_inner()
         .protocol::<Capture>()
         .unwrap()
-        .first_msg();
+        .message();
 
     assert_eq!(received, Some(message));
 }

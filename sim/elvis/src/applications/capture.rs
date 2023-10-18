@@ -14,10 +14,10 @@ use tokio::sync::Barrier;
 /// An application that can be configured to shut down the simulation when:
 ///
 /// * It receives a certain number of messages OR
-/// * It receives a certain set of messages
+/// * It receives some specific message
 ///
 /// The application also stores messages it receives
-/// (these can be accessed using [`Capture::received`]).
+/// (these can be accessed using [`Capture::message`]).
 ///
 /// If you want to use multiple `Capture`s in a single sim,
 /// and don't want the simulation to shut down until all of them
@@ -47,8 +47,8 @@ pub struct Capture {
 enum MCExpected {
     /// Indicates this capture expects to receive a certain number of messages
     Count(u32),
-    /// Indicates this capture expects to receive a certain set of messages
-    Set(Vec<Message>),
+    /// Indicates this capture expects to receive a certain message
+    Msg(Message),
 }
 
 /// Helper struct, see [`Capture::received`]
@@ -56,8 +56,10 @@ enum MCExpected {
 struct MCReceived {
     /// Will be true if this capture has finished receiving
     pub done: bool,
-    /// The messages received
-    pub messages: Vec<Message>,
+    /// The messages received, concatenated
+    pub messages: Option<Message>,
+    /// The number of times demux was called on us
+    pub amount: u64,
 }
 
 /// A factory used to create multiple connected [`Capture`]s.
@@ -66,7 +68,7 @@ struct MCReceived {
 /// have finished receiving their messages.
 ///
 /// If you only need to make 1 capture that isn't connected,
-/// use [`Capture::new_1`] and other functions.
+/// use [`Capture::new`] and other functions.
 #[derive(Debug)]
 pub struct CapFactory {
     /// A shared number used to keep track of how many captures have yet to
@@ -89,7 +91,8 @@ impl CapFactory {
 
         let received = MCReceived {
             done: false,
-            messages: Vec::with_capacity(n as usize),
+            messages: None,
+            amount: 0,
         };
 
         Capture {
@@ -103,11 +106,18 @@ impl CapFactory {
         }
     }
 
-    /// Creates a new capture that will finish when it receives the given number of messages.
-    pub fn build_set(&self, endpoint: Endpoint, messages: Vec<Message>) -> Capture {
+    /// Creates a new capture that will finish when it receives a bunch of messages that,
+    /// when combined together, form the given message.
+    pub fn build_msg(&self, endpoint: Endpoint, message: Message) -> Capture {
         let mut result = self.build(endpoint, 0);
-        result.expected = MCExpected::Set(messages);
+        result.expected = MCExpected::Msg(message);
         result
+    }
+}
+
+impl Default for CapFactory {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -119,23 +129,13 @@ impl Capture {
 
     /// Creates a new capture that will finish when it has received all the messages
     /// in the given `messages` set.
-    pub fn new_set(endpoint: Endpoint, messages: Vec<Message>) -> Self {
-        CapFactory::new().build_set(endpoint, messages)
+    pub fn new_msg(endpoint: Endpoint, message: Message) -> Self {
+        CapFactory::new().build_msg(endpoint, message)
     }
 
-    /// Returns the first message that was received.
-    pub fn first_msg(&self) -> Option<Message> {
-        self.received().next()
-    }
-
-    /// Returns an iterator over all the messages that were received.
-    pub fn received(&self) -> impl DoubleEndedIterator<Item = Message> {
-        self.received
-            .lock()
-            .expect("mutex should not be poisoned")
-            .messages
-            .clone()
-            .into_iter()
+    /// Returns the messages that were received, all concatenated into 1 message.
+    pub fn message(&self) -> Option<Message> {
+        self.received.lock().unwrap().messages.clone()
     }
 
     /// Set the transport protocol (TCP or UDP) that this Capture should use.
@@ -202,8 +202,12 @@ impl Protocol for Capture {
         println!("received message of len: {}", message.len());
         // lock received messages for duration of demux
         let mut guard = self.received.lock().unwrap();
+        guard.amount += 1;
 
-        guard.messages.push(message);
+        match &mut guard.messages {
+            Some(existing) => existing.concatenate(message),
+            None => guard.messages = Some(message),
+        }
 
         // exit if we're done receiving
         if guard.done {
@@ -211,9 +215,9 @@ impl Protocol for Capture {
         }
 
         let finished: bool = match &self.expected {
-            MCExpected::Count(n) => guard.messages.len() >= *n as usize,
-            // check if the received messages contains all the expected messages
-            MCExpected::Set(set) => set.iter().all(|e| guard.messages.contains(e)),
+            MCExpected::Count(n) => guard.amount >= *n as u64,
+            // check if the received messages is equal to the expected message
+            MCExpected::Msg(expected) => guard.messages.as_ref() == Some(expected),
         };
 
         if finished {
