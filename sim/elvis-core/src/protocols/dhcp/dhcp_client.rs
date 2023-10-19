@@ -16,6 +16,7 @@ pub enum LeaseRemaining {
     At50Percent,
     At25Percent,
     At0Percent,
+    LeaseShutdown,
 }
 
 #[derive(Default, PartialEq, Debug)]
@@ -38,6 +39,7 @@ pub struct DhcpClient {
     pub ip_address: RwLock<Option<Ipv4Address>>,
     listener: RwLock<Option<DhcpClientListener>>,
     pub state: RwLock<CurrentState>,
+    pub lease: RwLock<DelayQueue<LeaseRemaining>>,
 }
 
 impl DhcpClient {
@@ -48,6 +50,7 @@ impl DhcpClient {
             ip_address: Default::default(),
             listener: RwLock::new(listen),
             state: RwLock::new(CurrentState::Init),
+            lease: RwLock::new(DelayQueue::new()),
         }
     }
 
@@ -64,7 +67,7 @@ impl DhcpClient {
 impl Protocol for DhcpClient {
     async fn start(
         &self,
-        _shutdown: Shutdown,
+        shutdown: Shutdown,
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -93,61 +96,60 @@ impl Protocol for DhcpClient {
         let response_message = DhcpMessage::to_message(response).unwrap();
         udp.send(response_message, protocols.clone()).unwrap();
 
-        //TO DO: implement something to ensure DelayQueue is not starting until ip is assigned
+        //example at 8 second lease
+        let time = 8;
+        self.lease.write().unwrap().insert(LeaseRemaining::At50Percent, Duration::from_secs(time / 2));
+        self.lease.write().unwrap().insert(LeaseRemaining::At25Percent, Duration::from_secs(time * 3 / 4));
+        self.lease.write().unwrap().insert(LeaseRemaining::At0Percent, Duration::from_secs(time));
 
-        let mut delay_queue = DelayQueue::new();
-
-        //example at 5 second lease
-        let time = 5;
-        delay_queue.insert(LeaseRemaining::At50Percent, Duration::from_secs(time / 2));
-        delay_queue.insert(LeaseRemaining::At25Percent, Duration::from_secs(time * 3 / 4));
-        delay_queue.insert(LeaseRemaining::At0Percent, Duration::from_secs(time));
-
-        while !delay_queue.is_empty() {
+        while !self.lease.read().unwrap().is_empty() {
             //if client has shut down, clear the queue
-            if *self.ip_address.read().unwrap() == None {
-                println!("AAAAAAAAAAAAAAAA");
-                delay_queue.clear();                
+            if !shutdown.receiver().is_empty() {
+                println!("Shutting down!");
+                self.lease.write().unwrap().clear();         
             } else {
-                if *self.state.read().unwrap() == CurrentState::Bound {
-                //reset the timer when the ip is rebound
-                    *self.state.write().unwrap() = CurrentState::Rebinding.into();
-                    delay_queue.clear();
-                    delay_queue.insert(LeaseRemaining::At50Percent, Duration::from_secs(time / 2));
-                    delay_queue.insert(LeaseRemaining::At25Percent, Duration::from_secs(time * 3 / 4));
-                    delay_queue.insert(LeaseRemaining::At0Percent, Duration::from_secs(time));
-                }
-                let next = futures::future::poll_fn(|cx| delay_queue.poll_expired(cx)).await.unwrap().into_inner();
-                match next {
-                    //attempts to send another message to dhcp server for renewal
-                    LeaseRemaining::At50Percent => {
-                        *self.state.write().unwrap() = CurrentState::Renewing.into();
-                        let mut renew = DhcpMessage::default();
-                        renew.your_ip = self.ip_address().await;
-                        renew.msg_type = MessageType::Request;
-                        let renew_message = DhcpMessage::to_message(renew).unwrap();
-                        udp.send(renew_message, protocols.clone()).unwrap();
-                        println!("50 Percent Remaining!");
-                    }
-                    //broadcasts a new discover message to find some other dhcp server for renewal
-                    LeaseRemaining::At25Percent => {
-                        *self.state.write().unwrap() = CurrentState::Rebinding.into();
-                        let mut renew = DhcpMessage::default();
-                        renew.your_ip = self.ip_address().await;
-                        renew.msg_type = MessageType::Discover;
-                        let renew_message = DhcpMessage::to_message(renew).unwrap();
-                        udp.send(renew_message, protocols.clone()).unwrap();
-                        println!("25 Percent Remaining!");
-                    }
-                    //removes ip and restarts dhcp process
-                    LeaseRemaining::At0Percent => {
-                        *self.state.write().unwrap() = CurrentState::Init.into();
-                        *self.ip_address.write().unwrap() = None;
-                        let mut renew = DhcpMessage::default();
-                        renew.msg_type = MessageType::Discover;
-                        let renew_message = DhcpMessage::to_message(renew).unwrap();
-                        udp.send(renew_message, protocols.clone()).unwrap();
-                        println!("All Done!");
+                let mut renew = DhcpMessage::default();
+                let next = futures::future::poll_fn(|cx| self.lease.write().unwrap().poll_expired(cx)).await.unwrap().into_inner();
+                if *self.state.read().unwrap() == CurrentState::Bound && self.lease.write().unwrap().len() > 0{
+                    //reset the timer when the ip is rebound
+                    self.lease.write().unwrap().clear();
+                    println!("State is Bound, clearing queue");
+                    self.lease.write().unwrap().insert(LeaseRemaining::At50Percent, Duration::from_secs(time / 2));
+                    self.lease.write().unwrap().insert(LeaseRemaining::At25Percent, Duration::from_secs(time * 3 / 4));
+                    self.lease.write().unwrap().insert(LeaseRemaining::At0Percent, Duration::from_secs(time));
+                } else {
+                    match next {
+                        //attempts to send another message to dhcp server for renewal
+                        LeaseRemaining::At50Percent => {
+                            println!("50 Percent Remaining!");
+                            *self.state.write().unwrap() = CurrentState::Renewing.into();
+                            renew.your_ip = self.ip_address().await;
+                            renew.msg_type = MessageType::Request;
+                            let renew_message = DhcpMessage::to_message(renew).unwrap();
+                            udp.send(renew_message, protocols.clone()).unwrap();
+                            //println!("{:?}", *self.ip_address.read().unwrap());
+                        }
+                        //broadcasts a new discover message to find some other dhcp server for renewal
+                        LeaseRemaining::At25Percent => {
+                            println!("25 Percent Remaining!");
+                            *self.state.write().unwrap() = CurrentState::Rebinding.into();
+                            renew.your_ip = self.ip_address().await;
+                            renew.msg_type = MessageType::Discover;
+                            let renew_message = DhcpMessage::to_message(renew).unwrap();
+                            udp.send(renew_message, protocols.clone()).unwrap();
+                        }
+                        //removes ip and restarts dhcp process
+                        LeaseRemaining::At0Percent => {
+                            println!("All Done!");
+                            *self.state.write().unwrap() = CurrentState::Init.into();
+                            *self.ip_address.write().unwrap() = None;
+                            renew.msg_type = MessageType::Discover;
+                            let renew_message = DhcpMessage::to_message(renew).unwrap();
+                            udp.send(renew_message, protocols.clone()).unwrap();
+                        }
+                        LeaseRemaining::LeaseShutdown => {
+                            //dummy item so that "next" doesn't get hung up with no more items in queue
+                        }
                     }
                 }
             }
@@ -178,14 +180,10 @@ impl Protocol for DhcpClient {
                 Ok(())
             }
             MessageType::Ack => {
-                let mut first = false;
-                if *self.ip_address.read().unwrap() == Some(Ipv4Address::new([0,0,0,0])) {
-                    first = true;
-                }
                 *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
                 *self.state.write().unwrap() = CurrentState::Bound.into();
                 self.notify.notify_waiters();
-                if self.listener.read().unwrap().is_some() && first == true {
+                if self.listener.read().unwrap().is_some(){
                     if let Some(release) = self
                         .listener
                         .write()
@@ -205,6 +203,8 @@ impl Protocol for DhcpClient {
                             )
                             .unwrap();
                     }
+                    self.lease.write().unwrap().clear();
+                    self.lease.write().unwrap().insert(LeaseRemaining::LeaseShutdown, Duration::from_secs(0));
                 }
                 Ok(())
             }
