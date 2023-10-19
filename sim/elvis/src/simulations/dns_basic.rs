@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
-use tokio::time::Duration;
+// use tokio::time::Duration;
 use elvis_core::{
     new_machine,
     protocols::{
@@ -8,9 +10,9 @@ use elvis_core::{
         socket_api::socket::SocketType,
         tcp::Tcp,
         udp::Udp,
-        Pci, SocketAPI,
+        Arp, Pci, SocketAPI,
     },
-    IpTable, Network, run_internet_with_timeout,
+    run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
 /// Runs a basic client-server sim using the DNS client and server to resolve
@@ -27,19 +29,16 @@ pub async fn dns_basic() {
     let dns_server_ip_address = Ipv4Address::DNS_ROOT_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     let client1_ip_address: Ipv4Address = [123, 45, 67, 60].into();
-    let ip_table: IpTable<Recipient> = [
-        (dns_server_ip_address, Recipient::with_mac(0, 0)),
-        (server_ip_address, Recipient::with_mac(0, 1)),
-        (client1_ip_address, Recipient::with_mac(0, 2)),
-    ]
-    .into_iter()
-    .collect();
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
 
     let machines = vec![
         new_machine![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
+            Arp::new(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(dns_server_ip_address)),
             DnsServer::new(),
@@ -48,6 +47,7 @@ pub async fn dns_basic() {
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
+            Arp::new(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
             DnsTestServer::new(0xbeef, SocketType::Datagram)
@@ -56,6 +56,7 @@ pub async fn dns_basic() {
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
+            Arp::new(),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client1_ip_address)),
             DnsResolver::new(),
@@ -63,14 +64,16 @@ pub async fn dns_basic() {
         ],
     ];
 
-    run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Status(10));
 }
 
 #[cfg(test)]
 mod tests {
+
     #[tokio::test]
     #[tracing_test::traced_test]
     async fn dns_basic() {
-        super::dns_basic().await;
+        super::dns_basic().await
     }
 }

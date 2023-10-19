@@ -154,7 +154,9 @@ mod tests {
             Fragments::Fragmented(fragments) => fragments,
             _ => panic!("Expected fragments"),
         };
-        let [a1, a2] = a.as_slice() else { panic!("Expected two fragments") };
+        let [a1, a2] = a.as_slice() else {
+            panic!("Expected two fragments")
+        };
 
         let mut reassembly = Segment::new();
 

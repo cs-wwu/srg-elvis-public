@@ -17,7 +17,7 @@ pub mod socket_api;
 pub use socket_api::SocketAPI;
 
 mod utility;
-pub use utility::{Endpoint, Endpoints};
+pub use utility::{Endpoint, Endpoints, BytesExt};
 
 pub mod tcp;
 pub use tcp::Tcp;

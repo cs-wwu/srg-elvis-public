@@ -4,7 +4,7 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
         AddressPair, Arp, Ipv4, Pci,
     },
     Control, IpTable, Protocol, Session, Shutdown,
@@ -13,14 +13,26 @@ use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+/// Static router that uses arp to route messages to the correct location
+/// created by providing a table mapping subnet to router ip and pci slot
+/// requires a local ip to be specified for each pci session
 pub struct ArpRouter {
-    ip_table: IpTable<(Ipv4Address, PciSlot)>,
-    local_ip: Ipv4Address,
+    ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
+    local_ips: Vec<Ipv4Address>,
 }
 
 impl ArpRouter {
-    pub fn new(ip_table: IpTable<(Ipv4Address, PciSlot)>, local_ip: Ipv4Address) -> Self {
-        Self { ip_table, local_ip }
+    pub fn new(
+        // Maps subnet to a given router ip.
+        // Setting route to none sets the destination ip to the destination
+        // ip in the received packet so the router can send to a local network.
+        ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
+        local_ips: Vec<Ipv4Address>,
+    ) -> Self {
+        Self {
+            ip_table,
+            local_ips,
+        }
     }
 }
 
@@ -35,14 +47,30 @@ impl Protocol for ArpRouter {
         let ipv4 = protocols
             .protocol::<Ipv4>()
             .expect("Arp Router requires IPv4");
+
         let arp = protocols
             .protocol::<Arp>()
             .expect("Arp Router requires Arp");
 
-        ipv4.listen(self.id(), Ipv4Address::CURRENT_NETWORK, protocols)
-            .unwrap();
+        ipv4.listen(
+            self.id(),
+            Ipv4Address::CURRENT_NETWORK,
+            protocols.clone(),
+            ProtocolNumber::TCP,
+        )
+        .unwrap();
 
-        arp.listen(self.local_ip);
+        ipv4.listen(
+            self.id(),
+            Ipv4Address::CURRENT_NETWORK,
+            protocols,
+            ProtocolNumber::UDP,
+        )
+        .unwrap();
+
+        for ip in self.local_ips.iter() {
+            arp.listen(*ip);
+        }
 
         initialize.wait().await;
         Ok(())
@@ -61,7 +89,6 @@ impl Protocol for ArpRouter {
             return Ok(());
         }
 
-        // TODO(hardint): Fragmentation
         message.header(ipv4_header.serialize().or(Err(DemuxError::Other))?);
 
         let pair = self
@@ -69,13 +96,17 @@ impl Protocol for ArpRouter {
             .get_recipient(ipv4_header.destination)
             .ok_or(DemuxError::Other)?;
 
-        let gateway = pair.0;
+        let gateway = match pair.0 {
+            Some(address) => address,
+            // allows router to send packet back to local network
+            None => ipv4_header.destination,
+        };
         let slot = pair.1;
 
         let arp = protocols.protocol::<Arp>().unwrap();
 
         let address_pair = AddressPair {
-            local: self.local_ip,
+            local: self.local_ips[slot as usize],
             remote: gateway,
         };
 

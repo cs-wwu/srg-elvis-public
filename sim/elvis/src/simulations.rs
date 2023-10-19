@@ -32,12 +32,6 @@ pub use latency::latency;
 mod throughput;
 pub use throughput::throughput;
 
-mod router_single;
-pub use router_single::router_single;
-
-mod router_multi;
-pub use router_multi::router_multi;
-
 mod tcp_with_reliable;
 pub use tcp_with_reliable::tcp_with_reliable;
 
@@ -56,3 +50,21 @@ pub use udp_gigabyte_bench::udp_gigabyte_bench;
 
 mod tcp_stream;
 pub use tcp_stream::tcp_stream;
+
+mod yahoo_server;
+pub use yahoo_server::yahoo_server;
+
+mod server_user;
+pub use server_user::server_user;
+
+mod server_experiment;
+pub use server_experiment::server_experiment;
+
+mod tcp_stream_speed_test;
+pub use tcp_stream_speed_test::tcp_stream_speed_test;
+
+mod udp_broadcast;
+pub use udp_broadcast::udp_broadcast_basic;
+
+mod localhost;
+pub use localhost::localhost;
