@@ -16,7 +16,7 @@ use elvis_core::{
 /// Runs a basic client-server sim using the DNS client and server to resolve
 /// the correct Ipv4 address.
 ///
-/// In this simulation, a client machine intends to send a "request" messages
+/// In this simulation, a client machine intends to send a "request" message
 /// to a server machine. The client machine only has a name associated with the
 /// server in question. The original application will use the local instance of
 /// the DNS protocol to find out the Ipv4 address of the intended server by
