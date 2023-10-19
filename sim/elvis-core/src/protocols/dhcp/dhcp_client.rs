@@ -30,32 +30,6 @@ pub enum CurrentState {
     Rebinding,
 }
 
-#[derive(Default, PartialEq, Debug)]
-pub enum CurrentState {
-    #[default]
-    Init,
-    Selecting,
-    Requesting,
-    InitReboot,
-    Rebooting,
-    Bound,
-    Renewing,
-    Rebinding,
-}
-
-#[derive(Default, PartialEq, Debug)]
-pub enum CurrentState {
-    #[default]
-    Init,
-    Selecting,
-    Requesting,
-    InitReboot,
-    Rebooting,
-    Bound,
-    Renewing,
-    Rebinding,
-}
-
 #[derive(Default)]
 pub struct DhcpClient {
     server_ip: Ipv4Address,
@@ -209,10 +183,6 @@ impl Protocol for DhcpClient {
                 Ok(())
             }
             MessageType::Ack => {
-                let mut first = false;
-                if *self.ip_address.read().unwrap() == Some(Ipv4Address::new([0,0,0,0])) {
-                    first = true;
-                }
                 *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
                 *self.state.write().unwrap() = CurrentState::Bound.into();
                 self.notify.notify_waiters();
