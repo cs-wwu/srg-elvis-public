@@ -1,5 +1,8 @@
 //! Various prebuilt simulation setups for testing, benchmarking, and examples.
 
+mod logan_sim;
+pub use logan_sim::logan_basic;
+
 mod basic;
 pub use basic::basic;
 mod dhcp_basic;
@@ -65,3 +68,4 @@ pub use udp_broadcast::udp_broadcast_basic;
 
 mod localhost;
 pub use localhost::localhost;
+
