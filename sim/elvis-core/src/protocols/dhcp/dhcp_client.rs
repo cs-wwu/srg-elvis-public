@@ -61,6 +61,11 @@ impl DhcpClient {
         self.notify.notified().await;
         self.ip_address.read().unwrap().unwrap()
     }
+
+    pub fn lease_shutdown(&self) {
+        self.lease.write().unwrap().clear();
+        self.lease.write().unwrap().insert(LeaseRemaining::LeaseShutdown, Duration::from_secs(0));
+    }
 }
 
 #[async_trait::async_trait]
@@ -106,7 +111,7 @@ impl Protocol for DhcpClient {
             //if client has shut down, clear the queue
             if !shutdown.receiver().is_empty() {
                 println!("Shutting down!");
-                self.lease.write().unwrap().clear();         
+                self.lease_shutdown();        
             } else {
                 let mut renew = DhcpMessage::default();
                 let next = futures::future::poll_fn(|cx| self.lease.write().unwrap().poll_expired(cx)).await.unwrap().into_inner();
@@ -203,8 +208,7 @@ impl Protocol for DhcpClient {
                             )
                             .unwrap();
                     }
-                    self.lease.write().unwrap().clear();
-                    self.lease.write().unwrap().insert(LeaseRemaining::LeaseShutdown, Duration::from_secs(0));
+                    self.lease_shutdown();
                 }
                 Ok(())
             }
