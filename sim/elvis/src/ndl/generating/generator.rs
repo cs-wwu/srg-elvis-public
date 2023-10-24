@@ -10,7 +10,6 @@ use std::time::Duration;
 pub async fn core_generator(s: Sim) {
     let networks = network_generator(s.networks);
     let machines = machine_generator(s.machines, &networks);
-    println!("Generated everything");
     // run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
     run_internet(&machines).await;
 }

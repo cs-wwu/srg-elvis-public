@@ -13,7 +13,7 @@
 			[Protocol name='UDP']
 			[Protocol name='ARP']
 		[Applications]
-			[Application name='rip_router']
+			[Application name='arp_router']
 				[IP ip='123.45.67.94']
 				[IP ip='123.45.67.95']
 				[RouterEntry dest='123.45.67.89' pci_slot='0']

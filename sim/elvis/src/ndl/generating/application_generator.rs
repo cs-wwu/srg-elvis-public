@@ -67,7 +67,7 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip).delay(Duration::from_secs(3))
+        .local_ip(target_ip).delay(Duration::from_secs(5))
     } else {
         SendMessage::new(
             messages,
@@ -78,7 +78,7 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip).delay(Duration::from_secs(3))
+        .local_ip(target_ip).delay(Duration::from_secs(5))
     }
 }
 
@@ -313,9 +313,7 @@ pub fn rip_router_builder(
         }
     }
 
-    let rip = RipRouter::new(local_ips.clone()).debug("Test".to_string());
-    println!("Local ips {:?}",local_ips);
-    println!("Router table ips: {:?}", router_table.clone());
+    let rip = RipRouter::new(local_ips.clone());
     
     let arp = ArpRouter::new(router_table.clone(), local_ips.clone());
     return (arp, rip);
