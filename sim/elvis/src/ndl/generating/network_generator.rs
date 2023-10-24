@@ -30,6 +30,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
 
         let mut ip_gen: IpGenerator = IpGenerator::none();
         let mut temp_ips = HashSet::new();
+        println!("Net id {}", id);
         //Loop through the entries in each network ids
         for ip in net.ip {
             for (option_id, value) in ip.options {

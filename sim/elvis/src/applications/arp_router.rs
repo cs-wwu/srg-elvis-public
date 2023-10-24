@@ -232,7 +232,6 @@ impl Protocol for ArpRouter {
         let slot = rte.slot;
 
         let arp = protocols.protocol::<Arp>().unwrap();
-
         let address_pair = AddressPair {
             local: self.local_ips[slot as usize],
             remote: gateway,

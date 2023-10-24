@@ -158,6 +158,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 net_ids.push(net_id.to_string());
                 networks_to_be_added.push(network_adding.clone());
             }
+            println!("Networks to be added {:?}", net_ids);
             protocol_map = protocol_map.with(Pci::new(networks_to_be_added));
 
             //build all apps the machine has

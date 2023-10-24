@@ -112,7 +112,6 @@ pub fn generate_router_entry(entry: HashMap<String, String>) -> (Ipv4Net, Option
     };
     let dest = Ipv4Net::new_short(ip_string_to_ip(dest_string, "dest"), 32);
     let pci_slot : u32 = pci_slot_string.parse().unwrap();
-    print!("Pci slot: {}\n", pci_slot);
     return (dest, next_hop, pci_slot);
 }
 

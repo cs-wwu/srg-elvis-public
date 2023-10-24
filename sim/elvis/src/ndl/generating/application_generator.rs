@@ -67,7 +67,7 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip).delay(Duration::from_secs(5))
+        .local_ip(target_ip).delay(Duration::from_secs(3))
     } else {
         SendMessage::new(
             messages,
@@ -78,7 +78,7 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip).delay(Duration::from_secs(5))
+        .local_ip(target_ip).delay(Duration::from_secs(3))
     }
 }
 
@@ -290,14 +290,13 @@ pub fn rip_router_builder(
     let router_ips = app.router_table.clone().unwrap().1;
 
     let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
-    let mut name = "1";
     for router_entry in router_table_entries {
-        name = "2";
         let line = generate_router_entry(router_entry);
         router_table.add(line.0, (line.1, line.2));
     }
 
     let mut local_ips = Vec::new();
+    let mut slot_num = 0;
     for entry in router_ips.iter() {
         if entry.options.contains_key("ip") {
             let ip_string = entry.options.get("ip").unwrap().to_string();
@@ -308,15 +307,17 @@ pub fn rip_router_builder(
                 cur_net_ids,
             )
             .expect("ArpRouter local IP unavailable");
-            ip_table.add_direct(ip, Recipient::new(0, None));
+            ip_table.add_direct(ip, Recipient::new(slot_num, None));
             local_ips.push(ip.into());
+            slot_num+=1;
         }
     }
+
+    let rip = RipRouter::new(local_ips.clone()).debug("Test".to_string());
+    println!("Local ips {:?}",local_ips);
+    println!("Router table ips: {:?}", router_table.clone());
     
-    let rip = RipRouter::new(local_ips.clone()).debug(name.to_string());
     let arp = ArpRouter::new(router_table.clone(), local_ips.clone());
-    println!("Router table: {:?}", router_table.clone());
-    println!("Router local ips: {:?}", local_ips.clone());
     return (arp, rip);
 }
 

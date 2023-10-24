@@ -295,6 +295,83 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
     run_internet_with_timeout(&machines, Duration::from_secs(10)).await
 }
 
+pub async fn test_for_ndl() -> ExitStatus {
+
+    let rec_ip = Ipv4Address::new([123, 45, 67, 90]);
+
+    let router1_ips: [Ipv4Address; 2] = [
+        Ipv4Address::new([1,2,3,4]),
+        Ipv4Address::new([1,2,3,5]),
+    ];
+
+    let router2_ips: [Ipv4Address; 2] = [
+        Ipv4Address::new([1,2,3,6]),
+        Ipv4Address::new([1,2,3,7]),
+    ];
+
+    let router_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (rec_ip, (None, 1)),
+    ]
+    .into_iter()
+    .collect();
+
+    let networks: Vec<_> = (0..8).map(|_| Network::basic()).collect();
+
+    let ip_table_1 = build_ip_table(&router1_ips);
+    let ip_table_2 = build_ip_table(&router2_ips);
+
+    let send_message = SendMessage::new(
+        vec![Message::new(b"Hello World!")],
+        Endpoint {
+            address: Ipv4Address::new([123, 45, 67, 90]),
+            port: 0xbeef,
+        },
+    )
+    .delay(Duration::from_secs(5));
+
+    let machines = vec![
+        // send message
+        new_machine![
+            Udp::new(),
+            Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
+            Pci::new([networks[0].clone()]),
+            send_message.local_ip(IPS[0]),
+            Arp::basic().preconfig_subnet(
+                IPS[0],
+                SubnetInfo {
+                    mask: Ipv4Mask::from_bitcount(32),
+                    default_gateway: router1_ips[0]
+                }
+            ),
+        ],
+        // Routers
+        new_machine![
+            Pci::new([networks[0].clone(), networks[1].clone(),]),
+            Ipv4::new(ip_table_1),
+            Arp::basic(),
+            Udp::new(),
+            ArpRouter::new(Default::default(), router1_ips.to_vec()),
+            RipRouter::new(router1_ips.to_vec())
+        ],
+        new_machine![
+            Pci::new([
+                networks[1].clone(),
+                networks[2].clone(),
+            ]),
+            Ipv4::new(ip_table_2),
+            Arp::basic(),
+            Udp::new(),
+            ArpRouter::new(router_table_2.clone(), router2_ips.to_vec()),
+            RipRouter::new(router2_ips.to_vec()).debug("name".to_string())
+        ],
+        // Destinations
+        build_capture(networks[2].clone(), rec_ip, 1),
+    ];
+    println!("Router 1\n Local ip {:?}\nRouter Table: {:?}", router1_ips, "Empty default");
+    println!("Router 1\n Local ip {:?}\nRouter Table: {:?}", router2_ips, router_table_2);
+    
+    run_internet_with_timeout(&machines, Duration::from_secs(10)).await
+}
 pub async fn junction(destination: Ipv4Address) -> ExitStatus {
     todo!()
 }
@@ -324,4 +401,17 @@ mod tests {
         assert_eq!(test2.await, super::ExitStatus::Status(2));
         assert_eq!(test3.await, super::ExitStatus::Status(3));
     }
+
+    #[tokio::test]
+    async fn test_for_ndl() {
+        let test1 = super::test_for_ndl();
+
+        assert_eq!(test1.await, super::ExitStatus::Status(1));
+    }
 }
+// Router 1
+//  Local ip [Ipv4Address([1, 2, 3, 4]), Ipv4Address([1, 2, 3, 5])]
+// Router Table: "Empty default"
+// Router 1
+//  Local ip [Ipv4Address([1, 2, 3, 6]), Ipv4Address([1, 2, 3, 7])]
+// Router Table: 123.45.67.90/32 : (None, 1)

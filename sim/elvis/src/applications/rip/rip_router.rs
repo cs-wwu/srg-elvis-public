@@ -9,6 +9,7 @@ use elvis_core::{
     },
     Control, Protocol, Session, Shutdown,
 };
+use rand::Rng;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Barrier;
 
@@ -34,7 +35,10 @@ impl RipRouter {
     }
 
     pub fn debug(mut self, name: String) -> Self {
+        let mut rng = rand::thread_rng();
+        let name = rng.gen_range(0..1000).to_string();
         self.name = Some(name);
+        println!("Mah name is {:?}", self.name);
         self
     }
 
@@ -125,27 +129,34 @@ impl Protocol for RipRouter {
 
         let slot = demux_info.slot;
         let router_address = ipv4_header_info.source;
-        println!("Incoming router address {:?}", router_address);
         // discard packets coming from this router
-        if self.local_ips[slot as usize] == router_address {
-            return Ok(());
-        }
-
-        let remote_endpoint = Endpoint::new(router_address, 520);
-        let local_endpoint = Endpoint::new(self.local_ips[slot as usize], 520);
-        let endpoints = Endpoints::new(local_endpoint, remote_endpoint);
-
-        // parse packet from message
+        
         let packet = match RipPacket::from_bytes(message.iter()) {
             Ok(packet) => packet,
             Err(_) => return Err(DemuxError::Header),
         };
 
+        
+
+        let remote_endpoint = Endpoint::new(router_address, 520);
+        let local_endpoint = Endpoint::new(self.local_ips[slot as usize], 520);
+        let endpoints = Endpoints::new(local_endpoint, remote_endpoint);
+        
+
+        // parse packet from message
+        if self.local_ips[slot as usize] == router_address {
+            // if packet.header.command == Operation::Response {
+            //     println!("Discarded a response packet {:?} from {:?}", endpoints.remote, endpoints.local);
+            // }
+            return Ok(());
+        }
+        print!("--------------------------------------------------------------\n");
+        if let Some(name) = self.name.clone(){
+            println!("Router local ips {:?}", self.local_ips);
+            println!("Router {} local: {:?}, remote {:?}", name, local_endpoint, remote_endpoint);
+        }
         match packet.header.command {
             Operation::Request => {
-                if let Some(name) = self.name.clone(){
-                    println!("Router {} being request info", name);
-                }
                 
                 let udp = protocols
                     .protocol::<Udp>()
@@ -157,28 +168,36 @@ impl Protocol for RipRouter {
                     .expect("RipRouter requires ArpRouter")
                     .process_request(router_address, packet);
 
+                // if let Some(name) = self.name.clone(){
+                //     println!("Router {} recieved request, packet is {:?}", name, packets);
+                // }
+
                 for packet in packets.iter() {
                     let response_message = Message::new(RipPacket::build(packet));
                     let id = self.id();
                     let udp = udp.clone();
                     let protocols = protocols.clone();
-
+                    // println!("Response sent to before move {:?} from {:?}", endpoints.remote, endpoints.local);
                     tokio::spawn(async move {
-                        println!("Endpoints: {:?}", endpoints);
                         let result = udp.open_for_sending(id, endpoints, protocols.clone()).await;
                         let session = match result {
                             Ok(session) => session,
-                            Err(_) => return,
+                            Err(_) => {
+                                println!{"Error ocurred in open udp"};
+                                return},
                         };
                         let _ = session.send(response_message, protocols);
                     });
-                    println!("Response sent");
+                    // println!("Response sent to {:?} from {:?}", endpoints.remote, endpoints.local);
                 }
+                // if let Some(name) = self.name.clone(){
+                //     println!("Router {} recieved request, sent to {:?}", name, endpoints.remote);
+                // }
             }
             Operation::Response => {
                 // update router table accordingly
                 if let Some(name) = self.name.clone(){
-                    println!("Router {} being response info", name);
+                    println!("Router {} recieved response info from {}", name, router_address);
                 }
                 protocols
                     .protocol::<ArpRouter>()
