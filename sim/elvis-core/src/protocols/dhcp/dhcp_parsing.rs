@@ -1,4 +1,4 @@
-use crate::{protocols::ipv4::Ipv4Address, Message};
+use crate::{protocols::ipv4::Ipv4Address, protocols::utility::BytesExt, Message};
 use thiserror::Error as ThisError;
 
 /// An enumeration representing the specific type or functionality of a DHCP Message
@@ -72,44 +72,38 @@ pub struct DhcpMessage {
 impl DhcpMessage {
     /// Parses a message into a DhcpMessage struct using a byte iterator
     pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, ParseError> {
-        let mut next =
-            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
-        let op = next()?;
-        let htype = next()?;
-        let hlen = next()?;
-        let hops = next()?;
+        const HTS: ParseError = ParseError::HeaderTooShort;
+        let op = bytes.next_u8().ok_or(HTS)?;
+        let htype = bytes.next_u8().ok_or(HTS)?;
+        let hlen = bytes.next_u8().ok_or(HTS)?;
+        let hops = bytes.next_u8().ok_or(HTS)?;
 
-        let mut transaction_id: u32 = next()? as u32;
-        transaction_id = (transaction_id << 8) | next()? as u32;
-        transaction_id = (transaction_id << 8) | next()? as u32;
-        transaction_id = (transaction_id << 8) | next()? as u32;
+        let transaction_id = bytes.next_u32_be().ok_or(HTS)?;
 
-        let mut seconds = next()? as u16;
-        seconds = (seconds << 8) | next()? as u16;
+        let seconds = bytes.next_u16_be().ok_or(HTS)?;
 
-        let flags = next()?;
+        let flags = bytes.next_u8().ok_or(HTS)?;
 
-        let client_ip = Ipv4Address::new([next()?, next()?, next()?, next()?]);
-        let your_ip = Ipv4Address::new([next()?, next()?, next()?, next()?]);
-        let server_ip = Ipv4Address::new([next()?, next()?, next()?, next()?]);
-        let router_ip = Ipv4Address::new([next()?, next()?, next()?, next()?]);
+        let client_ip = bytes.next_ipv4addr().ok_or(HTS)?;
+        let your_ip = bytes.next_ipv4addr().ok_or(HTS)?;
+        let server_ip = bytes.next_ipv4addr().ok_or(HTS)?;
+        let router_ip = bytes.next_ipv4addr().ok_or(HTS)?;
 
-        let mut client_hardware_address: u16 = next()? as u16;
-        client_hardware_address = (client_hardware_address << 8) | next()? as u16;
-        let msg_type = MessageType::try_from(next()?).unwrap();
+        let client_hardware_address = bytes.next_u16_be().ok_or(HTS)?;
+        let msg_type = MessageType::try_from(bytes.next_u8().ok_or(HTS)?).unwrap();
         let mut server_name = Vec::new();
-        let mut current = next()?;
+        let mut current = bytes.next_u8().ok_or(HTS)?;
         while current != b'\0' {
             server_name.push(current);
-            current = next()?
+            current = bytes.next_u8().ok_or(HTS)?
         }
         let server_name = String::from_utf8(server_name).unwrap();
 
         let mut boot_file = Vec::new();
-        current = next()?;
+        current = bytes.next_u8().ok_or(HTS)?;
         while current != b'\0' {
             boot_file.push(current);
-            current = next()?
+            current = bytes.next_u8().ok_or(HTS)?
         }
         let boot_file = String::from_utf8(boot_file).unwrap();
 
@@ -136,13 +130,9 @@ impl DhcpMessage {
     pub fn to_message(message: DhcpMessage) -> Result<Message, ParseError> {
         let mut vec_message = vec![message.op, message.htype, message.hlen, message.hops];
 
-        vec_message.push((message.transaction_id >> 24) as u8); //first 8 bits
-        vec_message.push((message.transaction_id >> 16) as u8); //next 8 bits
-        vec_message.push((message.transaction_id >> 8) as u8);
-        vec_message.push(message.transaction_id as u8); //last 8 bits
+        vec_message.extend_from_slice(&message.transaction_id.to_be_bytes());
 
-        vec_message.push((message.seconds >> 8) as u8);
-        vec_message.push(message.seconds as u8);
+        vec_message.extend_from_slice(&message.seconds.to_be_bytes());
 
         vec_message.push(message.flags);
 
@@ -158,8 +148,7 @@ impl DhcpMessage {
         let router = Ipv4Address::to_bytes(message.router_ip);
         vec_message.extend(router);
 
-        vec_message.push((message.client_hardware_address >> 8) as u8);
-        vec_message.push(message.client_hardware_address as u8);
+        vec_message.extend_from_slice(&message.client_hardware_address.to_be_bytes());
 
         vec_message.push(message.msg_type as u8);
 
