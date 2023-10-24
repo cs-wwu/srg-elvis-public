@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use elvis_core::{
     machine::ProtocolMap,
     message::Message,
@@ -12,6 +10,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use tokio::sync::Barrier;
+use tokio::time::Duration;
 
 pub struct StreamingClient {
     server_address: Endpoint,
@@ -69,7 +68,7 @@ impl Protocol for StreamingClient {
             // Http get request that will be sent to server
             let request = format!(
                 "GET /{} HTTP/1.1\r\n\
-                Host: local_host\r\n\
+                Host: 127.0.0.1\r\n\
                 Connection: Keep-Alive\r\n\
                 \r\n\r\n",
                 video_segment
@@ -87,11 +86,7 @@ impl Protocol for StreamingClient {
                 Ok(bytes_read) => {
                     // counts number and type of bytes recieved from server
                     // low quality bytes recvd
-                    total_rcvd += bytes_read.iter().filter(|&n| *n == 1).count();
-                    // medium quality
-                    total_rcvd += bytes_read.iter().filter(|&n| *n == 2).count();
-                    // high quality
-                    total_rcvd += bytes_read.iter().filter(|&n| *n == 3).count();
+                    total_rcvd += bytes_read.len();
 
                     let response_text = String::from_utf8_lossy(&bytes_read);
                     process_http_response(&mut buffer, &response_text).await;
@@ -120,7 +115,7 @@ impl Protocol for StreamingClient {
     }
 }
 
-// Processes the HTTP response and stores the video segment in the buffer
+/// Processes the HTTP response and stores the video segment in the buffer
 async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
     // Splits the response into headers and body
     let mut parts = response.splitn(2, "\r\n\r\n");
@@ -137,17 +132,11 @@ async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
     }
 }
 
-// Plays the video segments in the buffer
+/// Plays the video segments in the buffer
 async fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
     while let Some(_segment) = buffer.pop() {
-        // for debugging or example
-        //println!("Playing video segment: {:?}", segment);
-
-        // Sleep for a duration before playing the next video segment
-        sleep(Duration::from_secs(1)).await;
+        // Sleep for a duration before playing the next video segment (to be replaced with tokio sleep)
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
 
-async fn sleep(duration: Duration) {
-    std::thread::sleep(duration);
-}

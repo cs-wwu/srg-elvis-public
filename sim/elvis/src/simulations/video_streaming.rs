@@ -21,17 +21,17 @@ use std::time::Duration;
  */
 pub async fn video_streaming() {
     let network = Network::basic();
-    let server_ip_address: Ipv4Address = [100, 42, 0, 1].into();
+    let server_ip_address: Ipv4Address = [100, 42, 0, 0].into();
     let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     let client2_ip_address: Ipv4Address = [123, 45, 67, 91].into();
     let client3_ip_address: Ipv4Address = [123, 45, 67, 92].into();
     let server_socket_address: Endpoint = Endpoint::new(server_ip_address, 80);
 
     let ip_table: IpTable<Recipient> = [
-        (server_ip_address, Recipient::with_mac(0, 0)),
-        (client1_ip_address, Recipient::with_mac(0, 1)),
-        (client2_ip_address, Recipient::with_mac(0, 1)),
-        (client3_ip_address, Recipient::with_mac(0, 1)),
+        (server_ip_address, Recipient::with_mac(0, 1)),
+        (client1_ip_address, Recipient::with_mac(0, 0)),
+        (client2_ip_address, Recipient::with_mac(0, 0)),
+        (client3_ip_address, Recipient::with_mac(0, 0)),
     ]
     .into_iter()
     .collect();
@@ -43,7 +43,7 @@ pub async fn video_streaming() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
-            VideoServer::new(),
+            VideoServer::new(server_socket_address),
         ],
         // client #1
         new_machine![
@@ -71,7 +71,7 @@ pub async fn video_streaming() {
         ],
     ];
 
-    let duration = 15;
+    let duration = 5;
     run_internet_with_timeout(&machines, Duration::from_secs(duration)).await;
 
     let mut machines_iter = machines.into_iter();

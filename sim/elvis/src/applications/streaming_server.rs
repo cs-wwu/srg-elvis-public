@@ -10,13 +10,17 @@ use std::{str, sync::Arc};
 use tokio::sync::Barrier;
 
 pub struct VideoServer {
+    server_address: Endpoint,
     pub bytes_sent: u32,
 }
 
-// Server that, at the request of a client, sends video segments of varying quality
+/// Server that, at the request of a client, sends video segments of varying quality
 impl VideoServer {
-    pub fn new() -> Self {
-        Self { bytes_sent: 0 }
+    pub fn new(server_address: Endpoint) -> Self {
+        Self { 
+            server_address,
+            bytes_sent: 0 
+        }
     }
 }
 
@@ -32,13 +36,13 @@ impl Protocol for VideoServer {
         _initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        let local_host = Endpoint::new([100, 42, 0, 1].into(), 80); // Temp workaround since local host isn't implemented
-
-        let listener = TcpListener::bind(local_host, protocols).await.unwrap();
+        let listener = TcpListener::bind(self.server_address, protocols)
+            .await
+            .unwrap();
 
         // Continuously listen for and accept new connections
         loop {
-            let _stream = match listener.accept().await {
+            match listener.accept().await {
                 Ok(stream) => {
                     // Spawn a new thread to handle the request
                     tokio::spawn(async move {
@@ -46,7 +50,6 @@ impl Protocol for VideoServer {
                     });
                 }
                 Err(SocketError::Shutdown) => {
-                    println!("Error accepting incoming connection");
                     // This prevents the program from panicking on shutdown
                     shutdown.shut_down();
                     return Ok(());
@@ -67,7 +70,7 @@ impl Protocol for VideoServer {
     }
 }
 
-// Handles incoming HTTP GET requests
+/// Handles incoming HTTP GET requests
 async fn handle_http_get_request(mut stream: TcpStream) {
     loop {
         // Read the request line by line
@@ -96,7 +99,7 @@ async fn handle_http_get_request(mut stream: TcpStream) {
     }
 }
 
-// Ggenerates an HTTP response based on the request
+/// Generates an HTTP response based on the request
 fn generate_http_response(request: &str) -> String {
     // Extract the requested resource from the request
     let resource = match request.lines().next() {
