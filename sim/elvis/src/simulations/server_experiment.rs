@@ -31,7 +31,7 @@ pub async fn server_experiment() {
         let ones: u8 = (i % 10).try_into().unwrap();
         let this_server_ip_address = [100, 42, tens, ones].into(); // Ip addresses are arbitrary
         server_ip_addresses.push(this_server_ip_address);
-        ip_map.insert(this_server_ip_address, Recipient::with_mac(0, i.into()));
+        ip_map.insert(this_server_ip_address, Recipient::with_mac(0, 1));
     }
 
     // Generate unique IP addresses for each client and add them to ip_map
@@ -40,7 +40,7 @@ pub async fn server_experiment() {
         let ones: u8 = (i % 10).try_into().unwrap();
         let this_client_ip_address = [123, 45, tens, ones].into(); // Ip addresses are arbitrary
         client_ip_addresses.push(this_client_ip_address);
-        ip_map.insert(this_client_ip_address, Recipient::with_mac(0, 1));
+        ip_map.insert(this_client_ip_address, Recipient::with_mac(0, 0));
     }
 
     // Convert ip_map to ip_table
