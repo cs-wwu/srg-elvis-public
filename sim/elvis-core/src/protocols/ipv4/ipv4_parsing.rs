@@ -1,5 +1,5 @@
 use super::Ipv4Address;
-use crate::protocols::utility::Checksum;
+use crate::protocols::utility::{Checksum, BytesExt};
 use std::fmt::{self, Debug, Formatter};
 use thiserror::Error as ThisError;
 
@@ -45,12 +45,11 @@ pub struct Ipv4Header {
 impl Ipv4Header {
     /// Parses a header from a byte iterator.
     pub fn from_bytes(mut bytes: impl Iterator<Item = u8>) -> Result<Self, ParseError> {
-        let mut next =
-            || -> Result<u8, ParseError> { bytes.next().ok_or(ParseError::HeaderTooShort) };
+        const HTS: ParseError = ParseError::HeaderTooShort;
 
         let mut checksum = Checksum::new();
 
-        let version_and_ihl = next()?;
+        let version_and_ihl = bytes.next_u8().ok_or(HTS)?;
         let version = version_and_ihl >> 4;
         if version != 4 {
             Err(ParseError::IncorrectIpv4Version)?
@@ -60,20 +59,20 @@ impl Ipv4Header {
             // TODO(hardint): Support optional headers
             Err(ParseError::InvalidHeaderLength)?
         }
-        let type_of_service_byte = next()?;
+        let type_of_service_byte = bytes.next_u8().ok_or(HTS)?;
         let reserved = type_of_service_byte & 0b11;
         if reserved != 0 {
             Err(ParseError::UsedReservedTos)?
         }
         checksum.add_u8(version_and_ihl, type_of_service_byte);
 
-        let total_length = u16::from_be_bytes([next()?, next()?]);
+        let total_length = bytes.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(total_length);
 
-        let identification = u16::from_be_bytes([next()?, next()?]);
+        let identification = bytes.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(identification);
 
-        let flags_and_fragment_offset_bytes = u16::from_be_bytes([next()?, next()?]);
+        let flags_and_fragment_offset_bytes = bytes.next_u16_be().ok_or(HTS)?;
         let fragment_offset = flags_and_fragment_offset_bytes & FRAGMENT_OFFSET_MASK;
         let control_flag_bits = (flags_and_fragment_offset_bytes >> 13) as u8;
         if control_flag_bits & 0b100 != 0 {
@@ -81,19 +80,17 @@ impl Ipv4Header {
         }
         checksum.add_u16(flags_and_fragment_offset_bytes);
 
-        let time_to_live = next()?;
-        let protocol = next()?;
+        let time_to_live = bytes.next_u8().ok_or(HTS)?;
+        let protocol = bytes.next_u8().ok_or(HTS)?;
         checksum.add_u8(time_to_live, protocol);
 
-        let expected_checksum = u16::from_be_bytes([next()?, next()?]);
+        let expected_checksum = bytes.next_u16_be().ok_or(HTS)?;
 
-        let source_bytes = [next()?, next()?, next()?, next()?];
-        let source: Ipv4Address = u32::from_be_bytes(source_bytes).into();
-        checksum.add_u32(source_bytes);
+        let source: Ipv4Address = bytes.next_ipv4addr().ok_or(HTS)?;
+        checksum.add_u32(source.into());
 
-        let destination_bytes = [next()?, next()?, next()?, next()?];
-        let destination: Ipv4Address = u32::from_be_bytes(destination_bytes).into();
-        checksum.add_u32(destination_bytes);
+        let destination: Ipv4Address = bytes.next_ipv4addr().ok_or(HTS)?;
+        checksum.add_u32(destination.into());
 
         let actual_checksum = checksum.as_u16();
         if actual_checksum != expected_checksum {
