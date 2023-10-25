@@ -135,7 +135,7 @@ async fn process_http_response(buffer: &mut Vec<Vec<u8>>, response: &str) {
 /// Plays the video segments in the buffer
 async fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
     while let Some(_segment) = buffer.pop() {
-        // Sleep for a duration before playing the next video segment (to be replaced with tokio sleep)
+        // Sleep for a duration before "playing" the next video segment
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
