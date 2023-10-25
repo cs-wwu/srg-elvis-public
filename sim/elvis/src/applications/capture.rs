@@ -106,7 +106,7 @@ impl Protocol for Capture {
     ) -> Result<(), DemuxError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
-
+        print!("Capture recieve message\n");
         if *self.cur_count.read().unwrap() >= self.message_count {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
                 print!("Capture shutdown\n");
