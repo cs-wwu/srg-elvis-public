@@ -10,8 +10,6 @@ use tokio::sync::Barrier;
 use std::sync::{Arc, RwLock};
 use std::any::*;
 
-
-
 struct Terminal {
     /// The queue of messages received (qpush) by the application that can be
     /// returned (qpop) when a fetch request is made.
