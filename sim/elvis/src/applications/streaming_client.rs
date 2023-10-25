@@ -68,7 +68,7 @@ impl Protocol for StreamingClient {
             // Http get request that will be sent to server
             let request = format!(
                 "GET /{} HTTP/1.1\r\n\
-                Host: 127.0.0.1\r\n\
+                Host: server_address\r\n\
                 Connection: Keep-Alive\r\n\
                 \r\n\r\n",
                 video_segment
