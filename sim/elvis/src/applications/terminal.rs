@@ -45,7 +45,11 @@ impl Terminal {
     fn qpush(
         msg: String
     ) {
-        
+        let mut q: Vec<String> = msg_queue
+            .write()
+            .unwrap();
+
+        q.push(msg);
     }
 }
 
@@ -57,8 +61,6 @@ impl Protocol for Terminal {
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        // Initialize message queue
-        msg_queue = VecDeque::new();
 
         // tokio spawn
 
