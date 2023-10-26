@@ -14,15 +14,50 @@ struct Terminal {
     /// The queue of messages received (qpush) by the application that can be
     /// returned (qpop) when a fetch request is made.
     msg_queue: RwLock<Vec<String>>,
+    // The real-world port to communicate over
+    port: String,
 }
 
 impl Terminal {
+    fn new(
+        assign_port: String
+    ) {
+        msg_queue: RwLock::new(),
+        port: assign_port,
+    }
+
     fn run(
-        // The real-world port to communicate over
-        port: String,
         protocols: ProtocolMap,
     ) {
+        let listener: TcpListener::bind(port)
+            .await
+            .unwrap();
 
+        let (mut socket, _addr) = listener.accept()
+            .await
+            .unwrap();
+
+        let (read, mut write) = socket.split();
+
+        let mut reader = BufReader::new(read);
+        let mut line = String::new();
+
+        loop {
+
+            let bytes_read = reader.read_line(&mut line)
+                .await
+                .unwrap();
+
+            if bytes_read == 0 {
+                break;
+            }
+
+            write.write_all(line.as_bytes())
+                .await
+                .unwrap();
+        }
+
+        
     }
 
     /// Returns and removes the first element in the msg_queue
