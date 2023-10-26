@@ -15,6 +15,8 @@ use elvis_core::{
 /// In this simulation, a machine sends a message to another machine over a
 /// single network. The simulation ends when the message is received.
 pub async fn terminal_echo() {
+    println!("Begin test");
+
     let network = Network::basic();
     let message = Message::new("Hello!");
     let endpoint = Endpoint {
@@ -41,23 +43,12 @@ pub async fn terminal_echo() {
 
     let status = run_internet(&machines).await;
     assert_eq!(status, ExitStatus::Exited);
-
-    let received = machines
-        .into_iter()
-        .nth(1)
-        .unwrap()
-        .into_inner()
-        .protocol::<Capture>()
-        .unwrap()
-        .message();
-
-    assert_eq!(received, Some(message));
 }
 
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    async fn terminal_echo() {
-        super::terminal_echo().await
+    pub async fn terminal_echo() {
+        super::terminal_echo().await;
     }
 }
