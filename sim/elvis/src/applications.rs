@@ -62,3 +62,6 @@ pub use barebones_client::BareBonesClient;
 
 pub mod barebones_server;
 pub use barebones_server::BareBonesServer;
+
+pub mod terminal;
+pub use terminal::Terminal;
