@@ -68,6 +68,8 @@ impl Terminal {
 
             line.clear();
         }
+
+        println!("Left r/w loop");
     }
 
     /// Returns and removes the first element in the msg_queue
@@ -105,7 +107,7 @@ impl Terminal {
 impl Protocol for Terminal {
     async fn start(
         &self,
-        _shutdown: Shutdown,
+        shutdown: Shutdown,
         _initialize: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
@@ -116,6 +118,7 @@ impl Protocol for Terminal {
         // tokio spawn
         tokio::spawn(async move {
             Self::run(p).await;
+            shutdown.shut_down();
         });
 
         Ok(())
