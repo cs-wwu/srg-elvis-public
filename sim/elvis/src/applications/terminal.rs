@@ -33,11 +33,12 @@ impl Terminal {
         }
     }
 
-    #[tokio::main]
     async fn run(
         port: String,
         // protocols: ProtocolMap,
     ) {
+        println!("Begin run()");
+
         let listener = TcpListener::bind(port)
             .await
             .unwrap();
@@ -108,10 +109,13 @@ impl Protocol for Terminal {
         _initialize: Arc<Barrier>,
         _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        println!("Begin start()");
+
+        let p = self.port.clone();
 
         // tokio spawn
         tokio::spawn(async move {
-            Self::run(String::from("localhost:8080"));
+            Self::run(p).await;
         });
 
         Ok(())
