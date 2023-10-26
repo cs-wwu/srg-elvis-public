@@ -14,16 +14,50 @@ struct Terminal {
     /// The queue of messages received (qpush) by the application that can be
     /// returned (qpop) when a fetch request is made.
     msg_queue: RwLock<Vec<String>>,
-    asdf`
+    // The real-world port to communicate over
+    port: String,
 }
 
 impl Terminal {
+    fn new(
+        assign_port: String
+    ) {
+        msg_queue: RwLock::new(),
+        port: assign_port,
+    }
+
     fn run(
-        // The real-world port to communicate over
-        port: String,
         protocols: ProtocolMap,
     ) {
+        let listener: TcpListener::bind(port)
+            .await
+            .unwrap();
 
+        let (mut socket, _addr) = listener.accept()
+            .await
+            .unwrap();
+
+        let (read, mut write) = socket.split();
+
+        let mut reader = BufReader::new(read);
+        let mut line = String::new();
+
+        loop {
+
+            let bytes_read = reader.read_line(&mut line)
+                .await
+                .unwrap();
+
+            if bytes_read == 0 {
+                break;
+            }
+
+            write.write_all(line.as_bytes())
+                .await
+                .unwrap();
+        }
+
+        
     }
 
     /// Returns and removes the first element in the msg_queue
@@ -46,7 +80,11 @@ impl Terminal {
     fn qpush(
         msg: String
     ) {
-        
+        let mut q: Vec<String> = msg_queue
+            .write()
+            .unwrap();
+
+        q.push(msg);
     }
 }
 
@@ -58,8 +96,6 @@ impl Protocol for Terminal {
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        // Initialize message queue
-        msg_queue = VecDeque::new();
 
         // tokio spawn
 
