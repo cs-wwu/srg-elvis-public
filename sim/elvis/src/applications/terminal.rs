@@ -111,9 +111,11 @@ impl Protocol for Terminal {
     ) -> Result<(), StartError> {
         println!("Begin start()");
 
+        let p = self.port.clone();
+
         // tokio spawn
         tokio::spawn(async move {
-            Self::run(String::from("localhost:8080")).await;
+            Self::run(p).await;
         });
 
         Ok(())
