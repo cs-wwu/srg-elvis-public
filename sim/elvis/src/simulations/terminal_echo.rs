@@ -5,10 +5,9 @@ use elvis_core::{
     run_internet, ExitStatus,
 };
 
-/// Runs a basic simulation.
-///
-/// In this simulation, a machine sends a message to another machine over a
-/// single network. The simulation ends when the message is received.
+/// In this simulation, a machine with the Terminal protocol establishes a connection
+/// over the local port 8080 and runs until the user closes the connection.
+/// Messages sent through the terminal will be echoed back while the connection is available.
 pub async fn terminal_echo() {
     println!("Begin test");
 
