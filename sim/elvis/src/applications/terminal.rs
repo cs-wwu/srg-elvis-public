@@ -37,11 +37,11 @@ impl Terminal {
         port: String,
         // protocols: ProtocolMap,
     ) {
-        println!("Begin run()");
-
         let listener = TcpListener::bind(port)
             .await
             .unwrap();
+
+        println!("Begin run() on port {}", listener.local_addr().unwrap());
 
         let (mut socket, _addr) = listener
             .accept()
@@ -61,6 +61,8 @@ impl Terminal {
             if bytes_read == 0 {
                 break;
             }
+
+            // Pass line to TerminalParser to get Message and Endpoint?
 
             write.write_all(line.as_bytes())
                 .await
