@@ -21,9 +21,11 @@ struct Terminal {
 impl Terminal {
     fn new(
         assign_port: String
-    ) {
-        msg_queue: RwLock::new(),
-        port: assign_port,
+    ) -> Terminal {
+        Self {
+            msg_queue: RwLock::new(),
+            port: assign_port,
+        }
     }
 
     fn run(
