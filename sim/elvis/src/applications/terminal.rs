@@ -14,6 +14,7 @@ struct Terminal {
     /// The queue of messages received (qpush) by the application that can be
     /// returned (qpop) when a fetch request is made.
     msg_queue: RwLock<Vec<String>>,
+    asdf`
 }
 
 impl Terminal {
