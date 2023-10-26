@@ -8,9 +8,14 @@ use elvis_core::session::Session;
 use elvis_core::protocol::*;
 use tokio::sync::Barrier;
 use std::sync::{Arc, RwLock};
-use std::any::*;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::TcpListener,
+};
+// use std::any::*;
 
-struct Terminal {
+#[derive(Debug)]
+pub struct Terminal {
     /// The queue of messages received (qpush) by the application that can be
     /// returned (qpop) when a fetch request is made.
     msg_queue: RwLock<Vec<String>>,
@@ -19,23 +24,26 @@ struct Terminal {
 }
 
 impl Terminal {
-    fn new(
+    pub fn new(
         assign_port: String
     ) -> Terminal {
         Self {
-            msg_queue: RwLock::new(),
+            msg_queue: RwLock::new(Vec::new()),
             port: assign_port,
         }
     }
 
-    fn run(
-        protocols: ProtocolMap,
+    #[tokio::main]
+    async fn run(
+        port: String,
+        // protocols: ProtocolMap,
     ) {
-        let listener: TcpListener::bind(port)
+        let listener = TcpListener::bind(port)
             .await
             .unwrap();
 
-        let (mut socket, _addr) = listener.accept()
+        let (mut socket, _addr) = listener
+            .accept()
             .await
             .unwrap();
 
@@ -45,7 +53,6 @@ impl Terminal {
         let mut line = String::new();
 
         loop {
-
             let bytes_read = reader.read_line(&mut line)
                 .await
                 .unwrap();
@@ -57,36 +64,39 @@ impl Terminal {
             write.write_all(line.as_bytes())
                 .await
                 .unwrap();
-        }
 
-        
+            line.clear();
+        }
     }
 
     /// Returns and removes the first element in the msg_queue
-    fn qpop() -> Option<String> {
-        let mut q: Vec<String> = msg_queue
-            .write()
-            .unwrap();
+    fn qpop(
+        &self,
+    ) -> Option<String> {
+        // let mut q: Vec<String> = self.msg_queue
+        //     .write()
+        //     .unwrap();
 
-        // Need to test to see what happens with empty queue
-        popped = q.remove(0);
+        // // Need to test to see what happens with empty queue
+        // popped = q.remove(0);
 
-        match popped {
-            Some(x) => popped,
-            None    => println!("No messages in queue!"),
-        }
-
+        // match popped {
+        //     Some(x) => popped,
+        //     None    => println!("No messages in queue!"),
+        // }
+        None
     }
 
     /// Adds an element to the end of the msg_queue
     fn qpush(
-        msg: String
+        &self,
+        _msg: String,
     ) {
-        let mut q: Vec<String> = msg_queue
-            .write()
-            .unwrap();
+        // let mut q: Vec<String> = self.msg_queue
+        //     .write()
+        //     .unwrap();
 
-        q.push(msg);
+        // q.push(msg);
     }
 }
 
@@ -94,22 +104,25 @@ impl Terminal {
 impl Protocol for Terminal {
     async fn start(
         &self,
-        shutdown: Shutdown,
-        initialize: Arc<Barrier>,
-        protocols: ProtocolMap,
+        _shutdown: Shutdown,
+        _initialize: Arc<Barrier>,
+        _protocols: ProtocolMap,
     ) -> Result<(), StartError> {
 
         // tokio spawn
+        tokio::spawn(async move {
+            Self::run(String::from("localhost:8080"));
+        });
 
         Ok(())
     }
 
     fn demux(
         &self,
-        message: Message,
-        caller: Arc<dyn Session>,
-        control: Control,
-        protocols: ProtocolMap,
+        _message: Message,
+        _caller: Arc<dyn Session>,
+        _control: Control,
+        _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

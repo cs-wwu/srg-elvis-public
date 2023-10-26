@@ -60,3 +60,6 @@ pub use barebones_server::BareBonesServer;
 pub mod multi_capture;
 pub use multi_capture::Counter;
 pub use multi_capture::MultiCapture;
+
+pub mod terminal;
+pub use terminal::Terminal;
