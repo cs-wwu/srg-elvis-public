@@ -1,6 +1,9 @@
 //! Contains utilities for implementing protocols.
 
-use super::ipv4::Ipv4Address;
+use super::{
+    ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
+    udp::UdpHeader,
+};
 
 /// A calculator for the checksum used by the UDP, TCP, and IP protocols.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -89,6 +92,13 @@ pub struct Endpoints {
 impl Endpoints {
     pub const fn new(local: Endpoint, remote: Endpoint) -> Self {
         Self { local, remote }
+    }
+
+    pub const fn new_from_headers(udp_header: &UdpHeader, ipv4_header: &Ipv4Header) -> Self {
+        Self {
+            local: Endpoint::new(ipv4_header.destination, udp_header.destination),
+            remote: Endpoint::new(ipv4_header.source, udp_header.source),
+        }
     }
 
     pub const fn reverse(self) -> Self {

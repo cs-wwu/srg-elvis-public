@@ -17,7 +17,10 @@ use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
 };
-use tokio::sync::{Barrier, Notify, mpsc::{self, Receiver, Sender}};
+use tokio::sync::{
+    mpsc::{self, Receiver, Sender},
+    Barrier, Notify,
+};
 
 pub mod socket;
 use socket::{ProtocolFamily, Socket, SocketError, SocketType};
@@ -38,11 +41,11 @@ use socket_session::SocketSession;
 pub struct SocketAPI {
     local_address: Option<Ipv4Address>,
     local_ports: RwLock<u16>,
-    next_fd: RwLock<u64>,
+    // next_fd: RwLock<u64>,
     // sockets: Arc<FxDashMap<u64, Arc<Socket>>>,
-    socket_channels: FxDashMap<u64, Sender<Endpoint>>,
+    // socket_channels: FxDashMap<u64, Sender<Endpoint>>,
     socket_sessions: FxDashMap<Endpoints, Arc<SocketSession>>,
-    listen_bindings: FxDashMap<Endpoint, u64>,
+    listen_bindings: FxDashMap<Endpoint, Sender<Endpoint>>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
 }
@@ -53,9 +56,9 @@ impl SocketAPI {
         Self {
             local_address,
             local_ports: RwLock::new(49152),
-            next_fd: RwLock::new(0),
+            // next_fd: RwLock::new(0),
             // sockets: Default::default(),
-            socket_channels: Default::default(),
+            // socket_channels: Default::default(),
             socket_sessions: Default::default(),
             listen_bindings: Default::default(),
             notify_init: Notify::new(),
@@ -75,17 +78,17 @@ impl SocketAPI {
         sock_type: SocketType,
         protocols: ProtocolMap,
     ) -> Result<Socket, SocketError> {
-        let fd = {
-            let mut lock = self.next_fd.write().unwrap();
-            let fd = *lock;
-            *lock += 1;
-            fd
-        };
+        // let fd = {
+        //     let mut lock = self.next_fd.write().unwrap();
+        //     let fd = *lock;
+        //     *lock += 1;
+        //     fd
+        // };
         self.notify_init.notified().await;
         let socket = Socket::new(
             domain,
             sock_type,
-            fd,
+            // fd,
             protocols,
             self.clone(),
             self.shutdown.read().unwrap().as_ref().unwrap().clone(),
@@ -133,7 +136,7 @@ impl SocketAPI {
                 return Err(SocketError::AcceptError);
             }
         };
-        let (sender, receiver) = mpsc::channel(100);
+        let (sender, receiver) = mpsc::channel(u8::MAX.into());
         let identifier = Endpoints::new(local, remote);
         *session.upstream.write().unwrap() = Some(sender);
         self.socket_sessions.insert(identifier, session.clone());
@@ -142,9 +145,8 @@ impl SocketAPI {
 
     /// Called from Socket::connect() and Socket::accept()
     /// Creates a new socket_session based on IP address and port and returns it
-    pub async fn open_with_fd(
+    pub async fn open(
         &self,
-        _fd: u64,
         socket_id: Endpoints,
         transport: SocketType,
         protocols: ProtocolMap,
@@ -155,10 +157,6 @@ impl SocketAPI {
                 Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
-                // let sock = match self.sockets.entry(fd) {
-                //     Entry::Occupied(sock) => sock.get().clone(),
-                //     Entry::Vacant(_) => return Err(OpenError::NoSocketForFd(fd)),
-                // };
                 let downstream = match transport {
                     SocketType::Datagram => {
                         protocols
@@ -175,7 +173,7 @@ impl SocketAPI {
                             .await?
                     }
                 };
-                let (sender, receiver) = mpsc::channel(100);
+                let (sender, receiver) = mpsc::channel(u8::MAX.into());
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(Some(sender)),
                     downstream,
@@ -187,23 +185,18 @@ impl SocketAPI {
         }
     }
 
-    fn listen_with_fd(
+    fn listen(
         &self,
-        fd: u64,
         address: Endpoint,
         transport: SocketType,
+        backlog: usize,
         protocols: ProtocolMap,
     ) -> Result<Receiver<Endpoint>, ListenError> {
-        // let sock = match self.sockets.entry(fd) {
-        //     Entry::Occupied(sock) => sock.get().clone(),
-        //     Entry::Vacant(_) => return Err(ListenError::NoSocketForFd(fd)),
-        // };
         if self.listen_bindings.get(&address).is_some() {
             return Err(ListenError::Existing(address));
         }
-        self.listen_bindings.insert(address, fd);
-        let (sender, receiver) = mpsc::channel(100);
-        self.socket_channels.insert(fd, sender);
+        let (sender, receiver) = mpsc::channel(backlog);
+        self.listen_bindings.insert(address, sender);
         match transport {
             SocketType::Datagram => protocols
                 .protocol::<Udp>()
@@ -214,7 +207,7 @@ impl SocketAPI {
                 .expect("No such protocol")
                 .listen(TypeId::of::<Self>(), address, protocols)?,
         };
-        return Ok(receiver);
+        Ok(receiver)
     }
 }
 
@@ -257,29 +250,26 @@ impl Protocol for SocketAPI {
         control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
-        let identifier = match control.get::<UdpHeader>() {
-            Some(udp_header) => {
-                let ipv4_header = control.get::<Ipv4Header>().unwrap();
-                Endpoints::new(
-                    Endpoint::new(ipv4_header.destination, udp_header.destination),
-                    Endpoint::new(ipv4_header.source, udp_header.source),
-                )
-            }
-            None => match control.get::<Endpoints>() {
-                Some(endpoints) => *endpoints,
-                None => return Err(DemuxError::Header),
+        let identifier = match control.get::<Endpoints>() {
+            Some(endpoints) => *endpoints,
+            None => match (control.get::<UdpHeader>(), control.get::<Ipv4Header>()) {
+                (None, None) => return Err(DemuxError::Header),
+                (None, Some(_)) => return Err(DemuxError::Header),
+                (Some(_), None) => return Err(DemuxError::Header),
+                (Some(udp_header), Some(ipv4_header)) => {
+                    Endpoints::new_from_headers(udp_header, ipv4_header)
+                }
             },
         };
         let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
+
         match self.socket_sessions.entry(identifier) {
             Entry::Occupied(entry) => entry.get().receive(message)?,
             Entry::Vacant(entry) => {
                 // If the session does not exist, see if we have a listen
                 // binding for it
-                let binding = match self.listen_bindings.get(&identifier.local) {
+                let sender = match self.listen_bindings.get(&identifier.local) {
                     Some(listen_entry) => listen_entry,
-                    // If we don't have a normal listen binding, check for
-                    // a 0.0.0.0 binding
                     None => match self.listen_bindings.get(&any_identifier) {
                         Some(any_listen_entry) => any_listen_entry,
                         None => {
@@ -290,19 +280,18 @@ impl Protocol for SocketAPI {
                         }
                     },
                 };
-                let sender = match self.socket_channels.entry(*binding) {
-                    Entry::Occupied(sock) => sock.get().clone(),
-                    Entry::Vacant(_) => {
-                        return Err(DemuxError::MissingSession);
-                    }
-                };
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(None),
                     downstream: caller,
                     stored_messages: RwLock::new(VecDeque::new()),
                 });
                 session.stored_messages.write().unwrap().push_back(message);
-                sender.try_send(identifier.remote);
+                match sender.try_send(identifier.remote) {
+                    Ok(_) => {}
+                    Err(_) => {
+                        return Err(DemuxError::MissingSession);
+                    }
+                };
                 entry.insert(session);
             }
         };
@@ -312,17 +301,15 @@ impl Protocol for SocketAPI {
     fn notify(&self, notification: NotifyType, caller: Arc<dyn Session>, control: Control) {
         match notification {
             NotifyType::NewConnection => {
-                let identifier = match control.get::<UdpHeader>() {
-                    Some(udp_header) => {
-                        let ipv4_header = control.get::<Ipv4Header>().unwrap();
-                        Endpoints::new(
-                            Endpoint::new(ipv4_header.destination, udp_header.destination),
-                            Endpoint::new(ipv4_header.source, udp_header.source),
-                        )
-                    }
-                    None => match control.get::<Endpoints>() {
-                        Some(endpoints) => *endpoints,
-                        None => return,
+                let identifier = match control.get::<Endpoints>() {
+                    Some(endpoints) => *endpoints,
+                    None => match (control.get::<UdpHeader>(), control.get::<Ipv4Header>()) {
+                        (None, None) => return,
+                        (None, Some(_)) => return,
+                        (Some(_), None) => return,
+                        (Some(udp_header), Some(ipv4_header)) => {
+                            Endpoints::new_from_headers(udp_header, ipv4_header)
+                        }
                     },
                 };
                 let any_identifier =
@@ -332,10 +319,8 @@ impl Protocol for SocketAPI {
                     Entry::Vacant(entry) => {
                         // If the session does not exist, see if we have a listen
                         // binding for it
-                        let binding = match self.listen_bindings.get(&identifier.local) {
+                        let sender = match self.listen_bindings.get(&identifier.local) {
                             Some(listen_entry) => listen_entry,
-                            // If we don't have a normal listen binding, check for
-                            // a 0.0.0.0 binding
                             None => match self.listen_bindings.get(&any_identifier) {
                                 Some(any_listen_entry) => any_listen_entry,
                                 None => {
@@ -343,18 +328,15 @@ impl Protocol for SocketAPI {
                                 }
                             },
                         };
-                        let sender = match self.socket_channels.entry(*binding) {
-                            Entry::Occupied(sock) => sock.get().clone(),
-                            Entry::Vacant(_) => {
-                                return;
-                            }
-                        };
                         let session = Arc::new(SocketSession {
                             upstream: RwLock::new(None),
                             downstream: caller,
                             stored_messages: RwLock::new(VecDeque::new()),
                         });
-                        sender.try_send(identifier.remote);
+                        match sender.try_send(identifier.remote) {
+                            Ok(_) => {}
+                            Err(e) => println!("Notify Error: {:?}", e),
+                        }
                         entry.insert(session);
                     }
                 };

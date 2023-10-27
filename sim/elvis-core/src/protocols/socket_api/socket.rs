@@ -1,34 +1,30 @@
 use super::SocketAPI;
 use crate::{
     machine::ProtocolMap,
-    message::{Chunk, self},
-    protocol::{DemuxError, NotifyType},
+    message::Chunk,
     protocols::{
         dns::dns_client::DnsClient,
         utility::{Endpoint, Endpoints},
     },
     Message, Session, Shutdown,
 };
-use std::{
-    collections::VecDeque,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use thiserror::Error as ThisError;
-use tokio::{select, sync::{Notify, mpsc::Receiver}};
+use tokio::{select, sync::mpsc::Receiver};
 
 /// An implementation of an individual Socket
 /// Created by the [`SocketAPI`]
 pub struct Socket {
     pub family: ProtocolFamily,
     pub sock_type: SocketType,
-    fd: u64,
+    // fd: u64,
     is_active: bool,
     is_bound: bool,
     is_listening: bool,
     is_blocking: bool,
-    local_addr: Option<Endpoint>,
-    remote_addr: Option<Endpoint>,
-    session: Arc<RwLock<Option<Arc<dyn Session>>>>,
+    pub local_addr: Option<Endpoint>,
+    pub remote_addr: Option<Endpoint>,
+    session: RwLock<Option<Arc<dyn Session>>>,
     // listen_addresses: Arc<RwLock<VecDeque<Endpoint>>>,
     listen_backlog: usize,
     // notify_listen: Notify,
@@ -36,7 +32,7 @@ pub struct Socket {
     // notify_recv: Notify,
     protocols: ProtocolMap,
     socket_api: Arc<SocketAPI>,
-    message_recever: Option<Receiver<Message>>,
+    message_receiver: Option<Receiver<Message>>,
     connection_receiver: Option<Receiver<Endpoint>>,
     shutdown: Shutdown,
 }
@@ -45,7 +41,7 @@ impl Socket {
     pub(super) fn new(
         domain: ProtocolFamily,
         sock_type: SocketType,
-        fd: u64,
+        // fd: u64,
         protocols: ProtocolMap,
         socket_api: Arc<SocketAPI>,
         shutdown: Shutdown,
@@ -53,7 +49,7 @@ impl Socket {
         Self {
             family: domain,
             sock_type,
-            fd,
+            // fd,
             is_active: false,
             is_bound: false,
             is_listening: false,
@@ -68,7 +64,7 @@ impl Socket {
             session: Default::default(),
             protocols,
             socket_api,
-            message_recever: Default::default(),
+            message_receiver: Default::default(),
             connection_receiver: Default::default(),
             shutdown,
         }
@@ -155,8 +151,7 @@ impl Socket {
                 .protocols
                 .protocol::<SocketAPI>()
                 .expect("Sockets API not found")
-                .open_with_fd(
-                    self.fd,
+                .open(
                     Endpoints::new(local, remote),
                     self.sock_type,
                     self.protocols.clone(),
@@ -167,7 +162,7 @@ impl Socket {
                 Err(_) => return Err(SocketError::ConnectError),
             };
             // Assign the socket_session to the socket
-            self.message_recever = Some(receiver);
+            self.message_receiver = Some(receiver);
             *self.session.write().unwrap() = Some(session);
             self.is_active = true;
             Ok(())
@@ -193,10 +188,7 @@ impl Socket {
     /// used to send or receive messages, but can instead be used to accept
     /// incoming connections on the specified port via accept()
     pub fn listen(&mut self, backlog: usize) -> Result<(), SocketError> {
-        if !self.is_bound
-            || self.is_active
-            || self.is_listening
-        {
+        if !self.is_bound || self.is_active || self.is_listening {
             return Err(SocketError::AcceptError);
         }
 
@@ -205,7 +197,7 @@ impl Socket {
                 .protocols
                 .protocol::<SocketAPI>()
                 .expect("Sockets API not found")
-                .listen_with_fd(self.fd, local_addr, self.sock_type, self.protocols.clone())
+                .listen(local_addr, self.sock_type, backlog, self.protocols.clone())
             {
                 Ok(receiver) => {
                     self.is_listening = true;
@@ -235,7 +227,7 @@ impl Socket {
         let mut shutdown_receiver = self.shutdown.receiver();
         let connection_receiver = match &mut self.connection_receiver {
             Some(v) => v,
-            None => return Err(SocketError::AcceptError)
+            None => return Err(SocketError::AcceptError),
         };
         let endpoint = select! {
             _ = shutdown_receiver.recv() => None,
@@ -254,12 +246,11 @@ impl Socket {
         // if !self.listen_addresses.read().unwrap().is_empty() {
         //     self.notify_listen.notify_one();
         // }
-        let (session, receiver) = self.socket_api.get_socket_session(
-            new_sock.local_addr.unwrap(),
-            new_sock.remote_addr.unwrap(),
-        )?;
+        let (session, receiver) = self
+            .socket_api
+            .get_socket_session(new_sock.local_addr.unwrap(), new_sock.remote_addr.unwrap())?;
         // *session.upstream.write().unwrap() = Some(new_sock.clone());
-        new_sock.message_recever = Some(receiver);
+        new_sock.message_receiver = Some(receiver);
         *new_sock.session.write().unwrap() = Some(session.clone());
         session.receive_stored_messages().unwrap();
         new_sock.is_active = true;
@@ -274,16 +265,10 @@ impl Socket {
         if self.session.read().unwrap().is_none() || self.is_listening {
             return Err(SocketError::SendError);
         }
-        let session = self.session.clone();
+        let session = self.session.read().unwrap().as_ref().unwrap().clone();
         let protocols = self.protocols.clone();
         tokio::spawn(async move {
-            session
-                .read()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .send(Message::new(message), protocols)
-                .unwrap();
+            session.send(Message::new(message), protocols).unwrap();
         });
         Ok(())
     }
@@ -339,20 +324,23 @@ impl Socket {
         //     return Err(SocketError::Shutdown);
         // }
         let mut shutdown_receiver = self.shutdown.receiver();
-        let message_receiver = match &mut self.message_recever {
+        let message_receiver = match &mut self.message_receiver {
             Some(v) => v,
-            None => return Err(SocketError::AcceptError)
+            None => return Err(SocketError::AcceptError),
         };
         let message = select! {
             _ = shutdown_receiver.recv() => None,
-            message = message_receiver.recv() => message,
+            message = message_receiver.recv() => {
+                if message.is_none() { println!("Receiver Error: Channel closed"); }
+                message
+            },
         };
         // if !self.messages.read().unwrap().is_empty() {
         //     self.notify_recv.notify_one();
         // }
         match message {
             Some(v) => Ok(v),
-            None => Err(SocketError::Other),
+            None => Err(SocketError::ReceiveError),
         }
     }
 
@@ -363,12 +351,6 @@ impl Socket {
     //     self.notify_recv.notify_one();
     //     Ok(())
     // }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum NotifyResult {
-    Notified,
-    Shutdown,
 }
 
 #[derive(Debug, ThisError, Clone, PartialEq, Eq)]

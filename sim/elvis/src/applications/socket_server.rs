@@ -20,39 +20,87 @@ pub struct SocketServer {
     transport: SocketType,
     /// The number of clients to accept
     num_clients: usize,
+    /// Whether to output text or not
+    output: bool,
 }
 
 impl SocketServer {
-    pub fn new(local_port: u16, transport: SocketType, num_clients: usize) -> Self {
+    pub fn new(local_port: u16, transport: SocketType, num_clients: usize, output: bool) -> Self {
         Self {
             local_port,
             transport,
             num_clients,
+            output,
         }
     }
 }
 
-async fn communicate_with_client(mut socket: Socket) {
+async fn communicate_with_client(mut socket: Socket, client_num: u16, output: bool) {
+    if output {
+        println!("SERVER ({:?}): Waiting for request...", client_num);
+    }
+
+    let mut client_id: u16 = 0;
     // Receive a message
-    println!("SERVER: Waiting for request...");
-    let req = socket.recv_msg().await.unwrap();
-    println!(
-        "SERVER: Request Received: {:?}",
-        String::from_utf8(req.to_vec()).unwrap()
-    );
+    match socket.recv_msg().await {
+        Ok(req) => {
+            if output {
+                println!(
+                    "SERVER ({:?}): Request Received: {:?}",
+                    client_num,
+                    String::from_utf8(req.to_vec()).unwrap()
+                )
+            };
+            client_id = String::from_utf8(req.to_vec())
+                .unwrap()
+                .split('(')
+                .nth(1)
+                .unwrap()
+                .split(')')
+                .next()
+                .unwrap()
+                .parse()
+                .unwrap();
+        }
+        Err(e) => {
+            println!("SERVER ({:?}) Error: {:?}", client_num, e)
+        }
+    }
 
     // Send a message
-    let resp = "Major Tom to Ground Control";
-    println!("SERVER: Sending Response: {:?}", resp);
+    let resp = format!("({}) Major Tom to Ground Control", client_num);
+    if output {
+        println!("SERVER ({:?}): Sending Response: {:?}", client_num, resp);
+    }
     socket.send(resp).unwrap();
 
     // Receive a message (Also example usage of recv_msg)
-    // println!("SERVER: Waiting for awkowledgement...");
-    let ack = socket.recv_msg().await.unwrap();
-    println!(
-        "SERVER: Ackowledgement Received: {:?}",
-        String::from_utf8(ack.to_vec()).unwrap()
-    );
+    // println!("SERVER: Waiting for acknowledgement...");
+    match socket.recv_msg().await {
+        Ok(ack) => {
+            if output {
+                println!(
+                    "SERVER ({:?}): Acknowledgement Received: {:?}",
+                    client_num,
+                    String::from_utf8(ack.to_vec()).unwrap()
+                )
+            };
+            let id: u16 = String::from_utf8(ack.to_vec())
+                .unwrap()
+                .split('(')
+                .nth(1)
+                .unwrap()
+                .split(')')
+                .next()
+                .unwrap()
+                .parse()
+                .unwrap();
+            assert_eq!(client_id, id);
+        }
+        Err(e) => {
+            println!("SERVER ({:?}) Error: {:?}", client_num, e)
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -71,6 +119,7 @@ impl Protocol for SocketServer {
         let local_port = self.local_port;
         let transport = self.transport;
         let num_clients = self.num_clients;
+        let output = self.output;
 
         let mut listen_socket = sockets
             .new_socket(ProtocolFamily::INET, transport, protocols.clone())
@@ -83,7 +132,9 @@ impl Protocol for SocketServer {
 
         // Listen for incoming connections, with a maximum backlog of 10
         listen_socket.listen(num_clients).unwrap();
-        println!("\nSERVER: Listening for incoming connections");
+        if self.output {
+            println!("\nSERVER: Listening for incoming connections");
+        }
 
         // Wait on ititialization before sending or receiving any message from the network
         initialized.wait().await;
@@ -107,18 +158,23 @@ impl Protocol for SocketServer {
         }
 
         let mut tasks = Vec::new();
+        let mut client_num = 1;
         // Continuously accept incoming connections in a loop, spawning a
         // new tokio task to handle each accepted connection
         loop {
             // Accept an incoming connection
             let socket = listen_socket.accept().await.unwrap();
-            println!("SERVER: Connection accepted");
+            if self.output {
+                println!("SERVER: Connection {:?} accepted", client_num);
+            }
 
             // Spawn a new tokio task for handling communication
             // with the new client
             tasks.push(tokio::spawn(async move {
-                communicate_with_client(socket).await;
+                communicate_with_client(socket, client_num, output).await;
             }));
+
+            client_num += 1;
 
             // This particular example server tracks the number of clients
             // served, stops accepting new connections after the third,
@@ -126,14 +182,19 @@ impl Protocol for SocketServer {
             // the third has ended
             if tasks.len() >= num_clients {
                 while !tasks.is_empty() {
-                    tasks.pop().unwrap().await.unwrap()
+                    tasks.pop().unwrap().await.unwrap();
+                    if self.output {
+                        println!("Remaining Clients: {:?}", tasks.len());
+                    }
                 }
                 break;
             }
         }
 
         // Shut down the simulation
-        println!("SERVER: Shutting down");
+        if self.output {
+            println!("SERVER: Shutting down");
+        }
         shutdown.shut_down();
         Ok(())
     }
