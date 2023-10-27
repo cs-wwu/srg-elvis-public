@@ -71,7 +71,7 @@ impl Terminal {
             line.clear();
         }
 
-        println!("Left r/w loop");
+        println!("Finished r/w loop");
     }
 
     /// Returns and removes the first element in the msg_queue
