@@ -564,7 +564,9 @@ fn machine_applications_parser(
     Ok((apps, remaining_string))
 }
 
-///Parse the router entries for routers
+/// Parses the [RouterTable] from a machine.
+/// [RouterTable] will contain a the local ips of the router as well as the router tables entries for router tables
+/// Items pertaining to router tables will be parsed here
 fn router_entry_parser(
     remaining_string: &mut String,
     num_tabs: i32,

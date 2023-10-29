@@ -276,7 +276,8 @@ pub fn ping_pong_builder(
     }
 }
 
-// builds a rip router
+/// Builds an [rip_router] application for the machine
+/// Also creates the required arp_router application when creating rip
 pub fn rip_router_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
@@ -285,38 +286,38 @@ pub fn rip_router_builder(
     cur_net_ids: &Vec<String>,
 ) -> (ArpRouter, RipRouter) {
     let router_table_entries = app.router_table.clone().unwrap().0;
-    let router_ips = app.router_table.clone().unwrap().1;
 
     let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
-    for router_entry in router_table_entries {
-        let line = generate_router_entry(router_entry);
-        router_table.add(line.0, (line.1, line.2));
-    }
-
     let mut local_ips = Vec::new();
     let mut slot_num = 0;
-    for entry in router_ips.iter() {
-        if entry.options.contains_key("ip") {
-            let ip_string = entry.options.get("ip").unwrap().to_string();
+
+    for router_entry in router_table_entries {
+        // Case where router_entry is an local_ip
+        if let Some(ip_string) = router_entry.get("ip") {
 
             let ip = ip_available(
-                ip_string_to_ip(ip_string, "router ip").into(),
+                ip_string_to_ip(ip_string.to_string(), "router ip").into(),
                 ip_gen,
                 cur_net_ids,
             )
-            .expect("ArpRouter local IP unavailable");
+            .expect("RipRouter local IP unavailable");
+
             ip_table.add_direct(ip, Recipient::new(slot_num, None));
             local_ips.push(ip.into());
             slot_num+=1;
         }
+        // Case where router_entry is a router table entry
+        else {
+            let line = generate_router_entry(router_entry);
+            router_table.add(line.0, (line.1, line.2));
+        } 
     }
-
     let rip = RipRouter::new(local_ips.clone());
-    
     let arp = ArpRouter::new(router_table.clone(), local_ips.clone());
     return (arp, rip);
 }
 
+/// Creates an [arp_router] application for the machine
 pub fn arp_router_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
@@ -328,28 +329,30 @@ pub fn arp_router_builder(
     let router_ips = app.router_table.clone().unwrap().1;
 
     let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
+    let mut local_ips = Vec::new();
+    let mut slot_num = 0;
 
     for router_entry in router_table_entries {
-        let line = generate_router_entry(router_entry);
-        router_table.add(line.0, (line.1, line.2));
-    }
-
-    let mut local_ips = Vec::new();
-    for entry in router_ips.iter() {
-        if entry.options.contains_key("ip") {
-            let ip_string = entry.options.get("ip").unwrap().to_string();
+        // Case where router_entry is an local_ip
+        if let Some(ip_string) = router_entry.get("ip") {
 
             let ip = ip_available(
-                ip_string_to_ip(ip_string, "router ip").into(),
+                ip_string_to_ip(ip_string.to_string(), "router ip").into(),
                 ip_gen,
                 cur_net_ids,
             )
-            .expect("ArpRouter local IP unavailable");
-            ip_table.add_direct(ip, Recipient::new(0, None));
+            .expect("RipRouter local IP unavailable");
+        
+            ip_table.add_direct(ip, Recipient::new(slot_num, None));
             local_ips.push(ip.into());
+            slot_num+=1;
         }
+        // Case where router_entry is a router table entry
+        else {
+            let line = generate_router_entry(router_entry);
+            router_table.add(line.0, (line.1, line.2));
+        } 
     }
-
     ArpRouter::new(router_table, local_ips)
 }
 

@@ -88,18 +88,17 @@ pub fn ip_available(
     Ok(target_ip)
 }
 
+/// Generates the information needed to create a router table entry from the [RouterEntry] subtype
+/// Must contain dest and pci_slot but next_hop is optional
 pub fn generate_router_entry(entry: HashMap<String, String>) -> (Ipv4Net, Option<Ipv4Address>, u32) {
-    assert!(
-        entry.contains_key("dest"),
-        "Router entry doesnt have a dest parameter"
-    );
-    assert!(
-        entry.contains_key("pci_slot"),
-        "Router entry doesnt have a pci_slot parameter"
-    );
+    
+    let dest_string = entry.get("dest")
+        .unwrap_or_else(|| panic!("Router entry doesn't have a dest parameter"))
+        .to_string();
 
-    let dest_string = entry.get("dest").unwrap().to_string();
-    let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
+    let pci_slot_string = entry.get("pci_slot")
+        .unwrap_or_else(|| panic!("Router entry doesn't have a pci_slot parameter"))
+        .to_string();
 
     let next_hop = entry.get("next_hop")
         .map(|ip_str| Ipv4Address::new(ip_string_to_ip(ip_str.to_string(), "next hop")));

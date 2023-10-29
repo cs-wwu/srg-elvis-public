@@ -1,5 +1,6 @@
+use elvis_core::protocols::BytesExt;
 use elvis_core::protocols::arp::subnetting::Ipv4Mask;
-use elvis_core::{protocols::ipv4::Ipv4Address, protocols::utility::BytesExt};
+use elvis_core::protocols::ipv4::Ipv4Address;
 use std::fmt::{self, Formatter};
 
 /// Parsing for RIP v2

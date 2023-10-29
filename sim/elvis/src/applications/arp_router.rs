@@ -20,12 +20,12 @@ use super::rip_parsing::{RipEntry, RipPacket};
 // entry representing next hop, outgoing interface, metric and route change flag
 const INFINITY: u32 = 16;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug)]
 /// Static router that uses arp to route messages to the correct location
 /// created by providing a table mapping subnet to router ip and pci slot
 /// requires a local ip to be specified for each pci session
 pub struct ArpRouter {
-    ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
+    ip_table: RwLock<IpTable<Rte>>,
     local_ips: Vec<Ipv4Address>,
     name: Option<String>,
 }
