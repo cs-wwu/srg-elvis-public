@@ -51,7 +51,7 @@ pub fn build_capture(network: Arc<Network>, address: Ipv4Address, exit_status: u
         Udp::new(),
         Ipv4::new(Default::default()),
         Pci::new([network]),
-        Arp::basic(),
+        Arp::new(),
         Capture::new(
             Endpoint {
                 address,
@@ -111,7 +111,7 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
@@ -128,7 +128,7 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
                 networks[3].clone()
             ]),
             Ipv4::new(ip_table_1),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec()),
             RipRouter::new(ROUTER1_IPS.to_vec())
@@ -140,7 +140,7 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
                 networks[5].clone(),
             ]),
             Ipv4::new(ip_table_2),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec()),
             RipRouter::new(ROUTER2_IPS.to_vec())
@@ -232,7 +232,7 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
@@ -244,7 +244,7 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
         new_machine![
             Pci::new([networks[0].clone(), networks[1].clone(),]),
             Ipv4::new(ip_table_1),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(router_table_1, router1_ips.to_vec()),
             RipRouter::new(router1_ips.to_vec())
@@ -252,7 +252,7 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
         new_machine![
             Pci::new([networks[1].clone(), networks[2].clone(),]),
             Ipv4::new(ip_table_2),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(Default::default(), router2_ips.to_vec()),
             RipRouter::new(router2_ips.to_vec())
@@ -260,7 +260,7 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
         new_machine![
             Pci::new([networks[2].clone(), networks[3].clone(),]),
             Ipv4::new(ip_table_3),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(Default::default(), router3_ips.to_vec()),
             RipRouter::new(router3_ips.to_vec())
@@ -268,7 +268,7 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
         new_machine![
             Pci::new([networks[3].clone(), networks[4].clone(),]),
             Ipv4::new(ip_table_4),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(Default::default(), router4_ips.to_vec()),
             RipRouter::new(router4_ips.to_vec())
@@ -281,7 +281,7 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
                 networks[7].clone()
             ]),
             Ipv4::new(ip_table_5),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(router_table_5, router5_ips.to_vec()),
             RipRouter::new(router5_ips.to_vec())
@@ -336,7 +336,7 @@ pub async fn test_for_ndl() -> ExitStatus {
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
@@ -348,7 +348,7 @@ pub async fn test_for_ndl() -> ExitStatus {
         new_machine![
             Pci::new([networks[0].clone(), networks[1].clone(),]),
             Ipv4::new(ip_table_1),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(Default::default(), router1_ips.to_vec()),
             RipRouter::new(router1_ips.to_vec())
@@ -359,7 +359,7 @@ pub async fn test_for_ndl() -> ExitStatus {
                 networks[2].clone(),
             ]),
             Ipv4::new(ip_table_2),
-            Arp::basic(),
+            Arp::new(),
             Udp::new(),
             ArpRouter::new(router_table_2.clone(), router2_ips.to_vec()),
             RipRouter::new(router2_ips.to_vec()).debug("name".to_string())

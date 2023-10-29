@@ -191,6 +191,9 @@ impl SocketAPI {
             Entry::Occupied(sock) => sock.get().clone(),
             Entry::Vacant(_) => return Err(ListenError::NoSocketForFd(fd)),
         };
+        if self.listen_bindings.get(&address).is_some() {
+            return Err(ListenError::Existing(address));
+        }
         self.listen_bindings.insert(address, fd);
         match sock.sock_type {
             SocketType::Datagram => Ok(protocols

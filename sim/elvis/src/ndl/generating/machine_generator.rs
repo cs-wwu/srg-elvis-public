@@ -266,7 +266,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 if !encountered_protocols.contains(required_protocol) {
                     match *required_protocol {
                         "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
-                        "ARP" => protocol_map = protocol_map.with(Arp::basic()),
+                        "ARP" => protocol_map = protocol_map.with(Arp::new()),
                         _ => {
                             panic!("Missing required protocol: {}", required_protocol);
                         }

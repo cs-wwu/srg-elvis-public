@@ -10,6 +10,7 @@ use elvis_core::{
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
 
+/// Simulation designed to test TcpStream and TcpListener using TcpListenerServer and TcpStreamClient.
 pub async fn tcp_stream() {
     let network = Network::basic();
     let server_ip_address: Ipv4Address = [123, 45, 67, 89].into();

@@ -15,8 +15,6 @@ use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Arp;
 use elvis_core::protocols::{Endpoint, Endpoints};
 use elvis_core::{IpTable, Message};
-
-
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
     app: &Application,
@@ -171,7 +169,7 @@ pub fn forward_message_builder(
         let to = ip_string_to_ip(to, "Forward declaration");
         Forward::new(Endpoints {
             local: Endpoint {
-                address: ip.into(),
+                address: ip,
                 port: local_port,
             },
             remote: Endpoint {
@@ -182,7 +180,7 @@ pub fn forward_message_builder(
     } else {
         Forward::new(Endpoints {
             local: Endpoint {
-                address: ip.into(),
+                address: ip,
                 port: local_port,
             },
             remote: Endpoint {
@@ -251,7 +249,7 @@ pub fn ping_pong_builder(
         // case where ip to mac doesn't have a mac
         let endpoints = Endpoints {
             local: Endpoint {
-                address: ip.into(),
+                address: ip,
                 port: local_port,
             },
             remote: Endpoint {
@@ -264,7 +262,7 @@ pub fn ping_pong_builder(
         // case : to is a machine name
         let endpoints = Endpoints {
             local: Endpoint {
-                address: ip.into(),
+                address: ip,
                 port: local_port,
             },
             remote: Endpoint {
@@ -355,6 +353,9 @@ pub fn arp_router_builder(
     ArpRouter::new(router_table, local_ips)
 }
 
+/// Builds an [Arp] protocol for the machine
+/// If a local subnet is specified a preconfigured subnet is configured
+/// Otherwise a default arp is provided
 pub fn arp_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
     options: &HashMap<String, String>,
@@ -364,16 +365,15 @@ pub fn arp_builder(
             options.contains_key("default"),
             "Arp protocol doesn't contain default."
         );
-
         let default = options.get("default").unwrap().to_string();
         let default_gateway = match ip_or_name(default.clone()) {
-            true => Ipv4Address::new(ip_string_to_ip(default.clone(), "default arp id")),
+            true => Ipv4Address::new(ip_string_to_ip(default, "default arp id")),
             false => match name_to_ip.contains_key(&default) {
                 true => *name_to_ip.get(&default).unwrap(),
                 false => panic!("Invalid name for default arp gateway"),
             },
         };
-        Arp::basic().preconfig_subnet(
+        Arp::new().preconfig_subnet(
             Ipv4Address::new(ip_string_to_ip(
                 options.get("local").unwrap().to_string(),
                 "local arp ip",
@@ -384,6 +384,6 @@ pub fn arp_builder(
             },
         )
     } else {
-        Arp::basic()
+        Arp::new()
     }
 }

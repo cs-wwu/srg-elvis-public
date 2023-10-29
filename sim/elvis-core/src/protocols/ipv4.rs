@@ -42,7 +42,6 @@ pub enum ProtocolNumber {
     RESERVED = 255,
     DEFAULT = 0,
 }
-
 // Enum for which upstream protocol to use
 // see https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
 // for more info about protocol numbers

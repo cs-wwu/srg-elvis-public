@@ -11,7 +11,7 @@ fn catch_panic() {
 
 #[tokio::test]
 #[should_panic(
-    expected = "assertion failed: `(left == right)`\n  left: `1`,\n right: `2`: Network 1: Invalid IP range format, expected 2 values found 1"
+    expected = "Network 1: Invalid IP range format, expected 2 values found 1"
 )]
 async fn generator_network_invalid_ip_range_format() {
     catch_panic();

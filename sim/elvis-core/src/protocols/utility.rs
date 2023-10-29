@@ -190,6 +190,27 @@ pub trait BytesExt: Iterator<Item = u8> {
         ];
         Some(u64::from_be_bytes(arr))
     }
+
+    /// Advances the iterator by 4 bytes.
+    /// Combines these bytes in big-endian order into an [`Ipv4Address`].
+    /// Returns None if there were fewer than 4 bytes left in the iterator.
+    fn next_ipv4addr(&mut self) -> Option<Ipv4Address> {
+        self.next_u32_be().map(Ipv4Address::from)
+    }
+
+    /// Collects the next `N` items of the iterator into an array.
+    /// Returns `None` if there were fewer than `N` bytes left in the iterator.
+    /// (This actually part of the rust std ([`Iterator::next_chunk`]), 
+    /// but it's nightly only at the moment of writing.)
+    fn next_n<const N: usize>(&mut self) -> Option<[u8; N]> {
+        // I was tempted to use unsafe code so the array doesn't get initialized
+        // Not today, Satan
+        let mut result = [0; N];
+        for element in &mut result {
+            *element = self.next()?
+        }
+        Some(result)
+    }
 }
 
 impl<T: Iterator<Item = u8>> BytesExt for T {

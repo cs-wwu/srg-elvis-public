@@ -596,3 +596,25 @@ fn tcp_gig_isolation() {
     }
     assert_eq!(received_bytes, 1_000_000_000);
 }
+
+/// Tests to make sure that the TCB is doing arithmetic with modulo.
+/// Does not check every case!
+#[test]
+fn modular_arithmetic() {
+    let (mut alice, mut bob) = established_pair(u32::MAX - 1, 53);
+
+    // alice sends message to bob
+    let message: Message = Message::new("what the dog doin");
+    alice.send(message.clone());
+    let seg = alice.segments()[0].clone();
+    bob.segment_arrives(seg);
+    let result = bob.receive();
+    assert_eq!(result, message);
+
+    // check that numbers work out
+    // nxt starts out as iss + 1. then the message is added to it.
+    let expected_nxt = alice.snd.iss.wrapping_add(message.len() as u32 + 1);
+    assert_eq!(expected_nxt, message.len() as u32 - 1);
+    assert_eq!(expected_nxt, bob.rcv.nxt);
+    assert_eq!(expected_nxt, alice.snd.nxt);
+}

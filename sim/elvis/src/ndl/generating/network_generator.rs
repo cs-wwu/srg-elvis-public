@@ -36,9 +36,8 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                 match option_id.to_ascii_lowercase().as_str() {
                     "range" => {
                         let temp: Vec<&str> = value.split('-').collect();
-                        assert_eq!(
-                            temp.len(),
-                            2,
+                        assert!(
+                            temp.len()==2,
                             "Network {}: Invalid IP range format, expected 2 values found {}",
                             id,
                             temp.len()
@@ -70,9 +69,8 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                     }
                     "subnet" => {
                         let temp: Vec<&str> = value.split('/').collect();
-                        assert_eq!(
-                            temp.len(),
-                            2,
+                        assert!(
+                            temp.len()==2,
                             "Network {}: Invalid IP subnet format, expected 2 values found {}",
                             id,
                             temp.len()

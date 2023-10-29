@@ -39,6 +39,8 @@ pub mod arp_sims;
 
 pub mod subnet_sims;
 
+pub mod video_streaming;
+
 mod tcp_gigabyte_bench;
 pub use tcp_gigabyte_bench::tcp_gigabyte_bench;
 
@@ -48,12 +50,23 @@ pub use udp_gigabyte_bench::udp_gigabyte_bench;
 mod tcp_stream;
 pub use tcp_stream::tcp_stream;
 
+mod yahoo_server;
+pub use yahoo_server::yahoo_server;
+
+mod server_user;
+pub use server_user::server_user;
+
+mod server_experiment;
+pub use server_experiment::server_experiment;
+
+mod tcp_stream_speed_test;
+pub use tcp_stream_speed_test::tcp_stream_speed_test;
+
 mod udp_broadcast;
 pub use udp_broadcast::udp_broadcast_basic;
-
-mod rip_router_sim;
-pub use rip_router_sim::rip_router;
 
 mod localhost;
 pub use localhost::localhost;
 
+mod rip_router_sim;
+pub use rip_router_sim::rip_router;

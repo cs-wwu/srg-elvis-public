@@ -16,8 +16,8 @@ pub use udp::Udp;
 pub mod socket_api;
 pub use socket_api::SocketAPI;
 
-pub mod utility;
-pub use utility::{Endpoint, Endpoints};
+mod utility;
+pub use utility::{Endpoint, Endpoints, BytesExt};
 
 pub mod tcp;
 pub use tcp::Tcp;

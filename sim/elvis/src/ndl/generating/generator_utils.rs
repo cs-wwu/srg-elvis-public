@@ -31,9 +31,8 @@ pub fn ip_string_to_ip(s: String, net_id: &str) -> [u8; 4] {
         }));
     }
 
-    assert_eq!(
-        new_ip.len(),
-        4,
+    assert!(
+        new_ip.len()==4,
         "Network {}: Invalid IP octect count, expected 4 octets found {} octets",
         net_id,
         new_ip.len()
@@ -102,14 +101,9 @@ pub fn generate_router_entry(entry: HashMap<String, String>) -> (Ipv4Net, Option
     let dest_string = entry.get("dest").unwrap().to_string();
     let pci_slot_string = entry.get("pci_slot").unwrap().to_string();
 
-    let next_hop = if entry.contains_key("next_hop") {
-        Some(Ipv4Address::new(ip_string_to_ip(
-            entry.get("next_hop").unwrap().to_string(),
-            "next hop",
-        )))
-    } else {
-        None
-    };
+    let next_hop = entry.get("next_hop")
+        .map(|ip_str| Ipv4Address::new(ip_string_to_ip(ip_str.to_string(), "next hop")));
+
     let dest = Ipv4Net::new_short(ip_string_to_ip(dest_string, "dest"), 32);
     let pci_slot : u32 = pci_slot_string.parse().unwrap();
     return (dest, next_hop, pci_slot);

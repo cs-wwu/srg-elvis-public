@@ -41,7 +41,7 @@ fn sender_machine(network: &Arc<Network>, message: Message) -> Machine {
         Capture::new(SENDER_ENDPOINT, 1),
         Udp::new(),
         Ipv4::new(ip_table()),
-        Arp::basic(),
+        Arp::new(),
         Pci::new([network.clone()]),
     )
 }
@@ -52,7 +52,7 @@ fn receiver_machine(network: &Arc<Network>) -> Machine {
         Capture::new(RECEIVER_ENDPOINT, 1),
         Udp::new(),
         Ipv4::new(Default::default()),
-        Arp::basic(),
+        Arp::new(),
         Pci::new([network.clone()]),
     )
 }
@@ -81,12 +81,9 @@ pub async fn test_no_broadcast() {
 
     let (send, mut recv) = tokio::sync::watch::channel(());
     recv.borrow_and_update();
-    let evil_arp = Arp::debug(
-        |_, _| {},
-        move |_| {
-            send.send_replace(());
-        },
-    );
+    let evil_arp = Arp::new().demux_hook(move |_| {
+        send.send_replace(());
+    });
 
     let machines = vec![
         // Receiver
@@ -161,12 +158,9 @@ pub async fn test_resend() {
 
     let make_arp = || {
         let (send, recv) = watch::channel(());
-        let arp = Arp::debug(
-            |_, _| {},
-            move |_| {
-                send.send_replace(());
-            },
-        );
+        let arp = Arp::new().demux_hook(move |_| {
+            send.send_replace(());
+        });
         (arp, recv)
     };
 
@@ -232,14 +226,14 @@ pub async fn ping_pong() {
         new_machine!(
             Udp::new(),
             Ipv4::new(ping_table),
-            Arp::basic(),
+            Arp::new(),
             Pci::new([network.clone()]),
             PingPong::new(true, Endpoints::new(SENDER_ENDPOINT, RECEIVER_ENDPOINT)),
         ),
         new_machine!(
             Udp::new(),
             Ipv4::new(pong_table),
-            Arp::basic(),
+            Arp::new(),
             Pci::new([network.clone()]),
             PingPong::new(false, Endpoints::new(RECEIVER_ENDPOINT, SENDER_ENDPOINT)),
         ),
@@ -247,7 +241,6 @@ pub async fn ping_pong() {
 
     let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
     assert_eq!(status, ExitStatus::Exited);
-    
 }
 
 #[cfg(test)]

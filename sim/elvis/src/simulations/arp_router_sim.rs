@@ -52,7 +52,7 @@ pub fn build_capture(network: Arc<Network>, address: Ipv4Address, exit_status: u
         Udp::new(),
         Ipv4::new(Default::default()),
         Pci::new([network]),
-        Arp::basic(),
+        Arp::new(),
         Capture::new(
             Endpoint {
                 address,
@@ -111,7 +111,7 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
@@ -128,7 +128,7 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
                 networks[3].clone(),
             ]),
             Ipv4::new(ip_table.clone()),
-            Arp::basic(),
+            Arp::new(),
             ArpRouter::new(router_table, ROUTER1_IPS.to_vec())
         ],
         // capture for destination 1
@@ -181,7 +181,7 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
@@ -197,7 +197,7 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
                 networks[2].clone()
             ]),
             Ipv4::new(ip_table.clone()),
-            Arp::basic(),
+            Arp::new(),
             ArpRouter::new(router_table, ROUTER1_IPS.to_vec())
         ],
         build_capture(networks[1].clone(), IPS[1], 1),
@@ -262,7 +262,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
             send_message.local_ip(IPS[0]),
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 IPS[0],
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(32),
@@ -279,7 +279,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
                 networks[3].clone()
             ]),
             Ipv4::new(ip_table_1),
-            Arp::basic(),
+            Arp::new(),
             ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec())
         ],
         new_machine![
@@ -289,7 +289,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
                 networks[5].clone(),
             ]),
             Ipv4::new(ip_table_2),
-            Arp::basic(),
+            Arp::new(),
             ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec())
         ],
         // Destinations

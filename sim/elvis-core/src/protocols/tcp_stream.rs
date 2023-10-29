@@ -10,7 +10,7 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
-    // Creates a new TcpStream connected to the given remote socket address
+    /// Creates a new TcpStream connected to the given remote socket address
     pub async fn connect(
         remote_address: Endpoint,
         protocols: ProtocolMap,
@@ -30,14 +30,14 @@ impl TcpStream {
         })
     }
 
-    // Read all bytes from the queue
+    /// Read all bytes from the queue
     pub async fn read(&mut self) -> Result<Vec<u8>, SocketError> {
         let msg = self.local_socket.recv_msg().await?;
 
         Ok(msg.to_vec())
     }
 
-    // Writes data to the remote socket bound to the local socket
+    /// Writes data to the remote socket bound to the local socket
     pub async fn write(
         &mut self,
         message: impl Into<Chunk> + std::marker::Send + 'static,
@@ -45,7 +45,7 @@ impl TcpStream {
         self.local_socket.send(message)
     }
 
-    // Receives at most 'bytes' data from the remote socket bound to the local socket
+    /// Receives at most 'bytes' data from the remote socket bound to the local socket
     pub async fn read_exact(&mut self, bytes: usize) -> Result<Vec<u8>, SocketError> {
         self.local_socket.recv(bytes).await
     }
