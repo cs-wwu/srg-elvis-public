@@ -30,7 +30,7 @@ pub async fn localhost() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
     async fn localhost() {
         super::localhost().await;

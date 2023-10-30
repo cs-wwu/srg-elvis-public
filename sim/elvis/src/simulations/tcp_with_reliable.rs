@@ -65,7 +65,7 @@ pub async fn tcp_with_reliable() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn tcp_with_reliable() {
         super::tcp_with_reliable().await
     }

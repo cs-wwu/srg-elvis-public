@@ -82,7 +82,7 @@ pub async fn telephone_multi() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn telephone_multi() {
         super::telephone_multi().await
     }

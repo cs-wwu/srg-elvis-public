@@ -141,11 +141,11 @@ pub async fn dhcp_basic_release() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn dhcp_basic_offer() {
         super::dhcp_basic_offer().await;
     }
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn dhcp_basic_release() {
         super::dhcp_basic_release().await;
     }

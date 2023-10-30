@@ -62,7 +62,7 @@ pub async fn ping_pong() {
 #[cfg(test)]
 mod tests {
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     pub async fn ping_pong() {
         super::ping_pong().await;
     }

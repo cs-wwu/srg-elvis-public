@@ -96,7 +96,7 @@ pub async fn video_streaming() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     pub async fn video_streaming() {
         super::video_streaming().await;
     }

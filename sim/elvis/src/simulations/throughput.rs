@@ -58,7 +58,7 @@ pub async fn throughput() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn throughput() {
         super::throughput().await
     }

@@ -63,7 +63,7 @@ pub async fn basic() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn basic() {
         super::basic().await
     }
