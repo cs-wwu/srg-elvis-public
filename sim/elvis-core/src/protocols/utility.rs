@@ -1,5 +1,7 @@
 //! Contains utilities for implementing protocols.
 
+use crate::protocol::DemuxError;
+
 use super::{
     ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
     udp::UdpHeader,
@@ -94,10 +96,17 @@ impl Endpoints {
         Self { local, remote }
     }
 
-    pub const fn new_from_headers(udp_header: &UdpHeader, ipv4_header: &Ipv4Header) -> Self {
-        Self {
-            local: Endpoint::new(ipv4_header.destination, udp_header.destination),
-            remote: Endpoint::new(ipv4_header.source, udp_header.source),
+    pub const fn new_from_headers(udp_header: Option<&UdpHeader>, ipv4_header: Option<&Ipv4Header>) -> Result<Self, DemuxError> {
+        match (udp_header, ipv4_header) {
+            (None, None) => return Err(DemuxError::Header),
+            (None, Some(_)) => return Err(DemuxError::Header),
+            (Some(_), None) => return Err(DemuxError::Header),
+            (Some(udp_header), Some(ipv4_header)) => {
+                Ok(Self {
+                    local: Endpoint::new(ipv4_header.destination, udp_header.destination),
+                    remote: Endpoint::new(ipv4_header.source, udp_header.source),
+                })
+            }
         }
     }
 

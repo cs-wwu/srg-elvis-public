@@ -11,10 +11,10 @@ use crate::{
     protocols::{ipv4::Ipv4Address, Udp},
     Control, FxDashMap, Message, Protocol, Session, Shutdown,
 };
-use dashmap::mapref::entry::Entry;
+// use dashmap::mapref::entry::Entry;
 use std::{
     any::TypeId,
-    collections::VecDeque,
+    collections::{VecDeque, HashMap, hash_map::Entry},
     sync::{Arc, RwLock},
 };
 use tokio::sync::{
@@ -44,7 +44,7 @@ pub struct SocketAPI {
     // next_fd: RwLock<u64>,
     // sockets: Arc<FxDashMap<u64, Arc<Socket>>>,
     // socket_channels: FxDashMap<u64, Sender<Endpoint>>,
-    socket_sessions: FxDashMap<Endpoints, Arc<SocketSession>>,
+    socket_sessions: RwLock<HashMap<Endpoints, Arc<SocketSession>>>,
     listen_bindings: FxDashMap<Endpoint, Sender<Endpoint>>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
@@ -130,7 +130,8 @@ impl SocketAPI {
     ) -> Result<(Arc<SocketSession>, Receiver<Message>), SocketError> {
         let listen_local = Endpoint::new(self.local_address.unwrap(), local.port);
         let listen_identifier = Endpoints::new(listen_local, remote);
-        let session = match self.socket_sessions.entry(listen_identifier) {
+        let mut session_map = self.socket_sessions.write().unwrap();
+        let session = match session_map.entry(listen_identifier) {
             Entry::Occupied(entry) => entry.remove(),
             Entry::Vacant(_) => {
                 return Err(SocketError::AcceptError);
@@ -139,11 +140,11 @@ impl SocketAPI {
         let (sender, receiver) = mpsc::channel(u8::MAX.into());
         let identifier = Endpoints::new(local, remote);
         *session.upstream.write().unwrap() = Some(sender);
-        self.socket_sessions.insert(identifier, session.clone());
+        session_map.insert(identifier, session.clone());
         Ok((session, receiver))
     }
 
-    /// Called from Socket::connect() and Socket::accept()
+    /// Called from Socket::connect()
     /// Creates a new socket_session based on IP address and port and returns it
     pub async fn open(
         &self,
@@ -151,28 +152,29 @@ impl SocketAPI {
         transport: SocketType,
         protocols: ProtocolMap,
     ) -> Result<(Arc<dyn Session>, Receiver<Message>), OpenError> {
-        match self.socket_sessions.entry(socket_id) {
+        let downstream = match transport {
+            SocketType::Datagram => {
+                protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .open_and_listen(TypeId::of::<Self>(), socket_id, protocols)
+                    .await?
+            }
+            SocketType::Stream => {
+                protocols
+                    .protocol::<Tcp>()
+                    .unwrap()
+                    .open(TypeId::of::<Self>(), socket_id, protocols)
+                    .await?
+            }
+        };
+        match self.socket_sessions.write().unwrap().entry(socket_id) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
                 Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
-                let downstream = match transport {
-                    SocketType::Datagram => {
-                        protocols
-                            .protocol::<Udp>()
-                            .unwrap()
-                            .open_and_listen(TypeId::of::<Self>(), socket_id, protocols)
-                            .await?
-                    }
-                    SocketType::Stream => {
-                        protocols
-                            .protocol::<Tcp>()
-                            .unwrap()
-                            .open(TypeId::of::<Self>(), socket_id, protocols)
-                            .await?
-                    }
-                };
+                
                 let (sender, receiver) = mpsc::channel(u8::MAX.into());
                 let session = Arc::new(SocketSession {
                     upstream: RwLock::new(Some(sender)),
@@ -252,18 +254,11 @@ impl Protocol for SocketAPI {
     ) -> Result<(), DemuxError> {
         let identifier = match control.get::<Endpoints>() {
             Some(endpoints) => *endpoints,
-            None => match (control.get::<UdpHeader>(), control.get::<Ipv4Header>()) {
-                (None, None) => return Err(DemuxError::Header),
-                (None, Some(_)) => return Err(DemuxError::Header),
-                (Some(_), None) => return Err(DemuxError::Header),
-                (Some(udp_header), Some(ipv4_header)) => {
-                    Endpoints::new_from_headers(udp_header, ipv4_header)
-                }
-            },
+            None => Endpoints::new_from_headers(control.get::<UdpHeader>(), control.get::<Ipv4Header>())?
         };
         let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
 
-        match self.socket_sessions.entry(identifier) {
+        match self.socket_sessions.write().unwrap().entry(identifier) {
             Entry::Occupied(entry) => entry.get().receive(message)?,
             Entry::Vacant(entry) => {
                 // If the session does not exist, see if we have a listen
@@ -303,18 +298,14 @@ impl Protocol for SocketAPI {
             NotifyType::NewConnection => {
                 let identifier = match control.get::<Endpoints>() {
                     Some(endpoints) => *endpoints,
-                    None => match (control.get::<UdpHeader>(), control.get::<Ipv4Header>()) {
-                        (None, None) => return,
-                        (None, Some(_)) => return,
-                        (Some(_), None) => return,
-                        (Some(udp_header), Some(ipv4_header)) => {
-                            Endpoints::new_from_headers(udp_header, ipv4_header)
-                        }
-                    },
+                    None => match Endpoints::new_from_headers(control.get::<UdpHeader>(), control.get::<Ipv4Header>()) {
+                        Ok(endpoints) => endpoints,
+                        Err(_) => { return; },
+                    }
                 };
                 let any_identifier =
                     Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
-                match self.socket_sessions.entry(identifier) {
+                match self.socket_sessions.write().unwrap().entry(identifier) {
                     Entry::Occupied(entry) => entry.get().clone().connection_established(),
                     Entry::Vacant(entry) => {
                         // If the session does not exist, see if we have a listen

@@ -51,7 +51,9 @@ impl SocketSession {
                 }
                 Ok(())
             }
-            None => Err(DemuxError::MissingSession),
+            None => {
+                return Err(DemuxError::MissingSession);
+            }
         }
     }
 
@@ -66,5 +68,17 @@ impl SocketSession {
 impl Session for SocketSession {
     fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
         self.downstream.send(message, protocols)
+    }
+}
+
+impl Drop for SocketSession {
+    fn drop(&mut self) {
+        match self.upstream.read().unwrap().clone() {
+            Some(sender) => match sender.is_closed() {
+                true => println!("Dropping socket session, sender is closed"),
+                false => println!("Dropping socket session, sender is open"),
+            },
+            None => println!("Dropping socket session, no sender"),
+        }
     }
 }

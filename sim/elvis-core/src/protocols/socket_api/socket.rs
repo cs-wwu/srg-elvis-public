@@ -353,6 +353,18 @@ impl Socket {
     // }
 }
 
+// impl Drop for Socket {
+//     fn drop(&mut self) {
+//         match self.message_receiver.as_mut() {
+//             Some(receiver) => match receiver.try_recv() {
+//                 Ok(v) => println!("Dropping socket, receiver status: {:?}", v),
+//                 Err(e) => println!("Dropping socket, receiver status: {:?}", e),
+//             },
+//             None => println!("Dropping socket, no receiver"),
+//         }
+//     }
+// }
+
 #[derive(Debug, ThisError, Clone, PartialEq, Eq)]
 pub enum SocketError {
     #[error("Bind error")]
