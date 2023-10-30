@@ -33,6 +33,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
     async fn localhost() {
-        super::localhost().await;
+        for _ in 0..5 {
+            super::localhost().await;
+        }
     }
 }

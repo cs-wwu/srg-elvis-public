@@ -65,6 +65,8 @@ pub async fn basic() {
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn basic() {
-        super::basic().await
+        for _ in 0..5 {
+            super::basic().await;
+        }
     }
 }

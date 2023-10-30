@@ -75,6 +75,8 @@ pub async fn telephone_single() {
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn telephone_single() {
-        super::telephone_single().await
+        for _ in 0..5 {
+            super::telephone_single().await;
+        }
     }
 }

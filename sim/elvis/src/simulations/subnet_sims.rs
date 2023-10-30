@@ -203,6 +203,8 @@ pub async fn test_subnet() {
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_subnet() {
-        super::test_subnet().await;
+        for _ in 0..5 {
+            super::test_subnet().await;
+        }
     }
 }

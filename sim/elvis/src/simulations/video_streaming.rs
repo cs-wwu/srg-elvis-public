@@ -98,6 +98,8 @@ pub async fn video_streaming() {
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     pub async fn video_streaming() {
-        super::video_streaming().await;
+        for _ in 0..5 {
+            super::video_streaming().await;
+        }
     }
 }

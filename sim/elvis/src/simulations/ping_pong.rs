@@ -64,6 +64,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn ping_pong() {
-        super::ping_pong().await;
+        for _ in 0..5 {
+            super::ping_pong().await;
+        }
     }
 }

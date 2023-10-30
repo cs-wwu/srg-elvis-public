@@ -110,6 +110,8 @@ pub async fn tcp_stream_speed_test() {
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn tcp_stream_speed_test() {
-        super::tcp_stream_speed_test().await;
+        for _ in 0..5 {
+            super::tcp_stream_speed_test().await;
+        }
     }
 }

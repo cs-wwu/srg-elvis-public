@@ -60,6 +60,8 @@ pub async fn tcp_with_unreliable() {
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn tcp_with_unreliable() {
-        super::tcp_with_unreliable().await
+        for _ in 0..5 {
+            super::tcp_with_unreliable().await;
+        }
     }
 }

@@ -114,6 +114,8 @@ pub async fn server_experiment() {
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn server_experiment() {
-        super::server_experiment().await;
+        for _ in 0..5 {
+            super::server_experiment().await;
+        }
     }
 }
