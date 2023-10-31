@@ -17,7 +17,6 @@ use tokio::{select, sync::mpsc::Receiver};
 pub struct Socket {
     pub family: ProtocolFamily,
     pub sock_type: SocketType,
-    // fd: u64,
     is_active: bool,
     is_bound: bool,
     is_listening: bool,
@@ -25,11 +24,7 @@ pub struct Socket {
     pub local_addr: Option<Endpoint>,
     pub remote_addr: Option<Endpoint>,
     session: RwLock<Option<Arc<dyn Session>>>,
-    // listen_addresses: Arc<RwLock<VecDeque<Endpoint>>>,
     listen_backlog: usize,
-    // notify_listen: Notify,
-    // messages: Arc<RwLock<VecDeque<Message>>>,
-    // notify_recv: Notify,
     protocols: ProtocolMap,
     socket_api: Arc<SocketAPI>,
     message_receiver: Option<Receiver<Message>>,
@@ -41,7 +36,6 @@ impl Socket {
     pub(super) fn new(
         domain: ProtocolFamily,
         sock_type: SocketType,
-        // fd: u64,
         protocols: ProtocolMap,
         socket_api: Arc<SocketAPI>,
         shutdown: Shutdown,
@@ -49,18 +43,13 @@ impl Socket {
         Self {
             family: domain,
             sock_type,
-            // fd,
             is_active: false,
             is_bound: false,
             is_listening: false,
             is_blocking: true,
             local_addr: None,
             remote_addr: None,
-            //listen_addresses: Default::default(),
             listen_backlog: 0,
-            //notify_listen: Notify::new(),
-            //messages: Default::default(),
-            //notify_recv: Notify::new(),
             session: Default::default(),
             protocols,
             socket_api,
@@ -70,43 +59,10 @@ impl Socket {
         }
     }
 
-    // pub(super) fn add_listen_address(&self, remote_address: Endpoint) {
-    //     let backlog = *self.listen_backlog.read().unwrap();
-    //     if backlog == 0 || self.listen_addresses.read().unwrap().len() <= backlog {
-    //         self.listen_addresses
-    //             .write()
-    //             .unwrap()
-    //             .push_back(remote_address);
-    //         self.notify_listen.notify_one();
-    //     }
-    // }
-
-    // async fn wait_for_notify(&self, notify_type: NotifyType) -> NotifyResult {
-    //     if *self.is_blocking.read().unwrap() {
-    //         let mut shutdown_receiver = self.shutdown.receiver();
-    //         match notify_type {
-    //             NotifyType::NewConnection => select! {
-    //                 _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
-    //                 _ = self.notify_listen.notified() => NotifyResult::Notified,
-    //             },
-    //             NotifyType::NewMessage => select! {
-    //                 _ = shutdown_receiver.recv() => NotifyResult::Shutdown,
-    //                 _ = self.notify_recv.notified() => NotifyResult::Notified,
-    //             },
-    //         }
-    //     } else {
-    //         NotifyResult::Notified
-    //     }
-    // }
-
     /// Used to specify whether or not certain socket functions should block
     pub fn set_blocking(&mut self, is_blocking: bool) {
         self.is_blocking = is_blocking;
     }
-
-    // pub fn connection_established(&self) {
-    //     self.notify_listen.notify_one();
-    // }
 
     /// TODO(HenryEricksonIV) Used by calling application when the ip address
     /// of the endpoint is not known to the calling application.
@@ -221,9 +177,6 @@ impl Socket {
         if !self.is_listening || self.is_active {
             return Err(SocketError::AcceptError);
         }
-        // if self.wait_for_notify(NotifyType::NewConnection).await == NotifyResult::Shutdown {
-        //     return Err(SocketError::Shutdown);
-        // }
         let mut shutdown_receiver = self.shutdown.receiver();
         let connection_receiver = match &mut self.connection_receiver {
             Some(v) => v,
@@ -243,13 +196,9 @@ impl Socket {
         };
         new_sock.bind(local_addr)?;
         new_sock.remote_addr = endpoint;
-        // if !self.listen_addresses.read().unwrap().is_empty() {
-        //     self.notify_listen.notify_one();
-        // }
         let (session, receiver) = self
             .socket_api
             .get_socket_session(new_sock.local_addr.unwrap(), new_sock.remote_addr.unwrap())?;
-        // *session.upstream.write().unwrap() = Some(new_sock.clone());
         new_sock.message_receiver = Some(receiver);
         *new_sock.session.write().unwrap() = Some(session.clone());
         session.receive_stored_messages().unwrap();
@@ -318,11 +267,6 @@ impl Socket {
         if self.session.read().unwrap().is_none() || self.is_listening {
             return Err(SocketError::ReceiveError);
         }
-        // If there is no data in the queue to recv, and the socket is blocking,
-        // block until there is data to be received
-        // if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
-        //     return Err(SocketError::Shutdown);
-        // }
         let mut shutdown_receiver = self.shutdown.receiver();
         let message_receiver = match &mut self.message_receiver {
             Some(v) => v,
@@ -335,35 +279,12 @@ impl Socket {
                 message
             },
         };
-        // if !self.messages.read().unwrap().is_empty() {
-        //     self.notify_recv.notify_one();
-        // }
         match message {
             Some(v) => Ok(v),
             None => Err(SocketError::ReceiveError),
         }
     }
-
-    // /// Called by the socket's socket_session when it receives data, stores data
-    // /// in a queue, which is emptied by calls to recv() or recv_msg()
-    // pub(crate) fn receive(&self, message: Message) -> Result<(), DemuxError> {
-    //     self.messages.write().unwrap().push_back(message);
-    //     self.notify_recv.notify_one();
-    //     Ok(())
-    // }
 }
-
-// impl Drop for Socket {
-//     fn drop(&mut self) {
-//         match self.message_receiver.as_mut() {
-//             Some(receiver) => match receiver.try_recv() {
-//                 Ok(v) => println!("Dropping socket, receiver status: {:?}", v),
-//                 Err(e) => println!("Dropping socket, receiver status: {:?}", e),
-//             },
-//             None => println!("Dropping socket, no receiver"),
-//         }
-//     }
-// }
 
 #[derive(Debug, ThisError, Clone, PartialEq, Eq)]
 pub enum SocketError {

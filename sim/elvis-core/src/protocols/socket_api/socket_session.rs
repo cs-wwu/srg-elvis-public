@@ -56,13 +56,6 @@ impl SocketSession {
             }
         }
     }
-
-    pub fn connection_established(self: Arc<Self>) {
-        // if let Some(sock) = self.upstream.read().unwrap().clone() {
-        //     sock.connection_established();
-        // }
-        // TODO(giddinl2): Somehow fix this
-    }
 }
 
 impl Session for SocketSession {
