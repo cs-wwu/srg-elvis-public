@@ -6,7 +6,7 @@ use elvis_core::{
     new_machine,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
-        Endpoint, Pci, SocketAPI, Tcp,
+        Endpoint, Pci, SocketAPI, Tcp, Arp,
     },
     run_internet_with_timeout, IpTable, Network,
 };
@@ -18,10 +18,7 @@ pub async fn server_user() {
     let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     let server_socket_address: Endpoint = Endpoint::new(server_ip_address, 80);
 
-    let ip_table: IpTable<Recipient> = [
-        (server_ip_address, Recipient::with_mac(0, 1)),
-        (client1_ip_address, Recipient::with_mac(0, 0)),
-    ]
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
     .into_iter()
     .collect();
     // need to loop this x amount of times
@@ -30,6 +27,7 @@ pub async fn server_user() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(server_ip_address)),
             WebServer::new(WebServerType::Yahoo, None),
         ],
@@ -37,6 +35,7 @@ pub async fn server_user() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(client1_ip_address)),
             UserBehavior::new(server_socket_address),
         ],
