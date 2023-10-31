@@ -286,38 +286,40 @@ pub fn rip_router_builder(
     cur_net_ids: &Vec<String>,
 ) -> (ArpRouter, RipRouter) {
     let router_table_entries = app.router_table.clone().unwrap().0;
-
+    let router_ips = app.router_table.clone().unwrap().1;
+    
+    //Get router entries
     let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
-    let mut local_ips = Vec::new();
-    let mut slot_num = 0;
-
     for router_entry in router_table_entries {
-        // Case where router_entry is an local_ip
-        if let Some(ip_string) = router_entry.get("ip") {
-
-            let ip = ip_available(
-                ip_string_to_ip(ip_string.to_string(), "router ip").into(),
-                ip_gen,
-                cur_net_ids,
-            )
-            .expect("RipRouter local IP unavailable");
-
-            ip_table.add_direct(ip, Recipient::new(slot_num, None));
-            local_ips.push(ip.into());
-            slot_num+=1;
-        }
-        // Case where router_entry is a router table entry
-        else {
-            let line = generate_router_entry(router_entry);
-            router_table.add(line.0, (line.1, line.2));
-        } 
+        let line = generate_router_entry(router_entry);
+        router_table.add(line.0, (line.1, line.2));
     }
+
+    //Get router local ips
+    let mut slot_counter = 0;
+    let local_ips: Vec<_> = router_ips
+        .iter()
+        .filter_map(|entry| {
+            entry.options.get("ip").map(|ip_string| {
+                let ip = ip_available(
+                    ip_string_to_ip(ip_string.to_string(), "router ip").into(),
+                    ip_gen,
+                    cur_net_ids,
+                )
+                .expect("RipRouter local IP unavailable");
+                ip_table.add_direct(ip, Recipient::new(slot_counter, None));
+                slot_counter+=1;
+                ip.into()
+            })
+        })
+        .collect();
     let rip = RipRouter::new(local_ips.clone());
+    
     let arp = ArpRouter::new(router_table.clone(), local_ips.clone());
     return (arp, rip);
 }
 
-/// Creates an [arp_router] application for the machine
+/// Builds an [arp_router] application for the machine
 pub fn arp_router_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
@@ -328,31 +330,31 @@ pub fn arp_router_builder(
     let router_table_entries = app.router_table.clone().unwrap().0;
     let router_ips = app.router_table.clone().unwrap().1;
 
+    //Get router entries
     let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
-    let mut local_ips = Vec::new();
-    let mut slot_num = 0;
-
     for router_entry in router_table_entries {
-        // Case where router_entry is an local_ip
-        if let Some(ip_string) = router_entry.get("ip") {
-
-            let ip = ip_available(
-                ip_string_to_ip(ip_string.to_string(), "router ip").into(),
-                ip_gen,
-                cur_net_ids,
-            )
-            .expect("RipRouter local IP unavailable");
-        
-            ip_table.add_direct(ip, Recipient::new(slot_num, None));
-            local_ips.push(ip.into());
-            slot_num+=1;
-        }
-        // Case where router_entry is a router table entry
-        else {
-            let line = generate_router_entry(router_entry);
-            router_table.add(line.0, (line.1, line.2));
-        } 
+        let line = generate_router_entry(router_entry);
+        router_table.add(line.0, (line.1, line.2));
     }
+
+    //Get router local ips
+    let mut slot_counter = 0;
+    let local_ips: Vec<_> = router_ips
+        .iter()
+        .filter_map(|entry| {
+            entry.options.get("ip").map(|ip_string| {
+                let ip = ip_available(
+                    ip_string_to_ip(ip_string.to_string(), "router ip").into(),
+                    ip_gen,
+                    cur_net_ids,
+                )
+                .expect("ArpRouter local IP unavailable");
+                ip_table.add_direct(ip, Recipient::new(slot_counter, None));
+                slot_counter+=1;
+                ip.into()
+            })
+        })
+        .collect();
     ArpRouter::new(router_table, local_ips)
 }
 

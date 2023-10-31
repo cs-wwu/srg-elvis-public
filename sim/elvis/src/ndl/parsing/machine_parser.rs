@@ -582,6 +582,7 @@ fn router_entry_parser(
     if t != num_tabs {
         return Err("Invalid formatting for RouterEntry".to_string());
     }
+    //Loop through the router entries until a new indentation is found
     while !remaining_string.is_empty() {
         let entry = general_parser(&remaining_string[num_tabs as usize..], line_num);
         match entry {
