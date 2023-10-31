@@ -60,8 +60,9 @@ impl Socket {
     }
 
     /// Used to specify whether or not certain socket functions should block
-    pub fn set_blocking(&mut self, is_blocking: bool) {
+    pub fn set_blocking(&mut self, is_blocking: bool) -> &mut Self {
         self.is_blocking = is_blocking;
+        self
     }
 
     /// TODO(HenryEricksonIV) Used by calling application when the ip address
@@ -72,7 +73,7 @@ impl Socket {
         &mut self,
         domain_name: String,
         dest_port: u16,
-    ) -> Result<(), SocketError> {
+    ) -> Result<&mut Self, SocketError> {
         let ip_from_domain = self
             .protocols
             .protocol::<DnsClient>()
@@ -86,7 +87,7 @@ impl Socket {
 
     /// Assigns a remote ip address and port to a socket and connects the socket
     /// to that endpoint
-    pub async fn connect(&mut self, sock_addr: Endpoint) -> Result<(), SocketError> {
+    pub async fn connect(&mut self, sock_addr: Endpoint) -> Result<&mut Self, SocketError> {
         // A socket can only be connected once, subsequent calls to connect will
         // throw an error if the socket is already connected. Also, a listening
         // socket cannot connect to a remote endpoint
@@ -121,14 +122,14 @@ impl Socket {
             self.message_receiver = Some(receiver);
             *self.session.write().unwrap() = Some(session);
             self.is_active = true;
-            Ok(())
+            Ok(self)
         } else {
             Err(SocketError::ConnectError)
         }
     }
 
     /// Assigns a local ip address and port to a socket
-    pub fn bind(&mut self, sock_addr: Endpoint) -> Result<(), SocketError> {
+    pub fn bind(&mut self, sock_addr: Endpoint) -> Result<&mut Self, SocketError> {
         match self.family {
             ProtocolFamily::LOCAL => {
                 return Err(SocketError::BindError);
@@ -137,13 +138,13 @@ impl Socket {
             ProtocolFamily::INET6 => return Err(SocketError::BindError),
         }
         self.is_bound = true;
-        Ok(())
+        Ok(self)
     }
 
     /// Makes this socket a listening socket, meaning that it can no longer be
     /// used to send or receive messages, but can instead be used to accept
     /// incoming connections on the specified port via accept()
-    pub fn listen(&mut self, backlog: usize) -> Result<(), SocketError> {
+    pub fn listen(&mut self, backlog: usize) -> Result<&mut Self, SocketError> {
         if !self.is_bound || self.is_active || self.is_listening {
             return Err(SocketError::AcceptError);
         }
@@ -159,7 +160,7 @@ impl Socket {
                     self.is_listening = true;
                     self.listen_backlog = backlog;
                     self.connection_receiver = Some(receiver);
-                    Ok(())
+                    Ok(self)
                 }
                 Err(_) => Err(SocketError::ListenError),
             }

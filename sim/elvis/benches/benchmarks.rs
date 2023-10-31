@@ -25,10 +25,31 @@ fn ping_pong(c: &mut Criterion) {
     });
 }
 
-fn socket_basic(c: &mut Criterion) {
-    c.bench_function("Socket Basic", |b| {
+fn socket_basic_udp(c: &mut Criterion) {
+    c.bench_function("Socket Basic (UDP)", |b| {
+        b.to_async(runtime())
+            .iter(|| simulations::socket_basic(SocketType::Datagram, 1, false, 0))
+    });
+}
+
+fn socket_basic_tcp(c: &mut Criterion) {
+    c.bench_function("Socket Basic (TCP)", |b| {
         b.to_async(runtime())
             .iter(|| simulations::socket_basic(SocketType::Stream, 1, false, 0))
+    });
+}
+
+fn socket_basic_udp_100(c: &mut Criterion) {
+    c.bench_function("Socket Basic (100x UDP)", |b| {
+        b.to_async(runtime())
+            .iter(|| simulations::socket_basic(SocketType::Datagram, 100, false, 0))
+    });
+}
+
+fn socket_basic_tcp_100(c: &mut Criterion) {
+    c.bench_function("Socket Basic (100x TCP)", |b| {
+        b.to_async(runtime())
+            .iter(|| simulations::socket_basic(SocketType::Stream, 100, false, 0))
     });
 }
 
@@ -59,7 +80,10 @@ criterion_group!(
 
 criterion_group!(
     sockets,
-    socket_basic,
+    socket_basic_udp,
+    socket_basic_tcp,
+    socket_basic_udp_100,
+    socket_basic_tcp_100,
 );
 
-criterion_main!(sockets);
+criterion_main!(benches);
