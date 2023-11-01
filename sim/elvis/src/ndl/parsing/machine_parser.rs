@@ -55,7 +55,6 @@ pub fn machines_parser(
             }
 
             Err(e) => {
-
                 return Err(general_error(
                     num_tabs,
                     machines_line_num,
@@ -218,7 +217,7 @@ fn machine_parser(
                                         num_tabs,
                                         machine_line_num,
                                         dec,
-                                        format!("{}{}", num_tabs_to_string(num_tabs -1), e),
+                                        format!("{}{}", num_tabs_to_string(num_tabs - 1), e),
                                     ));
                                 }
                             }
@@ -467,8 +466,8 @@ fn machine_applications_parser(
     //While there are more applications to be parsed
     while !remaining_string.is_empty() {
         let application = general_parser(&remaining_string[num_tabs as usize..], line_num);
-        let mut app_dectype : Option<DecType> = None;
-        let mut app_options : Option<Params> = None;
+        let mut app_dectype: Option<DecType> = None;
+        let mut app_options: Option<Params> = None;
         //Parse the next application
         match application {
             Ok(n) => {
@@ -488,7 +487,7 @@ fn machine_applications_parser(
                         format!(
                             "{}Line {:?}: expected type Application and got type {:?} instead.\n",
                             num_tabs_to_string(num_tabs + 1),
-                            *line_num-1,
+                            *line_num - 1,
                             n.0
                         ),
                     ));
@@ -496,7 +495,6 @@ fn machine_applications_parser(
             }
             //General parses was unable to parse the line
             Err(e) => {
-                
                 return Err(general_error(
                     num_tabs,
                     applications_line_num,
@@ -508,33 +506,33 @@ fn machine_applications_parser(
         //Check remaining string to identify indentation of next line
         t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
 
-        let mut router_table= None;
+        let mut router_table = None;
         //Case: next line is indented which means router entries are being provided
         if t > num_tabs {
             //Parse router entries
-            router_table = Some(match router_entry_parser(
-                &mut remaining_string,
-                num_tabs + 1,
-                line_num,
-            ){
-                Ok(n) => n,
-                Err(e) => return Err(general_error(
-                    num_tabs,
-                    applications_line_num,
-                    dec,
-                    format!(
-                        "{}Line {:?}: Router information cannot be parsed: {}\n",
-                        num_tabs_to_string(num_tabs + 1),
-                        *line_num,
-                        e
-                    ),
-                )),
-            });
+            router_table = Some(
+                match router_entry_parser(&mut remaining_string, num_tabs + 1, line_num) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        return Err(general_error(
+                            num_tabs,
+                            applications_line_num,
+                            dec,
+                            format!(
+                                "{}Line {:?}: Router information cannot be parsed: {}\n",
+                                num_tabs_to_string(num_tabs + 1),
+                                *line_num,
+                                e
+                            ),
+                        ))
+                    }
+                },
+            );
         }
         apps.push(Application {
             dectype: app_dectype.unwrap(),
             options: app_options.unwrap(),
-            router_table: router_table,
+            router_table,
         });
 
         //Check if there is another application after router entries

@@ -1,9 +1,7 @@
 //! Generates machines from a given parse
 use std::collections::{HashMap, HashSet};
 
-use crate::ndl::generating::{
-    application_generator::*, generator_utils::ip_string_to_ip,
-};
+use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::machine::ProtocolMapBuilder;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
@@ -174,7 +172,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             &name_to_ip,
                             &mut ip_table,
                             &mut ip_gen,
-                            &net_ids
+                            &net_ids,
                         ))
                     }
                     "capture" => {
@@ -183,7 +181,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             &name_to_ip,
                             &mut ip_table,
                             &mut ip_gen,
-                            &net_ids
+                            &net_ids,
                         ))
                     }
 
@@ -193,7 +191,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                             &name_to_ip,
                             &mut ip_table,
                             &mut ip_gen,
-                            &net_ids
+                            &net_ids,
                         ))
                     }
 
@@ -247,9 +245,10 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 match protocol_name {
                     "UDP" => protocol_map = protocol_map.with(Udp::new()),
                     "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
-                    "ARP" => protocol_map = protocol_map.with(arp_builder(
-                        &name_to_ip,
-                        &protocol.options)),
+                    "ARP" => {
+                        protocol_map =
+                            protocol_map.with(arp_builder(&name_to_ip, &protocol.options))
+                    }
                     _ => {
                         panic!(
                             "Invalid Protocol found in machine. Found: {}",

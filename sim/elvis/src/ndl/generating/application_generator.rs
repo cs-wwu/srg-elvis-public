@@ -3,12 +3,13 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use crate::applications::{rip::rip_router::RipRouter, ArpRouter, Forward, PingPong, Capture, SendMessage};
+use crate::applications::{
+    rip::rip_router::RipRouter, ArpRouter, Capture, Forward, PingPong, SendMessage,
+};
 use crate::ip_generator::IpGenerator;
 use crate::ndl::generating::generator_utils::*;
+use crate::ndl::generating::generator_utils::{ip_string_to_ip, string_to_port};
 use crate::ndl::parsing::parsing_data::*;
-use crate::
-    ndl::generating::generator_utils::{ip_string_to_ip, string_to_port};
 use elvis_core::machine::PciSlot;
 use elvis_core::protocols::arp::subnetting::{Ipv4Mask, SubnetInfo};
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
@@ -21,7 +22,7 @@ pub fn send_message_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
-    cur_net_ids: &Vec<String>,
+    cur_net_ids: &[String],
 ) -> SendMessage {
     assert!(
         app.options.contains_key("port"),
@@ -43,8 +44,7 @@ pub fn send_message_builder(
         .unwrap_or_else(|| Ipv4Address::new([127, 0, 0, 1])); //Default to local ip if none is provided
 
     // Check if IP is available
-    let ip =
-        ip_available(target_ip.into(), ip_gen, cur_net_ids).expect("send_message IP unavailable");
+    let ip = ip_available(target_ip, ip_gen, cur_net_ids).expect("send_message IP unavailable");
 
     ip_table.add_direct(ip, Recipient::new(0, None));
 
@@ -65,7 +65,8 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip).delay(Duration::from_secs(5))
+        .local_ip(target_ip)
+        .delay(Duration::from_secs(5))
     } else {
         SendMessage::new(
             messages,
@@ -76,17 +77,18 @@ pub fn send_message_builder(
                 port,
             },
         )
-        .local_ip(target_ip).delay(Duration::from_secs(5))
+        .local_ip(target_ip)
+        .delay(Duration::from_secs(5))
     }
 }
 
 /// Builds the [Capture] application for a machine
 pub fn capture_builder(
     app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>,
+    _name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
-    cur_net_ids: &Vec<String>,
+    cur_net_ids: &[String],
 ) -> Capture {
     assert!(
         app.options.contains_key("port"),
@@ -117,13 +119,7 @@ pub fn capture_builder(
 
     ip_table.add_direct(ip, Recipient::new(0, None));
 
-    Capture::new(
-        Endpoint {
-            address: ip.into(),
-            port,
-        },
-        message_count,
-    )
+    Capture::new(Endpoint { address: ip, port }, message_count)
 }
 
 /// Builds the [Forward] application for a machine
@@ -133,7 +129,7 @@ pub fn forward_message_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
-    cur_net_ids: &Vec<String>,
+    cur_net_ids: &[String],
 ) -> Forward {
     assert!(
         app.options.contains_key("local_port"),
@@ -202,7 +198,7 @@ pub fn ping_pong_builder(
     name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
-    cur_net_ids: &Vec<String>,
+    cur_net_ids: &[String],
 ) -> PingPong {
     assert!(
         app.options.contains_key("local_port"),
@@ -280,14 +276,14 @@ pub fn ping_pong_builder(
 /// Also creates the required arp_router application when creating the rip router
 pub fn rip_router_builder(
     app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>,
+    _name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
-    cur_net_ids: &Vec<String>,
+    cur_net_ids: &[String],
 ) -> (ArpRouter, RipRouter) {
     let router_table_entries = app.router_table.clone().unwrap().0;
     let router_ips = app.router_table.clone().unwrap().1;
-    
+
     //Get router entries
     let mut router_table: IpTable<(Option<Ipv4Address>, PciSlot)> = IpTable::new();
     for router_entry in router_table_entries {
@@ -308,25 +304,26 @@ pub fn rip_router_builder(
                 )
                 .expect("RipRouter local IP unavailable");
                 ip_table.add_direct(ip, Recipient::new(slot_counter, None));
-                slot_counter+=1;
-                ip.into()
+                slot_counter += 1;
+                ip
             })
         })
         .collect();
-    
+
     let rip = RipRouter::new(local_ips.clone());
-    
+
     let arp = ArpRouter::new(router_table.clone(), local_ips.clone());
-    return (arp, rip);
+
+    (arp, rip)
 }
 
 /// Builds an [arp_router] application for the machine
 pub fn arp_router_builder(
     app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>,
+    _name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
-    cur_net_ids: &Vec<String>,
+    cur_net_ids: &[String],
 ) -> ArpRouter {
     let router_table_entries = app.router_table.clone().unwrap().0;
     let router_ips = app.router_table.clone().unwrap().1;
@@ -351,8 +348,8 @@ pub fn arp_router_builder(
                 )
                 .expect("ArpRouter local IP unavailable");
                 ip_table.add_direct(ip, Recipient::new(slot_counter, None));
-                slot_counter+=1;
-                ip.into()
+                slot_counter += 1;
+                ip
             })
         })
         .collect();
