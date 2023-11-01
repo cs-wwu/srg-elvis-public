@@ -46,7 +46,10 @@ pub async fn socket_basic(
         Pci::new([network.clone()]),
         Arp::new().preconfig_subnet(server_ip_address, info),
         SocketAPI::new(Some(server_ip_address)),
-        SocketServer::new(0xbeef, transport, num_clients.into(), output)
+        SocketServer::new()
+            .transport(transport)
+            .num_clients(num_clients.into())
+            .output(output),
     ]];
     for i in 1..=num_clients {
         machines.push(new_machine![

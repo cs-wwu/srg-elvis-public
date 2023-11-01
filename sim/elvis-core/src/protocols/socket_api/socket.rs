@@ -28,6 +28,7 @@ pub struct Socket {
     protocols: ProtocolMap,
     socket_api: Arc<SocketAPI>,
     message_receiver: Option<Receiver<Message>>,
+    stored_message: Option<Message>,
     pub(crate) connection_receiver: Option<Receiver<Endpoint>>,
     shutdown: Shutdown,
 }
@@ -54,6 +55,7 @@ impl Socket {
             protocols,
             socket_api,
             message_receiver: Default::default(),
+            stored_message: None,
             connection_receiver: Default::default(),
             shutdown,
         }
@@ -227,35 +229,72 @@ impl Socket {
     ///
     /// This function will block if the queue of incoming messages is empty
     /// until a new message is received
-    // pub async fn recv(&self, bytes: usize) -> Result<Vec<u8>, SocketError> {
-    //     // If the socket doesn't have a session yet, data cannot be received and
-    //     // calls to recv will return an error, a call to connect() must be made
-    //     // first
-    //     if self.session.read().unwrap().is_none() || *self.is_listening.read().unwrap() {
-    //         return Err(SocketError::ReceiveError);
-    //     }
-    //     // If there is no data in the queue to recv, and the socket is blocking,
-    //     // block until there is data to be received
-    //     if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
-    //         return Err(SocketError::Shutdown);
-    //     }
-    //     let mut buf = Vec::new();
-    //     let queue = &mut *self.messages.write().unwrap();
-    //     while let Some(text) = queue.front_mut() {
-    //         if text.len() <= bytes {
-    //             buf.extend(text.iter());
-    //             queue.pop_front();
-    //         } else {
-    //             buf.extend(text.iter().take(bytes));
-    //             text.slice(bytes..);
-    //             break;
-    //         }
-    //     }
-    //     if !queue.is_empty() {
-    //         self.notify_recv.notify_one();
-    //     }
-    //     Ok(buf)
-    // }
+    pub async fn recv(&mut self, bytes: usize) -> Result<Vec<u8>, SocketError> {
+        // If the socket doesn't have a session yet, data cannot be received and
+        // calls to recv will return an error, a call to connect() must be made
+        // first
+        if self.session.read().unwrap().is_none() || self.is_listening {
+            return Err(SocketError::ReceiveError);
+        }
+        let mut shutdown_receiver = self.shutdown.receiver();
+        let message_receiver = match &mut self.message_receiver {
+            Some(v) => v,
+            None => return Err(SocketError::AcceptError),
+        };
+        // If there is no data in the queue to recv, and the socket is blocking,
+        // block until there is data to be received
+        // if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
+        //     return Err(SocketError::Shutdown);
+        // }
+        let mut buf = Vec::new();
+        while buf.len() < bytes {
+            let mut message = match self.stored_message.take() {
+                Some(msg) => msg,
+                None => {
+                    if buf.is_empty() {
+                        select! {
+                            _ = shutdown_receiver.recv() => { return Err(SocketError::ReceiveError); },
+                            message = message_receiver.recv() => {
+                                match message {
+                                    Some(msg) => msg,
+                                    None => return Err(SocketError::ReceiveError),
+                                }
+                            },
+                        }
+                    } else {
+                        match message_receiver.try_recv() {
+                            Ok(msg) => msg,
+                            Err(_) => {
+                                break;
+                            }
+                        }
+                    }
+                }
+            };
+            if message.len() <= bytes {
+                buf.extend(message.iter());
+            } else {
+                buf.extend(message.iter().take(bytes));
+                message.slice(bytes..);
+                self.stored_message = Some(message);
+            }
+        }
+        // let queue = &mut *self.messages.write().unwrap();
+        // while let Some(text) = queue.front_mut() {
+        //     if text.len() <= bytes {
+        //         buf.extend(text.iter());
+        //         queue.pop_front();
+        //     } else {
+        //         buf.extend(text.iter().take(bytes));
+        //         text.slice(bytes..);
+        //         break;
+        //     }
+        // }
+        // if !queue.is_empty() {
+        //     self.notify_recv.notify_one();
+        // }
+        Ok(buf)
+    }
 
     /// Receives a [`Message`] from the socket's remote endpoint
     ///
@@ -268,21 +307,24 @@ impl Socket {
         if self.session.read().unwrap().is_none() || self.is_listening {
             return Err(SocketError::ReceiveError);
         }
-        let mut shutdown_receiver = self.shutdown.receiver();
-        let message_receiver = match &mut self.message_receiver {
-            Some(v) => v,
-            None => return Err(SocketError::AcceptError),
-        };
-        let message = select! {
-            _ = shutdown_receiver.recv() => None,
-            message = message_receiver.recv() => {
-                if message.is_none() { println!("Receiver Error: Channel closed"); }
-                message
-            },
-        };
-        match message {
-            Some(v) => Ok(v),
-            None => Err(SocketError::ReceiveError),
+        match self.stored_message.take() {
+            Some(msg) => Ok(msg),
+            None => {
+                let mut shutdown_receiver = self.shutdown.receiver();
+                let message_receiver = match &mut self.message_receiver {
+                    Some(v) => v,
+                    None => return Err(SocketError::ReceiveError),
+                };
+                select! {
+                    _ = shutdown_receiver.recv() => Err(SocketError::ReceiveError),
+                    message = message_receiver.recv() => {
+                        match message {
+                            Some(msg) => Ok(msg),
+                            None => Err(SocketError::ReceiveError),
+                        }
+                    },
+                }
+            }
         }
     }
 

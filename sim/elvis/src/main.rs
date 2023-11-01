@@ -7,7 +7,7 @@ use std::env;
 pub async fn main() {
     println!("Elvis v{}", env!("CARGO_PKG_VERSION"));
     //initialize_from_arguments().await;
-    //socket_basic(SocketType::Datagram, 255, false, 0).await;
+    socket_basic(SocketType::Datagram, 255, false, 0).await;
     socket_basic(SocketType::Stream, 255, false, 0).await;
     println!("Done");
 }

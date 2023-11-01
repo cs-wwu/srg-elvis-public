@@ -10,7 +10,7 @@ use elvis_core::{
     Control, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
-use tokio::sync::Barrier;
+use tokio::{sync::Barrier, task::JoinSet};
 
 #[derive(Clone)]
 pub struct SocketServer {
@@ -25,52 +25,71 @@ pub struct SocketServer {
 }
 
 impl SocketServer {
-    pub fn new(local_port: u16, transport: SocketType, num_clients: usize, output: bool) -> Self {
+    pub fn new() -> Self {
         Self {
-            local_port,
-            transport,
-            num_clients,
-            output,
+            local_port: 0xbeef,
+            transport: SocketType::Stream,
+            num_clients: 1,
+            output: false,
         }
+    }
+
+    pub fn local_port(mut self, local_port: u16) -> Self {
+        self.local_port = local_port;
+        self
+    }
+
+    pub fn transport(mut self, transport: SocketType) -> Self {
+        self.transport = transport;
+        self
+    }
+
+    pub fn num_clients(mut self, num_clients: usize) -> Self {
+        self.num_clients = num_clients;
+        self
+    }
+
+    pub fn output(mut self, output: bool) -> Self {
+        self.output = output;
+        self
     }
 }
 
-async fn communicate_with_client(mut socket: Socket, client_num: u16, output: bool) {
+async fn communicate_with_client(mut socket: Socket, server_num: u16, output: bool) {
     if output {
-        println!("SERVER ({:?}): Waiting for request...", client_num);
+        println!("SERVER ({:?}): Waiting for request...", server_num);
     }
 
-    let mut client_id: u16 = 0;
-    // Receive a message
-    match socket.recv_msg().await {
+    // Receive a message (In two pieces to test recv() functionality)
+    match socket.recv(20).await {
         Ok(req) => {
             if output {
-                println!(
-                    "SERVER ({:?}): Request Received: {:?}",
-                    client_num,
+                print!(
+                    "SERVER ({:?}): Request Received: \"{}",
+                    server_num,
                     String::from_utf8(req.to_vec()).unwrap()
                 )
             };
-            client_id = String::from_utf8(req.to_vec())
-                .unwrap()
-                .split('(')
-                .nth(1)
-                .unwrap()
-                .split(')')
-                .next()
-                .unwrap()
-                .parse()
-                .unwrap();
         }
         Err(e) => {
-            println!("SERVER ({:?}) Error: {:?}", client_num, e)
+            println!("SERVER ({:?}) Error: {:?}", server_num, e)
+        }
+    }
+    match socket.recv(20).await {
+        Ok(req) => {
+            if output {
+                println!("{}\"", String::from_utf8(req.to_vec()).unwrap())
+            };
+        }
+        Err(e) => {
+            println!("SERVER ({:?}) Error: {:?}", server_num, e)
         }
     }
 
     // Send a message
-    let resp = format!("({}) Major Tom to Ground Control", client_num);
+    let resp = format!("({}) Major Tom to Ground Control", server_num);
     if output {
-        println!("SERVER ({:?}): Sending Response: {:?}", client_num, resp);
+        println!("SERVER ({:?}): Sending Response: {:?}", server_num, resp);
     }
     socket.send(resp).unwrap();
 
@@ -81,24 +100,13 @@ async fn communicate_with_client(mut socket: Socket, client_num: u16, output: bo
             if output {
                 println!(
                     "SERVER ({:?}): Acknowledgement Received: {:?}",
-                    client_num,
+                    server_num,
                     String::from_utf8(ack.to_vec()).unwrap()
                 )
             };
-            let id: u16 = String::from_utf8(ack.to_vec())
-                .unwrap()
-                .split('(')
-                .nth(1)
-                .unwrap()
-                .split(')')
-                .next()
-                .unwrap()
-                .parse()
-                .unwrap();
-            assert_eq!(client_id, id);
         }
         Err(e) => {
-            println!("SERVER ({:?}) Error: {:?}", client_num, e)
+            println!("SERVER ({:?}) Error: {:?}", server_num, e)
         }
     }
 
@@ -159,7 +167,7 @@ impl Protocol for SocketServer {
             return Err(StartError::Other);
         }
 
-        let mut tasks = Vec::new();
+        let mut tasks = JoinSet::new();
         let mut client_num = 1;
         // Continuously accept incoming connections in a loop, spawning a
         // new tokio task to handle each accepted connection
@@ -172,9 +180,9 @@ impl Protocol for SocketServer {
 
             // Spawn a new tokio task for handling communication
             // with the new client
-            tasks.push(tokio::spawn(async move {
+            tasks.spawn(async move {
                 communicate_with_client(socket, client_num, output).await;
-            }));
+            });
 
             client_num += 1;
 
@@ -184,9 +192,13 @@ impl Protocol for SocketServer {
             // the third has ended
             if tasks.len() >= num_clients {
                 while !tasks.is_empty() {
-                    tasks.pop().unwrap().await.unwrap();
-                    if self.output {
-                        println!("Remaining Clients: {:?}", tasks.len());
+                    match tasks.join_next().await.unwrap() {
+                        Ok(_) => {
+                            if self.output {
+                                println!("Remaining Clients: {:?}", tasks.len());
+                            }
+                        }
+                        Err(e) => eprintln!("{:?}", e),
                     }
                 }
                 break;

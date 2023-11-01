@@ -12,6 +12,12 @@ pub use socket_client::SocketClient;
 mod socket_server;
 pub use socket_server::SocketServer;
 
+mod basic_client;
+pub use basic_client::BasicClient;
+
+mod basic_server;
+pub use basic_server::BasicServer;
+
 mod forward;
 pub use forward::Forward;
 

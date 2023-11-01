@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use elvis::simulations;
-use elvis_core::protocols::socket_api::socket::SocketType;
+use elvis::simulations::{self, basic_server_client};
+use elvis_core::{protocols::socket_api::socket::SocketType, Transport};
 use tokio::runtime::Runtime;
 
 fn basic(c: &mut Criterion) {
@@ -53,6 +53,34 @@ fn socket_basic_tcp_100(c: &mut Criterion) {
     });
 }
 
+fn basic_server_client_udp(c: &mut Criterion) {
+    c.bench_function("Basic Server Client (UDP)", |b| {
+        b.to_async(runtime())
+            .iter(|| basic_server_client(Transport::Udp, 1, false, 0))
+    });
+}
+
+fn basic_server_client_tcp(c: &mut Criterion) {
+    c.bench_function("Basic Server Client (TCP)", |b| {
+        b.to_async(runtime())
+            .iter(|| basic_server_client(Transport::Tcp, 1, false, 0))
+    });
+}
+
+fn basic_server_client_udp_100(c: &mut Criterion) {
+    c.bench_function("Basic Server Client (100x UDP)", |b| {
+        b.to_async(runtime())
+            .iter(|| basic_server_client(Transport::Udp, 100, false, 0))
+    });
+}
+
+fn basic_server_client_tcp_100(c: &mut Criterion) {
+    c.bench_function("Basic Server Client (100x TCP)", |b| {
+        b.to_async(runtime())
+            .iter(|| basic_server_client(Transport::Tcp, 100, false, 0))
+    });
+}
+
 fn runtime() -> Runtime {
     Runtime::new().unwrap()
 }
@@ -84,6 +112,10 @@ criterion_group!(
     socket_basic_tcp,
     socket_basic_udp_100,
     socket_basic_tcp_100,
+    basic_server_client_udp,
+    basic_server_client_tcp,
+    basic_server_client_udp_100,
+    basic_server_client_tcp_100,
 );
 
-criterion_main!(benches);
+criterion_main!(sockets);
