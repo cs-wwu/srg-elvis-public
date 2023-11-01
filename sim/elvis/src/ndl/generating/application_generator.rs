@@ -277,7 +277,7 @@ pub fn ping_pong_builder(
 }
 
 /// Builds an [rip_router] application for the machine
-/// Also creates the required arp_router application when creating rip
+/// Also creates the required arp_router application when creating the rip router
 pub fn rip_router_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
@@ -313,6 +313,7 @@ pub fn rip_router_builder(
             })
         })
         .collect();
+    
     let rip = RipRouter::new(local_ips.clone());
     
     let arp = ArpRouter::new(router_table.clone(), local_ips.clone());

@@ -508,19 +508,11 @@ fn machine_applications_parser(
         //Check remaining string to identify indentation of next line
         t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
 
-        //Case: there are no more applications to parse
-        if t < num_tabs {
-            apps.push(Application {
-                dectype: app_dectype.unwrap(),
-                options: app_options.unwrap(),
-                router_table: None,
-            });
-            break;
-        }
+        let mut router_table= None;
         //Case: next line is indented which means router entries are being provided
-        else if t > num_tabs {
+        if t > num_tabs {
             //Parse router entries
-            let router_table = match router_entry_parser(
+            router_table = Some(match router_entry_parser(
                 &mut remaining_string,
                 num_tabs + 1,
                 line_num,
@@ -537,29 +529,19 @@ fn machine_applications_parser(
                         e
                     ),
                 )),
-            };
-
-            apps.push(Application {
-                dectype: app_dectype.unwrap(),
-                options: app_options.unwrap(),
-                router_table: Some(router_table),
-            });
-            //Check if there is another application after router entries
-            t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
-            if t < num_tabs {
-                break;
-            }
-
-        }
-        //Case: Same indentation means there is another application on the next line
-        else {
-            apps.push(Application {
-                dectype: app_dectype.unwrap(),
-                options: app_options.unwrap(),
-                router_table: None,
             });
         }
-        
+        apps.push(Application {
+            dectype: app_dectype.unwrap(),
+            options: app_options.unwrap(),
+            router_table: router_table,
+        });
+
+        //Check if there is another application after router entries
+        t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
+        if t < num_tabs {
+            break;
+        }
     }
     Ok((apps, remaining_string))
 }
@@ -585,32 +567,23 @@ fn router_entry_parser(
     //Loop through the router entries until a new indentation is found
     while !remaining_string.is_empty() {
         let entry = general_parser(&remaining_string[num_tabs as usize..], line_num);
-        match entry {
-            Ok(n) => {
-                // Verify the RouterEntry is of the correct type
-                if n.0 == DecType::RouterEntry {
-                    // Store the RouterTable entries
-                    router_entries.push(n.1);
-                    *remaining_string = n.2;
-                }
-                else if n.0 == DecType::IP {
-                    // Store the local ips
-                    local_ips.push(
-                        IP {
-                            dectype : n.0,
-                            options : n.1,
-                        }
-                    );
-                    *remaining_string = n.2;
-                }
-                else {
-                    return Err("Invalid router sub-type".to_string());
-                }
+        let n = match entry {
+            Ok(n) => n,
+            Err(e) => return Err(e),
+        };
+        match n.0 {
+            DecType::RouterEntry => {
+                router_entries.push(n.1);
+                *remaining_string = n.2;
             }
-            Err(e) => {
-                // General parser error
-                return Err(e);
+            DecType::IP => {
+                local_ips.push(IP {
+                    dectype: n.0,
+                    options: n.1,
+                });
+                *remaining_string = n.2;
             }
+            _ => return Err("Invalid router sub-type".to_string()),
         }
 
         t = remaining_string.chars().take_while(|c| c == &'\t').count() as i32;
