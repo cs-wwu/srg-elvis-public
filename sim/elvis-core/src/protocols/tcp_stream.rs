@@ -15,13 +15,9 @@ impl TcpStream {
         protocols: ProtocolMap,
     ) -> Result<Self, SocketError> {
         let sockets_api = protocols.protocol::<SocketAPI>().unwrap();
-        let mut socket = SocketAPI::new_socket(
-            &sockets_api,
-            ProtocolFamily::INET,
-            SocketType::Stream,
-            protocols,
-        )
-        .await?;
+        let mut socket = sockets_api
+            .new_socket(ProtocolFamily::INET, SocketType::Stream, protocols)
+            .await?;
         socket.connect(remote_address).await?;
 
         Ok(Self {

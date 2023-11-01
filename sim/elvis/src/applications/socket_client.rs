@@ -120,6 +120,7 @@ impl Protocol for SocketClient {
         }
         let ack = format!("({}) Acknowledged", self.client_id);
         socket.send(ack).unwrap();
+        socket.close();
         Ok(())
     }
 

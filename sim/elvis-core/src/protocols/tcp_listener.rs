@@ -17,13 +17,9 @@ impl TcpListener {
         protocols: ProtocolMap,
     ) -> Result<Self, SocketError> {
         let sockets_api = protocols.protocol::<SocketAPI>().unwrap();
-        let mut socket = SocketAPI::new_socket(
-            &sockets_api,
-            ProtocolFamily::INET,
-            SocketType::Stream,
-            protocols.clone(),
-        )
-        .await?;
+        let mut socket = sockets_api
+            .new_socket(ProtocolFamily::INET, SocketType::Stream, protocols.clone())
+            .await?;
         socket.bind(socket_address)?;
         socket.listen(5000)?;
 

@@ -15,20 +15,20 @@ use tokio::{select, sync::mpsc::Receiver};
 /// An implementation of an individual Socket
 /// Created by the [`SocketAPI`]
 pub struct Socket {
-    pub family: ProtocolFamily,
-    pub sock_type: SocketType,
-    is_active: bool,
+    family: ProtocolFamily,
+    sock_type: SocketType,
+    pub(crate) is_active: bool,
     is_bound: bool,
-    is_listening: bool,
+    pub(crate) is_listening: bool,
     is_blocking: bool,
-    pub local_addr: Option<Endpoint>,
-    pub remote_addr: Option<Endpoint>,
+    pub(crate) local_addr: Option<Endpoint>,
+    pub(crate) remote_addr: Option<Endpoint>,
     session: RwLock<Option<Arc<dyn Session>>>,
     listen_backlog: usize,
     protocols: ProtocolMap,
     socket_api: Arc<SocketAPI>,
     message_receiver: Option<Receiver<Message>>,
-    connection_receiver: Option<Receiver<Endpoint>>,
+    pub(crate) connection_receiver: Option<Receiver<Endpoint>>,
     shutdown: Shutdown,
 }
 
@@ -202,8 +202,8 @@ impl Socket {
             .get_socket_session(new_sock.local_addr.unwrap(), new_sock.remote_addr.unwrap())?;
         new_sock.message_receiver = Some(receiver);
         *new_sock.session.write().unwrap() = Some(session.clone());
-        session.receive_stored_messages().unwrap();
         new_sock.is_active = true;
+        session.receive_stored_messages().unwrap();
         Ok(new_sock)
     }
 
@@ -284,6 +284,24 @@ impl Socket {
             Some(v) => Ok(v),
             None => Err(SocketError::ReceiveError),
         }
+    }
+
+    pub fn close(self) {
+        if let Some(socket_api) = self.protocols.protocol::<SocketAPI>() {
+            socket_api.close_and_drop_socket(self);
+        }
+    }
+
+    fn close_during_drop(&mut self) {
+        if let Some(socket_api) = self.protocols.protocol::<SocketAPI>() {
+            socket_api.close_socket(self);
+        }
+    }
+}
+
+impl Drop for Socket {
+    fn drop(&mut self) {
+        self.close_during_drop();
     }
 }
 

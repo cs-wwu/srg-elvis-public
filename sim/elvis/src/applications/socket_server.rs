@@ -101,6 +101,8 @@ async fn communicate_with_client(mut socket: Socket, client_num: u16, output: bo
             println!("SERVER ({:?}) Error: {:?}", client_num, e)
         }
     }
+
+    socket.close();
 }
 
 #[async_trait::async_trait]
@@ -195,6 +197,7 @@ impl Protocol for SocketServer {
         if self.output {
             println!("SERVER: Shutting down");
         }
+        listen_socket.close();
         shutdown.shut_down();
         Ok(())
     }

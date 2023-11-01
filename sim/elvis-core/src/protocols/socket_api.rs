@@ -199,6 +199,35 @@ impl SocketAPI {
         };
         Ok(receiver)
     }
+
+    fn close_and_drop_socket(&self, mut socket: Socket) {
+        self.close_socket(&mut socket);
+        drop(socket);
+    }
+
+    fn close_socket(&self, socket: &mut Socket) {
+        if socket.is_active {
+            if let (Some(local_addr), Some(remote_addr)) = (socket.local_addr, socket.remote_addr) {
+                let identifier = Endpoints::new(local_addr, remote_addr);
+                self.socket_sessions.remove(&identifier);
+            }
+        }
+        if socket.is_listening {
+            if let Some(local_addr) = socket.local_addr {
+                self.listen_bindings.remove(&local_addr);
+                if let Some(ref mut receiver) = socket.connection_receiver {
+                    while let Ok(remote_endpoint) = receiver.try_recv() {
+                        let identifier = Endpoints::new(local_addr, remote_endpoint);
+                        self.socket_sessions.remove(&identifier);
+                    }
+                }
+            }
+        }
+    }
+
+    fn shutdown(&self) {
+        self.socket_sessions.clear();
+    }
 }
 
 #[async_trait::async_trait]
@@ -224,9 +253,14 @@ impl Protocol for SocketAPI {
             }
         }
 
-        *self.shutdown.write().unwrap() = Some(shutdown);
+        *self.shutdown.write().unwrap() = Some(shutdown.clone());
         self.notify_init.notify_one();
         initialized.wait().await;
+        let self_handle = protocols.protocol::<SocketAPI>().unwrap();
+        tokio::spawn(async move {
+            _ = shutdown.receiver().recv().await;
+            self_handle.shutdown();
+        });
         Ok(())
     }
 
@@ -242,7 +276,10 @@ impl Protocol for SocketAPI {
     ) -> Result<(), DemuxError> {
         let identifier = match control.get::<Endpoints>() {
             Some(endpoints) => *endpoints,
-            None => Endpoints::new_from_headers(control.get::<UdpHeader>(), control.get::<Ipv4Header>())?
+            None => Endpoints::new_from_headers(
+                control.get::<UdpHeader>(),
+                control.get::<Ipv4Header>(),
+            )?,
         };
         let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
 
@@ -290,16 +327,21 @@ impl Protocol for SocketAPI {
             NotifyType::NewConnection => {
                 let identifier = match control.get::<Endpoints>() {
                     Some(endpoints) => *endpoints,
-                    None => match Endpoints::new_from_headers(control.get::<UdpHeader>(), control.get::<Ipv4Header>()) {
+                    None => match Endpoints::new_from_headers(
+                        control.get::<UdpHeader>(),
+                        control.get::<Ipv4Header>(),
+                    ) {
                         Ok(endpoints) => endpoints,
-                        Err(_) => { return; },
-                    }
+                        Err(_) => {
+                            return;
+                        }
+                    },
                 };
                 let any_identifier =
                     Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
                 let session_lock = self.session_map_lock.read().unwrap();
                 match self.socket_sessions.entry(identifier) {
-                    Entry::Occupied(_) => { },
+                    Entry::Occupied(_) => {}
                     Entry::Vacant(entry) => {
                         // If the session does not exist, see if we have a listen
                         // binding for it
