@@ -68,3 +68,6 @@ pub use localhost::localhost;
 
 mod terminal_echo;
 pub use terminal_echo::terminal_echo;
+
+mod terminal_echo_double;
+pub use terminal_echo_double::terminal_echo_double;

@@ -37,11 +37,11 @@ impl Terminal {
         port: String,
         // protocols: ProtocolMap,
     ) {
-        println!("Begin run()");
-
         let listener = TcpListener::bind(port)
             .await
             .unwrap();
+
+        println!("Begin run() on port {}", listener.local_addr().unwrap());
 
         let (mut socket, _addr) = listener
             .accept()
@@ -62,6 +62,8 @@ impl Terminal {
                 break;
             }
 
+            // Pass line to TerminalParser to get Message and Endpoint?
+
             write.write_all(line.as_bytes())
                 .await
                 .unwrap();
@@ -69,7 +71,7 @@ impl Terminal {
             line.clear();
         }
 
-        println!("Left r/w loop");
+        println!("Finished r/w loop");
     }
 
     /// Returns and removes the first element in the msg_queue
