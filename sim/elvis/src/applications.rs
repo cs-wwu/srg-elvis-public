@@ -30,6 +30,9 @@ pub use throughput_tester::ThroughputTester;
 pub mod arp_router;
 pub use arp_router::ArpRouter;
 
+pub mod streaming_client;
+pub mod streaming_server;
+
 pub mod tcp_stream_client;
 pub use tcp_stream_client::TcpStreamClient;
 

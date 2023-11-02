@@ -11,7 +11,7 @@ fn catch_panic() {
 
 #[tokio::test]
 #[should_panic(
-    expected = "assertion failed: `(left == right)`\n  left: `5`,\n right: `4`: Network 1: Invalid IP octect count, expected 4 octets found 5 octets"
+    expected = "Network 1: Invalid IP octect count, expected 4 octets found 5 octets"
 )]
 async fn generator_util_invalid_ip_octets() {
     catch_panic();

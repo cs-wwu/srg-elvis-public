@@ -19,8 +19,8 @@ pub async fn server_user() {
     let server_socket_address: Endpoint = Endpoint::new(server_ip_address, 80);
 
     let ip_table: IpTable<Recipient> = [
-        (server_ip_address, Recipient::with_mac(0, 0)),
-        (client1_ip_address, Recipient::with_mac(0, 1)),
+        (server_ip_address, Recipient::with_mac(0, 1)),
+        (client1_ip_address, Recipient::with_mac(0, 0)),
     ]
     .into_iter()
     .collect();
