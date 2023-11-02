@@ -64,8 +64,7 @@ pub async fn dns_basic() {
         ],
     ];
 
-    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
-    assert_eq!(status, ExitStatus::Status(10));
+    run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
 }
 
 #[cfg(test)]

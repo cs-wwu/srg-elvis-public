@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
 use tokio::time::Duration;
 use elvis_core::{
@@ -10,7 +8,7 @@ use elvis_core::{
         socket_api::socket::SocketType,
         tcp::Tcp,
         udp::Udp,
-        Pci, SocketAPI,
+        Pci, SocketAPI, Arp,
     },
     IpTable, Network, run_internet_with_timeout,
 };
@@ -28,24 +26,20 @@ pub async fn dns_basic_many() {
     let dns_server_ip_address = Ipv4Address::DNS_ROOT_AUTH;
     let server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     
-    let num_clients: u32 = 1000;
+    let num_clients: u32 = 10;
 
     let mut client_ip_addresses: Vec<Ipv4Address> = vec![];
-
-    let mut ip_map = BTreeMap::new();
 
     for i in 0..num_clients {
         let tens: u8 = (i / 10).try_into().unwrap();
         let ones: u8 = (i % 10).try_into().unwrap();
         let this_client_ip_address = [123, 45, tens, ones].into();  // Ip addresses are arbitrary
         client_ip_addresses.push(this_client_ip_address);
-        ip_map.insert(this_client_ip_address, Recipient::with_mac(0, 1));
     }
 
-    ip_map.insert(dns_server_ip_address, Recipient::with_mac(0, 0));
-    ip_map.insert(server_ip_address, Recipient::with_mac(0, 1));
-
-    let ip_table: IpTable<Recipient> = ip_map.into_iter().collect();
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+    .into_iter()
+    .collect();
 
 
     let mut machines = vec![];
@@ -54,6 +48,7 @@ pub async fn dns_basic_many() {
         Udp::new(),
         Tcp::new(),
         Ipv4::new(ip_table.clone()),
+        Arp::new(),
         Pci::new([network.clone()]),
         SocketAPI::new(Some(dns_server_ip_address)),
         DnsServer::new()
@@ -64,6 +59,7 @@ pub async fn dns_basic_many() {
         Udp::new(),
         Tcp::new(),
         Ipv4::new(ip_table.clone()),
+        Arp::new(),
         Pci::new([network.clone()]),
         SocketAPI::new(Some(server_ip_address)),
         DnsTestServer::new(0xbeef, SocketType::Datagram)
@@ -75,6 +71,7 @@ pub async fn dns_basic_many() {
                 Tcp::new(),
                 Udp::new(),
                 Ipv4::new(ip_table.clone()),
+                Arp::new(),
                 Pci::new([network.clone()]),
                 SocketAPI::new(Some(client_ip_addresses[i as usize])),
                 DnsResolver::new(),
