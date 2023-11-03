@@ -224,3 +224,9 @@ impl Protocol for SocketServer {
         Ok(())
     }
 }
+
+impl Default for SocketServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}

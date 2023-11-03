@@ -7,7 +7,6 @@ use std::{
 };
 
 pub(super) struct SocketSession {
-    //pub upstream: RwLock<Option<Arc<Socket>>>,
     pub upstream: RwLock<Option<Sender<Message>>>,
     pub downstream: Arc<dyn Session>,
     pub stored_messages: RwLock<VecDeque<Message>>,

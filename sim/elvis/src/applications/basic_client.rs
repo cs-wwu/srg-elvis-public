@@ -2,10 +2,7 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{
-        ipv4::Ipv4Address,
-        Endpoint, dhcp_client::DhcpClient, Endpoints, Tcp, Udp,
-    },
+    protocols::{dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
     Control, Protocol, Session, Shutdown, Transport,
 };
 use std::{sync::Arc, time::Duration};
@@ -94,11 +91,7 @@ impl Protocol for BasicClient {
 
         let req = format!("({}) Ground Control to Major Tom", self.client_id);
         if self.output {
-            println!(
-                "CLIENT ({}): Sending Request: {:?}",
-                self.client_id,
-                req
-            )
+            println!("CLIENT ({}): Sending Request: {:?}", self.client_id, req)
         }
         session.send(Message::new(req), protocols.clone()).unwrap();
         Ok(())
@@ -122,12 +115,11 @@ impl Protocol for BasicClient {
         if self.output {
             println!(
                 "CLIENT ({}): Sending Acknowledgement: {:?}",
-                self.client_id,
-                ack
+                self.client_id, ack
             )
         }
         caller.send(Message::new(ack), protocols).unwrap();
-        
+
         Ok(())
     }
 }

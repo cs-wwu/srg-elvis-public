@@ -3,11 +3,8 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{
-        ipv4::ipv4_parsing::Ipv4Header,
-        Endpoint, Endpoints, Tcp, Udp, udp::UdpHeader,
-    },
-    Control, Protocol, Session, Shutdown, Transport, FxDashMap,
+    protocols::{ipv4::ipv4_parsing::Ipv4Header, udp::UdpHeader, Endpoint, Endpoints, Tcp, Udp},
+    Control, FxDashMap, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -30,12 +27,7 @@ pub struct BasicServer {
 }
 
 impl BasicServer {
-    pub fn new(
-        endpoint: Endpoint,
-        transport: Transport,
-        output: bool,
-        num_clients: u8
-    ) -> Self {
+    pub fn new(endpoint: Endpoint, transport: Transport, output: bool, num_clients: u8) -> Self {
         Self {
             endpoint,
             transport,
@@ -104,12 +96,11 @@ impl Protocol for BasicServer {
                     if self.output {
                         println!("SERVER: Shutting down");
                     }
-                    match *self.shutdown.write().unwrap() {
-                        Some(ref shutdown) => shutdown.shut_down(),
-                        None => { },
+                    if let Some(ref shutdown) = *self.shutdown.write().unwrap() {
+                        shutdown.shut_down()
                     }
                 }
-            },
+            }
             Entry::Vacant(entry) => {
                 if self.output {
                     println!(
@@ -117,16 +108,13 @@ impl Protocol for BasicServer {
                         String::from_utf8(message.to_vec()).unwrap()
                     )
                 }
-                let rsp = format!("Major Tom to Ground Control");
+                let rsp = "Major Tom to Ground Control";
                 if self.output {
-                    println!(
-                        "SERVER: Sending Response: {:?}",
-                        rsp
-                    )
+                    println!("SERVER: Sending Response: {:?}", rsp)
                 }
                 entry.insert(caller.clone());
                 caller.send(Message::new(rsp), protocols).unwrap();
-            },
+            }
         }
         Ok(())
     }

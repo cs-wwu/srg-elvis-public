@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::applications::{BasicServer, BasicClient};
+use crate::applications::{BasicClient, BasicServer};
 use elvis_core::{
     new_machine,
     protocols::{
@@ -8,7 +8,7 @@ use elvis_core::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         tcp::Tcp,
         udp::Udp,
-        Arp, Pci, Endpoint,
+        Arp, Endpoint, Pci,
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network, Transport,
 };
@@ -54,7 +54,14 @@ pub async fn basic_server_client(
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             Arp::new().preconfig_subnet([111, 111, 11, i].into(), info),
-            BasicClient::new(i.into(), server_endpoint, [111, 111, 11, i].into(), transport, output, delay_ms),
+            BasicClient::new(
+                i.into(),
+                server_endpoint,
+                [111, 111, 11, i].into(),
+                transport,
+                output,
+                delay_ms
+            ),
         ])
     }
 

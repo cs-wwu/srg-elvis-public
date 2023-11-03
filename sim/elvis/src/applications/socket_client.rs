@@ -117,7 +117,10 @@ impl Protocol for SocketClient {
         // Send an acknowledgement message
         let ack = format!("({}) Acknowledged", self.client_id);
         if self.output {
-            println!("CLIENT ({}): Sending Acknowledgement: {:?}", self.client_id, ack);
+            println!(
+                "CLIENT ({}): Sending Acknowledgement: {:?}",
+                self.client_id, ack
+            );
         }
         socket.send(ack).unwrap();
         socket.close();

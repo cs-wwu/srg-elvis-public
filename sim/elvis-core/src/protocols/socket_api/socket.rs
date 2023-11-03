@@ -241,17 +241,12 @@ impl Socket {
             Some(v) => v,
             None => return Err(SocketError::AcceptError),
         };
-        // If there is no data in the queue to recv, and the socket is blocking,
-        // block until there is data to be received
-        // if self.wait_for_notify(NotifyType::NewMessage).await == NotifyResult::Shutdown {
-        //     return Err(SocketError::Shutdown);
-        // }
         let mut buf = Vec::new();
         while buf.len() < bytes {
             let mut message = match self.stored_message.take() {
                 Some(msg) => msg,
                 None => {
-                    if buf.is_empty() {
+                    if buf.is_empty() && self.is_blocking {
                         select! {
                             _ = shutdown_receiver.recv() => { return Err(SocketError::ReceiveError); },
                             message = message_receiver.recv() => {
@@ -279,20 +274,6 @@ impl Socket {
                 self.stored_message = Some(message);
             }
         }
-        // let queue = &mut *self.messages.write().unwrap();
-        // while let Some(text) = queue.front_mut() {
-        //     if text.len() <= bytes {
-        //         buf.extend(text.iter());
-        //         queue.pop_front();
-        //     } else {
-        //         buf.extend(text.iter().take(bytes));
-        //         text.slice(bytes..);
-        //         break;
-        //     }
-        // }
-        // if !queue.is_empty() {
-        //     self.notify_recv.notify_one();
-        // }
         Ok(buf)
     }
 
