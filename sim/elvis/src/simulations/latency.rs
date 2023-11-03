@@ -54,8 +54,10 @@ pub async fn latency() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn latency() {
-        super::latency().await
+        for _ in 0..5 {
+            super::latency().await;
+        }
     }
 }

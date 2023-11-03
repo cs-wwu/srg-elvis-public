@@ -65,33 +65,45 @@ pub async fn socket_basic(transport: SocketType, num_clients: u8) {
 mod tests {
     use elvis_core::protocols::socket_api::socket::SocketType;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp() {
-        super::socket_basic(SocketType::Stream, 1).await;
+        for _ in 0..5 {
+            super::socket_basic(SocketType::Stream, 1).await;
+        }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp() {
-        super::socket_basic(SocketType::Datagram, 1).await;
+        for _ in 0..5 {
+            super::socket_basic(SocketType::Datagram, 1).await;
+        }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp_10_clients() {
-        super::socket_basic(SocketType::Stream, 10).await;
+        for _ in 0..5 {
+            super::socket_basic(SocketType::Stream, 10).await;
+        }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp_10_clients() {
-        super::socket_basic(SocketType::Datagram, 10).await;
+        for _ in 0..5 {
+            super::socket_basic(SocketType::Datagram, 10).await;
+        }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp_100_clients() {
-        super::socket_basic(SocketType::Stream, 100).await;
+        for _ in 0..5 {
+            super::socket_basic(SocketType::Stream, 100).await;
+        }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp_100_clients() {
-        super::socket_basic(SocketType::Datagram, 100).await;
+        for _ in 0..5 {
+            super::socket_basic(SocketType::Datagram, 100).await;
+        }
     }
 }

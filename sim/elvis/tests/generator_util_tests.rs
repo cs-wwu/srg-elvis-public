@@ -9,7 +9,7 @@ fn catch_panic() {
     }));
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(
     expected = "Network 1: Invalid IP octect count, expected 4 octets found 5 octets"
 )]
@@ -19,7 +19,7 @@ async fn generator_util_invalid_ip_octets() {
     generate_and_run_sim(file_path).await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Invalid IP octet expected u8. In Network 1, found: 99999")]
 async fn generator_util_invalid_ip_u8_octets() {
     catch_panic();
@@ -27,7 +27,7 @@ async fn generator_util_invalid_ip_u8_octets() {
     generate_and_run_sim(file_path).await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Port declaration error. Found port: beefasdasd")]
 async fn generator_util_invalid_port_number() {
     catch_panic();

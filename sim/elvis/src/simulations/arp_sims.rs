@@ -245,27 +245,35 @@ pub async fn ping_pong() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
     async fn simple() {
-        super::simple().await;
+        for _ in 0..5 {
+            super::simple().await;
+        }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
     async fn test_no_broadcast() {
-        super::test_no_broadcast().await;
+        for _ in 0..5 {
+            super::test_no_broadcast().await;
+        }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
     async fn test_resend() {
-        super::test_resend().await;
+        for _ in 0..5 {
+            super::test_resend().await;
+        }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
     async fn ping_pong() {
-        super::ping_pong().await;
+        for _ in 0..5 {
+            super::ping_pong().await;
+        }
     }
 }
