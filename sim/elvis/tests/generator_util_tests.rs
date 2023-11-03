@@ -10,9 +10,7 @@ fn catch_panic() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[should_panic(
-    expected = "Network 1: Invalid IP octect count, expected 4 octets found 5 octets"
-)]
+#[should_panic(expected = "Network 1: Invalid IP octect count, expected 4 octets found 5 octets")]
 async fn generator_util_invalid_ip_octets() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/utils/invalid_ip_octets.txt".to_string();

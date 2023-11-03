@@ -7,12 +7,13 @@ use std::collections::BinaryHeap;
 /// Timer lower bound
 const TLB: u8 = 15;
 
-/// Marks a particular call to [`Reassembly::add_fragment`]. Used to prevent
+/// Marks a particular call to [`Segment::receive_packet`]. Used to prevent
 /// reassembly resources from being cleared if new fragments came in before a
 /// timeout expired.
 pub type Epoch = u16;
 
-/// Reassembly resources for a given [`BufId`] datagram identifier.
+/// Reassembly resources for a given [`BufId`](super::buf_id::BufId) datagram identifier.
+/// A Segment is used to track the fragments of a fragmented IPv4 datagram.
 #[derive(Debug, Clone)]
 pub struct Segment {
     header: Option<Ipv4Header>,
@@ -32,7 +33,7 @@ pub struct Segment {
     pub timeout_seconds: u8,
     /// The current iteration of this data structure. Incremented each time a
     /// fragment arrives.
-    pub epoch: u16,
+    pub epoch: Epoch,
 }
 
 impl Segment {

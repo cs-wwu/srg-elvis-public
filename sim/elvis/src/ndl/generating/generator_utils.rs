@@ -32,7 +32,7 @@ pub fn ip_string_to_ip(s: String, net_id: &str) -> [u8; 4] {
     }
 
     assert!(
-        new_ip.len()==4,
+        new_ip.len() == 4,
         "Network {}: Invalid IP octect count, expected 4 octets found {} octets",
         net_id,
         new_ip.len()

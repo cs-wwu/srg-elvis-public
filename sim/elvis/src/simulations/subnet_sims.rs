@@ -54,8 +54,6 @@ struct MockGateway {
 
 #[async_trait::async_trait]
 impl Protocol for MockGateway {
-    /// Gives the application an opportunity to set up before the simulation
-    /// begins.
     async fn start(
         &self,
         _shutdown: Shutdown,
@@ -74,8 +72,6 @@ impl Protocol for MockGateway {
         Ok(())
     }
 
-    /// Called when the containing [`UserProcess`] receives a message over the
-    /// network and gives the application time to handle it.
     fn demux(
         &self,
         message: Message,
