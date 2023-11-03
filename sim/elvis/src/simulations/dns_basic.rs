@@ -70,9 +70,11 @@ pub async fn dns_basic() {
 #[cfg(test)]
 mod tests {
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
     async fn dns_basic() {
-        super::dns_basic().await
+        for _ in 0..5 {
+            super::dns_basic().await;
+        }
     }
 }
