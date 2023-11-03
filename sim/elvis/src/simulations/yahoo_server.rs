@@ -81,8 +81,10 @@ pub async fn yahoo_server() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn yahoo_server() {
-        super::yahoo_server().await;
+        for _ in 0..5 {
+            super::yahoo_server().await;
+        }
     }
 }
