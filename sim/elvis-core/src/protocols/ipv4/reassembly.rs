@@ -34,7 +34,7 @@ impl Reassembly {
     /// - The fragment completes a datagram and the complete datagram is
     /// returned
     /// - The fragment is part of an incomplete datagram and is buffered while
-    ///   waiting for the rest of the datagram. See [`AddFragmentResult`] for
+    ///   waiting for the rest of the datagram. See [`ReceivePacketResult`] for
     ///   more details on the caller's responsibility in this event.
     pub fn receive_packet(&mut self, header: Ipv4Header, body: Message) -> ReceivePacketResult {
         // (1) BUFID <- source|destination|protocol|identification
@@ -91,7 +91,7 @@ pub enum ReceivePacketResult {
     Complete(Ipv4Header, Message),
     /// The added fragment did not complete a datagram. The caller should set a
     /// timeout for the given duration and call
-    /// [`Reassembly::maybe_cull_pending`] with the provided [`BufId`] and
+    /// [`Reassembly::maybe_cull_segment`] with the provided [`BufId`] and
     /// [`Epoch`] after the timeout expires.
     Incomplete(Duration, BufId, Epoch),
 }
