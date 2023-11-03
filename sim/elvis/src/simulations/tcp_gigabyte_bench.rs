@@ -1,4 +1,4 @@
-use crate::applications::{SendMessage, WaitForMessage};
+use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
     network::NetworkBuilder,
@@ -37,9 +37,7 @@ pub async fn tcp_gigabyte_bench() {
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            WaitForMessage::new(endpoint, message)
-                .transport(Transport::Tcp)
-                .disable_checking()
+            Capture::new(endpoint, 1).transport(Transport::Tcp)
         ],
     ];
 
