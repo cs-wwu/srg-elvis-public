@@ -139,4 +139,3 @@ async fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
-

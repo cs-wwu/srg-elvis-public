@@ -1,5 +1,5 @@
 use super::Ipv4Address;
-use crate::protocols::utility::{Checksum, BytesExt};
+use crate::protocols::utility::{BytesExt, Checksum};
 use std::fmt::{self, Debug, Formatter};
 use thiserror::Error as ThisError;
 

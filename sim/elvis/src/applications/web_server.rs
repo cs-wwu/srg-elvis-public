@@ -28,10 +28,10 @@ pub enum WebServerType {
 /// html pages.
 ///
 /// Usage:
-/// For a specific index i, buckets[i] signifies the lower bound of the value range encompassed by
-/// that bucket, while buckets[i+1] represents the upper bound. The difference between values at
+/// For a specific index i, `buckets[i]` signifies the lower bound of the value range encompassed by
+/// that bucket, while `buckets[i+1]` represents the upper bound. The difference between values at
 /// adjacent indices is constant, so the upper bound for the last bucket can be inferred.
-/// Weights[i] represents the count of web pages that fall within that particular range, providing
+/// `Weights[i]` represents the count of web pages that fall within that particular range, providing
 /// a clear representation of how the attribute's values are distributed across the dataset.
 #[derive(Clone)]
 struct DistributionData {
@@ -275,7 +275,7 @@ impl ServerConnection {
         result
     }
 
-    /// Returns a randomly selected number based on the distribution specified in <data> if
+    /// Returns a randomly selected number based on the distribution specified in `data` if
     /// self.seed == None. The number returned will be one of the bucket values. Buckets with
     /// higher weights are more likely to be selected. If self.seed == Some then the value of seed
     /// will be returned instead. See DistributionData documentation for more details.

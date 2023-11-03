@@ -18,7 +18,7 @@
 //! [x-kernel] design for protocol layering.
 //!
 //! # Organization
-//! - [`Message`](message::Message) and [`Control`] provide basic utilities
+//! - [`Message`] and [`Control`] provide basic utilities
 //!   common to most protocols
 //! - [`Protocol`] and [`Session`] implement individual protocols
 //! - [`run_internet`] runs the actual simulation
