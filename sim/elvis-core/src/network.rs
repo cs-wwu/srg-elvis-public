@@ -209,9 +209,10 @@ impl NetworkBuilder {
 pub(crate) struct Delivery {
     /// The message being sent
     pub message: Message,
-    /// Identifies the [`Tap`] that sent the message
+    /// Identifies the machine that sent the message.
     pub sender: Mac,
-    /// Identifies the [`Tap`] that should receive the message. If the
+    /// Identifies the machine that should receive the message
+    /// (typically through a [`PciSession`]). If the
     /// destination is `None`, the message should be broadcast.
     pub destination: Option<Mac>,
     /// The protocol that should respond to the packet, usually an IP protocol

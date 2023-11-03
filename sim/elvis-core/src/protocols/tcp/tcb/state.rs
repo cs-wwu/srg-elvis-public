@@ -1,7 +1,7 @@
 /// The state of the TCP state machine as described in section 3.3.2. The CLOSED
 /// and LISTEN states are not included and are instead handled by the
-/// freestanding functions [`handle_closed`](super::handle_closed) and
-/// [`handle_listen`](super::handle_listen). The TCP state machine is described
+/// freestanding functions [`segment_arrives_closed`](super::segment_arrives_closed) and
+/// [`segment_arrives_listen`](super::segment_arrives_listen). The TCP state machine is described
 /// by the diagram below.
 ///
 /// ```text

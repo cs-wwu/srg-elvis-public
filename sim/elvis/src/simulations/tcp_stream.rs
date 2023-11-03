@@ -48,8 +48,10 @@ pub async fn tcp_stream() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn tcp_stream() {
-        super::tcp_stream().await;
+        for _ in 0..5 {
+            super::tcp_stream().await;
+        }
     }
 }
