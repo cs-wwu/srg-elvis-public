@@ -111,7 +111,7 @@ mod tests {
 
     use crate::applications::OnReceive;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn doctest() {
         let fn_to_run = |message, _context| println!("received message: {message}");
         let _puter = new_machine![

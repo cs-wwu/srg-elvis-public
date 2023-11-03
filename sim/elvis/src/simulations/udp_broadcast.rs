@@ -82,7 +82,7 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
 mod tests {
     use elvis_core::ExitStatus;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn udp_broadcast_basic() {
         let status = super::udp_broadcast_basic().await;
 

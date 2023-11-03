@@ -83,7 +83,7 @@ pub async fn socket_basic(
 mod tests {
     use elvis_core::{protocols::socket_api::socket::SocketType, ExitStatus};
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp() {
         for _ in 0..5 {
             assert_eq!(
@@ -93,7 +93,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp() {
         for _ in 0..5 {
             assert_eq!(
@@ -103,7 +103,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp_10_clients() {
         for _ in 0..5 {
             assert_eq!(
@@ -113,7 +113,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp_10_clients() {
         for _ in 0..5 {
             assert_eq!(
@@ -123,9 +123,9 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp_100_clients() {
-        for _ in 0..1 {
+        for _ in 0..5 {
             assert_eq!(
                 super::socket_basic(SocketType::Stream, 100, true, 0).await,
                 ExitStatus::Exited
@@ -133,7 +133,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp_100_clients() {
         for _ in 0..5 {
             assert_eq!(

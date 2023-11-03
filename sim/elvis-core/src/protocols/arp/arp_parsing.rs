@@ -41,6 +41,9 @@ pub struct ArpPacket {
 }
 
 impl ArpPacket {
+    /// The size of an ARP packet in bytes (28).
+    pub const SIZE: usize = 28;
+
     /// Initializes an Ipv4 over Ethernet Arp request.
     pub fn new_request(
         sender_mac: Mac,
@@ -82,7 +85,7 @@ impl ArpPacket {
 
     /// Creates a serialized ARP packet from the configuration provided.
     pub fn build(&self) -> Vec<u8> {
-        let mut out: Vec<u8> = Vec::new();
+        let mut out: Vec<u8> = Vec::with_capacity(Self::SIZE);
         // add htype, ptype, hlen, plen (useless)
         out.extend_from_slice(&self.htype.to_be_bytes());
         out.extend_from_slice(&self.ptype.to_be_bytes());
@@ -120,9 +123,9 @@ impl ArpPacket {
 
         // get MACs and IPs
         let sender_mac = bytes.next_u48_be().ok_or(HTS)?;
-        let sender_ip: Ipv4Address = bytes.next_u32_be().ok_or(HTS)?.into();
+        let sender_ip: Ipv4Address = bytes.next_ipv4addr().ok_or(HTS)?;
         let target_mac = bytes.next_u48_be().ok_or(HTS)?;
-        let target_ip: Ipv4Address = bytes.next_u32_be().ok_or(HTS)?.into();
+        let target_ip: Ipv4Address = bytes.next_ipv4addr().ok_or(HTS)?;
         Ok(Self {
             htype,
             ptype,

@@ -1,4 +1,4 @@
-use crate::protocols::{ipv4::Ipv4Address, utility::Checksum};
+use crate::protocols::{ipv4::Ipv4Address, utility::{Checksum, BytesExt}};
 use std::fmt::{self, Debug, Formatter};
 use thiserror::Error as ThisError;
 
@@ -48,25 +48,22 @@ impl TcpHeader {
         src_address: Ipv4Address,
         dst_address: Ipv4Address,
     ) -> Result<Self, ParseError> {
-        let mut next =
-            || -> Result<u8, ParseError> { packet.next().ok_or(ParseError::HeaderTooShort) };
+        const HTS: ParseError = ParseError::HeaderTooShort;
         let mut checksum = Checksum::new();
 
-        let src_port = u16::from_be_bytes([next()?, next()?]);
+        let src_port = packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(src_port);
 
-        let dst_port = u16::from_be_bytes([next()?, next()?]);
+        let dst_port =  packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(dst_port);
 
-        let sequence_bytes = [next()?, next()?, next()?, next()?];
-        let seq = u32::from_be_bytes(sequence_bytes);
-        checksum.add_u32(sequence_bytes);
+        let seq = packet.next_u32_be().ok_or(HTS)?;
+        checksum.add_u32(seq.to_be_bytes());
 
-        let acknowledgement_bytes = [next()?, next()?, next()?, next()?];
-        let ack = u32::from_be_bytes(acknowledgement_bytes);
-        checksum.add_u32(acknowledgement_bytes);
+        let ack = packet.next_u32_be().ok_or(HTS)?;
+        checksum.add_u32(ack.to_be_bytes());
 
-        let offset_reserved_control = [next()?, next()?];
+        let offset_reserved_control = packet.next_n::<2>().ok_or(HTS)?;
         checksum.add_u16(u16::from_be_bytes(offset_reserved_control));
         let data_offset = offset_reserved_control[0] >> 4;
         let ctl = Control::from(offset_reserved_control[1] & 0b11_1111);
@@ -76,12 +73,12 @@ impl TcpHeader {
             Err(ParseError::UnexpectedOptions)?
         }
 
-        let wnd = u16::from_be_bytes([next()?, next()?]);
+        let wnd = packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(wnd);
 
-        let expected_checksum = u16::from_be_bytes([next()?, next()?]);
+        let expected_checksum = packet.next_u16_be().ok_or(HTS)?;
 
-        let urg = u16::from_be_bytes([next()?, next()?]);
+        let urg = packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(urg);
 
         checksum.accumulate_remainder(&mut packet);
