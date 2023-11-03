@@ -1,4 +1,7 @@
-use crate::protocols::{ipv4::Ipv4Address, utility::{Checksum, BytesExt}};
+use crate::protocols::{
+    ipv4::Ipv4Address,
+    utility::{BytesExt, Checksum},
+};
 use thiserror::Error as ThisError;
 
 /// The number of bytes in a UDP header

@@ -17,9 +17,9 @@ pub struct VideoServer {
 /// Server that, at the request of a client, sends video segments of varying quality
 impl VideoServer {
     pub fn new(server_address: Endpoint) -> Self {
-        Self { 
+        Self {
             server_address,
-            bytes_sent: 0 
+            bytes_sent: 0,
         }
     }
 }
