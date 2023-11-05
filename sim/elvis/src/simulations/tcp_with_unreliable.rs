@@ -1,4 +1,4 @@
-use crate::applications::{SendMessage, WaitForMessage};
+use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
     network::{Latency, NetworkBuilder},
@@ -48,7 +48,7 @@ pub async fn tcp_with_unreliable() {
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            WaitForMessage::new(endpoint, message).transport(Transport::Tcp)
+            Capture::new_msg(endpoint, message).transport(Transport::Tcp)
         ],
     ];
 
@@ -58,8 +58,10 @@ pub async fn tcp_with_unreliable() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn tcp_with_unreliable() {
-        super::tcp_with_unreliable().await
+        for _ in 0..5 {
+            super::tcp_with_unreliable().await;
+        }
     }
 }

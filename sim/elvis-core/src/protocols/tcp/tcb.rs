@@ -96,7 +96,7 @@ impl Tcb {
     /// Implements [section
     /// 3.10.1](https://www.rfc-editor.org/rfc/rfc9293.html#name-open-call) for
     /// the case of an active open. Handling for packets in a passive open
-    /// LISTEN state is provided by [`handle_listen`].
+    /// LISTEN state is provided by [`segment_arrives_listen`].
     pub fn open(id: Endpoints, iss: u32, mtu: Mtu) -> Self {
         let mut tcb = Self::new(
             id,

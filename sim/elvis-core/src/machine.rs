@@ -78,7 +78,7 @@ impl ProtocolMap {
 ///
 /// A machine is conceptually a computer attached to the internet. Machines
 /// communicate through [`Network`](super::Network)s. Each machine contains a
-/// set of [`Protocol`](super::Protocol)s that it manages. The protocols may be
+/// set of [`Protocol`]s that it manages. The protocols may be
 /// networking protocols or user programs.
 pub struct Machine {
     // pub network_api: NetworkAPI,

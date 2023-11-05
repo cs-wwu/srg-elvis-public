@@ -13,7 +13,7 @@ use itertools::Itertools;
 
 use super::generator_data::NetworkInfo;
 
-/// Machine Generator generates machines from a given [Machines] struct and places them in the [Internet]
+/// Machine Generator generates machines from a given [Machines] struct and places them in the resulting Vec.
 pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvis_core::Machine> {
     // Focusing on Interfaces, protocols, and applications
     let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();

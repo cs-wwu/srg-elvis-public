@@ -58,8 +58,10 @@ pub async fn server_user() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn server_user() {
-        super::server_user().await;
+        for _ in 0..5 {
+            super::server_user().await;
+        }
     }
 }

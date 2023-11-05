@@ -54,8 +54,6 @@ struct MockGateway {
 
 #[async_trait::async_trait]
 impl Protocol for MockGateway {
-    /// Gives the application an opportunity to set up before the simulation
-    /// begins.
     async fn start(
         &self,
         _shutdown: Shutdown,
@@ -74,8 +72,6 @@ impl Protocol for MockGateway {
         Ok(())
     }
 
-    /// Called when the containing [`UserProcess`] receives a message over the
-    /// network and gives the application time to handle it.
     fn demux(
         &self,
         message: Message,
@@ -201,8 +197,10 @@ pub async fn test_subnet() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_subnet() {
-        super::test_subnet().await;
+        for _ in 0..5 {
+            super::test_subnet().await;
+        }
     }
 }

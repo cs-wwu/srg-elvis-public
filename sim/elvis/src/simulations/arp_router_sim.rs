@@ -304,7 +304,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
 #[cfg(test)]
 mod tests {
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn arp_router_single() {
         let test1 = super::arp_router_single(super::IPS[1]);
         let test2 = super::arp_router_single(super::IPS[2]);
@@ -315,7 +315,7 @@ mod tests {
         assert_eq!(test3.await, super::ExitStatus::Status(3));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn arp_router_single2() {
         let test1 = super::arp_router_single2(super::IPS[1]);
         let test2 = super::arp_router_single2(super::IPS[2]);
@@ -328,7 +328,7 @@ mod tests {
         assert_eq!(test4.await, super::ExitStatus::Status(4));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn arp_router_multi() {
         let test1 = super::arp_router_multi(super::IPS[1]);
         let test2 = super::arp_router_multi(super::IPS[2]);
