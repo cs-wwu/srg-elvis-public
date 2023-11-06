@@ -118,4 +118,4 @@ criterion_group!(
     basic_server_client_tcp_100,
 );
 
-criterion_main!(sockets);
+criterion_main!(benches);
