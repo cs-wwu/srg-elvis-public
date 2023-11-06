@@ -36,7 +36,7 @@ impl Protocol for VideoServer {
         _initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        let listener = TcpListener::bind(self.server_address, protocols)
+        let mut listener = TcpListener::bind(self.server_address, protocols)
             .await
             .unwrap();
 

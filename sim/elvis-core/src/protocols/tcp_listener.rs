@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::{
     socket_api::socket::{ProtocolFamily, Socket, SocketError, SocketType},
     tcp_stream::TcpStream,
@@ -9,7 +7,7 @@ use super::{
 use crate::{machine::ProtocolMap, protocols::SocketAPI};
 
 pub struct TcpListener {
-    local_socket: Arc<Socket>,
+    local_socket: Socket,
 }
 
 impl TcpListener {
@@ -19,13 +17,9 @@ impl TcpListener {
         protocols: ProtocolMap,
     ) -> Result<Self, SocketError> {
         let sockets_api = protocols.protocol::<SocketAPI>().unwrap();
-        let socket = SocketAPI::new_socket(
-            &sockets_api,
-            ProtocolFamily::INET,
-            SocketType::Stream,
-            protocols.clone(),
-        )
-        .await?;
+        let mut socket = sockets_api
+            .new_socket(ProtocolFamily::INET, SocketType::Stream, protocols.clone())
+            .await?;
         socket.bind(socket_address)?;
         socket.listen(5000)?;
 
@@ -35,7 +29,7 @@ impl TcpListener {
     }
 
     /// Creates a new TcpStream bound to the local socket
-    pub async fn accept(&self) -> Result<TcpStream, SocketError> {
+    pub async fn accept(&mut self) -> Result<TcpStream, SocketError> {
         let remote_socket = self.local_socket.accept().await?;
         let stream = TcpStream {
             local_socket: remote_socket,
