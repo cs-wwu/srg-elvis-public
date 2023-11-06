@@ -21,7 +21,12 @@ use elvis_core::{
 /// "response" messages to each client. The clients receive those
 /// responses, and each send back an "ackowledgement" message. The server
 /// receives the "ackowledgement" messages, and shuts down the simulation.
-pub async fn socket_basic(transport: SocketType, num_clients: u8) {
+pub async fn socket_basic(
+    transport: SocketType,
+    num_clients: u8,
+    output: bool,
+    delay_ms: u16,
+) -> ExitStatus {
     let network = Network::basic();
     let server_ip_address: Ipv4Address = [111, 111, 11, 0].into();
 
@@ -41,7 +46,10 @@ pub async fn socket_basic(transport: SocketType, num_clients: u8) {
         Pci::new([network.clone()]),
         Arp::new().preconfig_subnet(server_ip_address, info),
         SocketAPI::new(Some(server_ip_address)),
-        SocketServer::new(0xbeef, transport, num_clients.into())
+        SocketServer::new()
+            .transport(transport)
+            .num_clients(num_clients.into())
+            .output(output),
     ]];
     for i in 1..=num_clients {
         machines.push(new_machine![
@@ -51,59 +59,87 @@ pub async fn socket_basic(transport: SocketType, num_clients: u8) {
             Pci::new([network.clone()]),
             Arp::new().preconfig_subnet([111, 111, 11, i].into(), info),
             SocketAPI::new(Some([111, 111, 11, i].into())),
-            SocketClient::new(i.into(), server_ip_address, 0xbeef, transport)
+            SocketClient::new(
+                i.into(),
+                server_ip_address,
+                0xbeef,
+                transport,
+                output,
+                delay_ms
+            )
         ])
     }
 
-    println!("Number of machines: {:?}", machines.len());
-
-    let status = run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
+    let status = run_internet_with_timeout(
+        &machines,
+        Duration::from_millis((u64::from(delay_ms) * u64::from(num_clients) * 2) + 1000),
+    )
+    .await;
     assert_eq!(status, ExitStatus::Exited);
+    status
 }
 
 #[cfg(test)]
 mod tests {
-    use elvis_core::protocols::socket_api::socket::SocketType;
+    use elvis_core::{protocols::socket_api::socket::SocketType, ExitStatus};
 
     #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp() {
         for _ in 0..5 {
-            super::socket_basic(SocketType::Stream, 1).await;
+            assert_eq!(
+                super::socket_basic(SocketType::Stream, 1, false, 0).await,
+                ExitStatus::Exited
+            );
         }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp() {
         for _ in 0..5 {
-            super::socket_basic(SocketType::Datagram, 1).await;
+            assert_eq!(
+                super::socket_basic(SocketType::Datagram, 1, false, 0).await,
+                ExitStatus::Exited
+            );
         }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp_10_clients() {
         for _ in 0..5 {
-            super::socket_basic(SocketType::Stream, 10).await;
+            assert_eq!(
+                super::socket_basic(SocketType::Stream, 10, false, 0).await,
+                ExitStatus::Exited
+            );
         }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp_10_clients() {
         for _ in 0..5 {
-            super::socket_basic(SocketType::Datagram, 10).await;
+            assert_eq!(
+                super::socket_basic(SocketType::Datagram, 10, false, 0).await,
+                ExitStatus::Exited
+            );
         }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_tcp_100_clients() {
         for _ in 0..5 {
-            super::socket_basic(SocketType::Stream, 100).await;
+            assert_eq!(
+                super::socket_basic(SocketType::Stream, 100, true, 0).await,
+                ExitStatus::Exited
+            );
         }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn socket_basic_udp_100_clients() {
         for _ in 0..5 {
-            super::socket_basic(SocketType::Datagram, 100).await;
+            assert_eq!(
+                super::socket_basic(SocketType::Datagram, 100, false, 0).await,
+                ExitStatus::Exited
+            );
         }
     }
 }

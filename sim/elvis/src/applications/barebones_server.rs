@@ -46,13 +46,13 @@ impl Protocol for BareBonesServer {
         drop(_shutdown);
 
         // Create a new TcpListener bound to the server address
-        let listener: TcpListener = TcpListener::bind(self.server_address, protocols)
+        let mut listener: TcpListener = TcpListener::bind(self.server_address, protocols)
             .await
             .unwrap();
 
         loop {
             // Accept an incoming connection to create new TcpStream
-            let stream: TcpStream = TcpListener::accept(&listener).await.unwrap();
+            let stream: TcpStream = TcpListener::accept(&mut listener).await.unwrap();
 
             tokio::spawn(async move {
                 BareBonesServer::handle_connection(stream).await;

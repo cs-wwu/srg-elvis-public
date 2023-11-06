@@ -43,7 +43,7 @@ impl Protocol for DnsTestClient {
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
 
-        let socket = sockets
+        let mut socket = sockets
             .new_socket(ProtocolFamily::INET, self.transport, protocols)
             .await
             .unwrap();
