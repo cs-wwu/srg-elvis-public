@@ -41,8 +41,10 @@ use socket_session::SocketSession;
 pub struct SocketAPI {
     local_address: Option<Ipv4Address>,
     local_ports: RwLock<u16>,
-    socket_sessions: FxDashMap<Endpoints, Arc<SocketSession>>,
-    session_map_lock: RwLock<()>,
+    // This type seems absurd, but its the best way I've found to achieve the required behavior.
+    // Most functions can freely write to the DashMap concurrently, and will use a read lock.
+    // get_socket_session requires exclusive write permissions, and will use a write lock.
+    socket_sessions: RwLock<FxDashMap<Endpoints, Arc<SocketSession>>>,
     listen_bindings: FxDashMap<Endpoint, Sender<Endpoint>>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
@@ -55,7 +57,6 @@ impl SocketAPI {
             local_address,
             local_ports: RwLock::new(49152),
             socket_sessions: Default::default(),
-            session_map_lock: Default::default(),
             listen_bindings: Default::default(),
             notify_init: Notify::new(),
             shutdown: Default::default(),
@@ -107,6 +108,7 @@ impl SocketAPI {
     }
 
     fn get_socket_session(
+        //
         &self,
         local: Endpoint,
         remote: Endpoint,
@@ -115,15 +117,14 @@ impl SocketAPI {
         let listen_identifier = Endpoints::new(listen_local, remote);
         let identifier = Endpoints::new(local, remote);
 
-        let session_lock = self.session_map_lock.write().unwrap();
-        let session = match self.socket_sessions.entry(listen_identifier) {
+        let session_map = self.socket_sessions.write().unwrap();
+        let session = match session_map.entry(listen_identifier) {
             Entry::Occupied(entry) => entry.remove(),
             Entry::Vacant(_) => {
                 return Err(SocketError::AcceptError);
             }
         };
-        self.socket_sessions.insert(identifier, session.clone());
-        drop(session_lock);
+        session_map.insert(identifier, session.clone());
 
         let (sender, receiver) = mpsc::channel(u8::MAX.into());
         *session.upstream.write().unwrap() = Some(sender);
@@ -154,11 +155,9 @@ impl SocketAPI {
                     .await?
             }
         };
-        let session_lock = self.session_map_lock.read().unwrap();
-        match self.socket_sessions.entry(socket_id) {
+        match self.socket_sessions.read().unwrap().entry(socket_id) {
             Entry::Occupied(_) => {
                 tracing::error!("Tried to create an existing session");
-                drop(session_lock);
                 Err(OpenError::Existing(socket_id))?
             }
             Entry::Vacant(entry) => {
@@ -169,7 +168,6 @@ impl SocketAPI {
                     stored_messages: RwLock::new(VecDeque::new()),
                 });
                 entry.insert(session.clone());
-                drop(session_lock);
                 Ok((session, receiver))
             }
         }
@@ -209,7 +207,7 @@ impl SocketAPI {
         if socket.is_active {
             if let (Some(local_addr), Some(remote_addr)) = (socket.local_addr, socket.remote_addr) {
                 let identifier = Endpoints::new(local_addr, remote_addr);
-                self.socket_sessions.remove(&identifier);
+                self.socket_sessions.read().unwrap().remove(&identifier);
             }
         }
         if socket.is_listening {
@@ -218,7 +216,7 @@ impl SocketAPI {
                 if let Some(ref mut receiver) = socket.connection_receiver {
                     while let Ok(remote_endpoint) = receiver.try_recv() {
                         let identifier = Endpoints::new(local_addr, remote_endpoint);
-                        self.socket_sessions.remove(&identifier);
+                        self.socket_sessions.read().unwrap().remove(&identifier);
                     }
                 }
             }
@@ -226,7 +224,7 @@ impl SocketAPI {
     }
 
     fn shutdown(&self) {
-        self.socket_sessions.clear();
+        self.socket_sessions.write().unwrap().clear();
     }
 }
 
@@ -283,8 +281,7 @@ impl Protocol for SocketAPI {
         };
         let any_identifier = Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
 
-        let session_lock = self.session_map_lock.read().unwrap();
-        match self.socket_sessions.entry(identifier) {
+        match self.socket_sessions.read().unwrap().entry(identifier) {
             Entry::Occupied(entry) => entry.get().receive(message)?,
             Entry::Vacant(entry) => {
                 // If the session does not exist, see if we have a listen
@@ -297,7 +294,6 @@ impl Protocol for SocketAPI {
                             tracing::error!(
                                 "Tried to demux with a missing session and no listen bindings"
                             );
-                            drop(session_lock);
                             return Err(DemuxError::MissingSession);
                         }
                     },
@@ -311,14 +307,12 @@ impl Protocol for SocketAPI {
                 match sender.try_send(identifier.remote) {
                     Ok(_) => {}
                     Err(_) => {
-                        drop(session_lock);
                         return Err(DemuxError::MissingSession);
                     }
                 };
                 entry.insert(session);
             }
         };
-        drop(session_lock);
         Ok(())
     }
 
@@ -339,8 +333,7 @@ impl Protocol for SocketAPI {
                 };
                 let any_identifier =
                     Endpoint::new(Ipv4Address::CURRENT_NETWORK, identifier.local.port);
-                let session_lock = self.session_map_lock.read().unwrap();
-                match self.socket_sessions.entry(identifier) {
+                match self.socket_sessions.read().unwrap().entry(identifier) {
                     Entry::Occupied(_) => {}
                     Entry::Vacant(entry) => {
                         // If the session does not exist, see if we have a listen
@@ -350,7 +343,6 @@ impl Protocol for SocketAPI {
                             None => match self.listen_bindings.get(&any_identifier) {
                                 Some(any_listen_entry) => any_listen_entry,
                                 None => {
-                                    drop(session_lock);
                                     return;
                                 }
                             },
@@ -367,7 +359,6 @@ impl Protocol for SocketAPI {
                         entry.insert(session);
                     }
                 };
-                drop(session_lock);
             }
             NotifyType::NewMessage => {}
         }

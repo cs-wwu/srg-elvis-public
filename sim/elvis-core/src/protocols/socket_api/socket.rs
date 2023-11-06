@@ -242,27 +242,33 @@ impl Socket {
             None => return Err(SocketError::AcceptError),
         };
         let mut buf = Vec::new();
+        // If the socket still has a portion of a message stored, read from that first
+        if let Some(mut message) = self.stored_message.take() {
+            if message.len() <= bytes {
+                buf.extend(message.iter());
+            } else {
+                buf.extend(message.iter().take(bytes));
+                message.slice(bytes..);
+                self.stored_message = Some(message);
+            }
+        }
+        // Then start receiving more bytes from the socket's receiver
         while buf.len() < bytes {
-            let mut message = match self.stored_message.take() {
-                Some(msg) => msg,
-                None => {
-                    if buf.is_empty() && self.is_blocking {
-                        select! {
-                            _ = shutdown_receiver.recv() => { return Err(SocketError::ReceiveError); },
-                            message = message_receiver.recv() => {
-                                match message {
-                                    Some(msg) => msg,
-                                    None => return Err(SocketError::ReceiveError),
-                                }
-                            },
+            let mut message = if buf.is_empty() && self.is_blocking {
+                select! {
+                    _ = shutdown_receiver.recv() => { return Err(SocketError::ReceiveError); },
+                    message = message_receiver.recv() => {
+                        match message {
+                            Some(msg) => msg,
+                            None => return Err(SocketError::ReceiveError),
                         }
-                    } else {
-                        match message_receiver.try_recv() {
-                            Ok(msg) => msg,
-                            Err(_) => {
-                                break;
-                            }
-                        }
+                    },
+                }
+            } else {
+                match message_receiver.try_recv() {
+                    Ok(msg) => msg,
+                    Err(_) => {
+                        break;
                     }
                 }
             };
@@ -296,14 +302,21 @@ impl Socket {
                     Some(v) => v,
                     None => return Err(SocketError::ReceiveError),
                 };
-                select! {
-                    _ = shutdown_receiver.recv() => Err(SocketError::ReceiveError),
-                    message = message_receiver.recv() => {
-                        match message {
-                            Some(msg) => Ok(msg),
-                            None => Err(SocketError::ReceiveError),
-                        }
-                    },
+                if self.is_blocking {
+                    select! {
+                        _ = shutdown_receiver.recv() => Err(SocketError::ReceiveError),
+                        message = message_receiver.recv() => {
+                            match message {
+                                Some(msg) => Ok(msg),
+                                None => Err(SocketError::ReceiveError),
+                            }
+                        },
+                    }
+                } else {
+                    match message_receiver.try_recv() {
+                        Ok(msg) => Ok(msg),
+                        Err(_) => Err(SocketError::ReceiveError),
+                    }
                 }
             }
         }

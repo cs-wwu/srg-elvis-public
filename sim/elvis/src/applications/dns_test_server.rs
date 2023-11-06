@@ -32,10 +32,10 @@ impl DnsTestServer {
 async fn communicate_with_client(mut socket: Socket) {
     // Receive a message
     println!("SERVER: Waiting for request...");
-    let req = socket.recv_msg().await.unwrap();
+    let req = socket.recv(32).await.unwrap();
     println!(
         "SERVER: Request Received: {:?}",
-        String::from_utf8(req.to_vec()).unwrap()
+        String::from_utf8(req).unwrap()
     );
 
     // Send a message

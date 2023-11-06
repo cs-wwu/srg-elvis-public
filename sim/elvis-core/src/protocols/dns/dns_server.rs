@@ -56,9 +56,9 @@ impl DnsServer {
     ) -> Result<(), DnsServerError> {
         // Receive a message
         println!("SERVER: Waiting for request...");
-        let response = socket.recv_msg().await.unwrap();
+        let response = socket.recv(80).await.unwrap();
 
-        let req_msg = DnsMessage::from_bytes(response.iter()).unwrap();
+        let req_msg = DnsMessage::from_bytes(response.iter().cloned()).unwrap();
         println!("SERVER: Request Received");
 
         let name = req_msg.question.query_name().unwrap();

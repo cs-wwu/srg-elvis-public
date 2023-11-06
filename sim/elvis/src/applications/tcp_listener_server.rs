@@ -42,9 +42,8 @@ impl Protocol for TcpListenerServer {
 
         // TESTING TcpStream::read_exact()
         // Read up to 4 bytes from the client
-        // let max_bytes: usize = 4;
-        // let mut msg1: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
-        let mut msg1: Vec<u8> = stream.read().await.unwrap();
+        let max_bytes: usize = 4;
+        let mut msg1: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
 
         // Add 1 to each number in the vec
         for n in &mut msg1 {

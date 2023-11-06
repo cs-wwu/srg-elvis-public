@@ -40,8 +40,8 @@ impl TcpStream {
         self.local_socket.send(message)
     }
 
-    // /// Receives at most 'bytes' data from the remote socket bound to the local socket
-    // pub async fn read_exact(&mut self, bytes: usize) -> Result<Vec<u8>, SocketError> {
-    //     self.local_socket.recv(bytes).await
-    // }
+    /// Receives at most 'bytes' data from the remote socket bound to the local socket
+    pub async fn read_exact(&mut self, bytes: usize) -> Result<Vec<u8>, SocketError> {
+        self.local_socket.recv(bytes).await
+    }
 }
