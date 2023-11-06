@@ -49,15 +49,15 @@ impl PciSession {
         self.network.mtu
     }
 
-    /// Called by the owning [`Pci`] protocol at the beginning of the simulation
+    /// Called by the owning [`Pci`](super::Pci) protocol at the beginning of the simulation
     /// to start the contained tap running
     pub(super) fn start(&self, protocols: ProtocolMap) {
         *self.protocols.write().unwrap() = Some(protocols);
     }
 
-    /// Called by the owned [`Tap`] to pass a frame from the network up the
-    /// protocol stack. We use this instead of [`Session::receive`] because the
-    /// tap holds a reference to this session as a concrete type and having
+    /// Called by the [`Network`] to pass a frame from the network up the
+    /// protocol stack. We use this instead of [`Protocol::demux`](crate::protocol::Protocol::demux)
+    /// because the network holds a reference to this session as a concrete type and having
     /// specialized arguments to pass a full network frame to this session is
     /// useful.
     pub(crate) fn receive(self: &Arc<Self>, delivery: Delivery) -> Result<(), ReceiveError> {
