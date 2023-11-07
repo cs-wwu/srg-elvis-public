@@ -5,8 +5,12 @@ use elvis_core::{
     run_internet, ExitStatus,
 };
 
-/// In this simulation, a machine with the Terminal protocol establishes a connection
-/// over the local port 8080 and runs until the user closes the connection.
+/// In this simulation, a machine with the Terminal protocol establishes a
+/// connection over the local port 8080 and runs until the user closes the
+/// connection (^] -> ^D).
+/// 
+/// To connect to the application, open the terminal and call
+/// "telnet localhost 8080".
 /// Messages sent through the terminal will be echoed back while the connection is available.
 pub async fn terminal_echo() {
     println!("Begin test");

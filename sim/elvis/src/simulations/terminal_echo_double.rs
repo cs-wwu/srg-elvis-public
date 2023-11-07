@@ -5,9 +5,13 @@ use elvis_core::{
     run_internet, ExitStatus,
 };
 
-/// In this simulation, two machines with the Terminal protocol establish connections
-/// over the local ports 8080 and a randomly chosen available port and runs until either user closes their connection.
-/// Messages sent through the terminals will be echoed back while the connections are available.
+/// In this simulation, two machines with the Terminal protocol establish
+/// connections over the local ports 8080 and a randomly chosen available port
+/// and echo messages back until either user closes their connection (^] -> ^D).
+/// 
+/// To connect to the application, open 2 terminals and call
+/// "telnet localhost 8080" in one and "telnet localhost xxxx" in the other,
+/// where 'xxxx' is the chosen randomly port printed by the sim.
 pub async fn terminal_echo_double() {
     println!("Begin test");
 
