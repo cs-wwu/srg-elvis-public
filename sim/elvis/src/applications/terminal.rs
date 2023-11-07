@@ -2,7 +2,8 @@
 //! The application communicates with an actual port on the real-world machine running ELVIS
 //! and sends and receives messages over this port via TCP communication with a command terminal.
 
-use elvis_core::*;
+use elvis_core::protocols::Endpoint;
+use elvis_core::{*, protocols::ipv4::Ipv4Address};
 use elvis_core::machine::*;
 use elvis_core::session::Session;
 use elvis_core::protocol::*;
@@ -63,6 +64,7 @@ impl Terminal {
             }
 
             // Pass line to TerminalParser to get Message and Endpoint?
+            Terminal::parse(String::from(&line));
 
             write.write_all(line.as_bytes())
                 .await
@@ -72,6 +74,63 @@ impl Terminal {
         }
 
         println!("Left r/w loop");
+    }
+
+    /// """
+    ///     Usage:
+    ///         send <ELVIS machine IP> <Message>
+    ///         fetch <-l: only fetch the most recent message>
+    /// """"
+    pub fn parse(
+        string: String,
+    ) /* -> Vec<String> */ {
+        // split command by spaces
+        let split = string.split(" ");
+        let args: Vec<&str> = split.collect();
+
+        // for arg in args {
+        //     println!("{}\n", arg);
+        // }
+
+        println!("{}", args[0]);
+
+        // determine if command starts with "send" or "fetch"
+            // print usage and exit if neither
+        match args[0].trim().as_ref() {
+            "send" => {
+                println!("Send");
+                // Check size of args == 3
+                if args.len() != 3 {
+                    Terminal::usage();
+                    return;
+                }
+
+                Terminal::send(args[1], args[2]);
+            },
+
+            "fetch" => {
+                println!("Fetch")
+            },
+
+            _ => Terminal::usage(),
+        }
+    }
+
+    fn send(
+        ip_with_port: &str,
+        message: &str,
+    ) {
+        let ip_port: Vec<&str> = ip_with_port.split(":").collect();
+        // let endpoint = Endpoint::new(Ipv4Address::from_string(ip_port[0]));
+        
+    }
+
+    fn usage() {
+        println!(
+            "Usage:
+            \tsend <ELVIS machine IP w/ Port> <Message>
+            \tfetch <-l: only fetch the most recent message>"
+        )
     }
 
     /// Returns and removes the first element in the msg_queue
