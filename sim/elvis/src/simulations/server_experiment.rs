@@ -50,6 +50,7 @@ pub async fn server_experiment() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(server_ip_addresses[i as usize])),
             WebServer::new(WebServerType::Yahoo, Some(13)),
         ])

@@ -83,9 +83,11 @@ impl Protocol for WebServer {
     async fn start(
         &self,
         shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        initialized.wait().await;
+        
         let local_host = Endpoint::new([100, 42, 0, 0].into(), 80); // Temporary work around until localhost is implemented
         let mut listener = TcpListener::bind(local_host, protocols).await.unwrap();
 

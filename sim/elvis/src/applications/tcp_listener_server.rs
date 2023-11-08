@@ -28,10 +28,12 @@ impl Protocol for TcpListenerServer {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        initialized.wait().await;
         drop(_shutdown);
+        
         // Create a new TcpListener bound to the server address
         let mut listener: TcpListener = TcpListener::bind(self.server_address, protocols)
             .await
