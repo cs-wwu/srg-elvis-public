@@ -125,15 +125,18 @@ pub fn create_router(
         interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
     }
 
-    let routing_table = IpTable::<(Option<Ipv4Address>, PciSlot)>::new();
+    let mut routing_table = IpTable::<(Option<Ipv4Address>, PciSlot)>::new();
+    for (pci_slot, neighbor_ip) in neighbors.iter().enumerate() {
+        routing_table.add_direct(*neighbor_ip, (None, pci_slot as u32));
+    }
 
     new_machine![
         Pci::new(networks),
         Arp::basic(),
         Ipv4::new(interfaces),
         Udp::new(),
-        ArpRouter::new(routing_table, neighbors.clone()),
-        RipRouter::new(neighbors),
+        ArpRouter::new(routing_table, Vec::from(interface_ips)),
+        RipRouter::new(Vec::from(interface_ips)),
     ]
 }
 
@@ -151,7 +154,7 @@ pub async fn rip_large_network() -> ExitStatus {
             address: HOST_ADDRESSES[3],
             port: MESSAGE_PORT,
         },
-    );
+    ).delay(Duration::from_secs(3));
 
     // Everything is a machine
     let end_devices = vec![
