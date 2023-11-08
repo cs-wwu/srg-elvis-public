@@ -105,7 +105,7 @@ impl ArpRouter {
         }
 
         // otherwise obtain the metrics for each entry that exists on the routing table
-        for mut entry in entries.iter_mut() {
+        for entry in entries.iter_mut() {
             if let Some(route) = self
                 .ip_table
                 .read()

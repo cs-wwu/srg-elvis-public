@@ -34,7 +34,7 @@ impl RipRouter {
         }
     }
 
-    pub fn debug(mut self, name: String) -> Self {
+    pub fn debug(mut self, _name: String) -> Self {
         let mut rng = rand::thread_rng();
         let name = rng.gen_range(0..1000).to_string();
         self.name = Some(name);
