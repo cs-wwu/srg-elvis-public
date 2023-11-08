@@ -12,7 +12,7 @@ use elvis_core::{
     shutdown::ExitStatus,
     IpTable, Machine, Message, Network,
 };
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, sync::RwLock, time::Duration};
 
 // Routes a message from a SENDER machine to all CAP (capture) machines
 // ----------------------------------------------------------------------
@@ -23,9 +23,9 @@ use std::{sync::Arc, time::Duration};
 // where x is an identification
 // ----------------------------------------------------------------------
 // Networks:
-// N1 = 10.0.0.0/30 
+// N1 = 10.0.0.0/30
 // N2 = 10.0.0.8/29
-// N3 = 10.0.0.4/30 
+// N3 = 10.0.0.4/30
 // N4 = 10.0.0.16/30
 // N5 = 10.0.0.20/30
 // N6 = 10.0.0.24/29
@@ -97,15 +97,27 @@ pub fn create_capture(
     ip: Ipv4Address,
     subnet: SubnetInfo,
     network: Arc<Network>,
-    status_on_recieve: u32,
+    status_ref: Option<Arc<RwLock<u32>>>, //
+    exit_status: u32,
 ) -> Machine {
-    new_machine![
-        Pci::new([network]),
-        Arp::basic().preconfig_subnet(ip, subnet),
-        Ipv4::new(Default::default()),
-        Udp::new(),
-        Capture::new(Endpoint::new(ip, MESSAGE_PORT), 1).exit_status(status_on_recieve)
-    ]
+    if let Some(status_ref) = status_ref {
+        new_machine![
+            Pci::new([network]),
+            Arp::basic().preconfig_subnet(ip, subnet),
+            Ipv4::new(Default::default()),
+            Udp::new(),
+            Capture::new(Endpoint::new(ip, MESSAGE_PORT), 1)
+                .with_atomic_status(status_ref, exit_status)
+        ]
+    } else {
+        new_machine![
+            Pci::new([network]),
+            Arp::basic().preconfig_subnet(ip, subnet),
+            Ipv4::new(Default::default()),
+            Udp::new(),
+            Capture::new(Endpoint::new(ip, MESSAGE_PORT), 1).exit_status(exit_status)
+        ]
+    }
 }
 
 pub fn create_router(
@@ -116,7 +128,6 @@ pub fn create_router(
     // Neighboring end devices
     neighbors: Vec<Ipv4Address>,
 ) -> Machine {
-    
     // IPs are mapped to interfaces/pcis (of networks) based on their order
     // E.g. the first address in interface_ips will be the ip of the first pci interface
 
@@ -140,24 +151,135 @@ pub fn create_router(
     ]
 }
 
-pub async fn rip_large_network() -> ExitStatus {
+pub fn gen_capture_machines(networks: Vec<Arc<Network>>) -> Vec<Machine> {
+    vec![
+        // Capture 1
+        create_capture(
+            // Address of machine
+            HOST_ADDRESSES[1],
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(30),
+                default_gateway: ROUTER_2_INTERFACES[1],
+            },
+            // Attached network
+            networks[2].clone(),
+            None,
+            // Exit status on recieve
+            1,
+        ),
+        // Capture 2
+        create_capture(
+            HOST_ADDRESSES[2],
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(29),
+                default_gateway: ROUTER_4_INTERFACES[1],
+            },
+            networks[5].clone(),
+            None,
+            2,
+        ),
+        // Capture 3
+        create_capture(
+            HOST_ADDRESSES[3],
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(29),
+                default_gateway: ROUTER_4_INTERFACES[1],
+            },
+            networks[5].clone(),
+            None,
+            3,
+        ),
+        // Capture 4
+        create_capture(
+            HOST_ADDRESSES[4],
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(30),
+                default_gateway: ROUTER_5_INTERFACES[1],
+            },
+            networks[6].clone(),
+            None,
+            4,
+        ),
+    ]
+}
+
+pub fn gen_capture_machines_status(
+    networks: Vec<Arc<Network>>,
+    status: Arc<RwLock<u32>>,
+) -> Vec<Machine> {
+    vec![
+        // Capture 1
+        create_capture(
+            // Address of machine
+            HOST_ADDRESSES[1],
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(30),
+                default_gateway: ROUTER_2_INTERFACES[1],
+            },
+            // Attached network
+            networks[2].clone(),
+            Some(status.clone()),
+            // Exit status on recieve
+            1,
+        ),
+        // Capture 2
+        create_capture(
+            HOST_ADDRESSES[2],
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(29),
+                default_gateway: ROUTER_4_INTERFACES[1],
+            },
+            networks[5].clone(),
+            Some(status.clone()),
+            2,
+        ),
+        // Capture 3
+        create_capture(
+            HOST_ADDRESSES[3],
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(29),
+                default_gateway: ROUTER_4_INTERFACES[1],
+            },
+            networks[5].clone(),
+            Some(status.clone()),
+            3,
+        ),
+        // Capture 4
+        create_capture(
+            HOST_ADDRESSES[4],
+            SubnetInfo {
+                mask: Ipv4Mask::from_bitcount(30),
+                default_gateway: ROUTER_5_INTERFACES[1],
+            },
+            networks[6].clone(),
+            Some(status.clone()),
+            4,
+        ),
+    ]
+}
+
+pub async fn rip_large_network(
+    capture_ips: Vec<Ipv4Address>,
+    status_capture: Option<Arc<RwLock<u32>>>,
+) -> ExitStatus {
     // Create 7 basic networks
     // Network::basic() :   mtu = maximum packet size;
     //                      throughput = amount of data successfully transmitted from x to y in a fixed amount of time
     //                      latency = simulated packet transit time
     let networks: Vec<Arc<Network>> = (0..7).map(|_| Network::basic()).collect();
 
+    // Create a lists of endpoints for capture machines
+    let mut endpoints = Vec::new();
+    capture_ips
+        .iter()
+        .for_each(|recipient_ip| endpoints.push(Endpoint::new(*recipient_ip, MESSAGE_PORT)));
+
     // Only sending message to CAP3
-    let message = SendMessage::new(
-        vec![Message::new(b"Yahoo")],
-        Endpoint {
-            address: HOST_ADDRESSES[3],
-            port: MESSAGE_PORT,
-        },
-    ).delay(Duration::from_secs(3));
+    let message = SendMessage::with_endpoints(vec![Message::new(b"Yahoo")], endpoints)
+        .delay(Duration::from_secs(3));
 
     // Everything is a machine
-    let end_devices = vec![
+    let mut end_devices = vec![
         // SENDER MACHINE
         new_machine![
             // Pci attached to network 1
@@ -179,50 +301,14 @@ pub async fn rip_large_network() -> ExitStatus {
             Udp::new(),
             message.local_ip(HOST_ADDRESSES[0])
         ],
-        // Capture 1
-        create_capture(
-            // Address of machine
-            HOST_ADDRESSES[1],
-            SubnetInfo {
-                mask: Ipv4Mask::from_bitcount(30),
-                default_gateway: ROUTER_2_INTERFACES[1],
-            },
-            // Attached network
-            networks[2].clone(),
-            // Exit status on recieve
-            1,
-        ),
-        // Capture 2
-        create_capture(
-            HOST_ADDRESSES[2],
-            SubnetInfo {
-                mask: Ipv4Mask::from_bitcount(29),
-                default_gateway: ROUTER_4_INTERFACES[1],
-            },
-            networks[5].clone(),
-            2,
-        ),
-        // Capture 3
-        create_capture(
-            HOST_ADDRESSES[3],
-            SubnetInfo {
-                mask: Ipv4Mask::from_bitcount(29),
-                default_gateway: ROUTER_4_INTERFACES[1],
-            },
-            networks[5].clone(),
-            3,
-        ),
-        // Capture 4
-        create_capture(
-            HOST_ADDRESSES[4],
-            SubnetInfo {
-                mask: Ipv4Mask::from_bitcount(30),
-                default_gateway: ROUTER_5_INTERFACES[1],
-            },
-            networks[6].clone(),
-            4,
-        ),
     ];
+
+    let captures = if let Some(status_cap) = status_capture {
+        gen_capture_machines_status(networks.clone(), status_cap)
+    } else {
+        gen_capture_machines(networks.clone())
+    };
+    end_devices.extend(captures);
 
     let mut routers = vec![
         // RIP 1
@@ -241,7 +327,11 @@ pub async fn rip_large_network() -> ExitStatus {
         ),
         // RIP 3
         create_router(
-            [networks[1].clone(), networks[3].clone(), networks[4].clone()],
+            [
+                networks[1].clone(),
+                networks[3].clone(),
+                networks[4].clone(),
+            ],
             &ROUTER_3_INTERFACES,
             // RIP router is connected to no hosts
             Vec::new(),
@@ -268,12 +358,27 @@ pub async fn rip_large_network() -> ExitStatus {
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
+
     #[tokio::test]
     async fn rip_large_network() {
+        // SINGLE CAPTURE (SENDER -> CAPTURE3)
+        let recipient_ips = Vec::from([HOST_ADDRESSES[3]]);
+        let test1 = super::rip_large_network(recipient_ips, None);
 
-        let test = super::rip_large_network();
+        // Message should reach capture 3 (and no other)
+        assert_eq!(test1.await, super::ExitStatus::Status(3));
+    }
 
-        // Message should reach capture 3 (and non other)
-        assert_eq!(test.await, super::ExitStatus::Status(3));
+    #[tokio::test]
+    async fn rip_large_network_all() {
+        // MULTIPLE CAPTURE (SENDER -> ALL CAPTURES)
+        let recipient_ips = Vec::from(HOST_ADDRESSES);
+        let status = Arc::new(RwLock::new(0));
+        let test2 = super::rip_large_network(recipient_ips, Some(status.clone()));
+
+        assert_eq!(test2.await, super::ExitStatus::TimedOut);
+        assert_eq!(*status.read().unwrap(), 1 + 2 + 3 + 4);
     }
 }
