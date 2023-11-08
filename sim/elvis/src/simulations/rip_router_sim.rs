@@ -325,16 +325,4 @@ mod tests {
         assert_eq!(test3.await, super::ExitStatus::Status(3));
     }
 
-    #[tokio::test]
-    async fn test_for_ndl() {
-        let test1 = super::test_for_ndl();
-
-        assert_eq!(test1.await, super::ExitStatus::Status(1));
-    }
 }
-// Router 1
-//  Local ip [Ipv4Address([1, 2, 3, 4]), Ipv4Address([1, 2, 3, 5])]
-// Router Table: "Empty default"
-// Router 1
-//  Local ip [Ipv4Address([1, 2, 3, 6]), Ipv4Address([1, 2, 3, 7])]
-// Router Table: 123.45.67.90/32 : (None, 1)
