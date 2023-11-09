@@ -2,19 +2,19 @@ use super::Machine;
 use crate::{shutdown::ExitStatus, Shutdown};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::{sync::Barrier, task::JoinSet};
+use tokio::{sync::Barrier, task::JoinSet, time::sleep};
 
-pub async fn run_internet_with_timeout(machines: &[Machine], duration: Duration) -> ExitStatus {
-    let future = run_internet(machines);
-    let result = tokio::time::timeout(duration, future).await;
-    match result {
-        Ok(status) => status,
-        Err(_) => ExitStatus::TimedOut,
-    }
-}
+// pub async fn run_internet_with_timeout(machines: &[Machine], duration: Duration) -> ExitStatus {
+//     let future = run_internet(machines);
+//     let result = tokio::time::timeout(duration, future).await;
+//     match result {
+//         Ok(status) => status,
+//         Err(_) => ExitStatus::TimedOut,
+//     }
+// }
 
 /// Runs the simulation with the given machines and networks
-pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
+pub async fn run_internet(machines: &[Machine], timeout: Option<Duration>) -> ExitStatus {
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
@@ -36,6 +36,15 @@ pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
         };
         handles.spawn(future);
     }
+
+    if let Some(duration) = timeout {
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            sleep(duration);
+            shutdown.shut_down();
+        });
+    }
+    
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever
     let mut shutdown_receiver = shutdown.receiver();
