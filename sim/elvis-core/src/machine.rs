@@ -15,6 +15,7 @@ type AnyMap = FxHashMap<TypeId, (ArcAny, Arc<dyn Protocol>)>;
 #[derive(Default)]
 pub struct ProtocolMapBuilder {
     inner: AnyMap,
+    name: String
 }
 
 impl ProtocolMapBuilder {
@@ -34,9 +35,16 @@ impl ProtocolMapBuilder {
         self
     }
 
+    pub fn name(mut self, name: String) -> Self
+    {
+        self.name = name;
+        self
+    }
+
     pub fn build(self) -> ProtocolMap {
         ProtocolMap {
             inner: Arc::new(self.inner),
+            name: self.name
         }
     }
 }
@@ -45,6 +53,7 @@ impl ProtocolMapBuilder {
 #[derive(Clone)]
 pub struct ProtocolMap {
     inner: Arc<AnyMap>,
+    pub name: String
 }
 
 impl ProtocolMap {
