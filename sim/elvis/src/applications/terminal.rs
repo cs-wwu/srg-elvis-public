@@ -73,7 +73,7 @@ impl Terminal {
             line.clear();
         }
 
-        println!("Left r/w loop");
+        println!("Finished r/w loop");
     }
 
     /// """
