@@ -1,4 +1,3 @@
-use super::dhcp_client_listener::DhcpClientListener;
 use super::dhcp_parsing::{DhcpMessage, MessageType};
 use crate::{
     machine::ProtocolMap,
@@ -43,12 +42,11 @@ pub struct DhcpClient {
 }
 
 impl DhcpClient {
-    pub fn new(server_ip: Ipv4Address, listen: Option<DhcpClientListener>) -> Self {
+    pub fn new(server_ip: Ipv4Address) -> Self {
         Self {
             server_ip,
             notify: Default::default(),
             ip_address: Default::default(),
-            listener: RwLock::new(listen),
             state: RwLock::new(CurrentState::Init),
             lease: RwLock::new(DelayQueue::new()),
         }
@@ -188,28 +186,6 @@ impl Protocol for DhcpClient {
                 *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
                 *self.state.write().unwrap() = CurrentState::Bound.into();
                 self.notify.notify_waiters();
-                if self.listener.read().unwrap().is_some(){
-                    if let Some(release) = self
-                        .listener
-                        .write()
-                        .unwrap()
-                        .as_mut()
-                        .unwrap()
-                        .update(parsed_msg.your_ip)
-                    {
-                        caller
-                            .send(DhcpMessage::to_message(release).unwrap(), protocols.clone())
-                            .unwrap();
-                        *self.ip_address.write().unwrap() = None;
-                        caller
-                            .send(
-                                DhcpMessage::to_message(DhcpMessage::default()).unwrap(),
-                                protocols,
-                            )
-                            .unwrap();
-                    }
-                    self.lease_shutdown();
-                }
                 Ok(())
             }
             _ => Err(DemuxError::Other),
