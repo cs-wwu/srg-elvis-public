@@ -7,7 +7,7 @@ mod basic_server_client;
 pub use basic_server_client::basic_server_client;
 
 mod dhcp_basic;
-pub use dhcp_basic::{dhcp_basic_offer, dhcp_basic_release};
+pub use dhcp_basic::dhcp_basic_offer;
 
 mod socket_basic;
 pub use socket_basic::socket_basic;

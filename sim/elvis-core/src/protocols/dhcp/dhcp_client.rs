@@ -1,4 +1,3 @@
-use super::dhcp_client_listener::DhcpClientListener;
 use super::dhcp_parsing::{DhcpMessage, MessageType};
 use crate::{
     machine::ProtocolMap,
@@ -15,16 +14,14 @@ pub struct DhcpClient {
     server_ip: Ipv4Address,
     notify: Arc<Notify>,
     pub ip_address: RwLock<Option<Ipv4Address>>,
-    listener: RwLock<Option<DhcpClientListener>>,
 }
 
 impl DhcpClient {
-    pub fn new(server_ip: Ipv4Address, listen: Option<DhcpClientListener>) -> Self {
+    pub fn new(server_ip: Ipv4Address) -> Self {
         Self {
             server_ip,
             notify: Default::default(),
             ip_address: Default::default(),
-            listener: RwLock::new(listen),
         }
     }
 
@@ -95,27 +92,6 @@ impl Protocol for DhcpClient {
             MessageType::Ack => {
                 *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
                 self.notify.notify_waiters();
-                if self.listener.read().unwrap().is_some() {
-                    if let Some(release) = self
-                        .listener
-                        .write()
-                        .unwrap()
-                        .as_mut()
-                        .unwrap()
-                        .update(parsed_msg.your_ip)
-                    {
-                        caller
-                            .send(DhcpMessage::to_message(release).unwrap(), protocols.clone())
-                            .unwrap();
-                        *self.ip_address.write().unwrap() = None;
-                        caller
-                            .send(
-                                DhcpMessage::to_message(DhcpMessage::default()).unwrap(),
-                                protocols,
-                            )
-                            .unwrap();
-                    }
-                }
                 Ok(())
             }
             _ => Err(DemuxError::Other),
