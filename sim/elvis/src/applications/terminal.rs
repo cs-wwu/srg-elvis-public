@@ -81,7 +81,7 @@ impl Terminal {
     ///         send <ELVIS machine IP> <Message>
     ///         fetch <-l: only fetch the most recent message>
     /// """"
-    pub fn parse(
+    pub async fn parse(
         string: String,
     ) /* -> Vec<String> */ {
         // split command by spaces
@@ -105,7 +105,7 @@ impl Terminal {
                     return;
                 }
 
-                Terminal::send(args[1], args[2]);
+                Terminal::send(args[1], args[2]).await;
             },
 
             "fetch" => {
@@ -116,12 +116,16 @@ impl Terminal {
         }
     }
 
-    fn send(
+    async fn send(
         ip_with_port: &str,
-        message: &str,
+        _message: &str,
     ) {
         let ip_port: Vec<&str> = ip_with_port.split(":").collect();
-        // let endpoint = Endpoint::new(Ipv4Address::from_string(ip_port[0]));
+        let ip = ip_port[0].parse::<u32>().unwrap();
+        let port = ip_port[1].parse::<u16>().unwrap();
+        let endpoint = Endpoint::new(Ipv4Address::from(ip), port);
+
+
         
     }
 
