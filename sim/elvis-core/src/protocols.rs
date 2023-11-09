@@ -33,4 +33,4 @@ pub mod tcp_listener;
 pub use tcp_listener::TcpListener;
 
 pub mod dhcp;
-pub use dhcp::{dhcp_client, dhcp_client_listener};
+pub use dhcp::dhcp_client;
