@@ -2,7 +2,8 @@
 //! The application communicates with an actual port on the real-world machine running ELVIS
 //! and sends and receives messages over this port via TCP communication with a command terminal.
 
-use elvis_core::protocols::Endpoint;
+use elvis_core::protocols::{Endpoint, Endpoints};
+use elvis_core::protocols::dhcp_client::DhcpClient;
 use elvis_core::{*, protocols::ipv4::Ipv4Address};
 use elvis_core::machine::*;
 use elvis_core::session::Session;
@@ -20,8 +21,12 @@ pub struct Terminal {
     /// The queue of messages received (qpush) by the application that can be
     /// returned (qpop) when a fetch request is made.
     msg_queue: RwLock<Vec<String>>,
-    // The real-world port to communicate over
+    /// The real-world port to communicate with the physical machine's terminal over.
     port: String,
+    /// The protocol used to send messages from this machine to other ELVIS machines.
+    transport: Transport,
+    /// the application's local address
+    local_ip: Ipv4Address,
 }
 
 impl Terminal {
@@ -31,6 +36,8 @@ impl Terminal {
         Self {
             msg_queue: RwLock::new(Vec::new()),
             port: assign_port,
+            transport: Transport::Udp,
+            local_ip: Ipv4Address::LOCALHOST,
         }
     }
 
@@ -76,11 +83,6 @@ impl Terminal {
         println!("Finished r/w loop");
     }
 
-    /// """
-    ///     Usage:
-    ///         send <ELVIS machine IP> <Message>
-    ///         fetch <-l: only fetch the most recent message>
-    /// """"
     pub async fn parse(
         string: String,
     ) /* -> Vec<String> */ {
@@ -105,7 +107,7 @@ impl Terminal {
                     return;
                 }
 
-                Terminal::send(args[1], args[2]).await;
+                Terminal::send(self, args[1], args[2], /* ProtocolMap */).await;
             },
 
             "fetch" => {
@@ -117,16 +119,29 @@ impl Terminal {
     }
 
     async fn send(
+        &self,
         ip_with_port: &str,
         _message: &str,
+        protocols: ProtocolMap,
     ) {
         let ip_port: Vec<&str> = ip_with_port.split(":").collect();
         let ip = ip_port[0].parse::<u32>().unwrap();
         let port = ip_port[1].parse::<u16>().unwrap();
         let endpoint = Endpoint::new(Ipv4Address::from(ip), port);
+        let transport = self.transport;
 
+        let local_address = match protocols.protocol::<DhcpClient>() {
+            Some(dhcp) => dhcp.ip_address().await,
+            None => self.local_ip,
+        };
 
-        
+        let endpoints = Endpoints {
+            local: Endpoint {
+                address: local_address,
+                port: 0,
+            },
+            remote: endpoint,
+        };
     }
 
     fn usage() {
@@ -174,7 +189,7 @@ impl Protocol for Terminal {
         &self,
         shutdown: Shutdown,
         _initialize: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         println!("Begin start()");
 
