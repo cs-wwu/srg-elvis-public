@@ -26,8 +26,12 @@ pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
     // Spawn futures for every machine and then wait on them
     let mut handles = JoinSet::new();
 
+    let mut counter =  0;
     for machine in machines {
-        let machine = machine.shallow_copy();
+        let mut machine = machine.shallow_copy();
+        machine.name = counter.to_string();
+        //println!("aaaaa{}", machine.name);
+        counter = counter + 1;
         let shutdown = shutdown.clone();
         let initialized = initialized.clone();
 
