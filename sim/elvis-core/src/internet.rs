@@ -29,7 +29,7 @@ pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
     let mut counter =  0;
     for machine in machines {
         let mut machine = machine.shallow_copy();
-        machine.name = counter.to_string();
+        //machine.name = counter.to_string();
         //println!("aaaaa{}", machine.name);
         counter = counter + 1;
         let shutdown = shutdown.clone();

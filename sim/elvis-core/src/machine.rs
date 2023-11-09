@@ -83,14 +83,13 @@ impl ProtocolMap {
 pub struct Machine {
     // pub network_api: NetworkAPI,
     pub protocols: ProtocolMap,
-    pub name: String,
 }
 
 impl Machine {
     /// Creates a new machine containing the given `protocols`. Returns the
     /// machine and a channel which can be used to send messages to the machine.
     pub fn new(protocols: ProtocolMap) -> Machine {
-        Self { protocols, name: String::new()}
+        Self { protocols }
     }
 
     /// Tells the machine time to [`start()`](super::Protocol::start) its
