@@ -1,7 +1,7 @@
 use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, TcpListener, TcpStream, socket_api::socket::SocketError},
+    protocols::{socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream},
     Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::Arc;
@@ -23,7 +23,9 @@ impl BareBonesServer {
         loop {
             let mut msg2: Vec<u8> = match stream.read().await {
                 Ok(v) => v,
-                Err(SocketError::Shutdown) => { break; },
+                Err(SocketError::Shutdown) => {
+                    break;
+                }
                 Err(_) => panic!(),
             };
 
@@ -52,7 +54,7 @@ impl Protocol for BareBonesServer {
         let mut listener: TcpListener = TcpListener::bind(self.server_address, machine)
             .await
             .unwrap();
-        
+
         initialized.wait().await;
 
         loop {

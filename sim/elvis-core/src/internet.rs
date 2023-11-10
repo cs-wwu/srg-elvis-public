@@ -4,7 +4,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::{sync::Barrier, task::JoinSet, time::sleep};
 
-pub async fn run_internet_with_timeout(machines: &[Arc<Machine>], duration: Duration) -> ExitStatus {
+pub async fn run_internet_with_timeout(
+    machines: &[Arc<Machine>],
+    duration: Duration,
+) -> ExitStatus {
     let future = run_internet(machines, Some(duration));
     let result = tokio::time::timeout(duration + Duration::from_secs(1), future).await;
     match result {
@@ -41,7 +44,6 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
             shutdown.shut_down();
         });
     }
-    
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever
     let mut shutdown_receiver = shutdown.receiver();

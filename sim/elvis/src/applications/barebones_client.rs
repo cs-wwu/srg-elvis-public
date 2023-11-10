@@ -1,7 +1,7 @@
 use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, TcpStream, socket_api::socket::SocketError},
+    protocols::{socket_api::socket::SocketError, Endpoint, TcpStream},
     Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
@@ -52,7 +52,9 @@ impl Protocol for BareBonesClient {
             let max_bytes: usize = 4;
             let received_msg2: Vec<u8> = match stream.read_exact(max_bytes).await {
                 Ok(v) => v,
-                Err(SocketError::Shutdown) => { break Ok(()); },
+                Err(SocketError::Shutdown) => {
+                    break Ok(());
+                }
                 Err(_) => panic!(),
             };
 
