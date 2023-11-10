@@ -2,11 +2,10 @@
 //! Protocol](https://www.ietf.org/rfc/rfc768.txt).
 
 use crate::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::ipv4::Ipv4,
-    Control, FxDashMap, Protocol, Session, Shutdown,
+    Control, FxDashMap, Machine, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::{any::TypeId, sync::Arc};
@@ -39,25 +38,23 @@ impl Udp {
         &self,
         upstream: TypeId,
         endpoints: Endpoints,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Arc<dyn Session>, OpenAndListenError> {
-        self.listen(upstream, endpoints.local, protocols.clone())?;
+        self.listen(upstream, endpoints.local, machine.clone())?;
 
-        Ok(self
-            .open_for_sending(upstream, endpoints, protocols)
-            .await?)
+        Ok(self.open_for_sending(upstream, endpoints, machine).await?)
     }
 
     pub async fn open_for_sending(
         &self,
         upstream: TypeId,
         endpoints: Endpoints,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Arc<dyn Session>, OpenError> {
-        let downstream = protocols
+        let downstream = machine
             .protocol::<Ipv4>()
             .unwrap()
-            .open_for_sending(TypeId::of::<Self>(), endpoints.into(), protocols)
+            .open_for_sending(TypeId::of::<Self>(), endpoints.into(), machine)
             .await?;
 
         let session = Arc::new(UdpSession {
@@ -73,7 +70,7 @@ impl Udp {
         &self,
         upstream: TypeId,
         socket: Endpoint,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), ListenError> {
         match self.listen_bindings.entry(socket) {
             Entry::Occupied(_) => return Err(ListenError::Existing(socket)),
@@ -82,13 +79,13 @@ impl Udp {
             }
         }
         // Ask lower-level protocols to add the binding as well
-        protocols
+        machine
             .protocol::<Ipv4>()
             .expect("No such protocol")
             .listen(
                 TypeId::of::<Self>(),
                 socket.address,
-                protocols,
+                machine,
                 ipv4::ProtocolNumber::UDP,
             )?;
 
@@ -103,7 +100,7 @@ impl Protocol for Udp {
         mut message: Message,
         caller: Arc<dyn Session>,
         mut control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let ipv4_header = *control.get::<Ipv4Header>().unwrap();
         // Parse the header
@@ -155,7 +152,7 @@ impl Protocol for Udp {
             downstream: caller,
             endpoints,
         });
-        session.receive(message, control, protocols)?;
+        session.receive(message, control, machine)?;
         Ok(())
     }
 
@@ -163,7 +160,7 @@ impl Protocol for Udp {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;
         Ok(())

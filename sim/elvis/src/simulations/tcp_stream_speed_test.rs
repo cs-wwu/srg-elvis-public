@@ -1,6 +1,6 @@
 use crate::applications::{BareBonesClient, BareBonesServer};
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, SocketAPI, Tcp,
@@ -45,7 +45,7 @@ pub async fn tcp_stream_speed_test() {
     // Create machines to run each server and client
     let mut machines = vec![];
     for i in 0..num_servers {
-        machines.push(new_machine![
+        machines.push(new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -56,7 +56,7 @@ pub async fn tcp_stream_speed_test() {
 
     for i in 0..num_clients {
         let server_index = i % num_servers;
-        machines.push(new_machine![
+        machines.push(new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -83,7 +83,6 @@ pub async fn tcp_stream_speed_test() {
     for _i in 0..num_clients {
         let client = machines_iter.next().unwrap();
         let lock = &client
-            .into_inner()
             .protocol::<BareBonesClient>()
             .unwrap()
             .num_pages_recvd;

@@ -1,9 +1,9 @@
 //! Generates machines from a given parse
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
-use elvis_core::machine::ProtocolMapBuilder;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Arp;
 use elvis_core::protocols::Pci;
@@ -14,7 +14,10 @@ use itertools::Itertools;
 use super::generator_data::NetworkInfo;
 
 /// Machine Generator generates machines from a given [Machines] struct and places them in the resulting Vec.
-pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvis_core::Machine> {
+pub fn machine_generator(
+    machines: Machines,
+    networks: &NetworkInfo,
+) -> Vec<Arc<elvis_core::Machine>> {
     // Focusing on Interfaces, protocols, and applications
     let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();
     let mut ip_gen = networks.ip_hash.clone();
@@ -134,7 +137,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
         for _count in 0..machine_count {
             let mut net_ids = Vec::new();
             let mut networks_to_be_added = Vec::new();
-            let mut protocol_map = ProtocolMapBuilder::new();
+            let mut new_machine = elvis_core::Machine::new();
             let mut ip_table = IpTable::<Recipient>::new();
 
             //add networks to the machine
@@ -156,7 +159,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 net_ids.push(net_id.to_string());
                 networks_to_be_added.push(network_adding.clone());
             }
-            protocol_map = protocol_map.with(Pci::new(networks_to_be_added));
+            new_machine = new_machine.with(Pci::new(networks_to_be_added));
 
             //build all apps the machine has
             for app in &machine.interfaces.applications {
@@ -167,7 +170,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 let app_name = app.options.get("name").unwrap().as_str();
                 match app_name {
                     "send_message" => {
-                        protocol_map = protocol_map.with(send_message_builder(
+                        new_machine = new_machine.with(send_message_builder(
                             app,
                             &name_to_ip,
                             &mut ip_table,
@@ -177,7 +180,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     }
 
                     "capture" => {
-                        protocol_map = protocol_map.with(capture_builder(
+                        new_machine = new_machine.with(capture_builder(
                             app,
                             &mut ip_table,
                             &mut ip_gen,
@@ -186,7 +189,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     }
 
                     "forward" => {
-                        protocol_map = protocol_map.with(forward_message_builder(
+                        new_machine = new_machine.with(forward_message_builder(
                             app,
                             &name_to_ip,
                             &mut ip_table,
@@ -196,7 +199,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                     }
 
                     "ping_pong" => {
-                        protocol_map = protocol_map.with(ping_pong_builder(
+                        new_machine = new_machine.with(ping_pong_builder(
                             app,
                             &name_to_ip,
                             &mut ip_table,
@@ -223,11 +226,11 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
             for protocol in &machine.interfaces.protocols {
                 for option in &protocol.options {
                     match option.1.as_str() {
-                        "UDP" => protocol_map = protocol_map.with(Udp::new()),
-                        "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
+                        "UDP" => new_machine = new_machine.with(Udp::new()),
+                        "IPv4" => new_machine = new_machine.with(Ipv4::new(ip_table.clone())),
                         "ARP" => {
-                            protocol_map =
-                                protocol_map.with(arp_builder(&name_to_ip, &protocol.options))
+                            new_machine =
+                                new_machine.with(arp_builder(&name_to_ip, &protocol.options))
                         }
                         _ => {
                             panic!(
@@ -245,8 +248,8 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
             for required_protocol in &required_protocols {
                 if !encountered_protocols.contains(required_protocol) {
                     match *required_protocol {
-                        "IPv4" => protocol_map = protocol_map.with(Ipv4::new(ip_table.clone())),
-                        "ARP" => protocol_map = protocol_map.with(Arp::new()),
+                        "IPv4" => new_machine = new_machine.with(Ipv4::new(ip_table.clone())),
+                        "ARP" => new_machine = new_machine.with(Arp::new()),
                         _ => {
                             panic!("Missing required protocol: {}", required_protocol);
                         }
@@ -254,7 +257,7 @@ pub fn machine_generator(machines: Machines, networks: &NetworkInfo) -> Vec<elvi
                 }
             }
 
-            machine_list.push(elvis_core::Machine::new(protocol_map.build()));
+            machine_list.push(new_machine.arc());
         }
     }
     machine_list

@@ -1,10 +1,9 @@
 use super::dhcp_parsing::{DhcpMessage, MessageType};
 use crate::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{ipv4::Ipv4Address, Endpoint, Endpoints, Udp},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{Barrier, Notify};
@@ -72,7 +71,7 @@ impl Protocol for DhcpClient {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let server_ip = self.server_ip;
         // Wait on initialization before sending any message across the network
@@ -88,16 +87,16 @@ impl Protocol for DhcpClient {
                 port: 67,
             },
         };
-        let udp = protocols
+        let udp = machine
             .protocol::<Udp>()
             .unwrap()
-            .open_and_listen(self.id(), sockets, protocols.clone())
+            .open_and_listen(self.id(), sockets, machine.clone())
             .await
             .unwrap();
 
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
-        udp.send(response_message, protocols.clone()).unwrap();
+        udp.send(response_message, machine).unwrap();
 
         //example at 8 second lease
         let time = 8;
@@ -165,7 +164,7 @@ impl Protocol for DhcpClient {
         message: Message,
         caller: Arc<dyn Session>,
         _control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let parsed_msg = DhcpMessage::from_bytes(message.iter()).unwrap();
         match parsed_msg.msg_type {
@@ -177,7 +176,7 @@ impl Protocol for DhcpClient {
                 response.msg_type = MessageType::Request;
                 response.op = 2;
                 caller
-                    .send(DhcpMessage::to_message(response).unwrap(), protocols)
+                    .send(DhcpMessage::to_message(response).unwrap(), machine)
                     .unwrap();
                 *self.state.write().unwrap() = CurrentState::Requesting.into();
                 Ok(())

@@ -1,5 +1,4 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -7,7 +6,7 @@ use elvis_core::{
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         Endpoint, SocketAPI,
     },
-    Control, ExitStatus, Protocol, Session, Shutdown,
+    Control, ExitStatus, Machine, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -54,18 +53,18 @@ impl Protocol for DnsTestServer {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = protocols
+        let sockets = machine
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = self.local_port;
         let transport = self.transport;
 
         let mut listen_socket = sockets
-            .new_socket(ProtocolFamily::INET, transport, protocols)
+            .new_socket(ProtocolFamily::INET, transport, machine)
             .await
             .unwrap();
 
@@ -117,7 +116,7 @@ impl Protocol for DnsTestServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

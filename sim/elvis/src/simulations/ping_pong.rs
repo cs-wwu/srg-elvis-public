@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::applications::PingPong;
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -39,13 +39,13 @@ pub async fn ping_pong() {
     .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             PingPong::new(true, endpoints)
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),

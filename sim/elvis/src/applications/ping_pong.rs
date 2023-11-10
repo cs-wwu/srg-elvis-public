@@ -1,10 +1,9 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     network::Mac,
     protocol::{DemuxError, StartError},
     protocols::{Endpoints, Udp},
-    Control, Protocol, Session, Shutdown, Transport,
+    Control, Machine, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -58,12 +57,12 @@ impl Protocol for PingPong {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-        let protocol = protocols.protocol::<Udp>().expect("No such protocol");
+        let protocol = machine.protocol::<Udp>().expect("No such protocol");
         let session = protocol
-            .open_and_listen(self.id(), self.endpoints, protocols.clone())
+            .open_and_listen(self.id(), self.endpoints, machine.clone())
             .await
             .unwrap();
         *self.session.write().unwrap() = Some(session.clone());
@@ -73,7 +72,7 @@ impl Protocol for PingPong {
         if is_initiator {
             session
                 //Send the first "Ping" message with TTL of 255
-                .send(Message::new(vec![255]), protocols)
+                .send(Message::new(vec![255]), machine)
                 .unwrap();
         }
         Ok(())
@@ -84,7 +83,7 @@ impl Protocol for PingPong {
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
@@ -107,7 +106,7 @@ impl Protocol for PingPong {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .send(Message::new(vec![ttl]), protocols)?;
+                .send(Message::new(vec![ttl]), machine)?;
         }
         Ok(())
     }

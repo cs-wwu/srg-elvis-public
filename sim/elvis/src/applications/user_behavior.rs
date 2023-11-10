@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{Endpoint, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use rand::thread_rng;
 use rand::Rng;
@@ -129,7 +128,7 @@ impl UserBehavior {
         server_address: Endpoint,
         links: &str,
         mut limit: i32,
-        protocols: ProtocolMap,
+        protocols: Arc<Machine>,
     ) {
         // list of visited links, downloaded images, bad links, and unvisited links
         let mut visited = HashMap::new();
@@ -298,12 +297,12 @@ impl Protocol for UserBehavior {
         &self,
         _shutdown: Shutdown,
         _initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // creating the starting url and how many pages the user will sift through
         let start_url = "http://100.42.0.0:80/";
         let num_page = rand::thread_rng().gen_range(20..150);
-        let cloned_protocols = protocols.clone();
+        let cloned_protocols = machine.clone();
         self.scrape_user_behavior(self.server_address, start_url, num_page, cloned_protocols)
             .await;
         Ok(())
@@ -314,7 +313,7 @@ impl Protocol for UserBehavior {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

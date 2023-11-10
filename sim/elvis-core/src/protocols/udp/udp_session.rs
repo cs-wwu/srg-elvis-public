@@ -1,12 +1,11 @@
 use super::udp_parsing::build_udp_header;
 use crate::{
     logging::{receive_message_event, send_message_event},
-    machine::ProtocolMap,
     message::Message,
     protocol::DemuxError,
     protocols::utility::Endpoints,
     session::SendError,
-    Control, Session,
+    Control, Machine, Session,
 };
 use std::{any::TypeId, fmt::Debug, sync::Arc};
 
@@ -21,7 +20,7 @@ impl UdpSession {
         self: Arc<Self>,
         message: Message,
         control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         receive_message_event(
             self.endpoints.local.address,
@@ -30,16 +29,16 @@ impl UdpSession {
             self.endpoints.remote.port,
             message.clone(),
         );
-        protocols
+        machine
             .get(self.upstream)
             .expect("No such protocol")
-            .demux(message, self, control, protocols)?;
+            .demux(message, self, control, machine)?;
         Ok(())
     }
 }
 
 impl Session for UdpSession {
-    fn send(&self, mut message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, machine: Arc<Machine>) -> Result<(), SendError> {
         let id = self.endpoints;
         // TODO(hardint): Should this fail or just segment the message into
         // multiple IP packets?
@@ -65,7 +64,7 @@ impl Session for UdpSession {
             message.clone(),
         );
         message.header(header);
-        self.downstream.send(message, protocols)?;
+        self.downstream.send(message, machine)?;
         Ok(())
     }
 }

@@ -13,11 +13,11 @@ use std::time::Duration;
 use tokio::sync::watch;
 use tokio::sync::Barrier;
 
-use crate::machine::ProtocolMap;
 use crate::protocol::{DemuxError, StartError};
 use crate::protocols::ipv4::*;
 use crate::session::SendError;
 use crate::FxDashMap;
+use crate::Machine;
 use crate::{machine::PciSlot, network::Mac, Control, Message, Protocol, Session, Shutdown};
 
 use self::arp_parsing::{ArpPacket, Operation};
@@ -72,7 +72,7 @@ impl Protocol for Arp {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;
         Ok(())
@@ -83,7 +83,7 @@ impl Protocol for Arp {
         message: Message,
         _caller: Arc<dyn Session>,
         control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         if let Some(demux_hook) = &self.demux_hook {
             demux_hook(message.clone());
@@ -107,7 +107,7 @@ impl Protocol for Arp {
             let sesh_info = control
                 .get::<DemuxInfo>()
                 .expect("Context should contain PCI demux info");
-            let new_sesh = protocols
+            let new_sesh = machine
                 .protocol::<Pci>()
                 .expect("Pci should be in protocols")
                 .open(sesh_info.slot);
@@ -169,7 +169,7 @@ impl Arp {
         &self,
         mut endpoints: AddressPair,
         tap_slot: PciSlot,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Mac, NoResponseError> {
         if let Some(resolve_hook) = &self.resolve_hook {
             resolve_hook(endpoints, tap_slot);
@@ -204,7 +204,7 @@ impl Arp {
         }
 
         // otherwise, send out arp requests and wait
-        let pci_session = protocols
+        let pci_session = machine
             .protocol::<Pci>()
             .expect("Pci should be in protocols")
             .open(tap_slot);

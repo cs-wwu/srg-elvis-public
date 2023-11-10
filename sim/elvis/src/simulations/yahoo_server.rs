@@ -3,7 +3,7 @@ use crate::applications::{
     SimpleWebClient,
 };
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, SocketAPI, Tcp,
@@ -31,28 +31,28 @@ pub async fn yahoo_server() {
     .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
             WebServer::new(WebServerType::Yahoo, Some(13)),
         ],
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client1_ip_address)),
             SimpleWebClient::new(server_socket_address),
         ],
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(client2_ip_address)),
             SimpleWebClient::new(server_socket_address),
         ],
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -70,7 +70,6 @@ pub async fn yahoo_server() {
     for _i in 0..3 {
         let client = machines_iter.next().unwrap();
         let lock = &client
-            .into_inner()
             .protocol::<SimpleWebClient>()
             .unwrap()
             .num_pages_recvd;

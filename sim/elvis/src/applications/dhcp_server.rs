@@ -1,5 +1,4 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -7,7 +6,7 @@ use elvis_core::{
         ipv4::Ipv4Address,
         Endpoint, Udp,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -36,10 +35,10 @@ impl Protocol for DhcpServer {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        let udp = protocols.protocol::<Udp>().unwrap();
-        udp.listen(self.id(), Endpoint::new(self.server_address, 67), protocols)
+        let udp = machine.protocol::<Udp>().unwrap();
+        udp.listen(self.id(), Endpoint::new(self.server_address, 67), machine)
             .unwrap();
         initialized.wait().await;
         Ok(())
@@ -51,7 +50,7 @@ impl Protocol for DhcpServer {
         message: Message,
         caller: Arc<dyn Session>,
         _control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let message = DhcpMessage::from_bytes(message.iter()).unwrap();
         match message.msg_type {
@@ -76,7 +75,7 @@ impl Protocol for DhcpServer {
                     response.msg_type = MessageType::Ack;
                 }
                 let response = DhcpMessage::to_message(response).unwrap();
-                caller.send(response, protocols).unwrap();
+                caller.send(response, machine).unwrap();
                 Ok(())
             }
             MessageType::Request => {
@@ -85,7 +84,7 @@ impl Protocol for DhcpServer {
                 response.your_ip = message.your_ip;
                 response.msg_type = MessageType::Ack;
                 let response = DhcpMessage::to_message(response).unwrap();
-                caller.send(response, protocols).unwrap();
+                caller.send(response, machine).unwrap();
                 Ok(())
             }
             MessageType::Release => {

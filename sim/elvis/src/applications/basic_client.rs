@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
-    Control, Protocol, Session, Shutdown, Transport,
+    Control, Machine, Protocol, Session, Shutdown, Transport,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::Barrier, time::sleep};
@@ -49,7 +48,7 @@ impl Protocol for BasicClient {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let endpoint = self.endpoint;
         let transport = self.transport;
@@ -61,7 +60,7 @@ impl Protocol for BasicClient {
             sleep(Duration::from_millis(duration)).await;
         }
 
-        let local_address = match protocols.protocol::<DhcpClient>() {
+        let local_address = match machine.protocol::<DhcpClient>() {
             Some(dhcp) => dhcp.ip_address().await,
             None => self.local_ip,
         };
@@ -75,16 +74,16 @@ impl Protocol for BasicClient {
         };
 
         let session = match transport {
-            Transport::Tcp => protocols
+            Transport::Tcp => machine
                 .protocol::<Tcp>()
                 .unwrap()
-                .open(self.id(), endpoints, protocols.clone())
+                .open(self.id(), endpoints, machine.clone())
                 .await
                 .unwrap(),
-            Transport::Udp => protocols
+            Transport::Udp => machine
                 .protocol::<Udp>()
                 .unwrap()
-                .open_and_listen(self.id(), endpoints, protocols.clone())
+                .open_and_listen(self.id(), endpoints, machine.clone())
                 .await
                 .unwrap(),
         };
@@ -93,7 +92,7 @@ impl Protocol for BasicClient {
         if self.output {
             println!("CLIENT ({}): Sending Request: {:?}", self.client_id, req)
         }
-        session.send(Message::new(req), protocols.clone()).unwrap();
+        session.send(Message::new(req), machine.clone()).unwrap();
         Ok(())
     }
 
@@ -102,7 +101,7 @@ impl Protocol for BasicClient {
         message: Message,
         caller: Arc<dyn Session>,
         _control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         if self.output {
             println!(
@@ -118,7 +117,7 @@ impl Protocol for BasicClient {
                 self.client_id, ack
             )
         }
-        caller.send(Message::new(ack), protocols).unwrap();
+        caller.send(Message::new(ack), machine).unwrap();
 
         Ok(())
     }

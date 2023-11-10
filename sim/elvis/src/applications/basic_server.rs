@@ -1,10 +1,9 @@
 use dashmap::mapref::entry::Entry;
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{ipv4::ipv4_parsing::Ipv4Header, udp::UdpHeader, Endpoint, Endpoints, Tcp, Udp},
-    Control, FxDashMap, Protocol, Session, Shutdown, Transport,
+    Control, FxDashMap, Machine, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -46,21 +45,21 @@ impl Protocol for BasicServer {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         match self.transport {
             Transport::Tcp => {
-                protocols
+                machine
                     .protocol::<Tcp>()
                     .unwrap()
-                    .listen(self.id(), self.endpoint, protocols)
+                    .listen(self.id(), self.endpoint, machine)
                     .unwrap();
             }
             Transport::Udp => {
-                protocols
+                machine
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(self.id(), self.endpoint, protocols)
+                    .listen(self.id(), self.endpoint, machine)
                     .unwrap();
             }
         }
@@ -74,7 +73,7 @@ impl Protocol for BasicServer {
         message: Message,
         caller: Arc<dyn Session>,
         control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let identifier = match control.get::<Endpoints>() {
             Some(endpoints) => *endpoints,
@@ -113,7 +112,7 @@ impl Protocol for BasicServer {
                     println!("SERVER: Sending Response: {:?}", rsp)
                 }
                 entry.insert(caller.clone());
-                caller.send(Message::new(rsp), protocols).unwrap();
+                caller.send(Message::new(rsp), machine).unwrap();
             }
         }
         Ok(())

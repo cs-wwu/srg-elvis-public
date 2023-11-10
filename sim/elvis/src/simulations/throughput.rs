@@ -1,7 +1,7 @@
 use crate::applications::{SendMessage, ThroughputTester};
 use elvis_core::{
     network::{Baud, NetworkBuilder, Throughput},
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -34,13 +34,13 @@ pub async fn throughput() {
     let message = Message::new("Hello!");
     let messages: Vec<_> = (0..3).map(|_| message.clone()).collect();
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SendMessage::new(messages, endpoint)
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
