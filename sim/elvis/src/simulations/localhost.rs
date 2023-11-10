@@ -25,7 +25,7 @@ pub async fn localhost() {
         Capture::new(remote_endpoint, 1),
     ]];
 
-    run_internet(&machines).await;
+    run_internet(&machines, None).await;
 }
 
 #[cfg(test)]

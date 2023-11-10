@@ -41,5 +41,5 @@ pub async fn tcp_gigabyte_bench() {
         ],
     ];
 
-    run_internet(&machines).await;
+    run_internet(&machines, None).await;
 }

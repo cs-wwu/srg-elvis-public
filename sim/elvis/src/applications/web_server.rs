@@ -83,11 +83,13 @@ impl Protocol for WebServer {
     async fn start(
         &self,
         shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let local_host = Endpoint::new([100, 42, 0, 0].into(), 80); // Temporary work around until localhost is implemented
         let mut listener = TcpListener::bind(local_host, protocols).await.unwrap();
+
+        initialized.wait().await;
 
         // Create DistributionData objects from .csv files
         let image_size = WebServer::read_csv(&self.data_folder, "image_size.csv").unwrap();

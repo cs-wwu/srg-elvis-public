@@ -2,7 +2,7 @@ use elvis_core::{
     machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, TcpListener, TcpStream},
+    protocols::{Endpoint, TcpListener, TcpStream, socket_api::socket::SocketError},
     Control, Protocol, Session, Shutdown,
 };
 use std::sync::Arc;
@@ -22,7 +22,11 @@ impl BareBonesServer {
 
     async fn handle_connection(mut stream: TcpStream) {
         loop {
-            let mut msg2: Vec<u8> = stream.read().await.unwrap();
+            let mut msg2: Vec<u8> = match stream.read().await {
+                Ok(v) => v,
+                Err(SocketError::Shutdown) => { break; },
+                Err(_) => panic!(),
+            };
 
             // Add 1 to each number in the vec
             for n in &mut msg2 {
@@ -40,7 +44,7 @@ impl Protocol for BareBonesServer {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         drop(_shutdown);
@@ -49,6 +53,8 @@ impl Protocol for BareBonesServer {
         let mut listener: TcpListener = TcpListener::bind(self.server_address, protocols)
             .await
             .unwrap();
+        
+        initialized.wait().await;
 
         loop {
             // Accept an incoming connection to create new TcpStream

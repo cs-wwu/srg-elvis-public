@@ -33,12 +33,14 @@ impl Protocol for VideoServer {
     async fn start(
         &self,
         shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let mut listener = TcpListener::bind(self.server_address, protocols)
             .await
             .unwrap();
+
+        initialized.wait().await;
 
         // Continuously listen for and accept new connections
         loop {

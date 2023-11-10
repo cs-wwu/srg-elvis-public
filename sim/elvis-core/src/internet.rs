@@ -4,14 +4,14 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::{sync::Barrier, task::JoinSet, time::sleep};
 
-// pub async fn run_internet_with_timeout(machines: &[Machine], duration: Duration) -> ExitStatus {
-//     let future = run_internet(machines);
-//     let result = tokio::time::timeout(duration, future).await;
-//     match result {
-//         Ok(status) => status,
-//         Err(_) => ExitStatus::TimedOut,
-//     }
-// }
+pub async fn run_internet_with_timeout(machines: &[Machine], duration: Duration) -> ExitStatus {
+    let future = run_internet(machines, Some(duration));
+    let result = tokio::time::timeout(duration + Duration::from_secs(1), future).await;
+    match result {
+        Ok(status) => status,
+        Err(_) => ExitStatus::TimedOut,
+    }
+}
 
 /// Runs the simulation with the given machines and networks
 pub async fn run_internet(machines: &[Machine], timeout: Option<Duration>) -> ExitStatus {
@@ -40,7 +40,8 @@ pub async fn run_internet(machines: &[Machine], timeout: Option<Duration>) -> Ex
     if let Some(duration) = timeout {
         let shutdown = shutdown.clone();
         tokio::spawn(async move {
-            sleep(duration);
+            sleep(duration).await;
+            println!("Waking up and shutting down");
             shutdown.shut_down();
         });
     }

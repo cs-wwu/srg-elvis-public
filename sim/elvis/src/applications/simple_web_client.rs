@@ -32,9 +32,10 @@ impl Protocol for SimpleWebClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
+        initialized.wait().await;
         // Create a new TcpStream connected to the server address
         let mut stream: TcpStream = TcpStream::connect(self.server_address, protocols)
             .await

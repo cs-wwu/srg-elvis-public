@@ -159,7 +159,7 @@ impl Machine {
 ///     new_machine![],
 /// ];
 ///
-/// run_internet(&machines);
+/// run_internet(&machines, None);
 /// ```
 #[macro_export]
 macro_rules! new_machine {

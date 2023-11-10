@@ -8,7 +8,7 @@ use elvis_core::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, SocketAPI, Tcp,
     },
-    run_internet_with_timeout, IpTable, Network,
+    run_internet_with_timeout, IpTable, Network, ExitStatus,
 };
 use std::time::Duration;
 
@@ -42,7 +42,8 @@ pub async fn server_user() {
         ],
     ];
 
-    run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    assert_eq!(status, ExitStatus::Exited);
 
     let mut machines_iter = machines.into_iter();
     let _server = machines_iter.next().unwrap();

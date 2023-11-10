@@ -69,7 +69,7 @@ pub async fn simple() {
         sender_machine(&network, message),
     ];
 
-    run_internet(&machines).await;
+    run_internet(&machines, None).await;
 }
 
 /// A simulation/test to make sure that the ARP protocol is actually
@@ -191,7 +191,7 @@ pub async fn test_resend() {
 
     tokio::spawn(async move {
         let m = machines;
-        run_internet(&m).await
+        run_internet(&m, None).await
     });
 
     // Make sure ARP request gets resent
