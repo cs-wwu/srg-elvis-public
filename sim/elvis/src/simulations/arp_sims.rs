@@ -5,7 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4Address, Recipient},
         Arp, Endpoint, Endpoints, Ipv4, Pci, Udp,
@@ -34,8 +34,8 @@ fn ip_table() -> IpTable<Recipient> {
 }
 
 /// generates a sender machine
-fn sender_machine(network: &Arc<Network>, message: Message) -> Machine {
-    new_machine!(
+fn sender_machine(network: &Arc<Network>, message: Message) -> Arc<Machine> {
+    new_machine_arc![
         SendMessage::new(vec![message], RECEIVER_ENDPOINT),
         // Used to set local IP
         Capture::new(SENDER_ENDPOINT, 1),
@@ -43,18 +43,18 @@ fn sender_machine(network: &Arc<Network>, message: Message) -> Machine {
         Ipv4::new(ip_table()),
         Arp::new(),
         Pci::new([network.clone()]),
-    )
+    ]
 }
 
 /// generates a receiver machine
-fn receiver_machine(network: &Arc<Network>) -> Machine {
-    new_machine!(
+fn receiver_machine(network: &Arc<Network>) -> Arc<Machine> {
+    new_machine_arc![
         Capture::new(RECEIVER_ENDPOINT, 1),
         Udp::new(),
         Ipv4::new(Default::default()),
         Arp::new(),
         Pci::new([network.clone()]),
-    )
+    ]
 }
 
 pub async fn simple() {
@@ -93,7 +93,7 @@ pub async fn test_no_broadcast() {
         // Evil guy who should not receive the message
         // TODO(sudobeans): when swappable protocols are supported, I would like to make sure that
         // the evil machine does not receive ipv4 messages.
-        new_machine!(evil_arp, Ipv4::new(ip_table()), Pci::new([network.clone()]),),
+        new_machine_arc![evil_arp, Ipv4::new(ip_table()), Pci::new([network.clone()]),],
     ];
 
     let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
@@ -109,7 +109,6 @@ mod wait_to_send {
     use std::sync::Arc;
 
     use elvis_core::{
-        machine::ProtocolMap,
         protocol::{DemuxError, StartError},
         protocols::{ipv4::ProtocolNumber, Ipv4},
         Control, Message, Protocol, Session,
@@ -126,16 +125,16 @@ mod wait_to_send {
             &self,
             _shutdown: elvis_core::Shutdown,
             initialize: Arc<tokio::sync::Barrier>,
-            protocols: elvis_core::machine::ProtocolMap,
+            machine: Arc<Machine>,
         ) -> Result<(), StartError> {
             initialize.wait().await;
 
             tokio::time::sleep(Duration::from_millis(300)).await;
 
-            protocols
+            machine
                 .protocol::<Ipv4>()
                 .unwrap()
-                .listen(self.id(), RECEIVER_IP, protocols, ProtocolNumber::DEFAULT)
+                .listen(self.id(), RECEIVER_IP, machine, ProtocolNumber::DEFAULT)
                 .expect("listen should work");
             Ok(())
         }
@@ -145,7 +144,7 @@ mod wait_to_send {
             _: Message,
             _: Arc<dyn Session>,
             _: Control,
-            _: ProtocolMap,
+            _: Arc<Machine>,
         ) -> Result<(), DemuxError> {
             Ok(())
         }
@@ -171,14 +170,14 @@ pub async fn test_resend() {
     let message = Message::new(b"hello");
     let machines = vec![
         // Receiver
-        new_machine!(
+        new_machine_arc![
             wait_to_send::WaitToListen(),
             Ipv4::new(Default::default()),
             receiver_arp,
             Pci::new([network.clone()]),
-        ),
+        ],
         // Sender
-        new_machine!(
+        new_machine_arc![
             SendMessage::new(vec![message], RECEIVER_ENDPOINT),
             // Used to set local IP
             Capture::new(SENDER_ENDPOINT, 1),
@@ -186,7 +185,7 @@ pub async fn test_resend() {
             Ipv4::new(ip_table()),
             sender_arp,
             Pci::new([network.clone()]),
-        ),
+        ],
     ];
 
     tokio::spawn(async move {
@@ -223,20 +222,20 @@ pub async fn ping_pong() {
         .collect();
 
     let machines = vec![
-        new_machine!(
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ping_table),
             Arp::new(),
             Pci::new([network.clone()]),
             PingPong::new(true, Endpoints::new(SENDER_ENDPOINT, RECEIVER_ENDPOINT)),
-        ),
-        new_machine!(
+        ],
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(pong_table),
             Arp::new(),
             Pci::new([network.clone()]),
             PingPong::new(false, Endpoints::new(RECEIVER_ENDPOINT, SENDER_ENDPOINT)),
-        ),
+        ],
     ];
 
     let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;

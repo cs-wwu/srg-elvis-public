@@ -3,7 +3,7 @@ use crate::{
     ip_generator::IpRange,
 };
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         dhcp::dhcp_client::DhcpClient,
         ipv4::{Ipv4, Ipv4Address, Recipient},
@@ -27,7 +27,7 @@ pub async fn dhcp_basic_offer() {
 
     let machines = vec![
         // Server
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -36,7 +36,7 @@ pub async fn dhcp_basic_offer() {
         ],
         // The capture machine has its IP address statically allocated because otherwise we would
         // also need address resolution
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -45,7 +45,7 @@ pub async fn dhcp_basic_offer() {
         ],
         // This machine and the next will get their IP addresses from the DHCP server and then send
         // messages to the capture machine.
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -53,7 +53,7 @@ pub async fn dhcp_basic_offer() {
             DhcpClient::new(DHCP_SERVER_IP),
             SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -72,7 +72,6 @@ pub async fn dhcp_basic_offer() {
     let client1 = machines_iter.next().unwrap();
     let client2 = machines_iter.next().unwrap();
     assert!(client1
-        .into_inner()
         .protocol::<DhcpClient>()
         .unwrap()
         .ip_address
@@ -80,7 +79,6 @@ pub async fn dhcp_basic_offer() {
         .unwrap()
         .is_some());
     assert!(client2
-        .into_inner()
         .protocol::<DhcpClient>()
         .unwrap()
         .ip_address

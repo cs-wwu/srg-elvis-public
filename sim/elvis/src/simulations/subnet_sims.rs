@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use elvis_core::{
-    machine::ProtocolMap,
     protocol::{DemuxError, StartError},
     protocols::{
         arp::{
@@ -13,7 +12,7 @@ use elvis_core::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, Recipient},
         Arp, Endpoint, Ipv4, Pci, Udp,
     },
-    *,
+    Machine, *,
 };
 use tokio::sync::{broadcast, Barrier};
 
@@ -58,15 +57,15 @@ impl Protocol for MockGateway {
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        let udp = protocols.protocol::<Udp>().expect("udp should be in map");
-        udp.listen(self.id(), GATEWAY, protocols.clone())
+        let udp = machine.protocol::<Udp>().expect("udp should be in map");
+        udp.listen(self.id(), GATEWAY, machine.clone())
             .expect("listen should not err");
         // listen on Guy Somewhere Else's address, so Ipv4 does not discard messages
         // intended for them
         // This is pretty janky and will change if the implementation of ipv4 changes...
-        udp.listen(self.id(), GUY_SOMEWHERE_ELSE, protocols)
+        udp.listen(self.id(), GUY_SOMEWHERE_ELSE, machine)
             .expect("listen should not err");
         initialize.wait().await;
         Ok(())
@@ -77,7 +76,7 @@ impl Protocol for MockGateway {
         message: Message,
         _caller: Arc<dyn Session>,
         control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         // Check to make sure we have the correct host and destination addresses
         println!("control of mock gateway: {:?}", control);
@@ -93,8 +92,8 @@ impl Protocol for MockGateway {
 
 /// Creates Jack's machine
 /// Jack sends messages to Mae
-fn jack(network: &Arc<Network>) -> Machine {
-    new_machine![
+fn jack(network: &Arc<Network>) -> Arc<Machine> {
+    new_machine_arc![
         SendMessage::new(vec![Message::new(b"hi mae this is jack")], MAE).local_ip(JACK.address),
         Udp::new(),
         Ipv4::new(ip_table()),
@@ -106,10 +105,10 @@ fn jack(network: &Arc<Network>) -> Machine {
 /// Creates Mae's machine, and a receiver for messages
 /// Mae receives messages from Jack.
 /// Mae sends a message to Guy Somewhere Else.
-fn mae(network: &Arc<Network>) -> (Machine, broadcast::Receiver<Message>) {
+fn mae(network: &Arc<Network>) -> (Arc<Machine>, broadcast::Receiver<Message>) {
     let (send, recv) = broadcast::channel(1);
     let message = vec![Message::new(b"hi guy somewhere else this is mae")];
-    let maechine = new_machine![
+    let maechine = new_machine_arc![
         OnReceive::new(
             move |message, context| {
                 println!("mae control: {:?}", context);
@@ -134,7 +133,7 @@ fn mae(network: &Arc<Network>) -> (Machine, broadcast::Receiver<Message>) {
 fn gateway(
     network: &Arc<Network>,
 ) -> (
-    Machine,
+    Arc<Machine>,
     broadcast::Receiver<Message>,
     broadcast::Receiver<ArpPacket>,
 ) {
@@ -144,7 +143,7 @@ fn gateway(
         let packet = ArpPacket::from_bytes(message.iter()).expect("failed to parse ARP packet");
         arp_send.send(packet).unwrap();
     };
-    let gateway = new_machine![
+    let gateway = new_machine_arc![
         MockGateway { send: r_send },
         Udp::new(),
         Ipv4::new(ip_table()),

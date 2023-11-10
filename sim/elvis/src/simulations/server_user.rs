@@ -3,7 +3,7 @@ use crate::applications::{
     UserBehavior,
 };
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, SocketAPI, Tcp,
@@ -26,14 +26,14 @@ pub async fn server_user() {
     .collect();
     // need to loop this x amount of times
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SocketAPI::new(Some(server_ip_address)),
             WebServer::new(WebServerType::Yahoo, None),
         ],
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -50,7 +50,7 @@ pub async fn server_user() {
 
     // Check that the user recieved at least 20 pages and images
     let client = machines_iter.next().unwrap();
-    let lock = &client.into_inner().protocol::<UserBehavior>().unwrap();
+    let lock = &client.protocol::<UserBehavior>().unwrap();
     let num_pages_recvd = *lock.num_pages_recvd.read().unwrap();
     let num_imgs_recvd = *lock.num_imgs_recvd.read().unwrap();
 

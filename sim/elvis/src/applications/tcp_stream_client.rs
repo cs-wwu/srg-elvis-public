@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{Endpoint, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -29,11 +28,11 @@ impl Protocol for TcpStreamClient {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;
         // Create a new TcpStream connected to the server address
-        let mut stream: TcpStream = TcpStream::connect(self.server_address, protocols)
+        let mut stream: TcpStream = TcpStream::connect(self.server_address, machine)
             .await
             .unwrap();
 
@@ -90,7 +89,7 @@ impl Protocol for TcpStreamClient {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

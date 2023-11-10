@@ -12,103 +12,46 @@ pub type PciSlot = u32;
 type ArcAny = Arc<dyn Any + Send + Sync + 'static>;
 type AnyMap = FxHashMap<TypeId, (ArcAny, Arc<dyn Protocol>)>;
 
-#[derive(Default)]
-pub struct ProtocolMapBuilder {
-    inner: AnyMap,
-}
-
-impl ProtocolMapBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with<T>(mut self, protocol: T) -> Self
-    where
-        T: Protocol + Send + Sync + 'static,
-    {
-        let protocol = Arc::new(protocol);
-        self.inner.insert(
-            TypeId::of::<T>(),
-            (protocol.clone() as ArcAny, protocol as Arc<dyn Protocol>),
-        );
-        self
-    }
-
-    pub fn build(self) -> ProtocolMap {
-        ProtocolMap {
-            inner: Arc::new(self.inner),
-        }
-    }
-}
-
-/// A mapping of protocol IDs to protocols
-#[derive(Clone)]
-pub struct ProtocolMap {
-    inner: Arc<AnyMap>,
-}
-
-impl ProtocolMap {
-    pub fn protocol<T>(&self) -> Option<Arc<T>>
-    where
-        T: Protocol,
-    {
-        self.inner
-            .get(&TypeId::of::<T>())
-            .map(|t| t.0.clone().downcast().unwrap())
-    }
-
-    pub fn get(&self, id: TypeId) -> Option<Arc<dyn Protocol>> {
-        self.inner.get(&id).map(|t| t.1.clone())
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = Arc<dyn Protocol>> + '_ {
-        self.inner.values().map(|t| t.1.clone())
-    }
-
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
 /// A networked computer in the simultation.
 ///
 /// A machine is conceptually a computer attached to the internet. Machines
 /// communicate through [`Network`](super::Network)s. Each machine contains a
 /// set of [`Protocol`]s that it manages. The protocols may be
 /// networking protocols or user programs.
+#[derive(Default)]
 pub struct Machine {
-    // pub network_api: NetworkAPI,
-    pub protocols: ProtocolMap,
+    protocols: AnyMap,
 }
 
 impl Machine {
-    /// Creates a new machine containing the given `protocols`. Returns the
-    /// machine and a channel which can be used to send messages to the machine.
-    pub fn new(protocols: ProtocolMap) -> Machine {
-        Self { protocols }
+    /// Creates a new machine with no protocols.
+    /// Protocols can be added using the [`crate::Machine::with`] method.
+    ///
+    /// We recommend using the [`new_machine`] macro to create a machine instead.
+    pub fn new() -> Machine {
+        Self {
+            protocols: AnyMap::default(),
+        }
     }
 
-    /// Tells the machine time to [`start()`](super::Protocol::start) its
-    /// protocols and begin participating in the simulation.
-    pub(crate) async fn start(&self, shutdown: Shutdown, initialized: Arc<Barrier>) {
+    /// Tells the machine time to start its protocols and begin participating in the simulation.
+    ///
+    /// Calls [`start()`](super::Protocol::start) on all its protocols, then waits for them to finish.
+    /// Panics if any of them return an error.
+    pub(crate) async fn start(self: Arc<Self>, shutdown: Shutdown, initialized: Arc<Barrier>) {
         let mut handles = JoinSet::new();
 
         // Spawn tasks to start each protocol
-        for protocol in self.protocols.iter() {
+        for protocol in self.iter() {
             let shutdown_clone = shutdown.clone();
             let initialized_clone = initialized.clone();
-            let protocols_clone = self.protocols.clone();
-            let future = async move {
+            let self_clone = self.clone();
+            let fut = async move {
                 protocol
-                    .start(shutdown_clone, initialized_clone, protocols_clone)
+                    .start(shutdown_clone, initialized_clone, self_clone)
                     .await
             };
-
-            handles.spawn(future);
+            handles.spawn(fut);
         }
 
         // wait for all starts to finish
@@ -119,22 +62,64 @@ impl Machine {
         }
     }
 
-    /// Creates a copy of itself that points to the same protocols.
-    pub(crate) fn shallow_copy(&self) -> Self {
-        Self::new(self.protocols.clone())
-    }
-
-    /// The number of protocols in the machine.
+    /// Returns the number of protocols in this machine.
     pub fn protocol_count(&self) -> usize {
         self.protocols.len()
     }
 
-    pub fn into_inner(self) -> ProtocolMap {
+    /// Adds `protocol` to this `Machine`, then returns itself.
+    pub fn with<T>(mut self, protocol: T) -> Self
+    where
+        T: Protocol + Send + Sync + 'static,
+    {
+        let protocol = Arc::new(protocol);
+        self.protocols.insert(
+            TypeId::of::<T>(),
+            (protocol.clone() as ArcAny, protocol as Arc<dyn Protocol>),
+        );
+        self
+    }
+
+    /// Returns the protocol of type `T` from this machine, or returns `None` if it does not exist.
+    pub fn protocol<T>(&self) -> Option<Arc<T>>
+    where
+        T: Protocol,
+    {
         self.protocols
+            .get(&TypeId::of::<T>())
+            .map(|t| t.0.clone().downcast().unwrap())
+    }
+
+    /// Returns the protocol with type ID `id` from this machine, or returns `None` if it does not exist.
+    pub fn get(&self, id: TypeId) -> Option<Arc<dyn Protocol>> {
+        self.protocols.get(&id).map(|t| t.1.clone())
+    }
+
+    /// Creates an iterator over this machine's protocols.
+    pub fn iter(&self) -> impl Iterator<Item = Arc<dyn Protocol>> + '_ {
+        self.protocols.values().map(|t| t.1.clone())
+    }
+
+    /// Places this machine inside of an [`Arc`].
+    pub fn arc(self) -> Arc<Self> {
+        Arc::new(self)
     }
 }
 
 /// Creates a [`Machine`] with the protocols given.
+///
+/// ```
+/// # use elvis_core::{new_machine, protocols::Pci};
+/// let _ = new_machine![Pci::new([])];
+/// ```
+///
+/// is the same as:
+///
+/// ```
+/// # use elvis_core::{Machine, protocols::Pci};
+/// let _ = Machine::new()
+///             .with(Pci::new([]));
+/// ```
 ///
 /// # Example
 ///
@@ -150,13 +135,13 @@ impl Machine {
 ///     new_machine![
 ///         Ipv4::new(IpTable::new()),
 ///         Pci::new([]),
-///     ],
+///     ].arc(),
 ///     new_machine![
 ///         Udp::new(),
 ///         Ipv4::new(IpTable::new()),
 ///         Pci::new([]),
-///     ],
-///     new_machine![],
+///     ].arc(),
+///     new_machine![].arc(),
 /// ];
 ///
 /// run_internet(&machines, None);
@@ -165,16 +150,47 @@ impl Machine {
 macro_rules! new_machine {
     ( $($x:expr),* $(,)? ) => {
         {
-
-            let pmb = $crate::machine::ProtocolMapBuilder::new()
+            $crate::Machine::new()
             $(
                 .with($x)
-            )*;
-            $crate::Machine::new(pmb.build())
+            )*
         }
     };
 }
 pub use new_machine;
+
+/// A version of the [`new_machine`] macro which puts the resulting machine in an [`Arc`].
+///
+/// ```
+/// # use elvis_core::{new_machine_arc, protocols::Pci};
+/// let _ = new_machine_arc![Pci::new([])];
+/// ```
+///
+/// Is the same as:
+///
+/// ```
+/// # use elvis_core::{new_machine, protocols::Pci};
+/// let _ = new_machine![Pci::new([])].arc();
+/// ```
+///
+/// Is the same as:
+///
+/// ```
+/// # use elvis_core::{Machine, protocols::Pci};
+/// let _ = Machine::new()
+///             .with(Pci::new([]))
+///             .arc();
+/// ```
+#[macro_export]
+macro_rules! new_machine_arc {
+    ( $($x:expr),* $(,)? ) => {
+        {
+            $crate::new_machine![
+                $($x, )*
+            ].arc()
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

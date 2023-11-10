@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 
 use std::{str, sync::Arc};
@@ -34,9 +33,9 @@ impl Protocol for VideoServer {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        let mut listener = TcpListener::bind(self.server_address, protocols)
+        let mut listener = TcpListener::bind(self.server_address, machine)
             .await
             .unwrap();
 
@@ -66,7 +65,7 @@ impl Protocol for VideoServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

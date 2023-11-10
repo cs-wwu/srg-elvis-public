@@ -1,10 +1,9 @@
 use csv::Reader;
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use rand::{distributions::Alphanumeric, prelude::*, rngs::StdRng, Rng};
 use rand_distr::WeightedAliasIndex;
@@ -84,10 +83,10 @@ impl Protocol for WebServer {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let local_host = Endpoint::new([100, 42, 0, 0].into(), 80); // Temporary work around until localhost is implemented
-        let mut listener = TcpListener::bind(local_host, protocols).await.unwrap();
+        let mut listener = TcpListener::bind(local_host, machine).await.unwrap();
 
         initialized.wait().await;
 
@@ -128,7 +127,7 @@ impl Protocol for WebServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

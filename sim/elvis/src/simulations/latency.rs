@@ -1,7 +1,7 @@
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     network::{Latency, NetworkBuilder},
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -31,13 +31,13 @@ pub async fn latency() {
         .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SendMessage::new(vec![Message::new("Hello!")], endpoint)
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),

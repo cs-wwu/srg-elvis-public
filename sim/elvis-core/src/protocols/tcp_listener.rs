@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use super::{
     socket_api::socket::{ProtocolFamily, Socket, SocketError, SocketType},
     tcp_stream::TcpStream,
     Endpoint,
 };
 
-use crate::{machine::ProtocolMap, protocols::SocketAPI};
+use crate::{protocols::SocketAPI, Machine};
 
 pub struct TcpListener {
     local_socket: Socket,
@@ -14,11 +16,11 @@ impl TcpListener {
     /// Creates a new TcpListener bound to the given socket address
     pub async fn bind(
         socket_address: Endpoint,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Self, SocketError> {
-        let sockets_api = protocols.protocol::<SocketAPI>().unwrap();
+        let sockets_api = machine.protocol::<SocketAPI>().unwrap();
         let mut socket = sockets_api
-            .new_socket(ProtocolFamily::INET, SocketType::Stream, protocols.clone())
+            .new_socket(ProtocolFamily::INET, SocketType::Stream, machine.clone())
             .await?;
         socket.bind(socket_address)?;
         socket.listen(5000)?;

@@ -12,10 +12,9 @@ use super::{
     Ipv4,
 };
 use crate::{
-    machine::ProtocolMap,
     protocol::{DemuxError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
-    Control, FxDashMap, Message, Protocol, Session, Shutdown,
+    Control, FxDashMap, Machine, Message, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::{any::TypeId, sync::Arc};
@@ -49,27 +48,27 @@ impl Tcp {
         &self,
         upstream: TypeId,
         endpoints: Endpoints,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Arc<dyn Session>, OpenError> {
         match self.sessions.entry(endpoints) {
             Entry::Occupied(_) => Err(OpenError::Existing(endpoints)),
             Entry::Vacant(entry) => {
                 // Create the session and save it
-                let downstream = protocols
+                let downstream = machine
                     .protocol::<Ipv4>()
                     .unwrap()
                     .open_and_listen(
                         TypeId::of::<Self>(),
                         endpoints.into(),
-                        protocols.clone(),
+                        machine.clone(),
                         ipv4::ProtocolNumber::TCP,
                     )
                     .await?;
                 let session = TcpSession::new(
                     Tcb::open(endpoints, rand::random(), downstream.pci_session().mtu()),
-                    protocols.get(upstream).unwrap(),
+                    machine.get(upstream).unwrap(),
                     downstream,
-                    protocols,
+                    machine,
                     endpoints,
                 );
                 entry.insert(session.clone());
@@ -82,13 +81,13 @@ impl Tcp {
         &self,
         upstream: TypeId,
         endpoint: Endpoint,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), ListenError> {
         self.listen_bindings.insert(endpoint, upstream);
-        Ok(protocols.protocol::<Ipv4>().unwrap().listen(
+        Ok(machine.protocol::<Ipv4>().unwrap().listen(
             TypeId::of::<Self>(),
             endpoint.address,
-            protocols,
+            machine,
             ipv4::ProtocolNumber::TCP,
         )?)
     }
@@ -101,7 +100,7 @@ impl Protocol for Tcp {
         mut message: Message,
         caller: Arc<dyn Session>,
         control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let ipv4_header = control
             .get::<Ipv4Header>()
@@ -151,7 +150,7 @@ impl Protocol for Tcp {
                                     endpoints.remote.address,
                                 ) {
                                     caller
-                                        .send(Message::new(response.serialize()), protocols)
+                                        .send(Message::new(response.serialize()), machine)
                                         .map_err(|_| DemuxError::Other)?;
                                 }
                                 return Err(DemuxError::MissingSession)?;
@@ -173,18 +172,18 @@ impl Protocol for Tcp {
                     match listen_result {
                         ListenResult::Response(response) => {
                             caller
-                                .send(Message::new(response.serialize()), protocols)
+                                .send(Message::new(response.serialize()), machine)
                                 .map_err(|_| DemuxError::Other)?;
                         }
                         ListenResult::Tcb(tcb) => {
                             let upstream = *binding.get();
                             let session = TcpSession::new(
                                 tcb,
-                                protocols
+                                machine
                                     .get(upstream)
                                     .ok_or(DemuxError::MissingProtocol(upstream))?,
                                 caller,
-                                protocols.clone(),
+                                machine.clone(),
                                 endpoints,
                             );
                             session_entry.insert(session);
@@ -200,7 +199,7 @@ impl Protocol for Tcp {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;
         Ok(())

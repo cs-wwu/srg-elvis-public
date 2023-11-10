@@ -6,10 +6,9 @@ use super::{
     Endpoints, Tcp,
 };
 use crate::{
-    machine::ProtocolMap,
     protocol::{DemuxError, NotifyType, StartError},
     protocols::{ipv4::Ipv4Address, Udp},
-    Control, FxDashMap, Message, Protocol, Session, Shutdown,
+    Control, FxDashMap, Machine, Message, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
 use std::{
@@ -30,7 +29,7 @@ use socket_session::SocketSession;
 
 /// An implementation of the Sockets API
 ///
-/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`](crate::machine::Machine)
+/// Creates, distributes, and tracks [`Socket`]s on a given [`Machine`]
 ///
 /// Purpose:
 /// - To serve as an interface between the x-kernal-style protocol stack and a
@@ -73,13 +72,13 @@ impl SocketAPI {
         self: &Arc<Self>,
         domain: ProtocolFamily,
         sock_type: SocketType,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Socket, SocketError> {
         self.notify_init.notified().await;
         let socket = Socket::new(
             domain,
             sock_type,
-            protocols,
+            machine,
             self.clone(),
             self.shutdown.read().unwrap().as_ref().unwrap().clone(),
         );
@@ -137,21 +136,21 @@ impl SocketAPI {
         &self,
         socket_id: Endpoints,
         transport: SocketType,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(Arc<dyn Session>, Receiver<Message>), OpenError> {
         let downstream = match transport {
             SocketType::Datagram => {
-                protocols
+                machine
                     .protocol::<Udp>()
                     .unwrap()
-                    .open_and_listen(TypeId::of::<Self>(), socket_id, protocols)
+                    .open_and_listen(TypeId::of::<Self>(), socket_id, machine)
                     .await?
             }
             SocketType::Stream => {
-                protocols
+                machine
                     .protocol::<Tcp>()
                     .unwrap()
-                    .open(TypeId::of::<Self>(), socket_id, protocols)
+                    .open(TypeId::of::<Self>(), socket_id, machine)
                     .await?
             }
         };
@@ -178,7 +177,7 @@ impl SocketAPI {
         address: Endpoint,
         transport: SocketType,
         backlog: usize,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Receiver<Endpoint>, ListenError> {
         if self.listen_bindings.get(&address).is_some() {
             return Err(ListenError::Existing(address));
@@ -186,14 +185,14 @@ impl SocketAPI {
         let (sender, receiver) = mpsc::channel(backlog);
         self.listen_bindings.insert(address, sender);
         match transport {
-            SocketType::Datagram => protocols
+            SocketType::Datagram => machine
                 .protocol::<Udp>()
                 .expect("No such protocol")
-                .listen(TypeId::of::<Self>(), address, protocols)?,
-            SocketType::Stream => protocols
+                .listen(TypeId::of::<Self>(), address, machine)?,
+            SocketType::Stream => machine
                 .protocol::<Tcp>()
                 .expect("No such protocol")
-                .listen(TypeId::of::<Self>(), address, protocols)?,
+                .listen(TypeId::of::<Self>(), address, machine)?,
         };
         Ok(receiver)
     }
@@ -238,7 +237,7 @@ impl Protocol for SocketAPI {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Listen on the local IP address.
         // This is necessary for ARP purposes.
@@ -246,7 +245,7 @@ impl Protocol for SocketAPI {
         // TODO(sudobeans): SocketAPI shouldn't need to know about ARP!
         // Seems like code smell (on ARP's part).
         if let Some(local_address) = self.local_address {
-            if let Some(arp) = protocols.protocol::<crate::protocols::Arp>() {
+            if let Some(arp) = machine.protocol::<crate::protocols::Arp>() {
                 arp.listen(local_address);
             }
         }
@@ -254,7 +253,7 @@ impl Protocol for SocketAPI {
         *self.shutdown.write().unwrap() = Some(shutdown.clone());
         self.notify_init.notify_one();
         initialized.wait().await;
-        let self_handle = protocols.protocol::<SocketAPI>().unwrap();
+        let self_handle = machine.protocol::<SocketAPI>().unwrap();
         tokio::spawn(async move {
             _ = shutdown.receiver().recv().await;
             self_handle.shutdown();
@@ -270,7 +269,7 @@ impl Protocol for SocketAPI {
         message: Message,
         caller: Arc<dyn Session>,
         control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let identifier = match control.get::<Endpoints>() {
             Some(endpoints) => *endpoints,

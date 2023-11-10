@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{Endpoint, TcpListener, TcpStream, socket_api::socket::SocketError},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -45,12 +44,12 @@ impl Protocol for BareBonesServer {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         drop(_shutdown);
 
         // Create a new TcpListener bound to the server address
-        let mut listener: TcpListener = TcpListener::bind(self.server_address, protocols)
+        let mut listener: TcpListener = TcpListener::bind(self.server_address, machine)
             .await
             .unwrap();
         
@@ -71,7 +70,7 @@ impl Protocol for BareBonesServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

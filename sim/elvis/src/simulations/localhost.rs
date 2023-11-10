@@ -1,6 +1,6 @@
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Udp,
@@ -17,7 +17,7 @@ pub async fn localhost() {
         .into_iter()
         .collect();
 
-    let machines = vec![new_machine![
+    let machines = vec![new_machine_arc![
         Udp::new(),
         Ipv4::new(ip_table.clone()),
         Pci::new([network.clone()]),

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::applications::{BasicClient, BasicServer};
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         arp::subnetting::{Ipv4Mask, SubnetInfo},
         ipv4::{Ipv4, Ipv4Address, Recipient},
@@ -39,7 +39,7 @@ pub async fn basic_server_client(
         default_gateway: Ipv4Address::from([1, 1, 1, 1]),
     };
 
-    let mut machines = vec![new_machine![
+    let mut machines = vec![new_machine_arc![
         Udp::new(),
         Tcp::new(),
         Ipv4::new(ip_table.clone()),
@@ -48,7 +48,7 @@ pub async fn basic_server_client(
         BasicServer::new(server_endpoint, transport, output, num_clients)
     ]];
     for i in 1..=num_clients {
-        machines.push(new_machine![
+        machines.push(new_machine_arc![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),

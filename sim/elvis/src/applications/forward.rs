@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{udp::Udp, Endpoints},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -31,15 +30,15 @@ impl Protocol for Forward {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        let udp = protocols.protocol::<Udp>().expect("No such protocol");
+        let udp = machine.protocol::<Udp>().expect("No such protocol");
         *self.outgoing.write().unwrap() = Some(
             udp.open_and_listen(
                 self.id(),
                 // TODO(hardint): Can these clones be cheaper?
                 self.endpoints,
-                protocols,
+                machine,
             )
             .await
             .unwrap(),
@@ -54,14 +53,14 @@ impl Protocol for Forward {
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         self.outgoing
             .read()
             .unwrap()
             .as_ref()
             .unwrap()
-            .send(message, protocols)?;
+            .send(message, machine)?;
         Ok(())
     }
 }

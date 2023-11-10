@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{dhcp::dhcp_client::DhcpClient, ipv4::Ipv4Address, Endpoint, Endpoints, Tcp, Udp},
-    Control, Protocol, Session, Shutdown, Transport,
+    Control, Machine, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -50,14 +49,14 @@ impl Protocol for SendMessage {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
         let endpoint = self.endpoint;
         let transport = self.transport;
         initialized.wait().await;
 
-        let local_address = match protocols.protocol::<DhcpClient>() {
+        let local_address = match machine.protocol::<DhcpClient>() {
             Some(dhcp) => dhcp.ip_address().await,
             None => self.local_ip,
         };
@@ -71,23 +70,23 @@ impl Protocol for SendMessage {
         };
 
         let session = match transport {
-            Transport::Tcp => protocols
+            Transport::Tcp => machine
                 .protocol::<Tcp>()
                 .unwrap()
-                .open(self.id(), endpoints, protocols.clone())
+                .open(self.id(), endpoints, machine.clone())
                 .await
                 .unwrap(),
-            Transport::Udp => protocols
+            Transport::Udp => machine
                 .protocol::<Udp>()
                 .unwrap()
-                .open_for_sending(self.id(), endpoints, protocols.clone())
+                .open_for_sending(self.id(), endpoints, machine.clone())
                 .await
                 .unwrap(),
         };
 
         for message in messages {
             session
-                .send(message, protocols.clone())
+                .send(message, machine.clone())
                 .expect("SendMessage failed to send");
         }
         Ok(())
@@ -98,7 +97,7 @@ impl Protocol for SendMessage {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

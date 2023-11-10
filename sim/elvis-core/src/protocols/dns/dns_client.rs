@@ -1,7 +1,6 @@
 //! An implementation of the Domain Name Structure For Client Machines
 
 use crate::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::Endpoint,
@@ -10,7 +9,7 @@ use crate::{
         socket_api::socket::{ProtocolFamily, SocketType},
         SocketAPI,
     },
-    Control, FxDashMap, Protocol, Session, Shutdown,
+    Control, FxDashMap, Machine, Protocol, Session, Shutdown,
 };
 
 use super::dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord};
@@ -59,7 +58,7 @@ impl DnsClient {
     pub async fn get_host_by_name(
         &self,
         name: String,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Ipv4Address, DnsClientError> {
         match self.get_mapping(&name) {
             // Cache hit
@@ -69,13 +68,13 @@ impl DnsClient {
             Err(_ip) => {
                 let message = self.create_request(&name).unwrap().to_message().unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
-                let sockets = protocols
+                let sockets = machine
                     .protocol::<SocketAPI>()
                     .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))
                     .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
                 let mut socket = sockets
-                    .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                    .new_socket(ProtocolFamily::INET, SocketType::Datagram, machine)
                     .await
                     .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
@@ -129,7 +128,7 @@ impl Protocol for DnsClient {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;
         Ok(())
@@ -140,7 +139,7 @@ impl Protocol for DnsClient {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }
