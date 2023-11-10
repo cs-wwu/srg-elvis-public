@@ -27,7 +27,7 @@
 //!         &self,
 //!         shutdown: Shutdown,
 //!         initialize: Arc<Barrier>,
-//!         protocols: ProtocolMap,
+//!         machine: Arc<Machine>,
 //!     ) -> Result<(), StartError> {
 //!         Ok(())
 //!     }
@@ -37,7 +37,7 @@
 //!         message: Message,
 //!         caller: Arc<dyn Session>,
 //!         control: Control,
-//!         protocols: ProtocolMap,
+//!         machine: Arc<Machine>,
 //!     ) -> Result<(), DemuxError> {
 //!         Ok(())
 //!     }
@@ -45,7 +45,7 @@
 //! ```
 
 use super::message::Message;
-use crate::{machine::ProtocolMap, session::SendError, Control, Session, Shutdown};
+use crate::{session::SendError, Control, Machine, Session, Shutdown};
 use std::{
     any::{Any, TypeId},
     sync::Arc,
@@ -79,7 +79,7 @@ pub trait Protocol: Send + Sync + 'static {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError>;
 
     /// Identifies the session that a message belongs to and forwards the
@@ -107,7 +107,7 @@ pub trait Protocol: Send + Sync + 'static {
         message: Message,
         caller: Arc<dyn Session>,
         control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError>;
 
     /// Allows for notifying a protocol about an occurrence,

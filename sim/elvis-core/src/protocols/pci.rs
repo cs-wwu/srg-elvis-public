@@ -1,7 +1,7 @@
 //! The base-level protocol that communicates directly with networks.
 
 use crate::{
-    machine::{PciSlot, ProtocolMap},
+    machine::{Machine, PciSlot},
     message::Message,
     network::{Mac, Mtu},
     protocol::{DemuxError, StartError},
@@ -66,7 +66,7 @@ impl Protocol for Pci {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         panic!("Cannot demux on a Pci")
     }
@@ -75,10 +75,10 @@ impl Protocol for Pci {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         for session in self.sessions.iter() {
-            session.start(protocols.clone());
+            session.start(machine.clone());
         }
         initialized.wait().await;
         Ok(())

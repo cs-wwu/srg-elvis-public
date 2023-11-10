@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{Endpoint, Udp},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::{
     ops::Range,
@@ -45,13 +44,13 @@ impl Protocol for ThroughputTester {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-        protocols
+        machine
             .protocol::<Udp>()
             .expect("No such protocol")
-            .listen(self.id(), self.endpoint, protocols)
+            .listen(self.id(), self.endpoint, machine)
             .unwrap();
 
         initialized.wait().await;
@@ -64,7 +63,7 @@ impl Protocol for ThroughputTester {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let now = SystemTime::now();
         if let Some(previous) = self.previous_receipt.write().unwrap().replace(now) {

@@ -4,7 +4,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::{sync::Barrier, task::JoinSet};
 
-pub async fn run_internet_with_timeout(machines: &[Machine], duration: Duration) -> ExitStatus {
+pub async fn run_internet_with_timeout(
+    machines: &[Arc<Machine>],
+    duration: Duration,
+) -> ExitStatus {
     let future = run_internet(machines);
     let result = tokio::time::timeout(duration, future).await;
     match result {
@@ -14,7 +17,7 @@ pub async fn run_internet_with_timeout(machines: &[Machine], duration: Duration)
 }
 
 /// Runs the simulation with the given machines and networks
-pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
+pub async fn run_internet(machines: &[Arc<Machine>]) -> ExitStatus {
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
@@ -27,14 +30,10 @@ pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
     let mut handles = JoinSet::new();
 
     for machine in machines {
-        let machine = machine.shallow_copy();
+        let machine = machine.clone();
         let shutdown = shutdown.clone();
         let initialized = initialized.clone();
-
-        let future = async move {
-            machine.start(shutdown, initialized).await;
-        };
-        handles.spawn(future);
+        handles.spawn(machine.start(shutdown, initialized));
     }
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever

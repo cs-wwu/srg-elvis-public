@@ -1,5 +1,4 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -7,7 +6,7 @@ use elvis_core::{
         socket_api::socket::{ProtocolFamily, SocketType},
         Endpoint, SocketAPI,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc, time::Duration};
 use tokio::{sync::Barrier, time::sleep};
@@ -53,17 +52,17 @@ impl Protocol for SocketClient {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         drop(_shutdown);
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = protocols
+        let sockets = machine
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
 
         let mut socket = sockets
-            .new_socket(ProtocolFamily::INET, self.transport, protocols)
+            .new_socket(ProtocolFamily::INET, self.transport, machine)
             .await
             .unwrap();
 
@@ -132,7 +131,7 @@ impl Protocol for SocketClient {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

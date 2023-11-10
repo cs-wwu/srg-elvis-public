@@ -1,7 +1,9 @@
 //! The [`Session`] trait and supporting types.
 
+use std::sync::Arc;
+
 use super::Message;
-use crate::{machine::ProtocolMap, network::Mtu};
+use crate::{network::Mtu, Machine};
 use thiserror::Error as ThisError;
 
 /// Holds the state for a particular connection.
@@ -15,7 +17,7 @@ use thiserror::Error as ThisError;
 pub trait Session: Send + Sync + 'static {
     /// Takes the message, appends headers, and forwards it to the next session
     /// in the chain for further processing.
-    fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError>;
+    fn send(&self, message: Message, machine: Arc<Machine>) -> Result<(), SendError>;
 }
 
 #[derive(Debug, ThisError, Clone, Copy, PartialEq, Eq)]

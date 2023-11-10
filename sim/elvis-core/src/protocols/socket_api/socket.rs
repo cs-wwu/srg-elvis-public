@@ -1,12 +1,11 @@
 use super::SocketAPI;
 use crate::{
-    machine::ProtocolMap,
     message::Chunk,
     protocols::{
         dns::dns_client::DnsClient,
         utility::{Endpoint, Endpoints},
     },
-    Message, Session, Shutdown,
+    Machine, Message, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use thiserror::Error as ThisError;
@@ -25,7 +24,7 @@ pub struct Socket {
     pub(crate) remote_addr: Option<Endpoint>,
     session: RwLock<Option<Arc<dyn Session>>>,
     listen_backlog: usize,
-    protocols: ProtocolMap,
+    machine: Arc<Machine>,
     socket_api: Arc<SocketAPI>,
     message_receiver: Option<Receiver<Message>>,
     stored_message: Option<Message>,
@@ -37,7 +36,7 @@ impl Socket {
     pub(super) fn new(
         domain: ProtocolFamily,
         sock_type: SocketType,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
         socket_api: Arc<SocketAPI>,
         shutdown: Shutdown,
     ) -> Socket {
@@ -52,7 +51,7 @@ impl Socket {
             remote_addr: None,
             listen_backlog: 0,
             session: Default::default(),
-            protocols,
+            machine,
             socket_api,
             message_receiver: Default::default(),
             stored_message: None,
@@ -77,10 +76,10 @@ impl Socket {
         dest_port: u16,
     ) -> Result<&mut Self, SocketError> {
         let ip_from_domain = self
-            .protocols
+            .machine
             .protocol::<DnsClient>()
             .unwrap()
-            .get_host_by_name(domain_name, self.protocols.clone())
+            .get_host_by_name(domain_name, self.machine.clone())
             .await
             .unwrap();
         let new_destination = Endpoint::new(ip_from_domain, dest_port);
@@ -107,13 +106,13 @@ impl Socket {
         let remote_op = self.remote_addr;
         if let (Some(local), Some(remote)) = (local_op, remote_op) {
             let (session, receiver) = match self
-                .protocols
+                .machine
                 .protocol::<SocketAPI>()
                 .expect("Sockets API not found")
                 .open(
                     Endpoints::new(local, remote),
                     self.sock_type,
-                    self.protocols.clone(),
+                    self.machine.clone(),
                 )
                 .await
             {
@@ -153,10 +152,10 @@ impl Socket {
 
         if let Some(local_addr) = self.local_addr {
             match self
-                .protocols
+                .machine
                 .protocol::<SocketAPI>()
                 .expect("Sockets API not found")
-                .listen(local_addr, self.sock_type, backlog, self.protocols.clone())
+                .listen(local_addr, self.sock_type, backlog, self.machine.clone())
             {
                 Ok(receiver) => {
                     self.is_listening = true;
@@ -191,7 +190,7 @@ impl Socket {
         };
         let mut new_sock = self
             .socket_api
-            .new_socket(self.family, self.sock_type, self.protocols.clone())
+            .new_socket(self.family, self.sock_type, self.machine.clone())
             .await?;
         let local_addr = Endpoint {
             address: self.socket_api.get_local_ip()?,
@@ -218,7 +217,7 @@ impl Socket {
             return Err(SocketError::SendError);
         }
         let session = self.session.read().unwrap().as_ref().unwrap().clone();
-        let protocols = self.protocols.clone();
+        let protocols = self.machine.clone();
         tokio::spawn(async move {
             session.send(Message::new(message), protocols).unwrap();
         });
@@ -323,13 +322,13 @@ impl Socket {
     }
 
     pub fn close(self) {
-        if let Some(socket_api) = self.protocols.protocol::<SocketAPI>() {
+        if let Some(socket_api) = self.machine.protocol::<SocketAPI>() {
             socket_api.close_and_drop_socket(self);
         }
     }
 
     fn close_during_drop(&mut self) {
-        if let Some(socket_api) = self.protocols.protocol::<SocketAPI>() {
+        if let Some(socket_api) = self.machine.protocol::<SocketAPI>() {
             socket_api.close_socket(self);
         }
     }
