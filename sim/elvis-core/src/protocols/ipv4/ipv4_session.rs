@@ -4,7 +4,7 @@ use super::{
     Ipv4, Ipv4Address, Recipient,
 };
 use crate::{
-    machine::ProtocolMap,
+    machine::Machine,
     message::Message,
     network::Delivery,
     protocol::DemuxError,
@@ -40,7 +40,7 @@ impl Ipv4Session {
         header: Ipv4Header,
         message: Message,
         control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let result = self
             .reassembly
@@ -50,10 +50,10 @@ impl Ipv4Session {
 
         match result {
             ReceivePacketResult::Complete(_, message) => {
-                protocols
+                machine
                     .get(self.upstream)
                     .expect("No such protocol")
-                    .demux(message, self, control, protocols)?;
+                    .demux(message, self, control, machine)?;
             }
             ReceivePacketResult::Incomplete(timeout, buf_id, epoch) => {
                 let reassembly = self.reassembly.clone();
@@ -77,7 +77,7 @@ impl Ipv4Session {
 
 impl Session for Ipv4Session {
     #[tracing::instrument(name = "Ipv4Session::send", skip_all)]
-    fn send(&self, mut message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
+    fn send(&self, mut message: Message, _machine: Arc<Machine>) -> Result<(), SendError> {
         let length = message.iter().count();
         let transport: Transport = self.upstream.try_into().or(Err(SendError::Other))?;
         let header = match Ipv4HeaderBuilder::new(

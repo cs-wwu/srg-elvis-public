@@ -1,5 +1,4 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -7,7 +6,7 @@ use elvis_core::{
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         Endpoint, SocketAPI,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::{sync::Barrier, task::JoinSet};
@@ -119,11 +118,11 @@ impl Protocol for SocketServer {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = protocols
+        let sockets = machine
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = self.local_port;
@@ -132,7 +131,7 @@ impl Protocol for SocketServer {
         let output = self.output;
 
         let mut listen_socket = sockets
-            .new_socket(ProtocolFamily::INET, transport, protocols.clone())
+            .new_socket(ProtocolFamily::INET, transport, machine.clone())
             .await
             .unwrap();
 
@@ -159,7 +158,7 @@ impl Protocol for SocketServer {
 
         // Error checking, a second socket should not be able to listen on the same port
         let mut listen_socket_2 = sockets
-            .new_socket(ProtocolFamily::INET, transport, protocols)
+            .new_socket(ProtocolFamily::INET, transport, machine)
             .await
             .unwrap();
         listen_socket_2.bind(local_sock_addr).unwrap();
@@ -219,7 +218,7 @@ impl Protocol for SocketServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::Sender;
 
-use crate::{machine::ProtocolMap, protocol::DemuxError, session::SendError, Message, Session};
+use crate::{protocol::DemuxError, session::SendError, Machine, Message, Session};
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
@@ -56,7 +56,7 @@ impl SocketSession {
 }
 
 impl Session for SocketSession {
-    fn send(&self, message: Message, protocols: ProtocolMap) -> Result<(), SendError> {
-        self.downstream.send(message, protocols)
+    fn send(&self, message: Message, machine: Arc<Machine>) -> Result<(), SendError> {
+        self.downstream.send(message, machine)
     }
 }

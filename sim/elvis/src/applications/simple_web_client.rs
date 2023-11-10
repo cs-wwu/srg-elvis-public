@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{socket_api::socket::SocketError, Endpoint, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::{
     str,
@@ -33,10 +32,10 @@ impl Protocol for SimpleWebClient {
         &self,
         _shutdown: Shutdown,
         _initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Create a new TcpStream connected to the server address
-        let mut stream: TcpStream = TcpStream::connect(self.server_address, protocols)
+        let mut stream: TcpStream = TcpStream::connect(self.server_address, machine)
             .await
             .unwrap();
 
@@ -90,7 +89,7 @@ impl Protocol for SimpleWebClient {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

@@ -1,5 +1,5 @@
 use crate::{
-    machine::ProtocolMap,
+    machine::Machine,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -99,21 +99,21 @@ impl Protocol for DnsServer {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Adds mappings to the dns server cache. This is a stand it method of
         // doing it. TODO (HenryEricksonIV)
         self.add_mapping("testserver.com".to_string(), [123, 45, 67, 15].into());
         self.add_mapping("google.com".to_string(), [123, 45, 67, 60].into());
 
-        let sockets = protocols
+        let sockets = machine
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = 53;
         let transport = SocketType::Datagram;
 
         let mut listen_socket = sockets
-            .new_socket(ProtocolFamily::INET, transport, protocols)
+            .new_socket(ProtocolFamily::INET, transport, machine)
             .await
             .unwrap();
 
@@ -156,7 +156,7 @@ impl Protocol for DnsServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

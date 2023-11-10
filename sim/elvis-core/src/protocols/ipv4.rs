@@ -2,8 +2,7 @@
 //! 4](https://datatracker.ietf.org/doc/html/rfc791).
 
 use crate::{
-    machine::PciSlot,
-    machine::ProtocolMap,
+    machine::{Machine, PciSlot},
     message::Message,
     network::Mac,
     protocol::{DemuxError, StartError},
@@ -78,26 +77,19 @@ impl Ipv4 {
         &self,
         upstream: TypeId,
         endpoints: AddressPair,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
         protocol_number: ProtocolNumber,
     ) -> Result<Arc<Ipv4Session>, OpenAndListenError> {
-        self.listen(
-            upstream,
-            endpoints.local,
-            protocols.clone(),
-            protocol_number,
-        )?;
+        self.listen(upstream, endpoints.local, machine.clone(), protocol_number)?;
 
-        Ok(self
-            .open_for_sending(upstream, endpoints, protocols)
-            .await?)
+        Ok(self.open_for_sending(upstream, endpoints, machine).await?)
     }
 
     pub async fn open_for_sending(
         &self,
         upstream: TypeId,
         endpoints: AddressPair,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Arc<Ipv4Session>, OpenError> {
         let mut recipient = match self.recipients.get_recipient(endpoints.local) {
             Some(recipient) => recipient,
@@ -109,16 +101,16 @@ impl Ipv4 {
         // if ARP exists, and recipient does not specify a destination MAC, then try to figure out a destination MAC
         // don't try to send arp requests if the remote enpoint is the broadcast address
         if recipient.mac.is_none() {
-            if let Some(arp) = protocols.protocol::<Arp>() {
+            if let Some(arp) = machine.protocol::<Arp>() {
                 arp.listen(endpoints.local);
                 let resolved_mac = arp
-                    .resolve(endpoints, recipient.slot, protocols.clone())
+                    .resolve(endpoints, recipient.slot, machine.clone())
                     .await?;
                 recipient.mac = Some(resolved_mac);
             }
         }
 
-        let pci_session = protocols.protocol::<Pci>().unwrap().open(recipient.slot);
+        let pci_session = machine.protocol::<Pci>().unwrap().open(recipient.slot);
         let session = Arc::new(Ipv4Session {
             pci_session,
             upstream,
@@ -133,10 +125,10 @@ impl Ipv4 {
         &self,
         upstream: TypeId,
         address: Ipv4Address,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
         protocol_number: ProtocolNumber,
     ) -> Result<(), ListenError> {
-        if let Some(arp) = protocols.protocol::<Arp>() {
+        if let Some(arp) = machine.protocol::<Arp>() {
             if address != Ipv4Address::SUBNET {
                 arp.listen(address);
             }
@@ -164,7 +156,7 @@ impl Protocol for Ipv4 {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;
         Ok(())
@@ -175,7 +167,7 @@ impl Protocol for Ipv4 {
         mut message: Message,
         _caller: Arc<dyn Session>,
         mut control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         // Extract identifying information from the header and the context and
         // add header information to the context
@@ -225,10 +217,7 @@ impl Protocol for Ipv4 {
         let recipient = Recipient::with_mac(pci_demux_info.slot, pci_demux_info.source);
         let session = Arc::new(Ipv4Session {
             upstream,
-            pci_session: protocols
-                .protocol::<Pci>()
-                .unwrap()
-                .open(pci_demux_info.slot),
+            pci_session: machine.protocol::<Pci>().unwrap().open(pci_demux_info.slot),
             addresses: AddressPair {
                 local: header.destination,
                 remote: header.source,
@@ -236,7 +225,7 @@ impl Protocol for Ipv4 {
             recipient,
             reassembly: Default::default(),
         });
-        session.receive(header, message, control, protocols)?;
+        session.receive(header, message, control, machine)?;
         Ok(())
     }
 }

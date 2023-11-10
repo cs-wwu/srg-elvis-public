@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         dns::{dns_client::DnsClient, dns_server::DnsServer},
         ipv4::{Ipv4, Ipv4Address, Recipient},
@@ -33,7 +33,7 @@ pub async fn dns_basic() {
         .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
@@ -42,7 +42,7 @@ pub async fn dns_basic() {
             SocketAPI::new(Some(dns_server_ip_address)),
             DnsServer::new(1), // Argument is for number of connections this server will at most have open. WiP workaround solution for now.
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
@@ -51,7 +51,7 @@ pub async fn dns_basic() {
             SocketAPI::new(Some(server_ip_address)),
             DnsTestServer::new(0xbeef, SocketType::Datagram)
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),

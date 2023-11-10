@@ -1,5 +1,5 @@
 use crate::{
-    machine::{PciSlot, ProtocolMap},
+    machine::{Machine, PciSlot},
     message::Message,
     network::{Delivery, Mac, Mtu},
     protocol::DemuxError,
@@ -19,7 +19,7 @@ pub struct PciSession {
     mac: Mac,
     slot: PciSlot,
     network: Arc<Network>,
-    protocols: RwLock<Option<ProtocolMap>>,
+    machine: RwLock<Option<Arc<Machine>>>,
 }
 
 impl PciSession {
@@ -30,7 +30,7 @@ impl PciSession {
             mac,
             slot: index,
             network: network.clone(),
-            protocols: Default::default(),
+            machine: Default::default(),
         };
         let this = Arc::new(this);
         network.register_tap(mac, this.clone());
@@ -51,8 +51,8 @@ impl PciSession {
 
     /// Called by the owning [`Pci`](super::Pci) protocol at the beginning of the simulation
     /// to start the contained tap running
-    pub(super) fn start(&self, protocols: ProtocolMap) {
-        *self.protocols.write().unwrap() = Some(protocols);
+    pub(super) fn start(&self, machine: Arc<Machine>) {
+        *self.machine.write().unwrap() = Some(machine);
     }
 
     /// Called by the [`Network`] to pass a frame from the network up the
@@ -69,7 +69,7 @@ impl PciSession {
             mtu: self.network.mtu,
         };
         control.insert(pci_demux_info);
-        let protocols = self.protocols.read().unwrap().as_ref().unwrap().clone();
+        let protocols = self.machine.read().unwrap().as_ref().unwrap().clone();
         let protocol = match protocols.get(delivery.protocol) {
             Some(protocol) => protocol,
             None => {
@@ -112,7 +112,7 @@ impl PciSession {
 
 // TODO(hardint): I think PCI sessions maybe just shouldn't implement to session type
 impl Session for PciSession {
-    fn send(&self, _message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
+    fn send(&self, _message: Message, _machine: Arc<Machine>) -> Result<(), SendError> {
         panic!("Should use PciSession::send_pci instead");
     }
 }

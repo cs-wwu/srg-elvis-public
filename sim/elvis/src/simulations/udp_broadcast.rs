@@ -4,7 +4,7 @@ use crate::applications::{
 };
 use elvis_core::{
     message::Message,
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -49,7 +49,7 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
         .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -57,20 +57,20 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
             capfactory.build(endpoints[0], 1).exit_status(1),
             Udp::new(),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
             capfactory.build(endpoints[1], 1).exit_status(1),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
             capfactory.build(endpoints[2], 1).exit_status(1),
         ],
         // evil machine should not be receiving the udp broadcast
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),

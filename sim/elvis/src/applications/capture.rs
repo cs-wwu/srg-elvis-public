@@ -1,12 +1,11 @@
 //! An application that shuts down the simulation once it receives some messages.
 
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{ipv4::Ipv4Address, Endpoint, Tcp, Udp},
     shutdown::ExitStatus,
-    Control, Protocol, Session, Shutdown, Transport,
+    Control, Machine, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio::sync::Barrier;
@@ -157,30 +156,30 @@ impl Protocol for Capture {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, self.endpoint.port);
 
         match self.transport {
             Transport::Tcp => {
-                protocols
+                machine
                     .protocol::<Tcp>()
                     .unwrap()
-                    .listen(self.id(), self.endpoint, protocols)
+                    .listen(self.id(), self.endpoint, machine)
                     .unwrap();
             }
             Transport::Udp => {
-                protocols
+                machine
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(self.id(), self.endpoint, protocols.clone())
+                    .listen(self.id(), self.endpoint, machine.clone())
                     .unwrap();
 
                 // listen on broadcast
-                protocols
+                machine
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(self.id(), broadcast_endpoint, protocols)
+                    .listen(self.id(), broadcast_endpoint, machine)
                     .unwrap();
             }
         }
@@ -197,7 +196,7 @@ impl Protocol for Capture {
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         println!("received message of len: {}", message.len());
         // lock received messages for duration of demux
