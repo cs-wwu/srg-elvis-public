@@ -70,3 +70,6 @@ pub use localhost::localhost;
 
 mod rip_router_sim;
 pub use rip_router_sim::rip_router;
+
+mod rip_large_network;
+pub use rip_large_network::rip_large_network;
