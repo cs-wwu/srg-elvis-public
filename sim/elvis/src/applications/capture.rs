@@ -24,7 +24,9 @@ pub struct Capture {
     cur_count: RwLock<u32>,
     /// The transport protocol to use
     transport: Transport,
-    exit_status: Option<u32>,
+    exit_status: Option<Arc<RwLock<u32>>>,
+    /// Increment the status reference instead of shutting down the sim
+    status_increment: Option<u32>,
 }
 
 impl Capture {
@@ -38,6 +40,7 @@ impl Capture {
             cur_count: RwLock::new(0),
             transport: Transport::Udp,
             exit_status: None,
+            status_increment: None,
         }
     }
 
@@ -52,9 +55,16 @@ impl Capture {
         self
     }
 
-    // Set the exit status for capture to return with on shutdown
+    /// Set the exit status for capture to return with on shutdown
     pub fn exit_status(mut self, status: u32) -> Self {
+        self.exit_status = Some(Arc::new(RwLock::new(status)));
+        self
+    }
+
+    /// Instead of exiting with a specific status after capturing a message, increment the status pointer by a certain amount
+    pub fn with_atomic_status(mut self, status: Arc<RwLock<u32>>, increment: u32) -> Self {
         self.exit_status = Some(status);
+        self.status_increment = Some(increment);
         self
     }
 }
@@ -92,6 +102,7 @@ impl Protocol for Capture {
                     .unwrap();
             }
         }
+
         *self.shutdown.write().unwrap() = Some(shutdown);
         initialized.wait().await;
         Ok(())
@@ -106,12 +117,27 @@ impl Protocol for Capture {
     ) -> Result<(), DemuxError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
+        
+        println!("Recieved message");
+
         if *self.cur_count.read().unwrap() >= self.message_count {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
-                if let Some(status) = self.exit_status {
-                    shutdown.shut_down_with_status(ExitStatus::Status(status));
+                if let Some(status_inc) = self.status_increment {
+                    let mut status_ref = self
+                        .exit_status
+                        .as_ref()
+                        .expect("If self.status_increment is Some, exit_status should also be Some")
+                        .write()
+                        .unwrap();
+                    println!("incrementing status ref");
+                    *status_ref += status_inc;
                 } else {
-                    shutdown.shut_down();
+                    // Shutdown the simulation
+                    if let Some(status) = self.exit_status.clone() {
+                        shutdown.shut_down_with_status(ExitStatus::Status(*status.read().unwrap()));
+                    } else {
+                        shutdown.shut_down();
+                    }
                 }
             }
         }

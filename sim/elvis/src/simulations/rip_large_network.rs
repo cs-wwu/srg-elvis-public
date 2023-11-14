@@ -82,7 +82,7 @@ pub fn create_capture(
             Ipv4::new(Default::default()),
             Udp::new(),
             Capture::new(Endpoint::new(ip, MESSAGE_PORT), 1)
-                .exit_status(exit_status)
+                .with_atomic_status(status_ref, exit_status)
         ]
     } else {
         new_machine![
@@ -90,7 +90,8 @@ pub fn create_capture(
             Arp::new().preconfig_subnet(ip, subnet),
             Ipv4::new(Default::default()),
             Udp::new(),
-            Capture::new(Endpoint::new(ip, MESSAGE_PORT), 1).exit_status(exit_status)
+            Capture::new(Endpoint::new(ip, MESSAGE_PORT), 1)
+                .exit_status(exit_status)
         ]
     }
 }
@@ -195,7 +196,7 @@ pub async fn rip_large_network(
     capture_ips: Vec<Ipv4Address>,
     status_capture: Option<Arc<RwLock<u32>>>,
 ) -> ExitStatus {
-    // Create 7 basic networks
+    // Create 4 basic networks
     // Network::basic() :   mtu = maximum packet size;
     //                      throughput = amount of data successfully transmitted from x to y in a fixed amount of time
     //                      latency = simulated packet transit time
@@ -208,7 +209,7 @@ pub async fn rip_large_network(
         .for_each(|recipient_ip| endpoints.push(Endpoint::new(*recipient_ip, MESSAGE_PORT)));
 
     // Only sending message to CAP2
-    let message = SendMessage::new(vec![Message::new(b"Yahoo")], endpoints[0])
+    let message = SendMessage::with_endpoints(vec![Message::new(b"Yahoo")], endpoints)
         .delay(Duration::from_secs(2));
 
     // Everything is a machine
@@ -279,10 +280,35 @@ pub async fn rip_large_network(
     run_internet_with_timeout(&machines, Duration::from_secs(10)).await
 }
 
+// pub async fn rip_test_one(
+//     capture_ip: Ipv4Address,
+//     status_capture: Option<Arc<RwLock<u32>>>,
+// ) -> ExitStatus {
+
+//     let networks: Vec<Arc<Network>> = (0..4).map(|_| Network::basic()).collect();
+
+//     let endpoint: Endpoint = Endpoint::new(capture_ip, MESSAGE_PORT);
+
+//     let message = SendMessage::new(vec![Message::new(b"Hello!")], endpoint)
+//         .delay(Duration::from_secs(2));
+
+//     return 0;
+
+// }
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    // #[tokio::test]
+    // async fn rip_test_one() {
+    //     // SINGLE CAPTURE (SENDER -> CAPTURE2)
+    //     let recipient_ips = Vec::from([HOST_ADDRESSES[2]]);
+    //     let test1 = super::rip_large_network(recipient_ips, None);
+
+    //     // Message should reach capture 2 (and no other)
+    //     assert_eq!(test1.await, super::ExitStatus::Status(2));
+    // }
 
     #[tokio::test]
     async fn rip_large_network() {
@@ -302,6 +328,6 @@ mod tests {
         let test2 = super::rip_large_network(recipient_ips, Some(status.clone()));
 
         assert_eq!(test2.await, super::ExitStatus::TimedOut);
-        assert_eq!(*status.read().unwrap(), 1 + 2 + 3);
+        assert_eq!(*status.read().unwrap(), 1 + 2 );
     }
 }
