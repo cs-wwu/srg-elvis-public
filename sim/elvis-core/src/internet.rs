@@ -4,6 +4,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::{sync::Barrier, task::JoinSet, time::sleep};
 
+/// Runs the simulation with the given machines
+/// This function will call run_internet() with the provided timeout,
+/// then forcibly shut down the simulation if it fails to do so itself
+/// one second after the call to shutdown.shut_down()
 pub async fn run_internet_with_timeout(
     machines: &[Arc<Machine>],
     duration: Duration,
@@ -16,7 +20,9 @@ pub async fn run_internet_with_timeout(
     }
 }
 
-/// Runs the simulation with the given machines and networks
+/// Runs the simulation with the given machines
+/// `timeout` is an optional field, if Some() is provided, this function
+/// will call shutdown.shut_down() after the given duration.
 pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) -> ExitStatus {
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
