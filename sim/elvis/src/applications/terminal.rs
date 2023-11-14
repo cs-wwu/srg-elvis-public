@@ -131,6 +131,7 @@ impl Terminal {
         message: Message,
         protocols: ProtocolMap,
     ) {
+        // let transport = Transport::Udp;
         let transport = self.transport;
 
         let local_address = match protocols.protocol::<DhcpClient>() {
@@ -145,6 +146,12 @@ impl Terminal {
             },
             remote: endpoint,
         };
+    }
+
+    async fn fetch(
+        // &self,
+    ) {
+        println!("FETCHING");
     }
 
     fn usage() {
@@ -194,12 +201,11 @@ impl Protocol for Terminal {
         _initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        println!("Begin start()");
-
+        println!("Start");
         let p = self.port.clone();
 
-        // tokio spawn
         tokio::spawn(async move {
+            println!("Spawn");
             let listener = TcpListener::bind(p)
                 .await
                 .unwrap();
@@ -227,11 +233,11 @@ impl Protocol for Terminal {
                 let command: TerminalCommand = Terminal::parse(String::from(&line)).unwrap();
                 match command.cmd_type {
                     TerminalCommandType::SEND => {
-                        Terminal::send(command.address.unwrap(), command.message.unwrap(), protocols);
+                        Terminal::send(/* &self???, */ command.address.unwrap(), command.message.unwrap(), protocols);
                     },
 
                     TerminalCommandType::FETCH => {
-
+                        Terminal::fetch();
                     },
                 }
 
