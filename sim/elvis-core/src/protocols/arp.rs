@@ -216,6 +216,8 @@ impl Arp {
                 tokio::time::timeout(Self::RESEND_DELAY, self.arp_table.get_mac(dest_ip)).await;
             if let Ok(status) = result {
                 return status;
+            } else {
+                println!("ARP Resending");
             }
         }
         self.arp_table.fail_mac(dest_ip);

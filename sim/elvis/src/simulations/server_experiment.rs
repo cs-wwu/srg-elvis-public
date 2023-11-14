@@ -6,7 +6,7 @@ use elvis_core::{
     new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
-        Endpoint, Pci, SocketAPI, Tcp, Arp,
+        Arp, Endpoint, Pci, SocketAPI, Tcp,
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
@@ -23,8 +23,8 @@ pub async fn server_experiment() {
     let mut client_ip_addresses: Vec<Ipv4Address> = vec![];
     let mut server_ip_addresses: Vec<Ipv4Address> = vec![];
 
-     // Generate unique IP addresses for each server and client and add them to ip_map
-     for i in 0..num_servers {
+    // Generate unique IP addresses for each server and client and add them to ip_map
+    for i in 0..num_servers {
         let tens: u8 = (i / 10).try_into().unwrap();
         let ones: u8 = (i % 10).try_into().unwrap();
         let this_server_ip_address = [100, 42, tens, ones].into(); // Ip addresses are arbitrary

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     new_machine_arc,
@@ -5,7 +7,7 @@ use elvis_core::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Udp,
     },
-    run_internet, IpTable, Message, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
 
 pub async fn localhost() {
@@ -25,7 +27,8 @@ pub async fn localhost() {
         Capture::new(remote_endpoint, 1),
     ]];
 
-    run_internet(&machines, None).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_millis(100)).await;
+    assert_eq!(status, ExitStatus::Exited);
 }
 
 #[cfg(test)]

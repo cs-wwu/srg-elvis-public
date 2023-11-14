@@ -6,7 +6,7 @@ use elvis_core::{
     new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
-        Endpoint, Pci, SocketAPI, Tcp, Arp,
+        Arp, Endpoint, Pci, SocketAPI, Tcp,
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
@@ -21,7 +21,7 @@ pub async fn server_user() {
     let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
         .into_iter()
         .collect();
-    
+
     // need to loop this x amount of times
     let machines = vec![
         new_machine_arc![
