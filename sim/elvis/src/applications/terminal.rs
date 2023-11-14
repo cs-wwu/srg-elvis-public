@@ -2,6 +2,7 @@
 //! The application communicates with an actual port on the real-world machine running ELVIS
 //! and sends and receives messages over this port via TCP communication with a command terminal.
 
+use elvis_core::message::Chunk;
 use elvis_core::protocols::{Endpoint, Endpoints};
 use elvis_core::protocols::dhcp_client::DhcpClient;
 use elvis_core::{*, protocols::ipv4::Ipv4Address};
@@ -43,13 +44,11 @@ impl Terminal {
 
     async fn run(
         port: String,
-        // protocols: ProtocolMap,
+        protocols: ProtocolMap,
     ) {
         let listener = TcpListener::bind(port)
             .await
             .unwrap();
-
-        println!("Begin run() on port {}", listener.local_addr().unwrap());
 
         let (mut socket, _addr) = listener
             .accept()
@@ -79,55 +78,59 @@ impl Terminal {
 
             line.clear();
         }
-
-        println!("Finished r/w loop");
     }
 
-    pub async fn parse(
+    pub fn parse(
         string: String,
-    ) /* -> Vec<String> */ {
-        // split command by spaces
-        let split = string.split(" ");
-        let args: Vec<&str> = split.collect();
+    ) -> Result<TerminalCommand, TerminalError> {
+        // Split command by spaces
+        let args: Vec<&str> = string
+            .split(" ")
+            .collect();
 
-        // for arg in args {
-        //     println!("{}\n", arg);
-        // }
-
-        println!("{}", args[0]);
-
-        // determine if command starts with "send" or "fetch"
-            // print usage and exit if neither
+        // Determine if command starts with "send" or "fetch"
         match args[0].trim().as_ref() {
             "send" => {
                 println!("Send");
                 // Check size of args == 3
                 if args.len() != 3 {
                     Terminal::usage();
-                    return;
-                }
+                    Err(TerminalError::TERROR)
+                } else {
+                    // Parse args[1] into Ipv4Address and port
+                    let adr_and_port: Vec<&str> = args[1]
+                        .split(":")
+                        .collect();
 
-                Terminal::send(self, args[1], args[2], /* ProtocolMap */).await;
+                    let adr: u32 = adr_and_port[0].parse().expect("Failed to resolve address");
+                    let port: u16 = adr_and_port[1].parse().expect("Failed to resolve port");
+
+                    let endpoint: Endpoint = Endpoint::new(Ipv4Address::from(adr), port);
+
+                    // Parse args[2] into a Message
+                    let message: Message = Message::new(args[2]);
+
+                    Ok(TerminalCommand::new(TerminalCommandType::SEND, Some(endpoint), Some(message)))
+                }
             },
 
             "fetch" => {
-                println!("Fetch")
+                Ok(TerminalCommand::new(TerminalCommandType::FETCH, None, None))
             },
 
-            _ => Terminal::usage(),
+            _ => {
+                Terminal::usage();
+                Err(TerminalError::TERROR)
+            }
         }
     }
 
     async fn send(
         &self,
-        ip_with_port: &str,
-        _message: &str,
+        endpoint: Endpoint,
+        message: Message,
         protocols: ProtocolMap,
     ) {
-        let ip_port: Vec<&str> = ip_with_port.split(":").collect();
-        let ip = ip_port[0].parse::<u32>().unwrap();
-        let port = ip_port[1].parse::<u16>().unwrap();
-        let endpoint = Endpoint::new(Ipv4Address::from(ip), port);
         let transport = self.transport;
 
         let local_address = match protocols.protocol::<DhcpClient>() {
@@ -197,7 +200,48 @@ impl Protocol for Terminal {
 
         // tokio spawn
         tokio::spawn(async move {
-            Self::run(p).await;
+            let listener = TcpListener::bind(p)
+                .await
+                .unwrap();
+
+            let (mut socket, _addr) = listener
+                .accept()
+                .await
+                .unwrap();
+
+            let (read, mut write) = socket.split();
+
+            let mut reader = BufReader::new(read);
+            let mut line = String::new();
+
+            loop {
+                let bytes_read = reader.read_line(&mut line)
+                    .await
+                    .unwrap();
+
+                if bytes_read == 0 {
+                    break;
+                }
+
+                // Pass line to TerminalParser to get Message and Endpoint?
+                let command: TerminalCommand = Terminal::parse(String::from(&line)).unwrap();
+                match command.cmd_type {
+                    TerminalCommandType::SEND => {
+                        Terminal::send(command.address.unwrap(), command.message.unwrap(), protocols);
+                    },
+
+                    TerminalCommandType::FETCH => {
+
+                    },
+                }
+
+                write.write_all(line.as_bytes())
+                    .await
+                    .unwrap();
+
+                line.clear();
+            }
+            
             shutdown.shut_down();
         });
 
@@ -212,5 +256,35 @@ impl Protocol for Terminal {
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
         Ok(())
+    }
+}
+
+pub enum TerminalCommandType {
+    SEND,
+    FETCH,
+}
+
+#[derive(Debug)]
+pub enum TerminalError {
+    TERROR,
+}
+
+pub struct TerminalCommand {
+    cmd_type: TerminalCommandType,
+    message: Option<Message>,
+    address: Option<Endpoint>,
+}
+
+impl TerminalCommand {
+    fn new(
+        tct: TerminalCommandType,
+        adr: Option<Endpoint>,
+        msg: Option<Message>,
+    ) -> TerminalCommand {
+        Self {
+            cmd_type: tct,
+            address: adr,
+            message: msg,
+        }
     }
 }
