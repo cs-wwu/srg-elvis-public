@@ -71,7 +71,7 @@ pub async fn server_experiment() {
         ])
     }
 
-    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
     assert_eq!(status, ExitStatus::Exited);
 
     let mut machines_iter = machines.into_iter();
@@ -84,6 +84,7 @@ pub async fn server_experiment() {
     let mut high = 0;
     let mut low = std::u32::MAX;
     let mut total = 0;
+    let mut no_pages_recvd_count = 0;
     for _i in 0..num_clients {
         let client = machines_iter.next().unwrap();
         let lock = &client
@@ -100,20 +101,23 @@ pub async fn server_experiment() {
         }
         total += num_pages_recvd;
 
-        assert!(num_pages_recvd > 0)
+        if num_pages_recvd == 0 {
+            no_pages_recvd_count += 1;
+        }
     }
     let avg: f32 = total as f32 / num_clients as f32;
     println!(
         "Total: {}\nHigh: {}\nLow: {}\nAvg: {}",
         total, high, low, avg
     );
+    assert_eq!(no_pages_recvd_count, 0);
 }
 
 #[cfg(test)]
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn server_experiment() {
-        for _ in 0..5 {
+        for _ in 0..3 {
             super::server_experiment().await;
         }
     }

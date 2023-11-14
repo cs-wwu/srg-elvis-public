@@ -66,7 +66,7 @@ pub async fn yahoo_server() {
     let mut machines_iter = machines.into_iter();
     let _server = machines_iter.next().unwrap();
 
-    // Check that each client recieved at least 1000 pages before the simulation was terminated
+    // Check that each client recieved at least 500 pages before the simulation was terminated
     for _i in 0..3 {
         let client = machines_iter.next().unwrap();
         let lock = &client
