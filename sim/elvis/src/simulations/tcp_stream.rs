@@ -18,12 +18,9 @@ pub async fn tcp_stream() {
     let server_socket_address: Endpoint = Endpoint::new(server_ip_address, 80);
     let client_socket_address: Endpoint = Endpoint::new(client_ip_address, 70);
 
-    let ip_table: IpTable<Recipient> = [
-        (client_ip_address, Recipient::with_mac(0, 0)),
-        (server_ip_address, Recipient::with_mac(0, 1)),
-    ]
-    .into_iter()
-    .collect();
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
 
     let machines = vec![
         new_machine_arc![

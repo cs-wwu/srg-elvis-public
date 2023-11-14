@@ -18,12 +18,10 @@ pub async fn server_user() {
     let client1_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     let server_socket_address: Endpoint = Endpoint::new(server_ip_address, 80);
 
-    let ip_table: IpTable<Recipient> = [
-        (server_ip_address, Recipient::with_mac(0, 1)),
-        (client1_ip_address, Recipient::with_mac(0, 0)),
-    ]
-    .into_iter()
-    .collect();
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
+    
     // need to loop this x amount of times
     let machines = vec![
         new_machine_arc![

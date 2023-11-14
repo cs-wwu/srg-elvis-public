@@ -10,7 +10,7 @@ use elvis_core::{
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
-use std::{collections::BTreeMap, time::Duration};
+use std::time::Duration;
 
 /// Runs a simulation with <num_servers> WebServers who each have <num_clients / num_servers>
 /// SimpleWebClients connected to them
@@ -23,28 +23,25 @@ pub async fn server_experiment() {
     let mut client_ip_addresses: Vec<Ipv4Address> = vec![];
     let mut server_ip_addresses: Vec<Ipv4Address> = vec![];
 
-    let mut ip_map = BTreeMap::new();
-
-    // Generate unique IP addresses for each server and client and add them to ip_map
-    for i in 0..num_servers {
+     // Generate unique IP addresses for each server and client and add them to ip_map
+     for i in 0..num_servers {
         let tens: u8 = (i / 10).try_into().unwrap();
         let ones: u8 = (i % 10).try_into().unwrap();
         let this_server_ip_address = [100, 42, tens, ones].into(); // Ip addresses are arbitrary
         server_ip_addresses.push(this_server_ip_address);
-        ip_map.insert(this_server_ip_address, Recipient::with_mac(0, 1));
     }
 
-    // Generate unique IP addresses for each client and add them to ip_map
+    // Generate unique IP addresses for each client
     for i in 0..num_clients {
         let tens: u8 = (i / 10).try_into().unwrap();
         let ones: u8 = (i % 10).try_into().unwrap();
         let this_client_ip_address = [123, 45, tens, ones].into(); // Ip addresses are arbitrary
         client_ip_addresses.push(this_client_ip_address);
-        ip_map.insert(this_client_ip_address, Recipient::with_mac(0, 0));
     }
 
-    // Convert ip_map to ip_table
-    let ip_table: IpTable<Recipient> = ip_map.into_iter().collect();
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
 
     // Create machines to run each server and client
     let mut machines = vec![];
