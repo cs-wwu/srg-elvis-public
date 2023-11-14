@@ -6,7 +6,7 @@ use elvis_core::{
     new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
-        Endpoint, Pci, SocketAPI, Tcp,
+        Endpoint, Pci, SocketAPI, Tcp, Arp,
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
@@ -30,6 +30,7 @@ pub async fn server_user() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(server_ip_address)),
             WebServer::new(WebServerType::Yahoo, None),
         ],
@@ -37,6 +38,7 @@ pub async fn server_user() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(client1_ip_address)),
             UserBehavior::new(server_socket_address),
         ],

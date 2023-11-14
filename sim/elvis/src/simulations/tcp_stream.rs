@@ -5,7 +5,7 @@ use elvis_core::{
     new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
-        Endpoint, Pci, SocketAPI, Tcp,
+        Endpoint, Pci, SocketAPI, Tcp, Arp,
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
@@ -30,6 +30,7 @@ pub async fn tcp_stream() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(server_ip_address)),
             TcpStreamClient::new(server_socket_address, client_socket_address),
         ],
@@ -37,6 +38,7 @@ pub async fn tcp_stream() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(client_ip_address)),
             TcpListenerServer::new(server_socket_address, client_socket_address),
         ],
