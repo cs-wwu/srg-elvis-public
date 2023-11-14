@@ -77,4 +77,7 @@ pub use rip_large_network::rip_large_network;
 
 mod localhost;
 pub use localhost::localhost;
+<<<<<<< HEAD
 >>>>>>> 7a9c04e4 (Merge rip sim into rip-ndl (#138))
+=======
+>>>>>>> f2f9f4a9 (Sim written, but timing out)
