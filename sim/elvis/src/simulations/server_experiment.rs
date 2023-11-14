@@ -17,7 +17,7 @@ use std::{collections::BTreeMap, time::Duration};
 pub async fn server_experiment() {
     let network = Network::basic();
 
-    let num_clients: u32 = 2000;
+    let num_clients: u32 = 1000;
     let num_servers: u32 = 1; // Can only do 1 server right now since local host isn't implemented
 
     let mut client_ip_addresses: Vec<Ipv4Address> = vec![];
