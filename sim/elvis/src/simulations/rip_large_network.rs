@@ -98,6 +98,7 @@ pub fn create_capture(
     network: Arc<Network>,
     multicapture_counter: Arc<Counter>,
 ) -> Machine {
+<<<<<<< HEAD
     new_machine![
         Pci::new([network]),
         Arp::new().preconfig_subnet(ip, subnet),
@@ -105,6 +106,27 @@ pub fn create_capture(
         Udp::new(),
         MultiCapture::new(Endpoint::new(ip, MESSAGE_PORT), multicapture_counter)
     ]
+=======
+    if let Some(status_ref) = status_ref {
+        new_machine![
+            Pci::new([network]),
+            Arp::new().preconfig_subnet(ip, subnet),
+            Ipv4::new(Default::default()),
+            Udp::new(),
+            Capture::new(Endpoint::new(ip, MESSAGE_PORT), 1)
+                .with_atomic_status(status_ref, exit_status)
+        ]
+    } else {
+        new_machine![
+            Pci::new([network]),
+            Arp::new().preconfig_subnet(ip, subnet),
+            Ipv4::new(Default::default()),
+            Udp::new(),
+            Capture::new(Endpoint::new(ip, MESSAGE_PORT), 1)
+                .exit_status(exit_status)
+        ]
+    }
+>>>>>>> 3fd40a49 (Added functionality to send message to multiple machines (from gab) and reworked some things)
 }
 
 pub fn create_router(
@@ -140,7 +162,7 @@ pub fn create_router(
 pub async fn rip_large_network(
     capture_ips: Vec<Ipv4Address>,
 ) -> ExitStatus {
-    // Create 7 basic networks
+    // Create 4 basic networks
     // Network::basic() :   mtu = maximum packet size;
     //                      throughput = amount of data successfully transmitted from x to y in a fixed amount of time
     //                      latency = simulated packet transit time
@@ -152,12 +174,18 @@ pub async fn rip_large_network(
         .iter()
         .for_each(|recipient_ip| endpoints.push(Endpoint::new(*recipient_ip, MESSAGE_PORT)));
 
+<<<<<<< HEAD
     // Number of recipients = numebr of capture_ips
     let multicapture_counter = Counter::new(capture_ips.len() as u32);
 
     // Only sending message to CAP3
     let message = SendMessage::with_endpoints(vec![Message::new(b"Yahoo")], endpoints)
         .delay(Duration::from_secs(3));
+=======
+    // Only sending message to CAP2
+    let message = SendMessage::with_endpoints(vec![Message::new(b"Yahoo")], endpoints)
+        .delay(Duration::from_secs(2));
+>>>>>>> 3fd40a49 (Added functionality to send message to multiple machines (from gab) and reworked some things)
 
     // Everything is a machine
     let mut end_devices = vec![
@@ -278,10 +306,35 @@ pub async fn rip_large_network(
     run_internet_with_timeout(&machines, Duration::from_secs(10)).await
 }
 
+// pub async fn rip_test_one(
+//     capture_ip: Ipv4Address,
+//     status_capture: Option<Arc<RwLock<u32>>>,
+// ) -> ExitStatus {
+
+//     let networks: Vec<Arc<Network>> = (0..4).map(|_| Network::basic()).collect();
+
+//     let endpoint: Endpoint = Endpoint::new(capture_ip, MESSAGE_PORT);
+
+//     let message = SendMessage::new(vec![Message::new(b"Hello!")], endpoint)
+//         .delay(Duration::from_secs(2));
+
+//     return 0;
+
+// }
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    // #[tokio::test]
+    // async fn rip_test_one() {
+    //     // SINGLE CAPTURE (SENDER -> CAPTURE2)
+    //     let recipient_ips = Vec::from([HOST_ADDRESSES[2]]);
+    //     let test1 = super::rip_large_network(recipient_ips, None);
+
+    //     // Message should reach capture 2 (and no other)
+    //     assert_eq!(test1.await, super::ExitStatus::Status(2));
+    // }
 
     #[tokio::test]
     async fn rip_large_network() {
@@ -299,6 +352,11 @@ mod tests {
         let recipient_ips = Vec::from(&HOST_ADDRESSES[1..]);
         let test2 = super::rip_large_network(recipient_ips.clone());
 
+<<<<<<< HEAD
         assert_eq!(test2.await, super::ExitStatus::Status(recipient_ips.len() as u32));
+=======
+        assert_eq!(test2.await, super::ExitStatus::TimedOut);
+        assert_eq!(*status.read().unwrap(), 1 + 2 );
+>>>>>>> 3fd40a49 (Added functionality to send message to multiple machines (from gab) and reworked some things)
     }
 }

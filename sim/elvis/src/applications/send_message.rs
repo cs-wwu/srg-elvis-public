@@ -111,10 +111,17 @@ impl Protocol for SendMessage {
                     .unwrap(),
             };
 <<<<<<< HEAD
+<<<<<<< HEAD
             
             println!("Sending message");
 =======
 >>>>>>> 7a9c04e4 (Merge rip sim into rip-ndl (#138))
+=======
+=======
+            
+            println!("Sending message");
+>>>>>>> 3fd40a49 (Added functionality to send message to multiple machines (from gab) and reworked some things)
+>>>>>>> 27e6701f (Added functionality to send message to multiple machines (from gab) and reworked some things)
 
             for message in messages.iter() {
                 session
