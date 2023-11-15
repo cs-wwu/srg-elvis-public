@@ -14,7 +14,7 @@ use std::time::Duration;
 pub async fn tcp_stream_speed_test() {
     let network = Network::basic();
 
-    let num_clients: u32 = 1000;
+    let num_clients: u32 = 100;
     let num_servers: u32 = 1;
 
     let mut client_ip_addresses: Vec<Ipv4Address> = vec![];
@@ -67,7 +67,7 @@ pub async fn tcp_stream_speed_test() {
         ])
     }
 
-    let status = run_internet_with_timeout(&machines, Duration::from_secs(10)).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
     assert_eq!(status, ExitStatus::Exited);
 
     // Get server machines out of the way
@@ -113,7 +113,7 @@ pub async fn tcp_stream_speed_test() {
 mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn tcp_stream_speed_test() {
-        for _ in 0..3 {
+        for _ in 0..5 {
             super::tcp_stream_speed_test().await;
         }
     }
