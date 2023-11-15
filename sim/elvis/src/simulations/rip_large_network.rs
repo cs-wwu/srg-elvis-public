@@ -68,6 +68,16 @@ const ROUTER_3_INTERFACES: [Ipv4Address; 2] = [
     Ipv4Address::new([10, 0, 4, 3]),
 ];
 
+pub fn build_ip_table(addresses: &[Ipv4Address]) -> IpTable<Recipient> {
+    let mut router_table = IpTable::<Recipient>::new();
+    let mut slot = 0;
+    for address in addresses.iter() {
+        router_table.add_direct(*address, Recipient::new(slot, None));
+        slot += 1;
+    }
+    router_table
+}
+
 pub fn create_capture(
     ip: Ipv4Address,
     subnet: SubnetInfo,
@@ -102,20 +112,23 @@ pub fn create_router(
     // Router's interface IPs
     interface_ips: &[Ipv4Address],
     // Neighboring end devices
-    neighbors: Vec<Ipv4Address>,
+    routing_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
 ) -> Machine {
     // IPs are mapped to interfaces/pcis (of networks) based on their order
     // E.g. the first address in interface_ips will be the ip of the first pci interface
 
     let mut interfaces = IpTable::<Recipient>::new();
     for (pci_slot, addr) in interface_ips.iter().enumerate() {
+        //println!("slot: {}", pci_slot);
         interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
     }
 
-    let mut routing_table = IpTable::<(Option<Ipv4Address>, PciSlot)>::new();
-    for (pci_slot, neighbor_ip) in neighbors.iter().enumerate() {
-        routing_table.add_direct(*neighbor_ip, (None, pci_slot as u32));
-    }
+    // let mut routing_table = IpTable::<(Option<Ipv4Address>, PciSlot)>::new();
+    // for (pci_slot, neighbor_ip) in neighbors.iter().enumerate() {
+    //     println!("ip: {}", neighbor_ip);
+    //     println!("slot: {}", pci_slot);
+    //     routing_table.add_direct(*neighbor_ip, (None, pci_slot as u32));
+    // }
 
     new_machine![
         Pci::new(networks),
@@ -210,7 +223,7 @@ pub async fn rip_large_network(
 
     // Only sending message to CAP2
     let message = SendMessage::with_endpoints(vec![Message::new(b"Yahoo")], endpoints)
-        .delay(Duration::from_secs(2));
+        .delay(Duration::from_secs(5));
 
     // Everything is a machine
     let mut end_devices = vec![
@@ -244,6 +257,23 @@ pub async fn rip_large_network(
     };
     end_devices.extend(captures);
 
+    let r_table_1: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (HOST_ADDRESSES[0],(None, 0)),
+    ]
+    .into_iter()
+    .collect();
+
+    let r_table_2: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (HOST_ADDRESSES[1],(None, 1)),
+    ]
+    .into_iter()
+    .collect();
+
+    let r_table_3: IpTable<(Option<Ipv4Address>, PciSlot)> = [
+        (HOST_ADDRESSES[2],(None, 1)),
+    ]
+    .into_iter()
+    .collect();
     let mut routers = vec![
         // RIP 1
         create_router(
@@ -251,7 +281,7 @@ pub async fn rip_large_network(
             [networks[0].clone(), networks[1].clone()],
             &ROUTER_1_INTERFACES,
             // Connected hosts (Sender: 0)
-            Vec::from([HOST_ADDRESSES[0]]),
+            r_table_1,
         ),
         // RIP 2
         create_router(
@@ -259,7 +289,7 @@ pub async fn rip_large_network(
             [networks[1].clone(), networks[2].clone()],
             &ROUTER_2_INTERFACES,
             // Connected hosts (CAP1)
-            Vec::from([HOST_ADDRESSES[1]]),
+            r_table_2,
         ),
         // RIP 3
         create_router(
@@ -270,7 +300,7 @@ pub async fn rip_large_network(
             ],
             &ROUTER_3_INTERFACES,
             // Connected hosts (CAP2)
-            Vec::from([HOST_ADDRESSES[2]]),
+            r_table_3,
         )
     ];
 
@@ -280,21 +310,6 @@ pub async fn rip_large_network(
     run_internet_with_timeout(&machines, Duration::from_secs(10)).await
 }
 
-// pub async fn rip_test_one(
-//     capture_ip: Ipv4Address,
-//     status_capture: Option<Arc<RwLock<u32>>>,
-// ) -> ExitStatus {
-
-//     let networks: Vec<Arc<Network>> = (0..4).map(|_| Network::basic()).collect();
-
-//     let endpoint: Endpoint = Endpoint::new(capture_ip, MESSAGE_PORT);
-
-//     let message = SendMessage::new(vec![Message::new(b"Hello!")], endpoint)
-//         .delay(Duration::from_secs(2));
-
-//     return 0;
-
-// }
 
 #[cfg(test)]
 mod tests {
@@ -327,7 +342,7 @@ mod tests {
         let status = Arc::new(RwLock::new(0));
         let test2 = super::rip_large_network(recipient_ips, Some(status.clone()));
 
-        assert_eq!(test2.await, super::ExitStatus::TimedOut);
+        assert_eq!(test2.await, super::ExitStatus::Exited);
         assert_eq!(*status.read().unwrap(), 1 + 2 );
     }
 }
