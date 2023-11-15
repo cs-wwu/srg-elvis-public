@@ -70,7 +70,7 @@ pub async fn video_streaming() {
         ],
     ];
 
-    let duration = 5;
+    let duration = 3;
     let status = run_internet_with_timeout(&machines, Duration::from_secs(duration)).await;
     assert_eq!(status, ExitStatus::Exited);
 

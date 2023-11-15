@@ -67,7 +67,7 @@ pub async fn tcp_stream_speed_test() {
         ])
     }
 
-    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
     assert_eq!(status, ExitStatus::Exited);
 
     // Get server machines out of the way
