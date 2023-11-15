@@ -1,13 +1,13 @@
 use elvis_core::{
-    machine::ProtocolMap,
+    machine::{ProtocolMap, PciSlot},
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
         pci::DemuxInfo,
-        Endpoint, Endpoints, Udp,
+        Endpoint, Endpoints, Udp
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Protocol, Session, Shutdown, IpTable
 };
 use rand::Rng;
 use std::{sync::Arc, time::Duration};
@@ -16,6 +16,8 @@ use tokio::sync::Barrier;
 use crate::applications::ArpRouter;
 
 use super::rip_parsing::{Operation, RipPacket};
+
+pub type RoutingTable = IpTable<(Option<Ipv4Address>, PciSlot)>;
 
 // number of seconds between each update
 const UPDATE_INTERVAL: u64 = 1;

@@ -134,14 +134,14 @@ impl Protocol for MultiCapture {
     ) -> Result<(), DemuxError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
-        println!("{} recieved message", self.endpoint.address);
 
         if self.counter.call() {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
                 if let Some(status) = self.exit_status {
                     shutdown.shut_down_with_status(ExitStatus::Status(status));
                 } else {
-                    shutdown.shut_down();
+                    // Exit with status: all machines that received the message, which is all of them since self.counter.call() -> true
+                    shutdown.shut_down_with_status(ExitStatus::Status(self.counter.capacity));
                 }
             }
         }

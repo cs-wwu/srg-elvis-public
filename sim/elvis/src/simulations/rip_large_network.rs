@@ -1,6 +1,5 @@
-use crate::applications::{rip::rip_router::RipRouter, ArpRouter, MultiCapture, Counter, SendMessage};
+use crate::applications::{rip::rip_router::{RipRouter, RoutingTable}, ArpRouter, MultiCapture, Counter, SendMessage};
 use elvis_core::{
-    machine::PciSlot,
     new_machine,
     protocols::{
         arp::subnetting::{Ipv4Mask, SubnetInfo},
@@ -98,14 +97,13 @@ pub fn create_capture(
     subnet: SubnetInfo,
     network: Arc<Network>,
     multicapture_counter: Arc<Counter>,
-    status: u32,
 ) -> Machine {
     new_machine![
         Pci::new([network]),
         Arp::basic().preconfig_subnet(ip, subnet),
         Ipv4::new(Default::default()),
         Udp::new(),
-        MultiCapture::new(Endpoint::new(ip, MESSAGE_PORT), multicapture_counter).exit_status(status)
+        MultiCapture::new(Endpoint::new(ip, MESSAGE_PORT), multicapture_counter)
     ]
 }
 
@@ -114,8 +112,8 @@ pub fn create_router(
     networks: impl IntoIterator<Item = Arc<Network>>,
     // Router's interface IPs
     interface_ips: &[Ipv4Address],
-    // Neighboring end devices
-    neighbors: Vec<Ipv4Address>,
+    // Routing table to end devices
+    routing_table: RoutingTable,
 ) -> Machine {
     // IPs are mapped to interfaces/pcis (of networks) based on their order
     // E.g. the first address in interface_ips will be the ip of the first pci interface
@@ -123,11 +121,6 @@ pub fn create_router(
     let mut interfaces = IpTable::<Recipient>::new();
     for (pci_slot, addr) in interface_ips.iter().enumerate() {
         interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
-    }
-
-    let mut routing_table = IpTable::<(Option<Ipv4Address>, PciSlot)>::new();
-    for (pci_slot, neighbor_ip) in neighbors.iter().enumerate() {
-        routing_table.add_direct(*neighbor_ip, (None, pci_slot as u32));
     }
 
     new_machine![
@@ -200,8 +193,7 @@ pub async fn rip_large_network(
             // Attached network
             networks[2].clone(),
             // Multicapture counter and status
-            multicapture_counter.clone(),
-            1
+            multicapture_counter.clone()
         ),
         // Capture 2
         create_capture(
@@ -211,8 +203,7 @@ pub async fn rip_large_network(
                 default_gateway: ROUTER_4_INTERFACES[1],
             },
             networks[5].clone(),
-            multicapture_counter.clone(),
-            2,
+            multicapture_counter.clone()
         ),
         // Capture 3
         create_capture(
@@ -222,8 +213,7 @@ pub async fn rip_large_network(
                 default_gateway: ROUTER_4_INTERFACES[1],
             },
             networks[5].clone(),
-            multicapture_counter.clone(),
-            3,
+            multicapture_counter.clone()
         ),
         // Capture 4
         create_capture(
@@ -233,8 +223,7 @@ pub async fn rip_large_network(
                 default_gateway: ROUTER_5_INTERFACES[1],
             },
             networks[6].clone(),
-            multicapture_counter.clone(),
-            4,
+            multicapture_counter.clone()
         ),
     ];
     end_devices.extend(captures);
@@ -246,13 +235,13 @@ pub async fn rip_large_network(
             [networks[0].clone(), networks[1].clone()],
             &ROUTER_1_INTERFACES,
             // Connected hosts
-            Vec::from([HOST_ADDRESSES[0]]),
+            [(HOST_ADDRESSES[0], (None, 1))].into_iter().collect(),
         ),
         // RIP 2
         create_router(
             [networks[1].clone(), networks[2].clone()],
             &ROUTER_2_INTERFACES,
-            Vec::from([HOST_ADDRESSES[1]]),
+            [(HOST_ADDRESSES[1], (None, 1))].into_iter().collect(),
         ),
         // RIP 3
         create_router(
@@ -263,19 +252,19 @@ pub async fn rip_large_network(
             ],
             &ROUTER_3_INTERFACES,
             // RIP router is connected to no hosts
-            Vec::new(),
+            RoutingTable::new(),
         ),
         // RIP 4
         create_router(
             [networks[3].clone(), networks[5].clone()],
             &ROUTER_4_INTERFACES,
-            Vec::from([HOST_ADDRESSES[2], HOST_ADDRESSES[3]]),
+            [(HOST_ADDRESSES[2], (None, 1)), (HOST_ADDRESSES[3], (None, 1))].into_iter().collect(),
         ),
         // RIP 5
         create_router(
             [networks[4].clone(), networks[6].clone()],
             &ROUTER_5_INTERFACES,
-            Vec::from([HOST_ADDRESSES[4]]),
+            [(HOST_ADDRESSES[4], (None, 1))].into_iter().collect(),
         ),
     ];
 
@@ -294,18 +283,18 @@ mod tests {
     async fn rip_large_network() {
         // SINGLE CAPTURE (SENDER -> CAPTURE3)
         let recipient_ips = Vec::from([HOST_ADDRESSES[3]]);
-        let test1 = super::rip_large_network(recipient_ips);
+        let test1 = super::rip_large_network(recipient_ips.clone());
 
         // Message should reach capture 3 (and no other)
-        assert_eq!(test1.await, super::ExitStatus::Status(3));
+        assert_eq!(test1.await, super::ExitStatus::Status(recipient_ips.len() as u32));
     }
 
     #[tokio::test]
     async fn rip_large_network_all() {
         // MULTIPLE CAPTURE (SENDER -> ALL CAPTURES)
-        let recipient_ips = Vec::from(HOST_ADDRESSES);
-        let test2 = super::rip_large_network(recipient_ips);
+        let recipient_ips = Vec::from(&HOST_ADDRESSES[1..]);
+        let test2 = super::rip_large_network(recipient_ips.clone());
 
-        assert_eq!(test2.await, super::ExitStatus::Status(1));
+        assert_eq!(test2.await, super::ExitStatus::Status(recipient_ips.len() as u32));
     }
 }
