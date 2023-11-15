@@ -10,6 +10,7 @@ use elvis_core::machine::*;
 use elvis_core::session::Session;
 use elvis_core::protocol::*;
 use tokio::sync::Barrier;
+use std::net::Ipv4Addr;
 use std::sync::{Arc, RwLock};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -61,10 +62,23 @@ impl Terminal {
                         .split(":")
                         .collect();
 
-                    let adr: u32 = adr_and_port[0].parse().expect("Failed to resolve address");
+                    println!("adr: {}, port: {}", adr_and_port[0], adr_and_port[1]);
+
+                    // Split Ipv4 parts
+                    let ip: Vec<&str> = adr_and_port[0]
+                        .split(".")
+                        .collect();
+                    // Convert Ipv4 parts to u8
+                    let ip_u8: [u8; 4] = [
+                        ip[0].parse().unwrap(),
+                        ip[1].parse().unwrap(),
+                        ip[2].parse().unwrap(),
+                        ip[3].parse().unwrap(),
+                    ];
+
                     let port: u16 = adr_and_port[1].parse().expect("Failed to resolve port");
 
-                    let endpoint: Endpoint = Endpoint::new(Ipv4Address::from(adr), port);
+                    let endpoint: Endpoint = Endpoint::new(Ipv4Address::new(ip_u8), port);
 
                     // Parse args[2] into a Message
                     let message: Message = Message::new(args[2]);
@@ -184,6 +198,8 @@ impl Protocol for Terminal {
         let listener = TcpListener::bind(p)
             .await
             .unwrap();
+
+        println!("Begin run() on port {}", listener.local_addr().unwrap());
 
         let (mut socket, _addr) = listener
             .accept()
