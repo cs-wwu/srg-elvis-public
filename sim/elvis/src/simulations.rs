@@ -78,3 +78,6 @@ pub use terminal_echo::terminal_echo;
 
 mod terminal_echo_double;
 pub use terminal_echo_double::terminal_echo_double;
+
+mod terminal_send;
+pub use terminal_send::terminal_send;
