@@ -2,8 +2,8 @@
 //! Future applications can go here for easy import to the machine generator
 use std::collections::HashMap;
 
-use crate::applications::{Forward, PingPong};
-use crate::ip_generator::IpGenerator;
+use crate::applications::{Forward, PingPong, DhcpServer};
+use crate::ip_generator::{IpGenerator, IpRange};
 use crate::ndl::generating::generator_utils::{ip_available, ip_or_name};
 use crate::ndl::parsing::parsing_data::*;
 use crate::{
@@ -11,9 +11,11 @@ use crate::{
     ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
 };
 use elvis_core::protocols::arp::subnetting::{Ipv4Mask, SubnetInfo};
+use elvis_core::protocols::dhcp_client::DhcpClient;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Arp;
 use elvis_core::protocols::{Endpoint, Endpoints};
+use elvis_core::subnetting::Ipv4Net;
 use elvis_core::{IpTable, Message};
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
@@ -300,5 +302,58 @@ pub fn arp_builder(
         )
     } else {
         Arp::new()
+    }
+}
+
+pub fn dhcp_server_builder(
+    app: &Application,
+    name_to_ip: &HashMap<String, Ipv4Address>,
+    ip_table: &mut IpTable<Recipient>,
+    ip_gen: &mut HashMap<String, IpGenerator>,
+    cur_net_ids: &[String],
+) -> DhcpServer {
+    assert!(
+        app.options.contains_key("ip"),
+        "No server ip is provided for the dhcp_server application"
+    );
+    assert!(
+        app.options.contains_key("ip_range"),
+        "No ip_range is provided for the dhcp_server application"
+    );
+    let ip = ip_string_to_ip(
+        app.options.get("ip").unwrap().to_string(),
+        "dhcp_server declaration",
+    );
+    // Check if IP is available
+    let ip = ip_available(ip.into(), ip_gen, cur_net_ids).expect("dhcp_server IP unavailable");
+    ip_table.add_direct(ip, Recipient::new(0, None));
+    
+    let ip_range = app.options.get("ip_range").unwrap().to_string();
+    //TODO create ip range from param
+    let ip_range : IpRange;
+
+    
+    DhcpServer::new(ip, ip_range)            
+}
+
+pub fn dhcp_client_builder(
+    app: &Application,
+    name_to_ip: &HashMap<String, Ipv4Address>,
+) -> DhcpClient {
+    assert!(
+        app.options.contains_key("server_ip"),
+        "No server ip is provided for the dhcp_client application"
+    );
+    let server_ip = app.options.get("server_ip").unwrap().to_string();
+
+    if ip_or_name(server_ip) {
+        //Case: A decimal format ip is provided
+        DhcpClient::new(ip_string_to_ip(server_ip, "dhcp_client declaration").into())
+    } else {
+        //Case: A name format ip is provided
+        let server_address = *name_to_ip
+            .get(&server_ip)
+            .unwrap_or_else(|| panic!("Invalid name for 'server_address' in dhcp_client, found: {server_ip}"));
+        DhcpClient::new(server_address)            
     }
 }

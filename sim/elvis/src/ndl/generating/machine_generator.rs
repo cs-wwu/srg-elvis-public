@@ -208,6 +208,23 @@ pub fn machine_generator(
                         ))
                     }
 
+                    "dhcp_server" => {
+                        new_machine = new_machine.with(dhcp_server_builder(
+                            app,
+                            &name_to_ip,
+                            &mut ip_table,
+                            &mut ip_gen,
+                            &net_ids,
+                        ))
+                    }
+
+                    "dhcp_client" => {
+                        new_machine = new_machine.with(dhcp_client_builder(
+                            app,
+                            &name_to_ip,
+                        ))
+                    }
+
                     _ => {
                         panic!("Invalid application in machine. Got application {app_name}");
                     }
