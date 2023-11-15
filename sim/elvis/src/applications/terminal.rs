@@ -74,7 +74,12 @@ impl Terminal {
             },
 
             "fetch" => {
-                Ok(TerminalCommand::new(TerminalCommandType::FETCH, None, None))
+                if args.len() > 1 {
+                    Terminal::usage();
+                    Err(TerminalError::TERROR)
+                } else {
+                    Ok(TerminalCommand::new(TerminalCommandType::FETCH, None, None))
+                }
             },
 
             _ => {
@@ -90,6 +95,8 @@ impl Terminal {
         message: Message,
         protocols: ProtocolMap,
     ) {
+        println!("SENDING");
+
         let local_address = match protocols.protocol::<DhcpClient>() {
             Some(dhcp) => dhcp.ip_address().await,
             None => self.local_ip,
@@ -116,9 +123,10 @@ impl Terminal {
     }
 
     async fn fetch(
-        // &self,
+        &self,
     ) {
         println!("FETCHING");
+        // Print all messages in queue to user terminal
     }
 
     fn usage() {
@@ -207,7 +215,7 @@ impl Protocol for Terminal {
                 },
 
                 TerminalCommandType::FETCH => {
-                    Terminal::fetch().await;
+                    self.fetch().await;
                 },
             }
 
