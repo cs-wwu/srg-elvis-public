@@ -134,6 +134,7 @@ impl Protocol for MultiCapture {
     ) -> Result<(), DemuxError> {
         *self.message.write().unwrap() = Some(message);
         *self.cur_count.write().unwrap() += 1;
+        println!("{} recieved message", self.endpoint.address);
 
         if self.counter.call() {
             if let Some(shutdown) = self.shutdown.write().unwrap().take() {
