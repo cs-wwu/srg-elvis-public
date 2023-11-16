@@ -79,9 +79,10 @@ impl Terminal {
                     let port: u16 = adr_and_port[1].parse().expect("Failed to resolve port");
 
                     let endpoint: Endpoint = Endpoint::new(Ipv4Address::new(ip_u8), port);
+                    println!("Message: |{}|", args[2]);
 
                     // Parse args[2] into a Message
-                    let message: Message = Message::new(args[2]);
+                    let message: Message = Message::new(args[2].trim());
 
                     Ok(TerminalCommand::new(TerminalCommandType::SEND, Some(endpoint), Some(message)))
                 }
