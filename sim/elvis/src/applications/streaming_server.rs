@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 
 use std::{str, sync::Arc};
@@ -17,9 +16,9 @@ pub struct VideoServer {
 /// Server that, at the request of a client, sends video segments of varying quality
 impl VideoServer {
     pub fn new(server_address: Endpoint) -> Self {
-        Self { 
+        Self {
             server_address,
-            bytes_sent: 0 
+            bytes_sent: 0,
         }
     }
 }
@@ -33,12 +32,14 @@ impl Protocol for VideoServer {
     async fn start(
         &self,
         shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        initialized: Arc<Barrier>,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        let listener = TcpListener::bind(self.server_address, protocols)
+        let mut listener = TcpListener::bind(self.server_address, machine)
             .await
             .unwrap();
+
+        initialized.wait().await;
 
         // Continuously listen for and accept new connections
         loop {
@@ -64,7 +65,7 @@ impl Protocol for VideoServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

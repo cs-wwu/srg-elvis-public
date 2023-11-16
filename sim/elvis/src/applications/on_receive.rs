@@ -1,10 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use elvis_core::{
-    machine::ProtocolMap,
     protocol::{DemuxError, StartError},
     protocols::{Endpoint, Tcp, Udp},
-    Control, Message, Protocol, Session, Shutdown, Transport,
+    Control, Machine, Message, Protocol, Session, Shutdown, Transport,
 };
 use tokio::sync::Barrier;
 
@@ -16,13 +15,12 @@ use tokio::sync::Barrier;
 /// # use elvis::applications::OnReceive;
 /// # use elvis_core::IpTable;
 /// let fn_to_run = |message, _context| println!("received message: {message}");
-/// let _puter = Machine::new(
-///     ProtocolMapBuilder::new()
-/// .with(OnReceive::new(fn_to_run, Endpoint::new(0.into(), 0xfefe)))
-/// .with(Udp::new())
-/// .with(Ipv4::new(IpTable::new()))
-/// .with(Pci::new([]))
-/// .build());
+/// let _puter = new_machine![
+/// OnReceive::new(fn_to_run, Endpoint::new(0.into(), 0xfefe)),
+/// Udp::new(),
+/// Ipv4::new(IpTable::new()),
+/// Pci::new([])
+/// ];
 /// ```
 pub struct OnReceive {
     /// The function to run when a message is received.
@@ -61,21 +59,21 @@ impl Protocol for OnReceive {
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         match self.transport {
             Transport::Tcp => {
-                protocols
+                machine
                     .protocol::<Tcp>()
                     .unwrap()
-                    .listen(self.id(), self.local_endpoint, protocols)
+                    .listen(self.id(), self.local_endpoint, machine)
                     .unwrap();
             }
             Transport::Udp => {
-                protocols
+                machine
                     .protocol::<Udp>()
                     .unwrap()
-                    .listen(self.id(), self.local_endpoint, protocols)
+                    .listen(self.id(), self.local_endpoint, machine)
                     .unwrap();
             }
         }
@@ -88,7 +86,7 @@ impl Protocol for OnReceive {
         message: Message,
         _caller: Arc<dyn Session>,
         context: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         // Run the function of this OnReceive
         let result = self.fn_to_run.lock();
@@ -111,7 +109,7 @@ mod tests {
 
     use crate::applications::OnReceive;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn doctest() {
         let fn_to_run = |message, _context| println!("received message: {message}");
         let _puter = new_machine![

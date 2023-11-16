@@ -1,6 +1,11 @@
 //! Contains utilities for implementing protocols.
 
-use super::ipv4::Ipv4Address;
+use crate::protocol::DemuxError;
+
+use super::{
+    ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
+    udp::UdpHeader,
+};
 
 /// A calculator for the checksum used by the UDP, TCP, and IP protocols.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -89,6 +94,21 @@ pub struct Endpoints {
 impl Endpoints {
     pub const fn new(local: Endpoint, remote: Endpoint) -> Self {
         Self { local, remote }
+    }
+
+    pub const fn new_from_headers(
+        udp_header: Option<&UdpHeader>,
+        ipv4_header: Option<&Ipv4Header>,
+    ) -> Result<Self, DemuxError> {
+        match (udp_header, ipv4_header) {
+            (None, None) => Err(DemuxError::Header),
+            (None, Some(_)) => Err(DemuxError::Header),
+            (Some(_), None) => Err(DemuxError::Header),
+            (Some(udp_header), Some(ipv4_header)) => Ok(Self {
+                local: Endpoint::new(ipv4_header.destination, udp_header.destination),
+                remote: Endpoint::new(ipv4_header.source, udp_header.source),
+            }),
+        }
     }
 
     pub const fn reverse(self) -> Self {
@@ -200,7 +220,7 @@ pub trait BytesExt: Iterator<Item = u8> {
 
     /// Collects the next `N` items of the iterator into an array.
     /// Returns `None` if there were fewer than `N` bytes left in the iterator.
-    /// (This actually part of the rust std ([`Iterator::next_chunk`]), 
+    /// (This actually part of the rust std ([`Iterator::next_chunk`]),
     /// but it's nightly only at the moment of writing.)
     fn next_n<const N: usize>(&mut self) -> Option<[u8; N]> {
         // I was tempted to use unsafe code so the array doesn't get initialized

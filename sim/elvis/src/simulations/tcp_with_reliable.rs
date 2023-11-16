@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Tcp,
@@ -33,7 +33,7 @@ pub async fn tcp_with_reliable() {
     let message: Vec<_> = (0..20).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -41,7 +41,7 @@ pub async fn tcp_with_reliable() {
                 .transport(Transport::Tcp)
                 .local_ip(sm_address),
         ],
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
@@ -56,7 +56,6 @@ pub async fn tcp_with_reliable() {
         .into_iter()
         .nth(1)
         .unwrap()
-        .into_inner()
         .protocol::<Capture>()
         .unwrap()
         .message();
@@ -65,8 +64,10 @@ pub async fn tcp_with_reliable() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn tcp_with_reliable() {
-        super::tcp_with_reliable().await
+        for _ in 0..5 {
+            super::tcp_with_reliable().await;
+        }
     }
 }

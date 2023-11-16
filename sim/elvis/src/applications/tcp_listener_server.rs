@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{Endpoint, TcpListener, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -28,17 +27,19 @@ impl Protocol for TcpListenerServer {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        initialized: Arc<Barrier>,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         drop(_shutdown);
         // Create a new TcpListener bound to the server address
-        let listener: TcpListener = TcpListener::bind(self.server_address, protocols)
+        let mut listener: TcpListener = TcpListener::bind(self.server_address, machine)
             .await
             .unwrap();
 
+        initialized.wait().await;
+
         // Accept an incoming connection to create new TcpStream
-        let mut stream: TcpStream = TcpListener::accept(&listener).await.unwrap();
+        let mut stream: TcpStream = TcpListener::accept(&mut listener).await.unwrap();
 
         // TESTING TcpStream::read_exact()
         // Read up to 4 bytes from the client
@@ -72,7 +73,7 @@ impl Protocol for TcpListenerServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

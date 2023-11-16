@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
     network::Mac,
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -25,7 +25,7 @@ pub async fn telephone_single() {
 
     let local: Ipv4Address = [127, 0, 0, 1].into();
 
-    let mut machines = vec![new_machine![
+    let mut machines = vec![new_machine_arc![
         Udp::new(),
         Ipv4::new([(local, Recipient::with_mac(0, 1))].into_iter().collect(),),
         Pci::new([network.clone()]),
@@ -38,7 +38,7 @@ pub async fn telephone_single() {
         let table = [(local, Recipient::with_mac(0, i as Mac + 2))]
             .into_iter()
             .collect();
-        machines.push(new_machine![
+        machines.push(new_machine_arc![
             Udp::new(),
             Ipv4::new(table),
             Pci::new([network.clone()]),
@@ -50,12 +50,13 @@ pub async fn telephone_single() {
     }
 
     let local = (END - 1).to_be_bytes().into();
-    machines.push(new_machine![
+    let last = new_machine_arc![
         Udp::new(),
         Ipv4::new(IpTable::new()),
         Pci::new([network.clone()]),
-        Capture::new(Endpoint::new(local, 0xbeef), 1)
-    ]);
+        Capture::new(Endpoint::new(local, 0xbeef), 1),
+    ];
+    machines.push(last.clone());
 
     let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
     assert_eq!(status, ExitStatus::Exited);
@@ -64,7 +65,6 @@ pub async fn telephone_single() {
         .into_iter()
         .last()
         .unwrap()
-        .into_inner()
         .protocol::<Capture>()
         .unwrap()
         .message();
@@ -73,8 +73,10 @@ pub async fn telephone_single() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn telephone_single() {
-        super::telephone_single().await
+        for _ in 0..5 {
+            super::telephone_single().await;
+        }
     }
 }

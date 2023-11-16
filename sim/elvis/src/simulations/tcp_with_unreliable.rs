@@ -1,8 +1,8 @@
-use crate::applications::{SendMessage, WaitForMessage};
+use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
     network::{Latency, NetworkBuilder},
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Tcp,
@@ -36,7 +36,7 @@ pub async fn tcp_with_unreliable() {
     let message: Vec<_> = (0..8000).map(|i| i as u8).collect();
     let message = Message::new(message);
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
@@ -44,11 +44,11 @@ pub async fn tcp_with_unreliable() {
                 .transport(Transport::Tcp)
                 .local_ip(sm_addr),
         ],
-        new_machine![
+        new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table),
             Pci::new([network.clone()]),
-            WaitForMessage::new(endpoint, message).transport(Transport::Tcp)
+            Capture::new_msg(endpoint, message).transport(Transport::Tcp)
         ],
     ];
 
@@ -58,8 +58,10 @@ pub async fn tcp_with_unreliable() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn tcp_with_unreliable() {
-        super::tcp_with_unreliable().await
+        for _ in 0..5 {
+            super::tcp_with_unreliable().await;
+        }
     }
 }

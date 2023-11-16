@@ -1,8 +1,8 @@
-use crate::applications::{SendMessage, WaitForMessage};
+use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
     network::NetworkBuilder,
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         Endpoint, Pci, Udp,
@@ -33,20 +33,23 @@ pub async fn udp_gigabyte_bench() {
 
     messages.push(remainder);
 
+    let count: u32 =
+        u32::try_from(messages.len()).expect("there should be less than 4 billion messages");
+
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SendMessage::new(messages, endpoint)
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
-            WaitForMessage::new(endpoint, message).disable_checking()
+            Capture::new(endpoint, count),
         ],
     ];
 
-    run_internet(&machines).await;
+    run_internet(&machines, None).await;
 }

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::applications::{Capture, Forward, SendMessage};
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -26,7 +26,7 @@ pub async fn telephone_multi() {
 
     let local: Ipv4Address = [127, 0, 0, 1].into();
 
-    let mut machines = vec![new_machine![
+    let mut machines = vec![new_machine_arc![
         Udp::new(),
         Ipv4::new([(local, Recipient::with_mac(0, 1))].into_iter().collect(),),
         Pci::new([networks[0].clone()]),
@@ -43,7 +43,7 @@ pub async fn telephone_multi() {
         let local = i.to_be_bytes().into();
         let remote = (i + 1).to_be_bytes().into();
         let table = [(local, Recipient::with_mac(1, 1))].into_iter().collect();
-        machines.push(new_machine![
+        machines.push(new_machine_arc![
             Udp::new(),
             Ipv4::new(table),
             Pci::new([
@@ -59,12 +59,13 @@ pub async fn telephone_multi() {
 
     let last_network = END - 1;
     let local = last_network.to_be_bytes().into();
-    machines.push(new_machine![
+    let last = new_machine_arc![
         Udp::new(),
         Ipv4::new(IpTable::new()),
         Pci::new([networks[last_network as usize].clone()]),
         Capture::new(Endpoint::new(local, 0xbeef), 1)
-    ]);
+    ];
+    machines.push(last.clone());
 
     let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
     assert_eq!(status, ExitStatus::Exited);
@@ -73,7 +74,6 @@ pub async fn telephone_multi() {
         .into_iter()
         .last()
         .unwrap()
-        .into_inner()
         .protocol::<Capture>()
         .unwrap()
         .message();
@@ -82,8 +82,10 @@ pub async fn telephone_multi() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn telephone_multi() {
-        super::telephone_multi().await
+        for _ in 0..5 {
+            super::telephone_multi().await;
+        }
     }
 }

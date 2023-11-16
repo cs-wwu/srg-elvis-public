@@ -2,19 +2,28 @@ use super::Machine;
 use crate::{shutdown::ExitStatus, Shutdown};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::{sync::Barrier, task::JoinSet};
+use tokio::{sync::Barrier, task::JoinSet, time::sleep};
 
-pub async fn run_internet_with_timeout(machines: &[Machine], duration: Duration) -> ExitStatus {
-    let future = run_internet(machines);
-    let result = tokio::time::timeout(duration, future).await;
+/// Runs the simulation with the given machines
+/// This function will call run_internet() with the provided timeout,
+/// then forcibly shut down the simulation if it fails to do so itself
+/// one second after the call to shutdown.shut_down()
+pub async fn run_internet_with_timeout(
+    machines: &[Arc<Machine>],
+    duration: Duration,
+) -> ExitStatus {
+    let future = run_internet(machines, Some(duration));
+    let result = tokio::time::timeout(duration + Duration::from_secs(1), future).await;
     match result {
         Ok(status) => status,
         Err(_) => ExitStatus::TimedOut,
     }
 }
 
-/// Runs the simulation with the given machines and networks
-pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
+/// Runs the simulation with the given machines
+/// `timeout` is an optional field, if Some() is provided, this function
+/// will call shutdown.shut_down() after the given duration.
+pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) -> ExitStatus {
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
@@ -27,14 +36,19 @@ pub async fn run_internet(machines: &[Machine]) -> ExitStatus {
     let mut handles = JoinSet::new();
 
     for machine in machines {
-        let machine = machine.shallow_copy();
+        let machine = machine.clone();
         let shutdown = shutdown.clone();
         let initialized = initialized.clone();
+        handles.spawn(machine.start(shutdown, initialized));
+    }
 
-        let future = async move {
-            machine.start(shutdown, initialized).await;
-        };
-        handles.spawn(future);
+    if let Some(duration) = timeout {
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            sleep(duration).await;
+            println!("Waking up and shutting down");
+            shutdown.shut_down();
+        });
     }
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever

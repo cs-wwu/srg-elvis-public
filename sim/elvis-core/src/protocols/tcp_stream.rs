@@ -1,28 +1,25 @@
+use std::sync::Arc;
+
 use super::{
     socket_api::socket::{ProtocolFamily, Socket, SocketError, SocketType},
     Endpoint,
 };
-use crate::{machine::ProtocolMap, message::Chunk, protocols::SocketAPI};
-use std::sync::Arc;
+use crate::{message::Chunk, protocols::SocketAPI, Machine};
 
 pub struct TcpStream {
-    pub local_socket: Arc<Socket>,
+    pub local_socket: Socket,
 }
 
 impl TcpStream {
     /// Creates a new TcpStream connected to the given remote socket address
     pub async fn connect(
         remote_address: Endpoint,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Self, SocketError> {
-        let sockets_api = protocols.protocol::<SocketAPI>().unwrap();
-        let socket = SocketAPI::new_socket(
-            &sockets_api,
-            ProtocolFamily::INET,
-            SocketType::Stream,
-            protocols,
-        )
-        .await?;
+        let sockets_api = machine.protocol::<SocketAPI>().unwrap();
+        let mut socket = sockets_api
+            .new_socket(ProtocolFamily::INET, SocketType::Stream, machine)
+            .await?;
         socket.connect(remote_address).await?;
 
         Ok(Self {

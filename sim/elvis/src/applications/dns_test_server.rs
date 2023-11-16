@@ -1,5 +1,4 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -7,7 +6,7 @@ use elvis_core::{
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         Endpoint, SocketAPI,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -29,7 +28,7 @@ impl DnsTestServer {
     }
 }
 
-async fn communicate_with_client(socket: Arc<Socket>) {
+async fn communicate_with_client(mut socket: Socket) {
     // Receive a message
     let _req = socket.recv(32).await.unwrap();
 
@@ -39,9 +38,10 @@ async fn communicate_with_client(socket: Arc<Socket>) {
 
     // Receive a message
     let _ack = socket.recv_msg().await.unwrap();
+    println!("SERVER: Ackowledgement Received");
 }
 
-pub async fn accept_loop(listen_socket: Arc<Socket>) -> Result<(), DnsTestServerError> {
+pub async fn accept_loop(mut listen_socket: Socket) -> Result<(), DnsTestServerError> {
     loop {
         // Accept an incoming connection
         let socket = match listen_socket.accept().await {
@@ -63,18 +63,18 @@ impl Protocol for DnsTestServer {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = protocols
+        let sockets = machine
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = self.local_port;
         let transport = self.transport;
 
-        let listen_socket = sockets
-            .new_socket(ProtocolFamily::INET, transport, protocols)
+        let mut listen_socket = sockets
+            .new_socket(ProtocolFamily::INET, transport, machine)
             .await
             .unwrap();
 
@@ -101,7 +101,7 @@ impl Protocol for DnsTestServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

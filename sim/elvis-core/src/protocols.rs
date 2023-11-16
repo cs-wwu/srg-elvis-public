@@ -17,7 +17,7 @@ pub mod socket_api;
 pub use socket_api::SocketAPI;
 
 mod utility;
-pub use utility::{Endpoint, Endpoints, BytesExt};
+pub use utility::{BytesExt, Endpoint, Endpoints};
 
 pub mod tcp;
 pub use tcp::Tcp;
@@ -33,4 +33,4 @@ pub mod tcp_listener;
 pub use tcp_listener::TcpListener;
 
 pub mod dhcp;
-pub use dhcp::{dhcp_client, dhcp_client_listener};
+pub use dhcp::dhcp_client;

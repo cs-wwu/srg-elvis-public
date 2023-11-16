@@ -1,11 +1,9 @@
-use super::dhcp_client_listener::DhcpClientListener;
 use super::dhcp_parsing::{DhcpMessage, MessageType};
 use crate::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{ipv4::Ipv4Address, Endpoint, Endpoints, Udp},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::{Barrier, Notify};
@@ -15,16 +13,14 @@ pub struct DhcpClient {
     server_ip: Ipv4Address,
     notify: Arc<Notify>,
     pub ip_address: RwLock<Option<Ipv4Address>>,
-    listener: RwLock<Option<DhcpClientListener>>,
 }
 
 impl DhcpClient {
-    pub fn new(server_ip: Ipv4Address, listen: Option<DhcpClientListener>) -> Self {
+    pub fn new(server_ip: Ipv4Address) -> Self {
         Self {
             server_ip,
             notify: Default::default(),
             ip_address: Default::default(),
-            listener: RwLock::new(listen),
         }
     }
 
@@ -43,13 +39,10 @@ impl Protocol for DhcpClient {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let server_ip = self.server_ip;
-        // Wait on initialization before sending any message across the network
-
-        initialized.wait().await;
-        let sockets = Endpoints {
+        let endpoints = Endpoints {
             local: Endpoint {
                 address: Ipv4Address::new([0, 0, 0, 0]),
                 port: 68,
@@ -59,16 +52,21 @@ impl Protocol for DhcpClient {
                 port: 67,
             },
         };
-        let udp = protocols
-            .protocol::<Udp>()
-            .unwrap()
-            .open_and_listen(self.id(), sockets, protocols.clone())
+        let udp = machine.protocol::<Udp>().unwrap();
+        udp.listen(self.id(), endpoints.local, machine.clone())
+            .unwrap();
+
+        // Wait on initialization before sending any message across the network
+        initialized.wait().await;
+
+        let udp_session = udp
+            .open_for_sending(self.id(), endpoints, machine.clone())
             .await
             .unwrap();
 
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
-        udp.send(response_message, protocols).unwrap();
+        udp_session.send(response_message, machine).unwrap();
 
         Ok(())
     }
@@ -78,7 +76,7 @@ impl Protocol for DhcpClient {
         message: Message,
         caller: Arc<dyn Session>,
         _control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let parsed_msg = DhcpMessage::from_bytes(message.iter()).unwrap();
         match parsed_msg.msg_type {
@@ -88,34 +86,13 @@ impl Protocol for DhcpClient {
                 response.msg_type = MessageType::Request;
                 response.op = 2;
                 caller
-                    .send(DhcpMessage::to_message(response).unwrap(), protocols)
+                    .send(DhcpMessage::to_message(response).unwrap(), machine)
                     .unwrap();
                 Ok(())
             }
             MessageType::Ack => {
                 *self.ip_address.write().unwrap() = Some(parsed_msg.your_ip);
                 self.notify.notify_waiters();
-                if self.listener.read().unwrap().is_some() {
-                    if let Some(release) = self
-                        .listener
-                        .write()
-                        .unwrap()
-                        .as_mut()
-                        .unwrap()
-                        .update(parsed_msg.your_ip)
-                    {
-                        caller
-                            .send(DhcpMessage::to_message(release).unwrap(), protocols.clone())
-                            .unwrap();
-                        *self.ip_address.write().unwrap() = None;
-                        caller
-                            .send(
-                                DhcpMessage::to_message(DhcpMessage::default()).unwrap(),
-                                protocols,
-                            )
-                            .unwrap();
-                    }
-                }
                 Ok(())
             }
             _ => Err(DemuxError::Other),

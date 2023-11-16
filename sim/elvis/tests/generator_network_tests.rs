@@ -9,10 +9,8 @@ fn catch_panic() {
     }));
 }
 
-#[tokio::test]
-#[should_panic(
-    expected = "Network 1: Invalid IP range format, expected 2 values found 1"
-)]
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Network 1: Invalid IP range format, expected 2 values found 1")]
 async fn generator_network_invalid_ip_range_format() {
     catch_panic();
     let file_path: String =
@@ -20,7 +18,7 @@ async fn generator_network_invalid_ip_range_format() {
     generate_and_run_sim(file_path).await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Network 1: Invalid ending IP range number. Expected <u8> found: 90000")]
 async fn generator_network_invalid_ending_ip_range() {
     catch_panic();
@@ -29,7 +27,7 @@ async fn generator_network_invalid_ending_ip_range() {
     generate_and_run_sim(file_path).await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(
     expected = "Network 1: Invalid Cidr format, end IP value (69) greater than start IP value (89)"
 )]
@@ -40,7 +38,7 @@ async fn generator_network_invalid_ending_ip_value() {
     generate_and_run_sim(file_path).await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Network 5: Duplicate IP found in range: [12, 34, 56, 89]")]
 async fn generator_network_duplicate_ip_range() {
     catch_panic();
@@ -48,7 +46,7 @@ async fn generator_network_duplicate_ip_range() {
     generate_and_run_sim(file_path).await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Network 5: Duplicate IP found in IP: [192, 168, 1, 121]")]
 async fn generator_network_duplicate_ip() {
     catch_panic();
@@ -56,7 +54,7 @@ async fn generator_network_duplicate_ip() {
     generate_and_run_sim(file_path).await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Network 5: Invalid network argument provided. Found: badargument")]
 async fn generator_network_invalid_network_argument() {
     catch_panic();

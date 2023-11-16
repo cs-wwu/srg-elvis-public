@@ -1,10 +1,9 @@
 use csv::Reader;
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use rand::{distributions::Alphanumeric, prelude::*, rngs::StdRng, Rng};
 use rand_distr::WeightedAliasIndex;
@@ -28,10 +27,10 @@ pub enum WebServerType {
 /// html pages.
 ///
 /// Usage:
-/// For a specific index i, buckets[i] signifies the lower bound of the value range encompassed by
-/// that bucket, while buckets[i+1] represents the upper bound. The difference between values at
+/// For a specific index i, `buckets[i]` signifies the lower bound of the value range encompassed by
+/// that bucket, while `buckets[i+1]` represents the upper bound. The difference between values at
 /// adjacent indices is constant, so the upper bound for the last bucket can be inferred.
-/// Weights[i] represents the count of web pages that fall within that particular range, providing
+/// `Weights[i]` represents the count of web pages that fall within that particular range, providing
 /// a clear representation of how the attribute's values are distributed across the dataset.
 #[derive(Clone)]
 struct DistributionData {
@@ -83,11 +82,13 @@ impl Protocol for WebServer {
     async fn start(
         &self,
         shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        initialized: Arc<Barrier>,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let local_host = Endpoint::new([100, 42, 0, 0].into(), 80); // Temporary work around until localhost is implemented
-        let listener = TcpListener::bind(local_host, protocols).await.unwrap();
+        let mut listener = TcpListener::bind(local_host, machine).await.unwrap();
+
+        initialized.wait().await;
 
         // Create DistributionData objects from .csv files
         let image_size = WebServer::read_csv(&self.data_folder, "image_size.csv").unwrap();
@@ -126,7 +127,7 @@ impl Protocol for WebServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }
@@ -275,7 +276,7 @@ impl ServerConnection {
         result
     }
 
-    /// Returns a randomly selected number based on the distribution specified in <data> if
+    /// Returns a randomly selected number based on the distribution specified in `data` if
     /// self.seed == None. The number returned will be one of the bucket values. Buckets with
     /// higher weights are more likely to be selected. If self.seed == Some then the value of seed
     /// will be returned instead. See DistributionData documentation for more details.

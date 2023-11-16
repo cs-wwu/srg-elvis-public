@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::applications::{Capture, SendMessage};
 use elvis_core::{
     message::Message,
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -31,14 +31,14 @@ pub async fn basic() {
         .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SendMessage::new(vec![message.clone()], endpoint),
             Udp::new(),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
@@ -53,7 +53,6 @@ pub async fn basic() {
         .into_iter()
         .nth(1)
         .unwrap()
-        .into_inner()
         .protocol::<Capture>()
         .unwrap()
         .message();
@@ -63,8 +62,10 @@ pub async fn basic() {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn basic() {
-        super::basic().await
+        for _ in 0..5 {
+            super::basic().await;
+        }
     }
 }

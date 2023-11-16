@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::generator_data::NetworkInfo;
 
-/// Network Generator generates networks from a given [Networks] struct and places them in the [Internet]
+/// Network Generator generates networks from a given [Networks] and
 /// Returns said networks and corresponding ip tables for later use with machines
 pub fn network_generator(n: Networks) -> NetworkInfo {
     // For each network we need
@@ -37,7 +37,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                     "range" => {
                         let temp: Vec<&str> = value.split('-').collect();
                         assert!(
-                            temp.len()==2,
+                            temp.len() == 2,
                             "Network {}: Invalid IP range format, expected 2 values found {}",
                             id,
                             temp.len()
@@ -70,7 +70,7 @@ pub fn network_generator(n: Networks) -> NetworkInfo {
                     "subnet" => {
                         let temp: Vec<&str> = value.split('/').collect();
                         assert!(
-                            temp.len()==2,
+                            temp.len() == 2,
                             "Network {}: Invalid IP subnet format, expected 2 values found {}",
                             id,
                             temp.len()

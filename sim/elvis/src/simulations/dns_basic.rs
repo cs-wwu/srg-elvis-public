@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
 // use tokio::time::Duration;
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         dns::{dns_resolver::DnsResolver, dns_server::DnsServer},
         ipv4::{Ipv4, Ipv4Address, Recipient},
@@ -34,7 +34,7 @@ pub async fn dns_basic() {
         .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
@@ -43,7 +43,7 @@ pub async fn dns_basic() {
             SocketAPI::new(Some(dns_server_ip_address)),
             DnsServer::new(),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
@@ -52,7 +52,7 @@ pub async fn dns_basic() {
             SocketAPI::new(Some(server_ip_address)),
             DnsTestServer::new(0xbeef, SocketType::Datagram)
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
@@ -70,9 +70,11 @@ pub async fn dns_basic() {
 #[cfg(test)]
 mod tests {
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
     async fn dns_basic() {
-        super::dns_basic().await
+        for _ in 0..5 {
+            super::dns_basic().await;
+        }
     }
 }

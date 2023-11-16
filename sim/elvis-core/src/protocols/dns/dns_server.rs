@@ -1,5 +1,5 @@
 use crate::{
-    machine::ProtocolMap,
+    machine::Machine,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -57,7 +57,7 @@ impl DnsServer {
         name_to_id: FxDashMap<String, NodeId>,
         zone_tree: Arc<Mutex<Tree<DnsZoneNode>>>,
         cache: DnsCache,
-        socket: Arc<Socket>,
+        mut socket: Socket,
     ) -> Result<(), DnsServerError> {
         // Receive a message
         let response = socket.recv(200).await.unwrap();
@@ -112,7 +112,7 @@ impl DnsServer {
         name_to_id: FxDashMap<String, NodeId>,
         zone_tree: Arc<Mutex<Tree<DnsZoneNode>>>,
         cache: DnsCache,
-        listen_socket: Arc<Socket>
+        mut listen_socket: Socket
     ) -> Result<(), DnsServerError> {
         loop {
             let id_table = name_to_id.clone(); // FIX MEEEEEEEEEEEEEEEE
@@ -136,7 +136,7 @@ impl Protocol for DnsServer {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
 
         // let mut nodes_to_add: Vec<DnsZoneNode> = Vec::new();
@@ -231,14 +231,14 @@ impl Protocol for DnsServer {
                 DnsRTypes::A as u16
             ));
 
-        let sockets = protocols
+        let sockets = machine
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
         let local_port = 53;
         let transport = SocketType::Datagram;
 
-        let listen_socket = sockets
-            .new_socket(ProtocolFamily::INET, transport, protocols)
+        let mut listen_socket = sockets
+            .new_socket(ProtocolFamily::INET, transport, machine)
             .await
             .unwrap();
 
@@ -269,7 +269,7 @@ impl Protocol for DnsServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

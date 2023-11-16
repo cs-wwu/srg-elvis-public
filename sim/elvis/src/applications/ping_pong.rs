@@ -1,10 +1,9 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     network::Mac,
     protocol::{DemuxError, StartError},
     protocols::{Endpoints, Udp},
-    Control, Protocol, Session, Shutdown, Transport,
+    Control, Machine, Protocol, Session, Shutdown, Transport,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::Barrier;
@@ -17,7 +16,6 @@ pub struct PingPong {
     /// The channel we send on to shut down the simulation
     shutdown: RwLock<Option<Shutdown>>,
     /// The session we send messages on
-    session: RwLock<Option<Arc<dyn Session>>>,
     is_initiator: bool,
     endpoints: Endpoints,
     /// The machine that will receive the message
@@ -32,7 +30,6 @@ impl PingPong {
         Self {
             is_initiator,
             shutdown: Default::default(),
-            session: Default::default(),
             endpoints,
             remote_mac: None,
             transport: Transport::Udp,
@@ -58,22 +55,25 @@ impl Protocol for PingPong {
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);
-        let protocol = protocols.protocol::<Udp>().expect("No such protocol");
+        let protocol = machine.protocol::<Udp>().expect("No such protocol");
+        protocol
+            .listen(self.id(), self.endpoints.local, machine.clone())
+            .unwrap();
+        let is_initiator = self.is_initiator;
+
+        initialized.wait().await;
+
         let session = protocol
-            .open_and_listen(self.id(), self.endpoints, protocols.clone())
+            .open_for_sending(self.id(), self.endpoints, machine.clone())
             .await
             .unwrap();
-        *self.session.write().unwrap() = Some(session.clone());
-
-        let is_initiator = self.is_initiator;
-        initialized.wait().await;
         if is_initiator {
             session
                 //Send the first "Ping" message with TTL of 255
-                .send(Message::new(vec![255]), protocols)
+                .send(Message::new(vec![255]), machine)
                 .unwrap();
         }
         Ok(())
@@ -82,9 +82,9 @@ impl Protocol for PingPong {
     fn demux(
         &self,
         message: Message,
-        _caller: Arc<dyn Session>,
+        caller: Arc<dyn Session>,
         _control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let ttl = message.iter().next().expect("The message contained no TTL");
 
@@ -102,12 +102,7 @@ impl Protocol for PingPong {
                 shutdown.shut_down();
             }
         } else {
-            self.session
-                .read()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .send(Message::new(vec![ttl]), protocols)?;
+            caller.send(Message::new(vec![ttl]), machine)?;
         }
         Ok(())
     }

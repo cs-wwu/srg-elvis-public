@@ -1,4 +1,7 @@
-use crate::{protocols::{ipv4::Ipv4Address, utility::BytesExt}, Message};
+use crate::{
+    protocols::{ipv4::Ipv4Address, utility::BytesExt},
+    Message,
+};
 use thiserror::Error as ThisError;
 
 use super::domain_name::DomainName;

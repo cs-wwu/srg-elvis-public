@@ -1,13 +1,12 @@
 use super::tcb::{Segment, SegmentArrivesResult, Tcb};
 use crate::{
-    machine::ProtocolMap,
     protocol::{DemuxError, NotifyType},
     protocols::{
         tcp::tcb::{AdvanceTimeResult, State},
         Endpoints,
     },
     session::SendError,
-    Control, Message, Protocol, Session,
+    Control, Machine, Message, Protocol, Session,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -36,7 +35,7 @@ impl TcpSession {
         mut tcb: Tcb,
         upstream: Arc<dyn Protocol>,
         downstream: Arc<dyn Session>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
         endpoints: Endpoints,
     ) -> Arc<Self> {
         let (send, mut recv) = channel(8);
@@ -102,7 +101,7 @@ impl TcpSession {
 
                 for mut segment in tcb.segments() {
                     segment.text.header(segment.header.serialize());
-                    match downstream.send(segment.text, protocols.clone()) {
+                    match downstream.send(segment.text, machine.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Send error: {}", e),
                     }
@@ -112,7 +111,7 @@ impl TcpSession {
                 if !received.is_empty() {
                     let mut control = Control::new();
                     control.insert(endpoints);
-                    match upstream.demux(received, me.clone(), control, protocols.clone()) {
+                    match upstream.demux(received, me.clone(), control, machine.clone()) {
                         Ok(_) => {}
                         Err(e) => eprintln!("Demux error: {}", e),
                     }
@@ -153,7 +152,7 @@ enum InstructionResult {
 }
 
 impl Session for TcpSession {
-    fn send(&self, message: Message, _protocols: ProtocolMap) -> Result<(), SendError> {
+    fn send(&self, message: Message, _machine: Arc<Machine>) -> Result<(), SendError> {
         let send = self.send.clone();
         tokio::spawn(async move {
             match send.send(Instruction::Outgoing(message)).await {

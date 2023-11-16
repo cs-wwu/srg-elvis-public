@@ -1,7 +1,7 @@
 use crate::applications::{ArpRouter, Capture, SendMessage};
 use elvis_core::{
     machine::PciSlot,
-    new_machine,
+    new_machine_arc,
     protocols::{
         arp::subnetting::{Ipv4Mask, SubnetInfo},
         ipv4::{Ipv4, Ipv4Address, Recipient},
@@ -46,8 +46,12 @@ pub fn build_ip_table(addresses: &[Ipv4Address]) -> IpTable<Recipient> {
     router_table
 }
 
-pub fn build_capture(network: Arc<Network>, address: Ipv4Address, exit_status: u32) -> Machine {
-    new_machine![
+pub fn build_capture(
+    network: Arc<Network>,
+    address: Ipv4Address,
+    exit_status: u32,
+) -> Arc<Machine> {
+    new_machine_arc![
         Udp::new(),
         Ipv4::new(Default::default()),
         Pci::new([network]),
@@ -104,7 +108,7 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
 
     let machines = vec![
         // send message
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
@@ -118,7 +122,7 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
             ),
         ],
         // machine representing our router
-        new_machine![
+        new_machine_arc![
             Pci::new([
                 networks[0].clone(),
                 networks[1].clone(),
@@ -174,7 +178,7 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
 
     let machines = vec![
         // send message
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
@@ -188,7 +192,7 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
             ),
         ],
         // machine representing our router
-        new_machine![
+        new_machine_arc![
             Pci::new([
                 networks[0].clone(),
                 networks[1].clone(),
@@ -255,7 +259,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
 
     let machines = vec![
         // send message
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new([(IPS[0], Recipient::new(0, None))].into_iter().collect(),),
             Pci::new([networks[0].clone()]),
@@ -269,7 +273,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
             ),
         ],
         // Routers
-        new_machine![
+        new_machine_arc![
             Pci::new([
                 networks[0].clone(),
                 networks[1].clone(),
@@ -280,7 +284,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
             Arp::new(),
             ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec())
         ],
-        new_machine![
+        new_machine_arc![
             Pci::new([
                 networks[2].clone(),
                 networks[4].clone(),
@@ -304,7 +308,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
 #[cfg(test)]
 mod tests {
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn arp_router_single() {
         let test1 = super::arp_router_single(super::IPS[1]);
         let test2 = super::arp_router_single(super::IPS[2]);
@@ -315,7 +319,7 @@ mod tests {
         assert_eq!(test3.await, super::ExitStatus::Status(3));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn arp_router_single2() {
         let test1 = super::arp_router_single2(super::IPS[1]);
         let test2 = super::arp_router_single2(super::IPS[2]);
@@ -328,7 +332,7 @@ mod tests {
         assert_eq!(test4.await, super::ExitStatus::Status(4));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn arp_router_multi() {
         let test1 = super::arp_router_multi(super::IPS[1]);
         let test2 = super::arp_router_multi(super::IPS[2]);

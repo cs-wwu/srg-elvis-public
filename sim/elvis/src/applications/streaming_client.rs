@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{Endpoint, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::{
     str,
@@ -36,11 +35,12 @@ impl Protocol for StreamingClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        initialized: Arc<Barrier>,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
+        initialized.wait().await;
         // Create a new TcpStream connected to the server address
-        let mut stream = TcpStream::connect(self.server_address, protocols)
+        let mut stream = TcpStream::connect(self.server_address, machine)
             .await
             .unwrap();
 
@@ -109,7 +109,7 @@ impl Protocol for StreamingClient {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }
@@ -139,4 +139,3 @@ async fn play_video_segments(buffer: &mut Vec<Vec<u8>>) {
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
-

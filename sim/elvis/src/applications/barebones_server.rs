@@ -1,9 +1,8 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, TcpListener, TcpStream},
-    Control, Protocol, Session, Shutdown,
+    protocols::{socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream},
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::Arc;
 use tokio::sync::Barrier;
@@ -22,7 +21,13 @@ impl BareBonesServer {
 
     async fn handle_connection(mut stream: TcpStream) {
         loop {
-            let mut msg2: Vec<u8> = stream.read().await.unwrap();
+            let mut msg2: Vec<u8> = match stream.read().await {
+                Ok(v) => v,
+                Err(SocketError::Shutdown) => {
+                    break;
+                }
+                Err(_) => panic!(),
+            };
 
             // Add 1 to each number in the vec
             for n in &mut msg2 {
@@ -40,19 +45,26 @@ impl Protocol for BareBonesServer {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        initialized: Arc<Barrier>,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         drop(_shutdown);
 
         // Create a new TcpListener bound to the server address
-        let listener: TcpListener = TcpListener::bind(self.server_address, protocols)
+        let mut listener: TcpListener = TcpListener::bind(self.server_address, machine)
             .await
             .unwrap();
 
+        initialized.wait().await;
+
         loop {
             // Accept an incoming connection to create new TcpStream
-            let stream: TcpStream = TcpListener::accept(&listener).await.unwrap();
+            let stream: TcpStream = match TcpListener::accept(&mut listener).await {
+                Ok(v) => v,
+                Err(_) => {
+                    break (Ok(()));
+                }
+            };
 
             tokio::spawn(async move {
                 BareBonesServer::handle_connection(stream).await;
@@ -65,7 +77,7 @@ impl Protocol for BareBonesServer {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

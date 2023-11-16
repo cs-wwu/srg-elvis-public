@@ -1,13 +1,12 @@
 use elvis_core::{
     machine::PciSlot,
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
         AddressPair, Arp, Ipv4, Pci,
     },
-    Control, IpTable, Protocol, Session, Shutdown,
+    Control, IpTable, Machine, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -42,20 +41,18 @@ impl Protocol for ArpRouter {
         &self,
         _shutdown: Shutdown,
         initialize: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        let ipv4 = protocols
+        let ipv4 = machine
             .protocol::<Ipv4>()
             .expect("Arp Router requires IPv4");
 
-        let arp = protocols
-            .protocol::<Arp>()
-            .expect("Arp Router requires Arp");
+        let arp = machine.protocol::<Arp>().expect("Arp Router requires Arp");
 
         ipv4.listen(
             self.id(),
             Ipv4Address::CURRENT_NETWORK,
-            protocols.clone(),
+            machine.clone(),
             ProtocolNumber::TCP,
         )
         .unwrap();
@@ -63,7 +60,7 @@ impl Protocol for ArpRouter {
         ipv4.listen(
             self.id(),
             Ipv4Address::CURRENT_NETWORK,
-            protocols,
+            machine,
             ProtocolNumber::UDP,
         )
         .unwrap();
@@ -81,7 +78,7 @@ impl Protocol for ArpRouter {
         mut message: Message,
         _caller: Arc<dyn Session>,
         control: Control,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let mut ipv4_header = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
         ipv4_header.time_to_live -= 1;
@@ -103,7 +100,7 @@ impl Protocol for ArpRouter {
         };
         let slot = pair.1;
 
-        let arp = protocols.protocol::<Arp>().unwrap();
+        let arp = machine.protocol::<Arp>().unwrap();
 
         let address_pair = AddressPair {
             local: self.local_ips[slot as usize],
@@ -111,11 +108,11 @@ impl Protocol for ArpRouter {
         };
 
         tokio::spawn(async move {
-            let arp_result = arp.resolve(address_pair, slot, protocols.clone()).await;
+            let arp_result = arp.resolve(address_pair, slot, machine.clone()).await;
             match arp_result {
                 Err(_) => {}
                 Ok(mac) => {
-                    let session = protocols.protocol::<Pci>().unwrap().open(slot);
+                    let session = machine.protocol::<Pci>().unwrap().open(slot);
                     session
                         .send_pci(message, Some(mac), TypeId::of::<Ipv4>())
                         .expect("failed to send");

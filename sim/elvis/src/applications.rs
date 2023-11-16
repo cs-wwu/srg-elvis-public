@@ -1,6 +1,6 @@
 //! User-level applications used to test protocols and networks.
 
-mod capture;
+pub mod capture;
 pub use capture::Capture;
 
 mod send_message;
@@ -11,6 +11,12 @@ pub use socket_client::SocketClient;
 
 mod socket_server;
 pub use socket_server::SocketServer;
+
+mod basic_client;
+pub use basic_client::BasicClient;
+
+mod basic_server;
+pub use basic_server::BasicServer;
 
 mod forward;
 pub use forward::Forward;
@@ -26,9 +32,6 @@ pub mod dns_test_server;
 
 mod throughput_tester;
 pub use throughput_tester::ThroughputTester;
-
-mod wait_for_message;
-pub use wait_for_message::WaitForMessage;
 
 pub mod arp_router;
 pub use arp_router::ArpRouter;
@@ -59,7 +62,3 @@ pub use barebones_client::BareBonesClient;
 
 pub mod barebones_server;
 pub use barebones_server::BareBonesServer;
-
-pub mod multi_capture;
-pub use multi_capture::Counter;
-pub use multi_capture::MultiCapture;

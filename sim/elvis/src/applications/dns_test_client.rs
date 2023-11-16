@@ -1,12 +1,11 @@
 use elvis_core::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
         socket_api::socket::{ProtocolFamily, SocketType},
         SocketAPI,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 use std::{any::TypeId, sync::Arc};
 use tokio::sync::Barrier;
@@ -33,18 +32,18 @@ impl Protocol for DnsTestClient {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         drop(_shutdown);
 
         // Take ownership of struct fields so they can be accessed within the
         // tokio thread
-        let sockets = protocols
+        let sockets = machine
             .protocol::<SocketAPI>()
             .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))?;
 
-        let socket = sockets
-            .new_socket(ProtocolFamily::INET, self.transport, protocols)
+        let mut socket = sockets
+            .new_socket(ProtocolFamily::INET, self.transport, machine)
             .await
             .unwrap();
 
@@ -82,7 +81,7 @@ impl Protocol for DnsTestClient {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }

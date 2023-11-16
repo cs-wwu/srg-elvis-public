@@ -1,7 +1,10 @@
-use crate::applications::{Capture, Counter, MultiCapture, SendMessage};
+use crate::applications::{
+    capture::{CapFactory, Capture},
+    SendMessage,
+};
 use elvis_core::{
     message::Message,
-    new_machine,
+    new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
@@ -9,7 +12,7 @@ use elvis_core::{
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 /// Simulation to test udp broadcasting and multiple
 /// udp sessions on the same machine using the same local ip.
@@ -27,7 +30,7 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
     let network = Network::basic();
     let message = Message::new("Hello!");
 
-    let counter: Arc<Counter> = Counter::new(3);
+    let capfactory = CapFactory::new();
 
     let endpoint = Endpoint {
         address: [255, 255, 255, 255].into(),
@@ -46,28 +49,28 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
         .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             SendMessage::new(vec![message.clone()], endpoint),
-            MultiCapture::new(endpoints[0], counter.clone()).exit_status(1),
+            capfactory.build(endpoints[0], 1).exit_status(1),
             Udp::new(),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
-            MultiCapture::new(endpoints[1], counter.clone()).exit_status(1),
+            capfactory.build(endpoints[1], 1).exit_status(1),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
-            MultiCapture::new(endpoints[2], counter.clone()).exit_status(1),
+            capfactory.build(endpoints[2], 1).exit_status(1),
         ],
         // evil machine should not be receiving the udp broadcast
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
@@ -82,7 +85,7 @@ pub async fn udp_broadcast_basic() -> ExitStatus {
 mod tests {
     use elvis_core::ExitStatus;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn udp_broadcast_basic() {
         let status = super::udp_broadcast_basic().await;
 

@@ -1,7 +1,6 @@
 //! An implementation of the Domain Name Structure For Client Machines
 
 use crate::{
-    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::Endpoint,
@@ -10,7 +9,7 @@ use crate::{
         socket_api::socket::{ProtocolFamily, SocketType},
         SocketAPI,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Machine, Protocol, Session, Shutdown,
 };
 
 use super::{dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord, DnsRTypes}, dns_cache::DnsCache};
@@ -41,7 +40,7 @@ impl DnsResolver {
     pub async fn get_host_by_name(
         &self,
         name: String,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<Ipv4Address, DnsClientError> {
         match self.cache.get_mapping(&name) {
             // Cache hit
@@ -56,13 +55,13 @@ impl DnsResolver {
                     .to_message()
                     .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
-                let sockets = protocols
+                let sockets = machine
                     .protocol::<SocketAPI>()
                     .ok_or(StartError::MissingProtocol(TypeId::of::<SocketAPI>()))
                     .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
-                let socket = sockets
-                    .new_socket(ProtocolFamily::INET, SocketType::Datagram, protocols)
+                let mut socket = sockets
+                    .new_socket(ProtocolFamily::INET, SocketType::Datagram, machine)
                     .await
                     .unwrap(); // Clean up/handle cleanly unwraps. TODO(HenryEricksonIV)
 
@@ -116,7 +115,7 @@ impl Protocol for DnsResolver {
         &self,
         _shutdown: Shutdown,
         initialized: Arc<Barrier>,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;
         Ok(())
@@ -127,7 +126,7 @@ impl Protocol for DnsResolver {
         _message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         Ok(())
     }
@@ -185,3 +184,4 @@ mod tests {
         assert_eq!(Err(DnsCacheError::Cache), check);
     }
 }
+
