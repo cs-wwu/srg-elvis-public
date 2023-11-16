@@ -12,7 +12,7 @@ use elvis_core::{
         udp::Udp,
         Arp, Pci, SocketAPI,
     },
-    run_internet_with_timeout, ExitStatus, IpTable, Network,
+    run_internet_with_timeout, IpTable, Network,
 };
 
 /// Runs a basic client-server sim using the DNS client and server to resolve

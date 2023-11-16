@@ -15,7 +15,7 @@ use crate::{
 
 use super::{dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord, DnsRTypes}, dns_cache::DnsCache};
 
-use std::{any::Any};
+use std::any::Any;
 use {std::any::TypeId, std::sync::Arc, tokio::sync::Barrier};
 
 /// Serves as a tool for looking up the ['Ipv4Address'] of a host using its

@@ -7,13 +7,13 @@ use crate::{
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         Endpoint, SocketAPI, dns::dns_cache::DnsCacheError,
     },
-    Control, Protocol, Session, Shutdown,
+    Control, Protocol, Session, Shutdown, FxDashMap,
 };
 
 use std::{any::TypeId, sync::Arc};
 // use futures::lock::Mutex;
-use slab_tree::Tree;
-use tokio::sync::{Barrier, MutexGuard, Mutex};
+use slab_tree::{Tree, NodeId};
+use tokio::sync::{Barrier, Mutex};
 
 use super::{dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord, DnsRTypes}, domain_name::DomainName, dns_cache::DnsCache, dns_zone_tree::{DnsZoneNode, DnsZoneTree}};
 
@@ -49,7 +49,12 @@ impl DnsServer {
         }
     }
 
+    // fn read_from_ndl(){
+
+    // }
+
     async fn respond_to_query(
+        name_to_id: FxDashMap<String, NodeId>,
         zone_tree: Arc<Mutex<Tree<DnsZoneNode>>>,
         cache: DnsCache,
         socket: Arc<Socket>,
@@ -64,7 +69,7 @@ impl DnsServer {
         //DEBUG PRINTS
         // SHOWS THAT WE CAN LOOK UP A QNAME IN THE ZONE TREE!!!
         println!("{:?}", name);
-        let tree = DnsZoneTree{tree: zone_tree};
+        let tree = DnsZoneTree{tree: zone_tree, name_to_id};
         // tree.get_best_zone_match(name.to_owned().into()).await;
 
         let records: Vec<DnsResourceRecord> = tree.get_best_zone_match(name.to_owned().into()).await.unwrap();
@@ -104,11 +109,13 @@ impl DnsServer {
     /// Continuously accepts new connections and spawns new tokio tasks to 
     /// handle communication with each requester.
     pub async fn accept_loop(
+        name_to_id: FxDashMap<String, NodeId>,
         zone_tree: Arc<Mutex<Tree<DnsZoneNode>>>,
         cache: DnsCache,
         listen_socket: Arc<Socket>
     ) -> Result<(), DnsServerError> {
         loop {
+            let id_table = name_to_id.clone(); // FIX MEEEEEEEEEEEEEEEE
             let table = cache.clone();
             let tree = zone_tree.clone();
             // Accept an incoming connection
@@ -117,7 +124,7 @@ impl DnsServer {
                 Err(_) => return Ok(()),
             };
             tokio::spawn(async move {
-                DnsServer::respond_to_query(tree, table, socket).await.unwrap();
+                DnsServer::respond_to_query(id_table, tree, table, socket).await.unwrap();
             });
         }
     }
@@ -132,8 +139,12 @@ impl Protocol for DnsServer {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
 
+        // let mut nodes_to_add: Vec<DnsZoneNode> = Vec::new();
+        // let mut node_ids: Vec<slab_tree::NodeId> = Vec::new();
+
         let root = DnsZoneNode::new(
-            ".".to_string(), 
+            ".".to_string(),
+            ".".to_string(),
             [
                 DnsResourceRecord::new(
                 Vec::from("com".as_bytes()),
@@ -146,6 +157,7 @@ impl Protocol for DnsServer {
 
         let child_one = DnsZoneNode::new(
             "com".to_string(),
+            ".".to_string(),
             [
                 DnsResourceRecord::new(
                 Vec::from("google.com".as_bytes()),
@@ -164,6 +176,7 @@ impl Protocol for DnsServer {
 
         let child_two = DnsZoneNode::new(
             "google".to_string(),
+            "com".to_string(),
             [
                 DnsResourceRecord::new(
                 Vec::from("google.com".as_bytes()),
@@ -176,6 +189,7 @@ impl Protocol for DnsServer {
 
         let child_three = DnsZoneNode::new(
             "testserver".to_string(),
+            "com".to_string(),
             [
                 DnsResourceRecord::new(
                 Vec::from("testserver.com".as_bytes()),
@@ -185,6 +199,10 @@ impl Protocol for DnsServer {
                 )
             ].to_vec()
         );
+
+        // nodes_to_add.push(child_one);
+        // nodes_to_add.push(child_two);
+        // nodes_to_add.push(child_three);
 
         // SLAB TREE
 
@@ -238,8 +256,9 @@ impl Protocol for DnsServer {
         // connections in a loop.
         let table = self.cache.clone();
         let tree = self.zone_tree.tree.clone();
+        let name_to_id = self.zone_tree.name_to_id.clone();
         tokio::spawn(async move {
-                DnsServer::accept_loop(tree, table, listen_socket).await.unwrap()
+                DnsServer::accept_loop(name_to_id, tree, table, listen_socket).await.unwrap()
             }
         );
         Ok(())

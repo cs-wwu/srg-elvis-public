@@ -1,19 +1,22 @@
 use slab_tree::*;
-use std::{any::TypeId, sync::Arc};
-use tokio::sync::{Barrier, Mutex};
+use crate::FxDashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use super::{dns_parsing::DnsResourceRecord, domain_name::DomainName};
 
 
 #[derive(Debug)]
 pub struct DnsZoneNode {
-    pub label: String,
+    pub name: String,
+    pub parent_name: String,
     pub record_list: Vec<DnsResourceRecord>,
 }
 
 impl DnsZoneNode {
-    pub fn new(label: String, record_list: Vec<DnsResourceRecord>) -> Self {
+    pub fn new(name: String, parent_name: String, record_list: Vec<DnsResourceRecord>) -> Self {
         Self {
-            label,
+            name,
+            parent_name,
             record_list,
         }
     }
@@ -22,12 +25,14 @@ impl DnsZoneNode {
 #[derive(Debug, Default)]
 pub struct DnsZoneTree {
     pub tree: Arc<Mutex<Tree<DnsZoneNode>>>,
+    pub name_to_id: FxDashMap<String, slab_tree::NodeId>,
 }
 
 impl DnsZoneTree {
     pub fn new() -> Self {
         Self {
-            tree: Default::default()
+            tree: Default::default(),
+            name_to_id: Default::default(),
         }
     }
 
@@ -68,19 +73,19 @@ impl DnsZoneTree {
         for s in r_iter {
             // println!("Domain Name Label: {:?}", s);
             for n in lock.get(id).unwrap().children() {
-                // println!("Domain Name Label: {:?} | Zone Tree Node Label: {:?}", s, n.data().label);
-                if n.data().label == *s {
+                // println!("Domain Name Label: {:?} | Zone Tree Node Label: {:?}", s, n.data().name);
+                if n.data().name == *s {
                     id = n.node_id();
                     // println!("A match!");
                 }
-                else {
-                    // println!("No match!");
-                }
+                // else {
+                //     println!("No match!");
+                // }
             }
         }
         let data = lock.get(id).unwrap().data();
-        // println!("{:?}", lock.get(id).unwrap().data().label);
-        if data.label == qname.0[0] {
+        // println!("{:?}", lock.get(id).unwrap().data().name);
+        if data.name == qname.0[0] {
             Ok(data.record_list.to_owned())
         } else {
             Err(DnsTreeError::Tree)

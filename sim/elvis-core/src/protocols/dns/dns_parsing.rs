@@ -64,7 +64,7 @@ impl DnsMessage {
         // parsing bytes for the DnsResourceRecord for DnsMessage answer
         let mut answer_vec: Vec<DnsResourceRecord> = Vec::new();
         let mut rec_count = 0;
-        println!("{:?}", ancount);
+        // println!("{:?}", ancount);
         while rec_count < ancount {
             let mut name = Vec::new();
     
@@ -84,7 +84,7 @@ impl DnsMessage {
             }
             let rec_type = bytes.next_u16_be().ok_or(HTS)?;
             let class = bytes.next_u16_be().ok_or(HTS)?;
-            let mut ttl = bytes.next_u32_be().ok_or(HTS)?;
+            let ttl = bytes.next_u32_be().ok_or(HTS)?;
             let rdlength = bytes.next_u16_be().ok_or(HTS)?;
             
             let mut rdata: Vec<u8> = Vec::new();
@@ -336,7 +336,7 @@ impl DnsResourceRecord {
         name_as_bytes: Vec<u8>,
         time_to_live: u32,
         record_data: Ipv4Address,
-        rec_type: u16
+        _rec_type: u16
     ) -> DnsResourceRecord {
         DnsResourceRecord {
             name_as_labels: DomainName::from(name_as_bytes.clone()),
