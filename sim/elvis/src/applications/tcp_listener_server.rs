@@ -27,7 +27,7 @@ impl Protocol for TcpListenerServer {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         drop(_shutdown);
@@ -35,6 +35,8 @@ impl Protocol for TcpListenerServer {
         let mut listener: TcpListener = TcpListener::bind(self.server_address, machine)
             .await
             .unwrap();
+
+        initialized.wait().await;
 
         // Accept an incoming connection to create new TcpStream
         let mut stream: TcpStream = TcpListener::accept(&mut listener).await.unwrap();

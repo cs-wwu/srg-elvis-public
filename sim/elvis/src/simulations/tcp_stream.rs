@@ -5,7 +5,7 @@ use elvis_core::{
     new_machine_arc,
     protocols::{
         ipv4::{Ipv4, Ipv4Address, Recipient},
-        Endpoint, Pci, SocketAPI, Tcp,
+        Arp, Endpoint, Pci, SocketAPI, Tcp,
     },
     run_internet_with_timeout, ExitStatus, IpTable, Network,
 };
@@ -18,18 +18,16 @@ pub async fn tcp_stream() {
     let server_socket_address: Endpoint = Endpoint::new(server_ip_address, 80);
     let client_socket_address: Endpoint = Endpoint::new(client_ip_address, 70);
 
-    let ip_table: IpTable<Recipient> = [
-        (client_ip_address, Recipient::with_mac(0, 0)),
-        (server_ip_address, Recipient::with_mac(0, 1)),
-    ]
-    .into_iter()
-    .collect();
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
 
     let machines = vec![
         new_machine_arc![
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(server_ip_address)),
             TcpStreamClient::new(server_socket_address, client_socket_address),
         ],
@@ -37,6 +35,7 @@ pub async fn tcp_stream() {
             Tcp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             SocketAPI::new(Some(client_ip_address)),
             TcpListenerServer::new(server_socket_address, client_socket_address),
         ],

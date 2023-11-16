@@ -35,9 +35,10 @@ impl Protocol for StreamingClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
+        initialized.wait().await;
         // Create a new TcpStream connected to the server address
         let mut stream = TcpStream::connect(self.server_address, machine)
             .await

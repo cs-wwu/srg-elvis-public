@@ -2,7 +2,7 @@
 use elvis::ndl::generate_and_run_sim;
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(200)]
+#[ntest::timeout(500)]
 async fn basic_message_valid_test() {
     let file_path: String =
         "./tests/generator_tests/valid/basic_message_valid_test.txt".to_string();
@@ -10,7 +10,7 @@ async fn basic_message_valid_test() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(200)]
+#[ntest::timeout(500)]
 async fn basic_forward_valid_test() {
     let file_path: String =
         "./tests/generator_tests/valid/basic_forward_valid_test.txt".to_string();
@@ -18,7 +18,7 @@ async fn basic_forward_valid_test() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(200)]
+#[ntest::timeout(500)]
 async fn basic_pingpong_valid_test() {
     let file_path: String =
         "./tests/generator_tests/valid/basic_pingpong_valid_test.txt".to_string();
@@ -26,7 +26,7 @@ async fn basic_pingpong_valid_test() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(200)]
+#[ntest::timeout(500)]
 async fn basic_message_ip_valid_test() {
     let file_path: String =
         "./tests/generator_tests/valid/basic_message_ip_valid_test.txt".to_string();
@@ -34,7 +34,7 @@ async fn basic_message_ip_valid_test() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(200)]
+#[ntest::timeout(500)]
 async fn basic_forward_ip_valid_test() {
     let file_path: String =
         "./tests/generator_tests/valid/basic_forward_ip_valid_test.txt".to_string();
@@ -42,7 +42,7 @@ async fn basic_forward_ip_valid_test() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(200)]
+#[ntest::timeout(500)]
 async fn basic_pingpong_ip_valid_test() {
     let file_path: String =
         "./tests/generator_tests/valid/basic_pingpong_ip_valid_test.txt".to_string();

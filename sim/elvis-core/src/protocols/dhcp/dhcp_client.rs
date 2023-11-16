@@ -42,10 +42,7 @@ impl Protocol for DhcpClient {
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let server_ip = self.server_ip;
-        // Wait on initialization before sending any message across the network
-
-        initialized.wait().await;
-        let sockets = Endpoints {
+        let endpoints = Endpoints {
             local: Endpoint {
                 address: Ipv4Address::new([0, 0, 0, 0]),
                 port: 68,
@@ -55,16 +52,21 @@ impl Protocol for DhcpClient {
                 port: 67,
             },
         };
-        let udp = machine
-            .protocol::<Udp>()
-            .unwrap()
-            .open_and_listen(self.id(), sockets, machine.clone())
+        let udp = machine.protocol::<Udp>().unwrap();
+        udp.listen(self.id(), endpoints.local, machine.clone())
+            .unwrap();
+
+        // Wait on initialization before sending any message across the network
+        initialized.wait().await;
+
+        let udp_session = udp
+            .open_for_sending(self.id(), endpoints, machine.clone())
             .await
             .unwrap();
 
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
-        udp.send(response_message, machine).unwrap();
+        udp_session.send(response_message, machine).unwrap();
 
         Ok(())
     }
