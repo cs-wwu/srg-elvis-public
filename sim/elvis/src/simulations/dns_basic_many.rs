@@ -1,7 +1,7 @@
 use crate::applications::{dns_test_client::DnsTestClient, dns_test_server::DnsTestServer};
 use tokio::time::Duration;
 use elvis_core::{
-    new_machine,
+    new_machine_arc,
     protocols::{
         dns::{dns_resolver::DnsResolver, dns_server::DnsServer},
         ipv4::{Ipv4, Ipv4Address, Recipient},
@@ -44,7 +44,7 @@ pub async fn dns_basic_many() {
 
     let mut machines = vec![];
     
-    machines.push(new_machine![
+    machines.push(new_machine_arc![
         Udp::new(),
         Tcp::new(),
         Ipv4::new(ip_table.clone()),
@@ -55,7 +55,7 @@ pub async fn dns_basic_many() {
         ]
     );
 
-    machines.push(new_machine![
+    machines.push(new_machine_arc![
         Udp::new(),
         Tcp::new(),
         Ipv4::new(ip_table.clone()),
@@ -67,7 +67,7 @@ pub async fn dns_basic_many() {
     );
 
     for i in 0..num_clients {
-        machines.push(new_machine![
+        machines.push(new_machine_arc![
                 Tcp::new(),
                 Udp::new(),
                 Ipv4::new(ip_table.clone()),
