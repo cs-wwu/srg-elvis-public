@@ -1,7 +1,7 @@
 use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, TcpStream},
+    protocols::{socket_api::socket::SocketError, Endpoint, TcpStream},
     Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::{Arc, RwLock};
@@ -30,9 +30,10 @@ impl Protocol for BareBonesClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
+        initialized.wait().await;
         // Create a new TcpStream connected to the server address
         let mut stream: TcpStream = TcpStream::connect(self.server_address, machine)
             .await
@@ -49,7 +50,13 @@ impl Protocol for BareBonesClient {
 
             // Recieve bytes from the server using read_exact
             let max_bytes: usize = 4;
-            let received_msg2: Vec<u8> = stream.read_exact(max_bytes).await.unwrap();
+            let received_msg2: Vec<u8> = match stream.read_exact(max_bytes).await {
+                Ok(v) => v,
+                Err(SocketError::Shutdown) => {
+                    break Ok(());
+                }
+                Err(_) => panic!(),
+            };
 
             // Add 1 to each number in the vec
             for n in &mut msg2 {

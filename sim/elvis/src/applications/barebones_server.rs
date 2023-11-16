@@ -1,7 +1,7 @@
 use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
-    protocols::{Endpoint, TcpListener, TcpStream},
+    protocols::{socket_api::socket::SocketError, Endpoint, TcpListener, TcpStream},
     Control, Machine, Protocol, Session, Shutdown,
 };
 use std::sync::Arc;
@@ -21,7 +21,13 @@ impl BareBonesServer {
 
     async fn handle_connection(mut stream: TcpStream) {
         loop {
-            let mut msg2: Vec<u8> = stream.read().await.unwrap();
+            let mut msg2: Vec<u8> = match stream.read().await {
+                Ok(v) => v,
+                Err(SocketError::Shutdown) => {
+                    break;
+                }
+                Err(_) => panic!(),
+            };
 
             // Add 1 to each number in the vec
             for n in &mut msg2 {
@@ -39,7 +45,7 @@ impl Protocol for BareBonesServer {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         drop(_shutdown);
@@ -49,9 +55,16 @@ impl Protocol for BareBonesServer {
             .await
             .unwrap();
 
+        initialized.wait().await;
+
         loop {
             // Accept an incoming connection to create new TcpStream
-            let stream: TcpStream = TcpListener::accept(&mut listener).await.unwrap();
+            let stream: TcpStream = match TcpListener::accept(&mut listener).await {
+                Ok(v) => v,
+                Err(_) => {
+                    break (Ok(()));
+                }
+            };
 
             tokio::spawn(async move {
                 BareBonesServer::handle_connection(stream).await;

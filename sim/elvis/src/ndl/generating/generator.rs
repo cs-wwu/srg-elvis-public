@@ -9,5 +9,5 @@ use elvis_core::run_internet;
 pub async fn core_generator(s: Sim) {
     let networks = network_generator(s.networks);
     let machines = machine_generator(s.machines, &networks);
-    run_internet(&machines).await;
+    run_internet(&machines, None).await;
 }

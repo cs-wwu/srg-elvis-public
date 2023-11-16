@@ -20,13 +20,13 @@ impl Shutdown {
     }
 
     pub fn shut_down(&self) {
-        while let Err(e) = self.notify.send(ExitStatus::Exited) {
+        if let Err(e) = self.notify.send(ExitStatus::Exited) {
             tracing::error!("Failed to initiate shutdown: {}", e);
         }
     }
 
     pub fn shut_down_with_status(&self, status: ExitStatus) {
-        while let Err(e) = self.notify.send(status.clone()) {
+        if let Err(e) = self.notify.send(status.clone()) {
             tracing::error!("Failed to initiate shutdown: {}", e);
         }
     }

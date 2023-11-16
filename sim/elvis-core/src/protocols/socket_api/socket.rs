@@ -9,7 +9,7 @@ use crate::{
 };
 use std::sync::{Arc, RwLock};
 use thiserror::Error as ThisError;
-use tokio::{select, sync::mpsc::Receiver};
+use tokio::{select, sync::mpsc::Receiver, task::yield_now};
 
 /// An implementation of an individual Socket
 /// Created by the [`SocketAPI`]
@@ -185,7 +185,7 @@ impl Socket {
             None => return Err(SocketError::AcceptError),
         };
         let endpoint = select! {
-            _ = shutdown_receiver.recv() => None,
+            _ = shutdown_receiver.recv() => { return Err(SocketError::Shutdown) },
             endpoint = connection_receiver.recv() => endpoint,
         };
         let mut new_sock = self
@@ -235,6 +235,7 @@ impl Socket {
         if self.session.read().unwrap().is_none() || self.is_listening {
             return Err(SocketError::ReceiveError);
         }
+        yield_now().await;
         let mut shutdown_receiver = self.shutdown.receiver();
         let message_receiver = match &mut self.message_receiver {
             Some(v) => v,
@@ -255,7 +256,7 @@ impl Socket {
         while buf.len() < bytes {
             let mut message = if buf.is_empty() && self.is_blocking {
                 select! {
-                    _ = shutdown_receiver.recv() => { return Err(SocketError::ReceiveError); },
+                    _ = shutdown_receiver.recv() => { return Err(SocketError::Shutdown); },
                     message = message_receiver.recv() => {
                         match message {
                             Some(msg) => msg,
@@ -293,6 +294,7 @@ impl Socket {
         if self.session.read().unwrap().is_none() || self.is_listening {
             return Err(SocketError::ReceiveError);
         }
+        yield_now().await;
         match self.stored_message.take() {
             Some(msg) => Ok(msg),
             None => {
@@ -303,7 +305,7 @@ impl Socket {
                 };
                 if self.is_blocking {
                     select! {
-                        _ = shutdown_receiver.recv() => Err(SocketError::ReceiveError),
+                        _ = shutdown_receiver.recv() => Err(SocketError::Shutdown),
                         message = message_receiver.recv() => {
                             match message {
                                 Some(msg) => Ok(msg),

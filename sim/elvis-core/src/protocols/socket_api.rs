@@ -290,9 +290,6 @@ impl Protocol for SocketAPI {
                     None => match self.listen_bindings.get(&any_identifier) {
                         Some(any_listen_entry) => any_listen_entry,
                         None => {
-                            tracing::error!(
-                                "Tried to demux with a missing session and no listen bindings"
-                            );
                             return Err(DemuxError::MissingSession);
                         }
                     },

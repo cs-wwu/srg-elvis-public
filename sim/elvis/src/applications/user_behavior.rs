@@ -296,9 +296,10 @@ impl Protocol for UserBehavior {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        _initialized: Arc<Barrier>,
+        initialized: Arc<Barrier>,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
+        initialized.wait().await;
         // creating the starting url and how many pages the user will sift through
         let start_url = "http://100.42.0.0:80/";
         let num_page = rand::thread_rng().gen_range(20..150);

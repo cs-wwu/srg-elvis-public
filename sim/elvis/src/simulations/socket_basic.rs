@@ -127,7 +127,7 @@ mod tests {
     async fn socket_basic_tcp_100_clients() {
         for _ in 0..5 {
             assert_eq!(
-                super::socket_basic(SocketType::Stream, 100, true, 0).await,
+                super::socket_basic(SocketType::Stream, 100, false, 0).await,
                 ExitStatus::Exited
             );
         }

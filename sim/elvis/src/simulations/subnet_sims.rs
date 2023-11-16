@@ -166,7 +166,7 @@ pub async fn test_subnet() {
     // These 4 lines of code actually run the simulation!
     tokio::spawn(async move {
         let machines = [jack(&network), mae, gateway];
-        run_internet(&machines).await;
+        run_internet(&machines, None).await;
     });
 
     // Wait for Mae to get a message from Jack

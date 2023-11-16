@@ -10,7 +10,7 @@ use elvis_core::{
         udp::Udp,
         Arp, Endpoint, Pci,
     },
-    run_internet_with_timeout, IpTable, Message, Network,
+    run_internet_with_timeout, ExitStatus, IpTable, Message, Network,
 };
 use std::time::Duration;
 
@@ -63,7 +63,8 @@ pub async fn dhcp_basic_offer() {
         ],
     ];
 
-    run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    assert_eq!(status, ExitStatus::Exited);
 
     let mut machines_iter = machines.into_iter();
     machines_iter.next();
