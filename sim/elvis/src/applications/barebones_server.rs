@@ -59,7 +59,12 @@ impl Protocol for BareBonesServer {
 
         loop {
             // Accept an incoming connection to create new TcpStream
-            let stream: TcpStream = TcpListener::accept(&mut listener).await.unwrap();
+            let stream: TcpStream = match TcpListener::accept(&mut listener).await {
+                Ok(v) => v,
+                Err(_) => {
+                    break (Ok(()));
+                }
+            };
 
             tokio::spawn(async move {
                 BareBonesServer::handle_connection(stream).await;
