@@ -134,14 +134,17 @@ fn gateway(
     network: &Arc<Network>,
 ) -> (
     Arc<Machine>,
+    // receiver for messages sent to gateway
     broadcast::Receiver<Message>,
+    // receiver for ArpPackets received by gateway arp
     broadcast::Receiver<ArpPacket>,
 ) {
     let (r_send, r_recv) = broadcast::channel(1);
     let (arp_send, arp_recv) = broadcast::channel(5);
     let arp_recv_hook = move |message: Message| {
         let packet = ArpPacket::from_bytes(message.iter()).expect("failed to parse ARP packet");
-        arp_send.send(packet).unwrap();
+        // we do not care if the sending fails
+        let _ = arp_send.send(packet);
     };
     let gateway = new_machine_arc![
         MockGateway { send: r_send },
@@ -178,7 +181,10 @@ pub async fn test_subnet() {
 
     // make sure the gateway got a proper ARP request from Mae
     loop {
-        let arp_packet = gateway_arp_recv.recv().await.unwrap();
+        let arp_packet = gateway_arp_recv
+            .recv()
+            .await
+            .expect("the gateway should be receiving an ARP request");
         println!("arp request to gateway; {:?}", arp_packet);
         if arp_packet.sender_ip == MAE.address && arp_packet.target_ip == GATEWAY.address {
             println!("gateway got an arp request from mae!");
