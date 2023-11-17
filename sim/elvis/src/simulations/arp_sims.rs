@@ -210,7 +210,7 @@ pub async fn test_resend() {
 }
 
 /// A version of the ping_pong simulation that uses Arp.
-pub async fn ping_pong() {
+pub async fn arp_ping_pong() {
     let network = Network::basic();
 
     let ping_table: IpTable<Recipient> = [(SENDER_ENDPOINT.address, Recipient::new(0, None))]
@@ -270,9 +270,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     #[tracing_test::traced_test]
-    async fn ping_pong() {
+    async fn arp_ping_pong() {
         for _ in 0..5 {
-            super::ping_pong().await;
+            super::arp_ping_pong().await;
         }
     }
 }

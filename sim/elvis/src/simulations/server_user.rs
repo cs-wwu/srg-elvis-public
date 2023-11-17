@@ -42,7 +42,7 @@ pub async fn server_user() {
         ],
     ];
 
-    let status = run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
     assert_eq!(status, ExitStatus::Exited);
 
     let mut machines_iter = machines.into_iter();

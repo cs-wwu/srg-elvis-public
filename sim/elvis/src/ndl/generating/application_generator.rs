@@ -15,7 +15,6 @@ use elvis_core::protocols::dhcp_client::DhcpClient;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Arp;
 use elvis_core::protocols::{Endpoint, Endpoints};
-use elvis_core::subnetting::Ipv4Net;
 use elvis_core::{IpTable, Message};
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
@@ -307,7 +306,7 @@ pub fn arp_builder(
 
 pub fn dhcp_server_builder(
     app: &Application,
-    name_to_ip: &HashMap<String, Ipv4Address>,
+    _name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
     cur_net_ids: &[String],
@@ -329,8 +328,12 @@ pub fn dhcp_server_builder(
     ip_table.add_direct(ip, Recipient::new(0, None));
     
     let ip_range = app.options.get("ip_range").unwrap().to_string();
+    let range: Vec<&str> = ip_range.split('-').collect();
+    assert_eq!(range.len(), 2);
+    let start: Ipv4Address = range[0].parse::<u32>().unwrap().into();
+    let end: Ipv4Address = range[1].parse::<u32>().unwrap().into();
     //TODO create ip range from param
-    let ip_range : IpRange;
+    let ip_range = IpRange::new(start, end);
 
     
     DhcpServer::new(ip, ip_range)            
@@ -346,7 +349,7 @@ pub fn dhcp_client_builder(
     );
     let server_ip = app.options.get("server_ip").unwrap().to_string();
 
-    if ip_or_name(server_ip) {
+    if ip_or_name(server_ip.clone()) {
         //Case: A decimal format ip is provided
         DhcpClient::new(ip_string_to_ip(server_ip, "dhcp_client declaration").into())
     } else {

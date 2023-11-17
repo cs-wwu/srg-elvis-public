@@ -39,7 +39,6 @@ impl<T: Copy> IpTable<T> {
     /// then None is returned
     pub fn get_recipient(&self, address: Ipv4Address) -> Option<T> {
         for (net, value) in self.iter() {
-            let net = net;
             if net.contains(address) {
                 return Some(value);
             }
@@ -311,7 +310,7 @@ mod test {
             Obm(Ipv4Net::from_cidr("19.0.1.0/8").unwrap()),
         ];
 
-        let mut shuffled_nets = nets.clone();
+        let mut shuffled_nets = nets;
         shuffled_nets.shuffle(&mut StdRng::seed_from_u64(1234));
 
         println!("shuffled:");
