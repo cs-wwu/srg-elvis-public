@@ -10,7 +10,7 @@
             [Protocol name='IPv4']
             [Protocol name='UDP']
         [Applications]
-            [Application name='dhcp_server' ip='123.45.67.85' ip_range='1-255']
+            [Application name='dhcp_server' ip='123.45.67.85' ip_range='123.45.56.87-91']
     [Machine name='capture']
         [Networks]
             [Network id='1']

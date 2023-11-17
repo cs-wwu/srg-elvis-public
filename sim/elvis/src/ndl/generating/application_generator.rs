@@ -330,10 +330,20 @@ pub fn dhcp_server_builder(
     let ip_range = app.options.get("ip_range").unwrap().to_string();
     let range: Vec<&str> = ip_range.split('-').collect();
     assert_eq!(range.len(), 2);
-    let start: Ipv4Address = range[0].parse::<u32>().unwrap().into();
-    let end: Ipv4Address = range[1].parse::<u32>().unwrap().into();
+    let start = ip_string_to_ip(range[0].to_string(), &cur_net_ids[0]);
+    let ceiling = range[1].parse::<u8>().unwrap_or_else(|_| {
+        panic!("Dhcp server {}: Invalid ending IP range number. Expected <u8> found: {}", &cur_net_ids[0], range[1])
+    });
+
+    assert!(
+        ceiling >= start[3],
+        "Dhcp server {}: Invalid Cidr format, end IP value ({}) greater than start IP value ({})",
+        &cur_net_ids[0], ceiling, start[3]
+    );
+
+    let end = [start[0], start[1], start[2], ceiling];
     //TODO create ip range from param
-    let ip_range = IpRange::new(start, end);
+    let ip_range = IpRange::new(start.into(), end.into());
 
     
     DhcpServer::new(ip, ip_range)            
