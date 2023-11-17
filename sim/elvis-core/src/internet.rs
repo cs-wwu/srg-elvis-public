@@ -1,8 +1,9 @@
 use super::Machine;
 use crate::{shutdown::ExitStatus, Shutdown};
+use std::backtrace::Backtrace;
 use std::panic;
-use std::{sync::Arc, process};
 use std::time::Duration;
+use std::{process, sync::Arc};
 use tokio::{sync::Barrier, task::JoinSet, time::sleep};
 
 /// Runs the simulation with the given machines
@@ -28,6 +29,8 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
     let panic_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
         panic_hook(panic_info);
+        let backtrace = Backtrace::force_capture();
+        eprintln!("Backtrace: {:#?}", backtrace);
         process::exit(1);
     }));
     let shutdown = Shutdown::new();
