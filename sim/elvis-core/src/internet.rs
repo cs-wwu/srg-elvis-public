@@ -1,6 +1,7 @@
 use super::Machine;
 use crate::{shutdown::ExitStatus, Shutdown};
-use std::sync::Arc;
+use std::panic;
+use std::{sync::Arc, process};
 use std::time::Duration;
 use tokio::{sync::Barrier, task::JoinSet, time::sleep};
 
@@ -24,6 +25,11 @@ pub async fn run_internet_with_timeout(
 /// `timeout` is an optional field, if Some() is provided, this function
 /// will call shutdown.shut_down() after the given duration.
 pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) -> ExitStatus {
+    let panic_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        panic_hook(panic_info);
+        process::exit(1);
+    }));
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
