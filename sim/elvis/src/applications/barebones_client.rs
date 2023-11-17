@@ -19,7 +19,7 @@ impl BareBonesClient {
     pub fn new(server_address: Endpoint) -> Self {
         Self {
             server_address,
-            /// Tracks the number of web pages recieved by this client
+            // Tracks the number of web pages recieved by this client
             num_pages_recvd: RwLock::new(0),
         }
     }
