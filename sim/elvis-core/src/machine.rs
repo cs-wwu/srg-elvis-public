@@ -2,7 +2,7 @@ use crate::{Protocol, Shutdown};
 use rustc_hash::FxHashMap;
 use std::{
     any::{Any, TypeId},
-    sync::Arc,
+    sync::{Arc, OnceLock}
 };
 use tokio::{sync::Barrier, task::JoinSet};
 
@@ -21,6 +21,7 @@ type AnyMap = FxHashMap<TypeId, (ArcAny, Arc<dyn Protocol>)>;
 #[derive(Default)]
 pub struct Machine {
     protocols: AnyMap,
+    pub name: OnceLock<String>
 }
 
 impl Machine {
@@ -31,6 +32,7 @@ impl Machine {
     pub fn new() -> Machine {
         Self {
             protocols: AnyMap::default(),
+            name: OnceLock::new(),
         }
     }
 

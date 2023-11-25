@@ -49,8 +49,12 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
     // Spawn futures for every machine and then wait on them
     let mut handles = JoinSet::new();
 
+    let mut counter = 0;
+
     for machine in machines {
         let machine = machine.clone();
+        machine.name.set(counter.to_string()).unwrap();
+        counter += 1;
         let shutdown = shutdown.clone();
         let initialized = initialized.clone();
         handles.spawn(machine.start(shutdown, initialized));
