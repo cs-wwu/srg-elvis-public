@@ -1,59 +1,54 @@
+use std::sync::{OnceLock, Arc};
+
 use tokio::sync::broadcast;
 
 /// A struct which can be used to shut down a simulation.
 /// You can create multiple connected shutdowns by cloning.
 #[derive(Debug, Clone)]
 pub struct Shutdown {
-    /// This channel can be used tell the simulation to shut down.
-    notify: broadcast::Sender<ExitStatus>,
-    /// Keeps track of the last status received
-    /// So users can call `wait_for_shutdown` multiple times
-    last_status: Option<ExitStatus>,
+    /// The exit status.
+    exit_status: Arc<OnceLock<ExitStatus>>,
+    /// This channel is sent on when the exit status is set.
+    notify: broadcast::Sender<()>,
 }
 
 impl Shutdown {
     /// Creates a new active shutdown.
     pub fn new() -> Self {
-        let (notify, _) = broadcast::channel(1);
+        let (notify, recv) = broadcast::channel(1);
         Self {
+            exit_status: Arc::new(OnceLock::new()),
             notify,
-            last_status: None,
         }
     }
 
     /// Sends `ExitStatus::Exited` to all `Shutdowns` cloned from this one.
     pub fn shut_down(&self) {
-        if let Err(e) = self.notify.send(ExitStatus::Exited) {
-            tracing::error!("Failed to initiate shutdown: {}", e);
-        }
+        self.shut_down_with_status(ExitStatus::Exited);
     }
 
     /// Sends `status` to all `Shutdowns` cloned from this one.
+    /// If a shutdown has already occured, nothing happens.
     pub fn shut_down_with_status(&self, status: ExitStatus) {
-        if let Err(e) = self.notify.send(status.clone()) {
-            tracing::error!("Failed to initiate shutdown: {}", e);
-        }
+        self.exit_status.set(status);
+        let _ = self.notify.send(());
+    }
+
+    /// Returns an ExitStatus if a shutdown status has been sent already,
+    /// or None if a shutdown has not happened yet.
+    pub fn try_get_status(&self)  -> Option<ExitStatus> {
+        self.exit_status.get().copied()
     }
 
     /// Waits to receive a shutdown status.
-    pub async fn wait_for_shutdown(&mut self) -> ExitStatus {
-        use tokio::sync::broadcast::error::RecvError;
+    pub async fn wait_for_shutdown(&self) -> ExitStatus {
+        let mut recv = self.notify.subscribe();
 
-        if let Some(status) = self.last_status {
-            return status;
-        } else {
-            let mut recv = self.notify.subscribe();
-        
-            loop {
-                match recv.recv().await {
-                    Ok(status) => {
-                        self.last_status = Some(status);
-                        return status;
-                    },
-                    Err(RecvError::Closed) => unreachable!(),
-                    Err(RecvError::Lagged(_)) => (),
-                }
-            };
+        loop {
+            match self.try_get_status() {
+                Some(status) => return status,
+                None => _ = recv.recv().await,
+            }
         }
     }
 }
