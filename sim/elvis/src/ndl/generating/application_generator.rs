@@ -15,6 +15,7 @@ use elvis_core::protocols::dhcp_client::DhcpClient;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Arp;
 use elvis_core::protocols::{Endpoint, Endpoints};
+use elvis_core::subnetting::Ipv4Net;
 use elvis_core::{IpTable, Message};
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
@@ -49,6 +50,8 @@ pub fn send_message_builder(
     ip_table.add_direct(ip, Recipient::new(0, None));
 
     let to = app.options.get("to").unwrap().to_string();
+
+    println!("send message: {:?} to : {:?}", ip, to);
     let port = string_to_port(app.options.get("port").unwrap().to_string());
     let message = app.options.get("message").unwrap().to_owned();
     let message = Message::new(message);
@@ -352,13 +355,15 @@ pub fn dhcp_server_builder(
 pub fn dhcp_client_builder(
     app: &Application,
     name_to_ip: &HashMap<String, Ipv4Address>,
+    ip_table: &mut IpTable<Recipient>,
 ) -> DhcpClient {
     assert!(
         app.options.contains_key("server_ip"),
         "No server ip is provided for the dhcp_client application"
     );
     let server_ip = app.options.get("server_ip").unwrap().to_string();
-
+    
+    ip_table.add_cidr("0.0.0.0/0", Recipient::new(0, None));
     if ip_or_name(server_ip.clone()) {
         //Case: A decimal format ip is provided
         DhcpClient::new(ip_string_to_ip(server_ip, "dhcp_client declaration").into())

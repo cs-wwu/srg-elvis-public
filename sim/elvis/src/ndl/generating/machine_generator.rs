@@ -222,6 +222,7 @@ pub fn machine_generator(
                         new_machine = new_machine.with(dhcp_client_builder(
                             app,
                             &name_to_ip,
+                            &mut ip_table,
                         ))
                     }
 
