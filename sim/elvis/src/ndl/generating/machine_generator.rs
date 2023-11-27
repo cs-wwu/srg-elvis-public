@@ -219,11 +219,8 @@ pub fn machine_generator(
                     }
 
                     "dhcp_client" => {
-                        new_machine = new_machine.with(dhcp_client_builder(
-                            app,
-                            &name_to_ip,
-                            &mut ip_table,
-                        ))
+                        new_machine =
+                            new_machine.with(dhcp_client_builder(app, &name_to_ip, &mut ip_table))
                     }
 
                     _ => {

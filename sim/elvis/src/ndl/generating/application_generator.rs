@@ -2,7 +2,7 @@
 //! Future applications can go here for easy import to the machine generator
 use std::collections::HashMap;
 
-use crate::applications::{Forward, PingPong, DhcpServer};
+use crate::applications::{DhcpServer, Forward, PingPong};
 use crate::ip_generator::{IpGenerator, IpRange};
 use crate::ndl::generating::generator_utils::{ip_available, ip_or_name};
 use crate::ndl::parsing::parsing_data::*;
@@ -15,7 +15,6 @@ use elvis_core::protocols::dhcp_client::DhcpClient;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Arp;
 use elvis_core::protocols::{Endpoint, Endpoints};
-use elvis_core::subnetting::Ipv4Net;
 use elvis_core::{IpTable, Message};
 /// Builds the [SendMessage] application for a machine
 pub fn send_message_builder(
@@ -329,27 +328,30 @@ pub fn dhcp_server_builder(
     // Check if IP is available
     let ip = ip_available(ip.into(), ip_gen, cur_net_ids).expect("dhcp_server IP unavailable");
     ip_table.add_direct(ip, Recipient::new(0, None));
-    
+
     let ip_range = app.options.get("ip_range").unwrap().to_string();
     let range: Vec<&str> = ip_range.split('-').collect();
     assert_eq!(range.len(), 2);
     let start = ip_string_to_ip(range[0].to_string(), &cur_net_ids[0]);
     let ceiling = range[1].parse::<u8>().unwrap_or_else(|_| {
-        panic!("Dhcp server {}: Invalid ending IP range number. Expected <u8> found: {}", &cur_net_ids[0], range[1])
+        panic!(
+            "Dhcp server {}: Invalid ending IP range number. Expected <u8> found: {}",
+            &cur_net_ids[0], range[1]
+        )
     });
 
     assert!(
         ceiling >= start[3],
         "Dhcp server {}: Invalid Cidr format, end IP value ({}) greater than start IP value ({})",
-        &cur_net_ids[0], ceiling, start[3]
+        &cur_net_ids[0],
+        ceiling,
+        start[3]
     );
 
     let end = [start[0], start[1], start[2], ceiling];
-    //TODO create ip range from param
     let ip_range = IpRange::new(start.into(), end.into());
 
-    
-    DhcpServer::new(ip, ip_range)            
+    DhcpServer::new(ip, ip_range)
 }
 
 pub fn dhcp_client_builder(
@@ -362,16 +364,16 @@ pub fn dhcp_client_builder(
         "No server ip is provided for the dhcp_client application"
     );
     let server_ip = app.options.get("server_ip").unwrap().to_string();
-    
+
     ip_table.add_cidr("0.0.0.0/0", Recipient::new(0, None));
     if ip_or_name(server_ip.clone()) {
         //Case: A decimal format ip is provided
         DhcpClient::new(ip_string_to_ip(server_ip, "dhcp_client declaration").into())
     } else {
         //Case: A name format ip is provided
-        let server_address = *name_to_ip
-            .get(&server_ip)
-            .unwrap_or_else(|| panic!("Invalid name for 'server_address' in dhcp_client, found: {server_ip}"));
-        DhcpClient::new(server_address)            
+        let server_address = *name_to_ip.get(&server_ip).unwrap_or_else(|| {
+            panic!("Invalid name for 'server_address' in dhcp_client, found: {server_ip}")
+        });
+        DhcpClient::new(server_address)
     }
 }
