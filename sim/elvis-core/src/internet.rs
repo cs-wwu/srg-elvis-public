@@ -1,7 +1,9 @@
 use super::Machine;
 use crate::{shutdown::ExitStatus, Shutdown};
-use std::sync::Arc;
+use std::backtrace::Backtrace;
+use std::panic;
 use std::time::Duration;
+use std::{process, sync::Arc};
 use tokio::{sync::Barrier, task::JoinSet, time::sleep};
 
 /// Runs the simulation with the given machines
@@ -24,6 +26,18 @@ pub async fn run_internet_with_timeout(
 /// `timeout` is an optional field, if Some() is provided, this function
 /// will call shutdown.shut_down() after the given duration.
 pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) -> ExitStatus {
+    // Enable a custom panic hook to display a backtrace of the panic and then
+    // forcibly exit the entire process.
+    // If tests are being ran, this will stop future tests from running, as the
+    // entire process exits, but that is appropriate for a panic
+    let panic_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        panic_hook(panic_info);
+        let backtrace = Backtrace::force_capture();
+        eprintln!("Backtrace: {:#?}", backtrace);
+        process::exit(1);
+    }));
+
     let shutdown = Shutdown::new();
     let total_protocols: usize = machines
         .iter()
