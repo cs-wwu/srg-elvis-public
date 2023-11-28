@@ -100,7 +100,7 @@ pub fn create_capture(
 ) -> Machine {
     new_machine![
         Pci::new([network]),
-        Arp::basic().preconfig_subnet(ip, subnet),
+        Arp::new().preconfig_subnet(ip, subnet),
         Ipv4::new(Default::default()),
         Udp::new(),
         MultiCapture::new(Endpoint::new(ip, MESSAGE_PORT), multicapture_counter)
@@ -125,7 +125,7 @@ pub fn create_router(
 
     new_machine![
         Pci::new(networks),
-        Arp::basic(),
+        Arp::new(),
         Ipv4::new(interfaces),
         Udp::new(),
         ArpRouter::new(routing_table, Vec::from(interface_ips)),
@@ -166,7 +166,7 @@ pub async fn rip_large_network(
             // Pci attached to network 1
             Pci::new([networks[0].clone()]),
             // Host IP configuration
-            Arp::basic().preconfig_subnet(
+            Arp::new().preconfig_subnet(
                 // Sender IP
                 HOST_ADDRESSES[0],
                 SubnetInfo {
