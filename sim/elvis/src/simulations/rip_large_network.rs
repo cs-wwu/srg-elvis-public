@@ -131,6 +131,10 @@ pub fn create_router(
         ArpRouter::new(routing_table, Vec::from(interface_ips)),
         RipRouter::new(Vec::from(interface_ips)),
     ]
+
+    // ArpRouter::new((interface_ips, pci), optional_routing_table);
+    // RipRouter::new()
+    //     .broadcast_network(subnet)
 }
 
 pub async fn rip_large_network(
