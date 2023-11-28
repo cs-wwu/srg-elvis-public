@@ -15,7 +15,7 @@ use tokio::sync::Barrier;
 pub struct SendMessage {
     /// The body of the message to send
     messages: RwLock<Vec<Message>>,
-    endpoint: Endpoint,
+    endpoints: Vec<Endpoint>,
     /// The protocol to use in delivering the message
     transport: Transport,
     /// the application's local address
@@ -24,11 +24,22 @@ pub struct SendMessage {
 }
 
 impl SendMessage {
-    /// Creates a new send message application.
+    /// Creates a new send message application that sends a message to a single machine.
     pub fn new(messages: Vec<Message>, endpoint: Endpoint) -> Self {
         Self {
             messages: RwLock::new(messages),
-            endpoint,
+            endpoints: Vec::from([endpoint]),
+            transport: Transport::Udp,
+            local_ip: Ipv4Address::LOCALHOST,
+            delay: None,
+        }
+    }
+
+    /// Creates a new send message application that sends a message to multiple machines.
+    pub fn with_endpoints(messages: Vec<Message>, endpoints: Vec<Endpoint>) -> Self {
+        Self {
+            messages: RwLock::new(messages),
+            endpoints,
             transport: Transport::Udp,
             local_ip: Ipv4Address::LOCALHOST,
             delay: None,
@@ -63,7 +74,7 @@ impl Protocol for SendMessage {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let messages = std::mem::take(&mut *self.messages.write().unwrap());
-        let endpoint = self.endpoint;
+        let endpoints = &self.endpoints;
         let transport = self.transport;
         initialized.wait().await;
 
@@ -72,37 +83,39 @@ impl Protocol for SendMessage {
             None => self.local_ip,
         };
 
-        let endpoints = Endpoints {
-            local: Endpoint {
-                address: local_address,
-                port: 0,
-            },
-            remote: endpoint,
-        };
-
-        let session = match transport {
-            Transport::Tcp => protocols
-                .protocol::<Tcp>()
-                .unwrap()
-                .open(self.id(), endpoints, protocols.clone())
-                .await
-                .unwrap(),
-            Transport::Udp => protocols
-                .protocol::<Udp>()
-                .unwrap()
-                .open_for_sending(self.id(), endpoints, protocols.clone())
-                .await
-                .unwrap(),
-        };
-
         if let Some(duration) = self.delay {
             tokio::time::sleep(duration).await;
         }
 
-        for message in messages {
-            session
-                .send(message, protocols.clone())
-                .expect("SendMessage failed to send");
+        for endpoint in endpoints.iter() {
+            let endpoints = Endpoints {
+                local: Endpoint {
+                    address: local_address,
+                    port: 0,
+                },
+                remote: *endpoint,
+            };
+
+            let session = match transport {
+                Transport::Tcp => protocols
+                    .protocol::<Tcp>()
+                    .unwrap()
+                    .open(self.id(), endpoints, protocols.clone())
+                    .await
+                    .unwrap(),
+                Transport::Udp => protocols
+                    .protocol::<Udp>()
+                    .unwrap()
+                    .open_for_sending(self.id(), endpoints, protocols.clone())
+                    .await
+                    .unwrap(),
+            };
+
+            for message in messages.iter() {
+                session
+                    .send(message.clone(), protocols.clone())
+                    .expect("SendMessage failed to send");
+            }
         }
         Ok(())
     }

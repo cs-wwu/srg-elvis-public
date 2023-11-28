@@ -52,7 +52,7 @@ impl Capture {
         self
     }
 
-    // Set the exit status for capture to return with on shutdown
+    /// Set the exit status for capture to return with on shutdown
     pub fn exit_status(mut self, status: u32) -> Self {
         self.exit_status = Some(status);
         self
