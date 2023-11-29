@@ -1,5 +1,5 @@
 use elvis_core::{
-    machine::{PciSlot, ProtocolMap},
+    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
@@ -7,7 +7,7 @@ use elvis_core::{
         pci::DemuxInfo,
         Endpoint, Endpoints, Udp,
     },
-    Control, IpTable, Protocol, Session, Shutdown,
+    Control, Protocol, Session, Shutdown,
 };
 use rand::Rng;
 use std::{sync::Arc, time::Duration};

@@ -5,8 +5,8 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        arp::subnetting::Ipv4Net,
-        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
+        arp::subnetting::{Ipv4Net, Ipv4Mask},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber, Recipient},
         AddressPair, Arp, Ipv4, Pci,
     },
     Control, IpTable, Protocol, Session, Shutdown,
@@ -51,9 +51,12 @@ impl ArpRouter {
         }
     }
 
-    // pub fn static_route(&mut self) -> &mut Self {
-
-    // }
+    /// Adds a static route to the desired subnet directed out of a pci_slot
+    pub fn static_route(&mut self, subnet: Ipv4Address, mask: Ipv4Mask, egress_slot: PciSlot) -> &mut Self {
+        let rte = Rte::new(None, mask, egress_slot, 0);
+        self.ip_table.write().unwrap().add(Ipv4Net::new(subnet, mask), rte);
+        self
+    }
 
     pub fn debug(mut self, name: String) -> Self {
         self.name = Some(name);
