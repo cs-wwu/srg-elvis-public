@@ -111,6 +111,7 @@ pub fn machine_generator(
     for machine in &machines {
         let mut machine_count = 1;
         let mut _cur_machine_name: String;
+        let mut protocol_addition = false;
         if machine.options.is_some() {
             // Parse machine parameters if there are any
             for option in machine.options.as_ref().unwrap() {
@@ -128,7 +129,14 @@ pub fn machine_generator(
                     "name" => {
                         _cur_machine_name = option.1.clone();
                     }
-
+                    "auto-protocol" => {
+                        protocol_addition = match option.1.clone().as_str() {
+                            "true" => true,
+                            "false" => false,
+                            _ => panic!("Invalid auto-protocol argument in machine. Expected bool and found: {}",
+                                option.1)
+                        };
+                    }
                     _ => {}
                 }
             }
@@ -214,9 +222,9 @@ pub fn machine_generator(
                 }
             }
 
-            // List of required protocols for each machine. Since they are required
-            // a default version of the protocal can be automatically added to the machines
-            // without needing user input in NDL files. If the user prefers to specify
+            // List of default protocols for many machines.
+            // A default version of the protocal can be automatically added to the machines
+            // upon enabling auto-protocol machines in NDL files. If the user prefers to specify
             // them that is also supported.
             let required_protocols: HashSet<&str> = ["IPv4", "ARP"].iter().copied().collect();
             let mut encountered_protocols: HashSet<&str> = HashSet::new();
@@ -244,14 +252,16 @@ pub fn machine_generator(
                 }
             }
 
-            // Check for missing required protocols and add them if necessary
-            for required_protocol in &required_protocols {
-                if !encountered_protocols.contains(required_protocol) {
-                    match *required_protocol {
-                        "IPv4" => new_machine = new_machine.with(Ipv4::new(ip_table.clone())),
-                        "ARP" => new_machine = new_machine.with(Arp::new()),
-                        _ => {
-                            panic!("Missing required protocol: {}", required_protocol);
+            // Check for missing required protocols and add them if specified by user
+            if protocol_addition {
+                for required_protocol in &required_protocols {
+                    if !encountered_protocols.contains(required_protocol) {
+                        match *required_protocol {
+                            "IPv4" => new_machine = new_machine.with(Ipv4::new(ip_table.clone())),
+                            "ARP" => new_machine = new_machine.with(Arp::new()),
+                            _ => {
+                                panic!("Missing required protocol: {}", required_protocol);
+                            }
                         }
                     }
                 }
