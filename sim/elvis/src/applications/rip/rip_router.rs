@@ -17,8 +17,6 @@ use crate::applications::ArpRouter;
 
 use super::rip_parsing::{Operation, RipPacket};
 
-pub type RoutingTable = IpTable<(Option<Ipv4Address>, PciSlot)>;
-
 // number of seconds between each update
 const UPDATE_INTERVAL: u64 = 1;
 pub struct RipRouter {

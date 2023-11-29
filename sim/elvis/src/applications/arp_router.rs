@@ -20,6 +20,8 @@ use super::rip_parsing::{RipEntry, RipPacket};
 // entry representing next hop, outgoing interface, metric and route change flag
 const INFINITY: u32 = 16;
 
+pub type RoutingTable = IpTable<(Option<Ipv4Address>, PciSlot)>;
+
 #[derive(Debug)]
 /// Static router that uses arp to route messages to the correct location
 /// created by providing a table mapping subnet to router ip and pci slot
@@ -35,15 +37,19 @@ impl ArpRouter {
         // Maps subnet to a given router ip.
         // Setting route to none sets the destination ip to the destination
         // ip in the received packet so the router can send to a local network.
-        ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
+        routing_table: RoutingTable,
         local_ips: Vec<Ipv4Address>,
     ) -> Self {
         Self {
-            ip_table: RwLock::new(ip_table.into()),
+            ip_table: RwLock::new(routing_table.into()),
             local_ips,
             name: None,
         }
     }
+
+    // pub fn static_route(&mut self) -> &mut Self {
+        
+    // }
 
     pub fn debug(mut self, name: String) -> Self {
         self.name = Some(name);
@@ -169,13 +175,13 @@ impl Protocol for ArpRouter {
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        let ipv4 = protocols
-            .protocol::<Ipv4>()
-            .expect("Arp Router requires IPv4");
-
         let arp = protocols
             .protocol::<Arp>()
             .expect("Arp Router requires Arp");
+
+        let ipv4 = protocols
+            .protocol::<Ipv4>()
+            .expect("Arp Router requires IPv4");
 
         ipv4.listen(
             self.id(),
@@ -184,6 +190,11 @@ impl Protocol for ArpRouter {
             ProtocolNumber::TCP,
         )
         .unwrap();
+
+        // let recipients = ipv4.get_recipients();
+        // for (subnet, recipient) in recipients.iter() {
+        //     subnet.id();
+        // }
 
         ipv4.listen(
             self.id(),

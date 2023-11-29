@@ -1,4 +1,4 @@
-use crate::applications::{rip::rip_router::{RipRouter, RoutingTable}, ArpRouter, MultiCapture, Counter, SendMessage};
+use crate::applications::{rip::rip_router::RipRouter, ArpRouter, arp_router::RoutingTable, MultiCapture, Counter, SendMessage};
 use elvis_core::{
     new_machine,
     protocols::{
@@ -132,9 +132,11 @@ pub fn create_router(
         RipRouter::new(Vec::from(interface_ips)),
     ]
 
-    // ArpRouter::new((interface_ips, pci), optional_routing_table);
-    // RipRouter::new()
-    //     .broadcast_network(subnet)
+    // let arp_rtr = ArpRouter::new()
+    //     // Static route that forwards an address range out a pci slot or to a next hop ip
+    //     .static_route(network: Ipv4Address, mask: Ipv4Mask, (next_hop_ip, pci));
+    // let rip_rtr = RipRouter::new()
+    //     .broadcast_network(subnet: Ipv4Address, mask: Ipv4Mask);
 }
 
 pub async fn rip_large_network(

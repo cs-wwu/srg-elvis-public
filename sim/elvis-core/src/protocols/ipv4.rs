@@ -73,6 +73,10 @@ impl Ipv4 {
         }
     }
 
+    pub fn get_recipients(&self) -> &IpTable<Recipient> {
+        &self.recipients
+    }
+
     pub async fn open_and_listen(
         &self,
         upstream: TypeId,

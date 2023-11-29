@@ -186,22 +186,21 @@ impl TryFrom<Ipv4Address> for Ipv4Mask {
 /// Can be used to identify a network using, of course, an IP address and mask.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ipv4Net {
-    /// This MUST be a network ID or it will screw up Eq
-    network_id: Ipv4Address,
+    ip_address: Ipv4Address,
     mask: Ipv4Mask,
 }
 
 impl Ipv4Net {
     /// The IPv4 loopback / localhost address block: 127.0.0.1/8.
     pub const LOOPBACK: Ipv4Net = Ipv4Net {
-        network_id: Ipv4Address::new([127, 0, 0, 0]),
+        ip_address: Ipv4Address::new([127, 0, 0, 0]),
         mask: Ipv4Mask::from_bitcount(8),
     };
 
     /// Creates an Ipv4Net from an IP address and mask.
     pub fn new(ip: Ipv4Address, mask: Ipv4Mask) -> Self {
         Self {
-            network_id: Ipv4Address::from(ip.to_u32() & mask.to_u32()),
+            ip_address: ip,
             mask,
         }
     }
@@ -226,7 +225,7 @@ impl Ipv4Net {
     /// Creates an Ipv4Net containing a single IP address.
     pub fn new_1(ip: Ipv4Address) -> Self {
         Self {
-            network_id: ip,
+            ip_address: ip,
             mask: Ipv4Mask::from_bitcount(32),
         }
     }
@@ -253,7 +252,7 @@ impl Ipv4Net {
     /// assert_eq!(broadcast, Ipv4Address::from([10,0,0,0]));
     /// ```
     pub fn id(&self) -> Ipv4Address {
-        self.network_id
+        Ipv4Address::from(self.ip_address.to_u32() & self.mask.to_u32())
     }
 
     /// Returns the broadcast IP address for this network.
@@ -338,7 +337,7 @@ impl std::fmt::Debug for Ipv4Net {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "Ipv4Net {{{}/{}}}",
-            self.network_id,
+            self.ip_address,
             self.mask().count_ones()
         ))
     }
