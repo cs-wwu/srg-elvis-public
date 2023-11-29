@@ -13,7 +13,6 @@ use elvis_core::{
     run_internet_with_timeout, IpTable, Message, Network,
 };
 use tokio::time::{Duration, sleep};
-use std::time::Duration;
 
 // Sim to test basic IP address allocation from server
 pub async fn dhcp_basic_offer() {
@@ -100,21 +99,21 @@ pub async fn dhcp_lease_test() {
 
     let machines = vec![
         // Server
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             DhcpServer::new(DHCP_SERVER_IP, IpRange::new(1.into(), 255.into())),
         ],
         // This machine will get its IP address from the DHCP server
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            DhcpClient::new(DHCP_SERVER_IP, None),
+            DhcpClient::new(DHCP_SERVER_IP),
         ],
     ];
-    run_internet(&machines);
+    run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
 
     //sleep(Duration::from_secs(8)).await;
 

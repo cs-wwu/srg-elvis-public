@@ -35,7 +35,6 @@ pub struct DhcpClient {
     server_ip: Ipv4Address,
     notify: Arc<Notify>,
     pub ip_address: RwLock<Option<Ipv4Address>>,
-    listener: RwLock<Option<DhcpClientListener>>,
     pub state: RwLock<CurrentState>,
     pub lease: RwLock<DelayQueue<LeaseRemaining>>,
 }
@@ -96,7 +95,7 @@ impl Protocol for DhcpClient {
 
         let response = DhcpMessage::default();
         let response_message = DhcpMessage::to_message(response).unwrap();
-        udp.send(response_message, machine).unwrap();
+        udp.send(response_message, machine.clone()).unwrap();
 
         //example at 8 second lease
         let time = 8;
@@ -128,7 +127,7 @@ impl Protocol for DhcpClient {
                             renew.your_ip = self.ip_address().await;
                             renew.msg_type = MessageType::Request;
                             let renew_message = DhcpMessage::to_message(renew).unwrap();
-                            udp.send(renew_message, protocols.clone()).unwrap();
+                            udp.send(renew_message, machine.clone()).unwrap();
                             //println!("{:?}", *self.ip_address.read().unwrap());
                         }
                         //broadcasts a new discover message to find some other dhcp server for renewal
@@ -138,7 +137,7 @@ impl Protocol for DhcpClient {
                             renew.your_ip = self.ip_address().await;
                             renew.msg_type = MessageType::Discover;
                             let renew_message = DhcpMessage::to_message(renew).unwrap();
-                            udp.send(renew_message, protocols.clone()).unwrap();
+                            udp.send(renew_message, machine.clone()).unwrap();
                         }
                         //removes ip and restarts dhcp process
                         LeaseRemaining::At0Percent => {
@@ -147,7 +146,7 @@ impl Protocol for DhcpClient {
                             *self.ip_address.write().unwrap() = None;
                             renew.msg_type = MessageType::Discover;
                             let renew_message = DhcpMessage::to_message(renew).unwrap();
-                            udp.send(renew_message, protocols.clone()).unwrap();
+                            udp.send(renew_message, machine.clone()).unwrap();
                         }
                         LeaseRemaining::LeaseShutdown => {
                             //dummy item so that "next" doesn't get hung up with no more items in queue
