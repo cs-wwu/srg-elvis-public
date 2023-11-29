@@ -50,7 +50,7 @@ pub async fn dhcp_basic_offer() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             Arp::new(),
-            DhcpClient::new(DHCP_SERVER_IP),
+            DhcpClient::new(DHCP_SERVER_IP, 0),
             SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
         ],
         new_machine_arc![
@@ -58,7 +58,7 @@ pub async fn dhcp_basic_offer() {
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             Arp::new(),
-            DhcpClient::new(DHCP_SERVER_IP),
+            DhcpClient::new(DHCP_SERVER_IP, 0),
             SendMessage::new(vec![Message::new("Hi")], CAPTURE_ENDPOINT),
         ],
     ];
@@ -88,14 +88,13 @@ pub async fn dhcp_basic_offer() {
 
 pub async fn dhcp_lease_test() {
     let network = Network::basic();
-    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 255]);
-    const RECV_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 0]);
-    let ip_table: IpTable<Recipient> = [
-        (DHCP_SERVER_IP, Recipient::with_mac(0, 0)),
-        (RECV_IP, Recipient::with_mac(0, 1)),
-    ]
-    .into_iter()
-    .collect();
+    const DHCP_SERVER_IP: Ipv4Address = Ipv4Address::new([123, 123, 123, 123]);
+    const CAPTURE_IP: Ipv4Address = Ipv4Address::new([255, 255, 255, 0]);
+    const CAPTURE_ENDPOINT: Endpoint = Endpoint::new(CAPTURE_IP, 0);
+
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
 
     let machines = vec![
         // Server
@@ -103,22 +102,19 @@ pub async fn dhcp_lease_test() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
+            Arp::new(),
             DhcpServer::new(DHCP_SERVER_IP, IpRange::new(1.into(), 255.into())),
         ],
-        // This machine will get its IP address from the DHCP server
         new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            DhcpClient::new(DHCP_SERVER_IP),
+            Arp::new(),
+            DhcpClient::new(DHCP_SERVER_IP, 0),
         ],
     ];
+
     run_internet_with_timeout(&machines, Duration::from_secs(5)).await;
-
-    //sleep(Duration::from_secs(8)).await;
-
-    let client = machines.get(1).unwrap();
-    let time = 8;
 
     assert_eq!(3, 3);
 
@@ -132,8 +128,10 @@ mod tests {
             super::dhcp_basic_offer().await;
         }
     }
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn dhcp_lease_test() {
-        super::dhcp_lease_test().await;
+        for _ in 0..5 {
+            super::dhcp_lease_test().await;
+        }
     }
 }
