@@ -55,7 +55,7 @@ impl Protocol for VideoServer {
                     shutdown.shut_down();
                     return Ok(());
                 }
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
         }
     }

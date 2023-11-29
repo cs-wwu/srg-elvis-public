@@ -26,7 +26,7 @@ impl BareBonesServer {
                 Err(SocketError::Shutdown) => {
                     break;
                 }
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
 
             // Add 1 to each number in the vec

@@ -105,7 +105,7 @@ impl Protocol for WebServer {
                     shutdown.shut_down();
                     return Ok(());
                 }
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
             let connection = ServerConnection::new(
                 image_size.clone(),
@@ -168,7 +168,7 @@ impl ServerConnection {
             let request_bytes: Vec<u8> = match stream.read().await {
                 Ok(request_bytes) => request_bytes,
                 Err(SocketError::Shutdown) => return, // This prevents the program from panicking on shut down
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
             let request_str = str::from_utf8(&request_bytes).unwrap();
 
