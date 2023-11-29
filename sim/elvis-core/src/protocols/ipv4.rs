@@ -8,6 +8,7 @@ use crate::{
     network::Mac,
     protocol::{DemuxError, StartError},
     protocols::pci::Pci,
+    subnetting::Ipv4Net,
     Control, FxDashMap, IpTable, Network, Protocol, Session, Shutdown,
 };
 use dashmap::mapref::entry::Entry;
@@ -73,8 +74,8 @@ impl Ipv4 {
         }
     }
 
-    pub fn get_recipients(&self) -> &IpTable<Recipient> {
-        &self.recipients
+    pub fn iter_subnets(&self) -> impl DoubleEndedIterator<Item = (Ipv4Net, Recipient)> + '_ {
+        self.recipients.iter()
     }
 
     pub async fn open_and_listen(

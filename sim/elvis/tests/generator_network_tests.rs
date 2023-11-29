@@ -10,9 +10,7 @@ fn catch_panic() {
 }
 
 #[tokio::test]
-#[should_panic(
-    expected = "Network 1: Invalid IP range format, expected 2 values found 1"
-)]
+#[should_panic(expected = "Network 1: Invalid IP range format, expected 2 values found 1")]
 async fn generator_network_invalid_ip_range_format() {
     catch_panic();
     let file_path: String =

@@ -129,7 +129,7 @@ pub async fn arp_router_single(destination: Ipv4Address) -> ExitStatus {
             ]),
             Ipv4::new(ip_table.clone()),
             Arp::new(),
-            ArpRouter::new(router_table, ROUTER1_IPS.to_vec())
+            ArpRouter::from_table(router_table)
         ],
         // capture for destination 1
         build_capture(networks[1].clone(), IPS[1], 1),
@@ -198,7 +198,7 @@ pub async fn arp_router_single2(destination: Ipv4Address) -> ExitStatus {
             ]),
             Ipv4::new(ip_table.clone()),
             Arp::new(),
-            ArpRouter::new(router_table, ROUTER1_IPS.to_vec())
+            ArpRouter::from_table(router_table)
         ],
         build_capture(networks[1].clone(), IPS[1], 1),
         build_capture(networks[1].clone(), IPS[2], 2),
@@ -280,7 +280,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
             ]),
             Ipv4::new(ip_table_1),
             Arp::new(),
-            ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec())
+            ArpRouter::from_table(router_table_1)
         ],
         new_machine![
             Pci::new([
@@ -290,7 +290,7 @@ pub async fn arp_router_multi(destination: Ipv4Address) -> ExitStatus {
             ]),
             Ipv4::new(ip_table_2),
             Arp::new(),
-            ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec())
+            ArpRouter::from_table(router_table_2)
         ],
         // Destinations
         build_capture(networks[1].clone(), IPS[1], 1),

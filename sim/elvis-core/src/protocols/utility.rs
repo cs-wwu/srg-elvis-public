@@ -200,7 +200,7 @@ pub trait BytesExt: Iterator<Item = u8> {
 
     /// Collects the next `N` items of the iterator into an array.
     /// Returns `None` if there were fewer than `N` bytes left in the iterator.
-    /// (This actually part of the rust std ([`Iterator::next_chunk`]), 
+    /// (This actually part of the rust std ([`Iterator::next_chunk`]),
     /// but it's nightly only at the moment of writing.)
     fn next_n<const N: usize>(&mut self) -> Option<[u8; N]> {
         // I was tempted to use unsafe code so the array doesn't get initialized

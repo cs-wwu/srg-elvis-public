@@ -28,27 +28,31 @@ pub type RoutingTable = IpTable<(Option<Ipv4Address>, PciSlot)>;
 /// requires a local ip to be specified for each pci session
 pub struct ArpRouter {
     ip_table: RwLock<IpTable<Rte>>,
-    local_ips: Vec<Ipv4Address>,
     name: Option<String>,
 }
 
 impl ArpRouter {
-    pub fn new(
+    pub fn new() -> Self {
+        Self {
+            ip_table: RwLock::new(RoutingTable::new().into()),
+            name: None
+        }
+    }   
+
+    pub fn from_table(
         // Maps subnet to a given router ip.
         // Setting route to none sets the destination ip to the destination
         // ip in the received packet so the router can send to a local network.
         routing_table: RoutingTable,
-        local_ips: Vec<Ipv4Address>,
     ) -> Self {
         Self {
             ip_table: RwLock::new(routing_table.into()),
-            local_ips,
             name: None,
         }
     }
 
     // pub fn static_route(&mut self) -> &mut Self {
-        
+
     // }
 
     pub fn debug(mut self, name: String) -> Self {
@@ -191,11 +195,6 @@ impl Protocol for ArpRouter {
         )
         .unwrap();
 
-        // let recipients = ipv4.get_recipients();
-        // for (subnet, recipient) in recipients.iter() {
-        //     subnet.id();
-        // }
-
         ipv4.listen(
             self.id(),
             Ipv4Address::CURRENT_NETWORK,
@@ -204,8 +203,8 @@ impl Protocol for ArpRouter {
         )
         .unwrap();
 
-        for ip in self.local_ips.iter() {
-            arp.listen(*ip);
+        for (subnet, _) in ipv4.iter_subnets() {
+            arp.listen(subnet.addr());
         }
 
         initialize.wait().await;
@@ -241,10 +240,19 @@ impl Protocol for ArpRouter {
         };
 
         let slot = rte.slot;
+        
+        // Extract the Ip address from the pci slot
+        let ipv4 = protocols.protocol::<Ipv4>().unwrap();
+        let local = ipv4
+            .iter_subnets()
+            .find(|(_subnet, recipient)| recipient.slot == slot)
+            .expect("Slot should exist")
+            .0
+            .addr();
 
         let arp = protocols.protocol::<Arp>().unwrap();
         let address_pair = AddressPair {
-            local: self.local_ips[slot as usize],
+            local,
             remote: gateway,
         };
 

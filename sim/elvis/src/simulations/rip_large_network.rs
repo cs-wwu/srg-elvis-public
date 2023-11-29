@@ -1,4 +1,7 @@
-use crate::applications::{rip::rip_router::RipRouter, ArpRouter, arp_router::RoutingTable, MultiCapture, Counter, SendMessage};
+use crate::applications::{
+    arp_router::RoutingTable, rip::rip_router::RipRouter, ArpRouter, Counter, MultiCapture,
+    SendMessage,
+};
 use elvis_core::{
     new_machine,
     protocols::{
@@ -128,7 +131,7 @@ pub fn create_router(
         Arp::new(),
         Ipv4::new(interfaces),
         Udp::new(),
-        ArpRouter::new(routing_table, Vec::from(interface_ips)),
+        ArpRouter::from_table(routing_table),
         RipRouter::new(Vec::from(interface_ips)),
     ]
 
@@ -139,9 +142,7 @@ pub fn create_router(
     //     .broadcast_network(subnet: Ipv4Address, mask: Ipv4Mask);
 }
 
-pub async fn rip_large_network(
-    capture_ips: Vec<Ipv4Address>,
-) -> ExitStatus {
+pub async fn rip_large_network(capture_ips: Vec<Ipv4Address>) -> ExitStatus {
     // Create 7 basic networks
     // Network::basic() :   mtu = maximum packet size;
     //                      throughput = amount of data successfully transmitted from x to y in a fixed amount of time
@@ -183,7 +184,10 @@ pub async fn rip_large_network(
             // Using transport protocol: udp
             Udp::new(),
             message.local_ip(HOST_ADDRESSES[0]),
-            MultiCapture::new(Endpoint::new(HOST_ADDRESSES[0], MESSAGE_PORT), multicapture_counter.clone())
+            MultiCapture::new(
+                Endpoint::new(HOST_ADDRESSES[0], MESSAGE_PORT),
+                multicapture_counter.clone()
+            )
         ],
     ];
 
@@ -199,7 +203,7 @@ pub async fn rip_large_network(
             // Attached network
             networks[2].clone(),
             // Multicapture counter and status
-            multicapture_counter.clone()
+            multicapture_counter.clone(),
         ),
         // Capture 2
         create_capture(
@@ -209,7 +213,7 @@ pub async fn rip_large_network(
                 default_gateway: ROUTER_4_INTERFACES[1],
             },
             networks[5].clone(),
-            multicapture_counter.clone()
+            multicapture_counter.clone(),
         ),
         // Capture 3
         create_capture(
@@ -219,7 +223,7 @@ pub async fn rip_large_network(
                 default_gateway: ROUTER_4_INTERFACES[1],
             },
             networks[5].clone(),
-            multicapture_counter.clone()
+            multicapture_counter.clone(),
         ),
         // Capture 4
         create_capture(
@@ -229,7 +233,7 @@ pub async fn rip_large_network(
                 default_gateway: ROUTER_5_INTERFACES[1],
             },
             networks[6].clone(),
-            multicapture_counter.clone()
+            multicapture_counter.clone(),
         ),
     ];
     end_devices.extend(captures);
@@ -264,7 +268,12 @@ pub async fn rip_large_network(
         create_router(
             [networks[3].clone(), networks[5].clone()],
             &ROUTER_4_INTERFACES,
-            [(HOST_ADDRESSES[2], (None, 1)), (HOST_ADDRESSES[3], (None, 1))].into_iter().collect(),
+            [
+                (HOST_ADDRESSES[2], (None, 1)),
+                (HOST_ADDRESSES[3], (None, 1)),
+            ]
+            .into_iter()
+            .collect(),
         ),
         // RIP 5
         create_router(
@@ -292,7 +301,10 @@ mod tests {
         let test1 = super::rip_large_network(recipient_ips.clone());
 
         // Message should reach capture 3 (and no other)
-        assert_eq!(test1.await, super::ExitStatus::Status(recipient_ips.len() as u32));
+        assert_eq!(
+            test1.await,
+            super::ExitStatus::Status(recipient_ips.len() as u32)
+        );
     }
 
     #[tokio::test]
@@ -301,6 +313,9 @@ mod tests {
         let recipient_ips = Vec::from(&HOST_ADDRESSES[1..]);
         let test2 = super::rip_large_network(recipient_ips.clone());
 
-        assert_eq!(test2.await, super::ExitStatus::Status(recipient_ips.len() as u32));
+        assert_eq!(
+            test2.await,
+            super::ExitStatus::Status(recipient_ips.len() as u32)
+        );
     }
 }

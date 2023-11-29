@@ -1,4 +1,7 @@
-use crate::protocols::{ipv4::Ipv4Address, utility::{Checksum, BytesExt}};
+use crate::protocols::{
+    ipv4::Ipv4Address,
+    utility::{BytesExt, Checksum},
+};
 use std::fmt::{self, Debug, Formatter};
 use thiserror::Error as ThisError;
 
@@ -54,7 +57,7 @@ impl TcpHeader {
         let src_port = packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(src_port);
 
-        let dst_port =  packet.next_u16_be().ok_or(HTS)?;
+        let dst_port = packet.next_u16_be().ok_or(HTS)?;
         checksum.add_u16(dst_port);
 
         let seq = packet.next_u32_be().ok_or(HTS)?;

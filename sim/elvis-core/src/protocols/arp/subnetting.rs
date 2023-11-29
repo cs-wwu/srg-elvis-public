@@ -273,6 +273,11 @@ impl Ipv4Net {
         Ipv4Address::new(new_ip_u32.to_be_bytes())
     }
 
+    /// Returns the `Ipv4Address` used to create this network.
+    pub fn addr(&self) -> Ipv4Address {
+        self.ip_address
+    }
+
     /// Returns the `Ipv4Mask` of this network.
     pub fn mask(&self) -> Ipv4Mask {
         self.mask

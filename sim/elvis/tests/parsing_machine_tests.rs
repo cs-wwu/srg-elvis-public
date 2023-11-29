@@ -165,7 +165,7 @@ fn machine_fail_invalid_protocol_args() {
 fn machine_fail_invalid_application_args() {
     let result = parser_testing("./tests/parsing_tests/machine_fail_invalid_application_args.txt");
     let s: String = "Errors at ./tests/parsing_tests/machine_fail_invalid_application_args.txt:\n\nLine 8: Unable to parse inside of Machines due to: \n\tLine 9: Unable to parse inside of Machine due to: \n\t\tLine 16: Unable to parse inside of Applications due to: \n\t\t\tLine 17: extra argument at ' name='send_message'' message='Hello this is an awesome test message!' to='recv1' port='0xbeef''\n\n".to_string();
-    
+
     match result {
         Ok(_s) => {
             panic!();
@@ -179,7 +179,8 @@ fn machine_fail_invalid_application_args() {
 
 #[test]
 fn machine_fail_invalid_router_entry_indent() {
-    let result = parser_testing("./tests/parsing_tests/machine_fail_invalid_router_entry_indent.txt");
+    let result =
+        parser_testing("./tests/parsing_tests/machine_fail_invalid_router_entry_indent.txt");
     let s: String = "Errors at ./tests/parsing_tests/machine_fail_invalid_router_entry_indent.txt:\n\nLine 6: Unable to parse inside of Machines due to: \n\tLine 7: Unable to parse inside of Machine due to: \n\t\tLine 15: Unable to parse inside of Applications due to: \n\t\t\tLine 17: expected type Application and got type RouterEntry instead.\n\n".to_string();
     match result {
         Ok(_s) => {
@@ -193,7 +194,8 @@ fn machine_fail_invalid_router_entry_indent() {
 
 #[test]
 fn machine_fail_invalid_router_entry_subtype() {
-    let result = parser_testing("./tests/parsing_tests/machine_fail_invalid_router_entry_subtype.txt");
+    let result =
+        parser_testing("./tests/parsing_tests/machine_fail_invalid_router_entry_subtype.txt");
     let s: String = "Errors at ./tests/parsing_tests/machine_fail_invalid_router_entry_subtype.txt:\n\nLine 6: Unable to parse inside of Machines due to: \n\tLine 7: Unable to parse inside of Machine due to: \n\t\tLine 15: Unable to parse inside of Applications due to: \n\t\t\tLine 18: Router information cannot be parsed: Cannot declare new types inside of a router application\n\n".to_string();
     match result {
         Ok(_s) => {

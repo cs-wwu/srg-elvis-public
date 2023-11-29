@@ -1,13 +1,13 @@
 use elvis_core::{
-    machine::{ProtocolMap, PciSlot},
+    machine::{PciSlot, ProtocolMap},
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
         pci::DemuxInfo,
-        Endpoint, Endpoints, Udp
+        Endpoint, Endpoints, Udp,
     },
-    Control, Protocol, Session, Shutdown, IpTable
+    Control, IpTable, Protocol, Session, Shutdown,
 };
 use rand::Rng;
 use std::{sync::Arc, time::Duration};
@@ -25,9 +25,7 @@ pub struct RipRouter {
 }
 
 impl RipRouter {
-    pub fn new(
-        local_ips: Vec<Ipv4Address>,
-    ) -> Self {
+    pub fn new(local_ips: Vec<Ipv4Address>) -> Self {
         RipRouter {
             local_ips: local_ips.clone(),
             name: None,
@@ -121,7 +119,7 @@ impl Protocol for RipRouter {
     ) -> Result<(), DemuxError> {
         // all messages at this point should be from udp port 520
         // messages are either request or response
-        
+
         // obtain the pci slot that the message was received from
         let demux_info = *control.get::<DemuxInfo>().ok_or(DemuxError::Other)?;
         let ipv4_header_info = *control.get::<Ipv4Header>().ok_or(DemuxError::Other)?;
@@ -130,7 +128,6 @@ impl Protocol for RipRouter {
         let router_address = ipv4_header_info.source;
         // discard packets coming from this router
         if self.local_ips[slot as usize] == router_address {
-
             return Ok(());
         }
         let packet = match RipPacket::from_bytes(message.iter()) {
@@ -138,19 +135,14 @@ impl Protocol for RipRouter {
             Err(_) => return Err(DemuxError::Header),
         };
 
-        
-
         let remote_endpoint = Endpoint::new(router_address, 520);
         let local_endpoint = Endpoint::new(self.local_ips[slot as usize], 520);
         let endpoints = Endpoints::new(local_endpoint, remote_endpoint);
-        
 
         // parse packet from message
 
-
         match packet.header.command {
             Operation::Request => {
-                
                 let udp = protocols
                     .protocol::<Udp>()
                     .expect("Rip requires UDP to work")
@@ -160,7 +152,6 @@ impl Protocol for RipRouter {
                     .protocol::<ArpRouter>()
                     .expect("RipRouter requires ArpRouter")
                     .process_request(router_address, packet);
-
 
                 for packet in packets.iter() {
                     let response_message = Message::new(RipPacket::build(packet));
@@ -172,13 +163,13 @@ impl Protocol for RipRouter {
                         let session = match result {
                             Ok(session) => session,
                             Err(_) => {
-                                println!{"Error ocurred in open udp"};
-                                return},
+                                println! {"Error ocurred in open udp"};
+                                return;
+                            }
                         };
                         let _ = session.send(response_message, protocols);
                     });
                 }
-
             }
             Operation::Response => {
                 // update router table accordingly
