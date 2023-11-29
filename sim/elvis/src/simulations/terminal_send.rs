@@ -23,12 +23,10 @@ pub async fn terminal_send() {
         port: 0xfeed,
     };
 
-    let local_address: Ipv4Address = [127, 0, 0, 1].into();
-
-    let ip_table: IpTable<Recipient> = [(local_address, Recipient::with_mac(0, 1))]
+    let ip_table: IpTable<Recipient> = [(local.address, Recipient::with_mac(0, 1)), (endpoint.address, Recipient::with_mac(0, 0))]
         .into_iter()
         .collect();
-
+    
     let machines = vec![
         new_machine![
             Udp::new(),
@@ -36,7 +34,6 @@ pub async fn terminal_send() {
             Pci::new([network.clone()]),
             // SendMessage::new(vec![message.clone()], endpoint),
             Terminal::new(local, String::from("localhost:0")),
-            Udp::new(),
         ],
         new_machine![
             Udp::new(),

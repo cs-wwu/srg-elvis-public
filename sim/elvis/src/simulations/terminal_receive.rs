@@ -1,4 +1,4 @@
-use crate::applications::{Capture, Terminal};
+use crate::applications::Terminal;
 use elvis_core::{
     message::Message,
     new_machine,
@@ -13,7 +13,6 @@ use elvis_core::{
 /// In this simulation, 
 pub async fn terminal_receive() {
     let network = Network::basic();
-    let message = Message::new("Hello!");
     let endpoint = Endpoint {
         address: [123, 45, 67, 89].into(),
         port: 0xbeef, // 48879
@@ -23,9 +22,7 @@ pub async fn terminal_receive() {
         port: 0xfeed, // 65261
     };
 
-    let local_address: Ipv4Address = [127, 0, 0, 1].into();
-
-    let ip_table: IpTable<Recipient> = [(local_address, Recipient::with_mac(0, 1))]
+    let ip_table: IpTable<Recipient> = [(local.address, Recipient::with_mac(0, 1)), (endpoint.address, Recipient::with_mac(0, 0))]
         .into_iter()
         .collect();
 
@@ -34,9 +31,7 @@ pub async fn terminal_receive() {
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
-            // SendMessage::new(vec![message.clone()], endpoint),
             Terminal::new(local, String::from("localhost:0")),
-            Udp::new(),
         ],
         new_machine![
             Udp::new(),
