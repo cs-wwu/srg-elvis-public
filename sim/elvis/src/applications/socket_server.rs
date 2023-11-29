@@ -197,7 +197,7 @@ impl Protocol for SocketServer {
                                 println!("Remaining Clients: {:?}", tasks.len());
                             }
                         }
-                        Err(e) => eprintln!("{:?}", e),
+                        Err(e) => tracing::error!("{:?}", e),
                     }
                 }
                 break;
