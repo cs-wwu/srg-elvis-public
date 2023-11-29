@@ -54,8 +54,8 @@ pub async fn server_user() {
     let num_pages_recvd = *lock.num_pages_recvd.read().unwrap();
     let num_imgs_recvd = *lock.num_imgs_recvd.read().unwrap();
 
-    assert!(num_pages_recvd > 20);
-    assert!(num_imgs_recvd > 20);
+    assert!(num_pages_recvd > 20, "Pages received: {:?}", num_pages_recvd);
+    assert!(num_imgs_recvd > 20, "Images received: {:?}", num_imgs_recvd);
 }
 
 #[cfg(test)]

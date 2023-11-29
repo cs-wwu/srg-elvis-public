@@ -47,6 +47,7 @@ pub struct SocketAPI {
     listen_bindings: FxDashMap<Endpoint, Sender<Endpoint>>,
     notify_init: Notify,
     shutdown: RwLock<Option<Shutdown>>,
+    is_shutdown: RwLock<bool>,
 }
 
 impl SocketAPI {
@@ -59,6 +60,7 @@ impl SocketAPI {
             listen_bindings: Default::default(),
             notify_init: Notify::new(),
             shutdown: Default::default(),
+            is_shutdown: RwLock::new(false),
         }
     }
 
@@ -107,7 +109,6 @@ impl SocketAPI {
     }
 
     fn get_socket_session(
-        //
         &self,
         local: Endpoint,
         remote: Endpoint,
@@ -120,7 +121,10 @@ impl SocketAPI {
         let session = match session_map.entry(listen_identifier) {
             Entry::Occupied(entry) => entry.remove(),
             Entry::Vacant(_) => {
-                return Err(SocketError::AcceptError);
+                match *self.is_shutdown.read().unwrap() {
+                    true => { return Err(SocketError::Shutdown); },
+                    false => { return Err(SocketError::AcceptError); },
+                }
             }
         };
         session_map.insert(identifier, session.clone());
@@ -223,6 +227,7 @@ impl SocketAPI {
     }
 
     fn shutdown(&self) {
+        *self.is_shutdown.write().unwrap() = true;
         self.socket_sessions.write().unwrap().clear();
     }
 }
