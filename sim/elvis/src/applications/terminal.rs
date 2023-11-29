@@ -2,7 +2,6 @@
 //! The application communicates with an actual port on the real-world machine running ELVIS
 //! and sends and receives messages over this port via TCP communication with a command terminal.
 
-use elvis_core::message::Chunk;
 use elvis_core::protocols::{Endpoint, Endpoints, Udp};
 use elvis_core::protocols::dhcp_client::DhcpClient;
 use elvis_core::{*, protocols::ipv4::Ipv4Address};
@@ -10,7 +9,6 @@ use elvis_core::machine::*;
 use elvis_core::session::Session;
 use elvis_core::protocol::*;
 use tokio::sync::Barrier;
-use std::net::Ipv4Addr;
 use std::sync::{Arc, RwLock};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -20,23 +18,25 @@ use tokio::{
 
 #[derive(Debug)]
 pub struct Terminal {
+    // local_ip: Ipv4Address,
+    endpoint: Endpoint,
     /// The queue of messages received (qpush) by the application that can be
     /// returned (qpop) when a fetch request is made.
     msg_queue: RwLock<Vec<String>>,
     /// The real-world port to communicate with the physical machine's terminal over.
     port: String,
-    /// the application's local address
-    local_ip: Ipv4Address,
 }
 
 impl Terminal {
     pub fn new(
+        local: Endpoint,
         assign_port: String
     ) -> Terminal {
         Self {
+            endpoint: local,
             msg_queue: RwLock::new(Vec::new()),
             port: assign_port,
-            local_ip: Ipv4Address::LOCALHOST,
+            // local_ip: Ipv4Address::LOCALHOST,
         }
     }
 
@@ -79,7 +79,6 @@ impl Terminal {
                     let port: u16 = adr_and_port[1].parse().expect("Failed to resolve port");
 
                     let endpoint: Endpoint = Endpoint::new(Ipv4Address::new(ip_u8), port);
-                    println!("Message: |{}|", args[2]);
 
                     // Parse args[2] into a Message
                     let message: Message = Message::new(args[2].trim());
@@ -114,7 +113,7 @@ impl Terminal {
 
         let local_address = match protocols.protocol::<DhcpClient>() {
             Some(dhcp) => dhcp.ip_address().await,
-            None => self.local_ip,
+            None => self.endpoint.address,
         };
 
         let endpoints = Endpoints {
@@ -192,6 +191,13 @@ impl Protocol for Terminal {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         println!("Start");
+
+        protocols
+            .protocol::<Udp>()
+            .unwrap()
+            .listen(self.id(), self.endpoint, protocols.clone())
+            .unwrap();
+
         let p = self.port.clone();
 
         // tokio::spawn(async move {
@@ -250,11 +256,16 @@ impl Protocol for Terminal {
 
     fn demux(
         &self,
-        _message: Message,
+        message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
         _protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
+        let msg_as_string = String::from_utf8(message.to_vec()).unwrap();
+
+        println!("{}", msg_as_string);
+
+
         Ok(())
     }
 }
