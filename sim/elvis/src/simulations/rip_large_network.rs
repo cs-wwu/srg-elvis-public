@@ -162,6 +162,7 @@ pub fn create_router(
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     // let mut routing_table = IpTable::<(Option<Ipv4Address>, PciSlot)>::new();
     // for (pci_slot, neighbor_ip) in neighbors.iter().enumerate() {
@@ -171,6 +172,8 @@ pub fn create_router(
     // }
 
 >>>>>>> 248d104f (PCI Slots in routing table changed. Sim working)
+=======
+>>>>>>> 88fbfdc2 (added endpoint list creation from ip list ... tried to create interface ip table (not working yet))
     new_machine![
         Pci::new(networks),
         Arp::new(),
@@ -195,10 +198,10 @@ pub async fn rip_large_network(
     let networks: Vec<Arc<Network>> = (0..7).map(|_| Network::basic()).collect();
 
     // Create a lists of endpoints for capture machines
-    let mut endpoints = Vec::new();
-    capture_ips
-        .iter()
-        .for_each(|recipient_ip| endpoints.push(Endpoint::new(*recipient_ip, MESSAGE_PORT)));
+    let endpoints: Vec<Endpoint> = Endpoint::new_vec(capture_ips, MESSAGE_PORT);
+    // capture_ips
+    //     .iter()
+    //     .for_each(|recipient_ip| endpoints.push(Endpoint::new(*recipient_ip, MESSAGE_PORT)));
 
 <<<<<<< HEAD
     // Number of recipients = numebr of capture_ips
@@ -374,15 +377,6 @@ pub async fn rip_large_network(
 mod tests {
 
     use super::*;
-    // #[tokio::test]
-    // async fn rip_test_one() {
-    //     // SINGLE CAPTURE (SENDER -> CAPTURE2)
-    //     let recipient_ips = Vec::from([HOST_ADDRESSES[2]]);
-    //     let test1 = super::rip_large_network(recipient_ips, None);
-
-    //     // Message should reach capture 2 (and no other)
-    //     assert_eq!(test1.await, super::ExitStatus::Status(2));
-    // }
 
     #[tokio::test]
     async fn rip_large_network() {
