@@ -123,13 +123,6 @@ pub fn create_router(
         interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
     }
 
-    // let mut routing_table = IpTable::<(Option<Ipv4Address>, PciSlot)>::new();
-    // for (pci_slot, neighbor_ip) in neighbors.iter().enumerate() {
-    //     println!("ip: {}", neighbor_ip);
-    //     println!("slot: {}", pci_slot);
-    //     routing_table.add_direct(*neighbor_ip, (None, pci_slot as u32));
-    // }
-
     new_machine![
         Pci::new(networks),
         Arp::new(),
@@ -216,10 +209,10 @@ pub async fn rip_large_network(
     let networks: Vec<Arc<Network>> = (0..4).map(|_| Network::basic()).collect();
 
     // Create a lists of endpoints for capture machines
-    let mut endpoints = Vec::new();
-    capture_ips
-        .iter()
-        .for_each(|recipient_ip| endpoints.push(Endpoint::new(*recipient_ip, MESSAGE_PORT)));
+    let endpoints: Vec<Endpoint> = Endpoint::new_vec(capture_ips, MESSAGE_PORT);
+    // capture_ips
+    //     .iter()
+    //     .for_each(|recipient_ip| endpoints.push(Endpoint::new(*recipient_ip, MESSAGE_PORT)));
 
     // Only sending message to CAP2
     let message = SendMessage::with_endpoints(vec![Message::new(b"Yahoo")], endpoints)
@@ -315,15 +308,6 @@ pub async fn rip_large_network(
 mod tests {
 
     use super::*;
-    // #[tokio::test]
-    // async fn rip_test_one() {
-    //     // SINGLE CAPTURE (SENDER -> CAPTURE2)
-    //     let recipient_ips = Vec::from([HOST_ADDRESSES[2]]);
-    //     let test1 = super::rip_large_network(recipient_ips, None);
-
-    //     // Message should reach capture 2 (and no other)
-    //     assert_eq!(test1.await, super::ExitStatus::Status(2));
-    // }
 
     #[tokio::test]
     async fn rip_large_network() {
