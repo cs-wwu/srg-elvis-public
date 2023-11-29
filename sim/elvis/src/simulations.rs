@@ -66,11 +66,8 @@ pub use udp_broadcast::udp_broadcast_basic;
 mod localhost;
 pub use localhost::localhost;
 
-mod terminal_echo;
-pub use terminal_echo::terminal_echo;
-
-mod terminal_echo_double;
-pub use terminal_echo_double::terminal_echo_double;
-
 mod terminal_send;
 pub use terminal_send::terminal_send;
+
+mod terminal_receive;
+pub use terminal_receive::terminal_receive;

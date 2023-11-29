@@ -11,7 +11,7 @@ use elvis_core::{
 };
 
 /// In this simulation, 
-pub async fn terminal_send() {
+pub async fn terminal_receive() {
     let network = Network::basic();
     let message = Message::new("Hello!");
     let endpoint = Endpoint {
@@ -20,7 +20,7 @@ pub async fn terminal_send() {
     };
     let local = Endpoint {
         address: [123, 44, 66, 88].into(),
-        port: 0xfeed,
+        port: 0xfeed, // 65261
     };
 
     let local_address: Ipv4Address = [127, 0, 0, 1].into();
@@ -42,31 +42,18 @@ pub async fn terminal_send() {
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
-            Capture::new(endpoint, 1),
+            Terminal::new(endpoint, String::from("localhost:0")),
         ],
     ];
 
     let status = run_internet(&machines).await;
     assert_eq!(status, ExitStatus::Exited);
-
-    let received = machines
-        .into_iter()
-        .nth(1)
-        .unwrap()
-        .into_inner()
-        .protocol::<Capture>()
-        .unwrap()
-        .message();
-
-    // print received??
-
-    assert_eq!(received, Some(message));
 }
 
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    pub async fn terminal_send() {
-        super::terminal_send().await;
+    pub async fn terminal_receive() {
+        super::terminal_receive().await;
     }
 }
