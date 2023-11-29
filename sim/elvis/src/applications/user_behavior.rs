@@ -213,6 +213,7 @@ impl UserBehavior {
                         };
                     }
                     let res_text = results.remove(0);
+                    print!("text:{}", res_text);
                     let scraped_urls = Self::get_urls(&res_text);
                     let scraped_images = Self::get_images(&res_text);
                     let size = res_text.len();
