@@ -119,7 +119,6 @@ pub fn create_router(
 
     let mut interfaces = IpTable::<Recipient>::new();
     for (pci_slot, addr) in interface_ips.iter().enumerate() {
-        //println!("slot: {}", pci_slot);
         interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
     }
 
