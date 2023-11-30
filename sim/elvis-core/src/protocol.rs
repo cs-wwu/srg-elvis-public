@@ -45,12 +45,11 @@
 //! ```
 
 use super::message::Message;
-use crate::{session::SendError, Control, Machine, Session, Shutdown};
+use crate::{session::SendError, Control, Machine, Session, Shutdown, internet::DoneSender};
 use std::{
     any::{Any, TypeId},
     sync::Arc,
 };
-use tokio::sync::Barrier;
 
 // TODO(hardint): Should add a str argument to the Other variant of errors so
 // that the reason for an error shows up in traces and such.
@@ -65,20 +64,35 @@ pub trait Protocol: Send + Sync + 'static {
         self.type_id()
     }
 
+    /// This method should be called before this protocol is `start`ed.
+    /// It can be used to initialize some parts of a protocol.
+    /// 
+    /// During the boot phase, **a protocol should be careful about
+    /// communicating with other protocols on the `machine`**, since they may
+    /// not have been initialized.
+    /// 
+    /// Implementors may also store the `shutdown` channel and use it at a
+    /// later time to cleanly shut down the simulation.
+    /// 
+    /// The default implementation of boot returns `Ok(())`.
+    async fn boot(&self, shutdown: Shutdown, machine: Arc<Machine>) -> Result<(), StartError> {
+        Ok(())
+    }
+
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
     ///
-    /// All implementors should wait on the barrier after completing synchronous
-    /// operations such as opening sessions or spawning tasks and, critically,
-    /// before sending anything on the network. This allows applications that
-    /// may wish to send messages to delay until the moment that other machines
-    /// are ready to receive the message. Implementors may also store the
-    /// `shutdown` channel and send on it at a later time to cleanly shut down
-    /// the simulation.
+    /// When a protocol is done initializing, it should send a message on the
+    /// `init_done` sender. This way, users can detect when a protocol is done
+    /// initializing. For example, a user might start a server, then wait until it
+    /// is done initializing, then start client machines.
+    /// 
+    /// Implementors may also store the `shutdown` channel and use it at a
+    /// later time to cleanly shut down the simulation.
     async fn start(
         &self,
         shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        init_done: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError>;
 
@@ -113,6 +127,12 @@ pub trait Protocol: Send + Sync + 'static {
     /// Allows for notifying a protocol about an occurrence,
     /// Eg. a new connection being established
     fn notify(&self, _notification: NotifyType, _caller: Arc<dyn Session>, _control: Control) {}
+
+    /// Returns the name of the protocol using [`std::any::type_name`].
+    /// (As a result it may look ugly.)
+    fn name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

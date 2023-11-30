@@ -155,7 +155,7 @@ impl Protocol for Capture {
     async fn start(
         &self,
         shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let broadcast_endpoint = Endpoint::new(Ipv4Address::SUBNET, self.endpoint.port);

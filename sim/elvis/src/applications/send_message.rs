@@ -48,7 +48,7 @@ impl Protocol for SendMessage {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let messages = std::mem::take(&mut *self.messages.write().unwrap());

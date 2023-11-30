@@ -14,11 +14,10 @@ use super::{
 use crate::{
     protocol::{DemuxError, StartError},
     protocols::tcp::tcb::segment_arrives_listen,
-    Control, FxDashMap, Machine, Message, Protocol, Session, Shutdown,
+    Control, FxDashMap, Machine, Message, Protocol, Session, Shutdown, internet::DoneSender,
 };
 use dashmap::mapref::entry::Entry;
 use std::{any::TypeId, sync::Arc};
-use tokio::sync::Barrier;
 
 mod tcb;
 mod tcp_parsing;
@@ -198,10 +197,10 @@ impl Protocol for Tcp {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        init_done: DoneSender,
         _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        initialized.wait().await;
+        init_done.send(());
         Ok(())
     }
 }

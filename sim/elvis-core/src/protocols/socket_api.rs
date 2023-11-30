@@ -8,7 +8,7 @@ use super::{
 use crate::{
     protocol::{DemuxError, NotifyType, StartError},
     protocols::{ipv4::Ipv4Address, Udp},
-    Control, FxDashMap, Machine, Message, Protocol, Session, Shutdown,
+    Control, FxDashMap, Machine, Message, Protocol, Session, Shutdown, internet::DoneSender,
 };
 use dashmap::mapref::entry::Entry;
 use std::{
@@ -17,8 +17,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
-    Barrier, Notify,
+    mpsc::{self, Receiver, Sender}, Notify,
 };
 
 pub mod socket;
@@ -233,10 +232,26 @@ impl Protocol for SocketAPI {
         TypeId::of::<Self>()
     }
 
+    async fn boot(
+        &self,
+        shutdown: Shutdown,
+        machine: Arc<Machine>,
+    ) -> Result<(), StartError> {
+        *self.shutdown.write().unwrap() = Some(shutdown.clone());
+        self.notify_init.notify_one();
+   
+        let self_handle = machine.protocol::<SocketAPI>().unwrap();
+        tokio::spawn(async move {
+            shutdown.wait_for_shutdown().await;
+            self_handle.shutdown();
+        });
+        Ok(())
+    }
+
     async fn start(
         &self,
         shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        init_done: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Listen on the local IP address.
@@ -249,15 +264,7 @@ impl Protocol for SocketAPI {
                 arp.listen(local_address);
             }
         }
-
-        *self.shutdown.write().unwrap() = Some(shutdown.clone());
-        self.notify_init.notify_one();
-        initialized.wait().await;
-        let self_handle = machine.protocol::<SocketAPI>().unwrap();
-        tokio::spawn(async move {
-            _ = shutdown.receiver().recv().await;
-            self_handle.shutdown();
-        });
+        init_done.send(());
         Ok(())
     }
 

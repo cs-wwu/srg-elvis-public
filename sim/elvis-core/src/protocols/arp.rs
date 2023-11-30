@@ -11,8 +11,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::watch;
-use tokio::sync::Barrier;
 
+use crate::internet::DoneSender;
 use crate::protocol::{DemuxError, StartError};
 use crate::protocols::ipv4::*;
 use crate::session::SendError;
@@ -71,10 +71,10 @@ impl Protocol for Arp {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        initialized.wait().await;
+        initialized.send(());
         Ok(())
     }
 

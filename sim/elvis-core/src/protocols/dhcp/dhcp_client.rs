@@ -38,7 +38,7 @@ impl Protocol for DhcpClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let server_ip = self.server_ip;

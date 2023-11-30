@@ -117,7 +117,7 @@ impl Protocol for SocketServer {
     async fn start(
         &self,
         shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Take ownership of struct fields so they can be accessed within the

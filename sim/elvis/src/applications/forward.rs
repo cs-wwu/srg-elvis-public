@@ -29,7 +29,7 @@ impl Protocol for Forward {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let udp = machine.protocol::<Udp>().expect("No such protocol");

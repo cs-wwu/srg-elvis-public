@@ -27,7 +27,7 @@ impl Protocol for TcpListenerServer {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         drop(_shutdown);

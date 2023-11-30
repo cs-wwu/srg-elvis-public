@@ -5,11 +5,10 @@ use crate::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::ipv4::Ipv4,
-    Control, FxDashMap, Machine, Protocol, Session, Shutdown,
+    Control, FxDashMap, Machine, Protocol, Session, Shutdown, internet::DoneSender,
 };
 use dashmap::mapref::entry::Entry;
 use std::{any::TypeId, sync::Arc};
-use tokio::sync::Barrier;
 
 mod udp_session;
 use udp_session::UdpSession;
@@ -159,10 +158,10 @@ impl Protocol for Udp {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        init_done: DoneSender,
         _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        initialized.wait().await;
+        init_done.send(());
         Ok(())
     }
 }

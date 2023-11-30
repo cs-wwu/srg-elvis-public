@@ -5,10 +5,9 @@ use crate::{
     message::Message,
     network::{Mac, Mtu},
     protocol::{DemuxError, StartError},
-    Control, Network, Protocol, Session, Shutdown,
+    Control, Network, Protocol, Session, Shutdown, internet::DoneSender,
 };
 use std::sync::Arc;
-use tokio::sync::Barrier;
 
 pub mod pci_session;
 pub(crate) use pci_session::PciSession;
@@ -71,16 +70,24 @@ impl Protocol for Pci {
         panic!("Cannot demux on a Pci")
     }
 
-    async fn start(
+    async fn boot(
         &self,
-        _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        shutdown: Shutdown,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         for session in self.sessions.iter() {
             session.start(machine.clone());
         }
-        initialized.wait().await;
+        Ok(())
+    }
+
+    async fn start(
+        &self,
+        _shutdown: Shutdown,
+        init_done: DoneSender,
+        machine: Arc<Machine>,
+    ) -> Result<(), StartError> {
+        init_done.send(());
         Ok(())
     }
 }

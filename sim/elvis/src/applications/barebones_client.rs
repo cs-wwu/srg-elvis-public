@@ -30,7 +30,7 @@ impl Protocol for BareBonesClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;

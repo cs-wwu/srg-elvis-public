@@ -7,7 +7,7 @@ use crate::{
         socket_api::socket::{ProtocolFamily, Socket, SocketType},
         Endpoint, SocketAPI,
     },
-    Control, FxDashMap, Protocol, Session, Shutdown,
+    Control, FxDashMap, Protocol, Session, Shutdown, internet::DoneSender,
 };
 
 use super::dns_parsing::{DnsHeader, DnsMessage, DnsMessageType, DnsQuestion, DnsResourceRecord};
@@ -98,7 +98,7 @@ impl Protocol for DnsServer {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        init_done: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         // Adds mappings to the dns server cache. This is a stand it method of
@@ -125,7 +125,7 @@ impl Protocol for DnsServer {
         listen_socket.listen(10).unwrap();
 
         // Wait on ititialization before sending or receiving any message from the network
-        initialized.wait().await;
+        init_done.send(());
 
         let mut tasks = Vec::new();
         // Continuously accept incoming connections in a loop, spawning a

@@ -54,7 +54,7 @@ impl Protocol for PingPong {
     async fn start(
         &self,
         shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         *self.shutdown.write().unwrap() = Some(shutdown);

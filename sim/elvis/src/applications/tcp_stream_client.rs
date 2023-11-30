@@ -27,7 +27,7 @@ impl Protocol for TcpStreamClient {
     async fn start(
         &self,
         shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;

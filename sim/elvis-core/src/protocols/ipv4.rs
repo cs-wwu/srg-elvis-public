@@ -7,12 +7,11 @@ use crate::{
     network::Mac,
     protocol::{DemuxError, StartError},
     protocols::pci::Pci,
-    Control, FxDashMap, IpTable, Protocol, Session, Shutdown,
+    Control, FxDashMap, IpTable, Protocol, Session, Shutdown, internet::DoneSender,
 };
 use dashmap::mapref::entry::Entry;
 use rustc_hash::FxHashMap;
 use std::{any::TypeId, sync::Arc};
-use tokio::sync::Barrier;
 
 pub mod ipv4_parsing;
 use ipv4_parsing::Ipv4Header;
@@ -155,10 +154,10 @@ impl Protocol for Ipv4 {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        init_done: DoneSender,
         _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        initialized.wait().await;
+        init_done.send(());
         Ok(())
     }
 

@@ -32,7 +32,7 @@ impl Protocol for VideoServer {
     async fn start(
         &self,
         shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         let mut listener = TcpListener::bind(self.server_address, machine)

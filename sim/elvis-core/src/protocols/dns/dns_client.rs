@@ -127,7 +127,7 @@ impl Protocol for DnsClient {
     async fn start(
         &self,
         _shutdown: Shutdown,
-        initialized: Arc<Barrier>,
+        initialized: DoneSender,
         _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         initialized.wait().await;

@@ -1,10 +1,9 @@
-use crate::{Protocol, Shutdown};
+use crate::Protocol;
 use rustc_hash::FxHashMap;
 use std::{
     any::{Any, TypeId},
     sync::Arc,
 };
-use tokio::{sync::Barrier, task::JoinSet};
 
 /// A tap's PCI slot index
 pub type PciSlot = u32;
@@ -31,34 +30,6 @@ impl Machine {
     pub fn new() -> Machine {
         Self {
             protocols: AnyMap::default(),
-        }
-    }
-
-    /// Tells the machine time to start its protocols and begin participating in the simulation.
-    ///
-    /// Calls [`start()`](super::Protocol::start) on all its protocols, then waits for them to finish.
-    /// Panics if any of them return an error.
-    pub(crate) async fn start(self: Arc<Self>, shutdown: Shutdown, initialized: Arc<Barrier>) {
-        let mut handles = JoinSet::new();
-
-        // Spawn tasks to start each protocol
-        for protocol in self.iter() {
-            let shutdown_clone = shutdown.clone();
-            let initialized_clone = initialized.clone();
-            let self_clone = self.clone();
-            let fut = async move {
-                protocol
-                    .start(shutdown_clone, initialized_clone, self_clone)
-                    .await
-            };
-            handles.spawn(fut);
-        }
-
-        // wait for all starts to finish
-        while let Some(result) = handles.join_next().await {
-            result
-                .expect("start method should not panic!")
-                .expect("machines should be configured to start successfully");
         }
     }
 
@@ -103,6 +74,17 @@ impl Machine {
     /// Places this machine inside of an [`Arc`].
     pub fn arc(self) -> Arc<Self> {
         Arc::new(self)
+    }
+}
+
+impl std::fmt::Debug for Machine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Machine ")?;
+        let mut dl = f.debug_set();
+        for protocol in self.iter() {
+            dl.entry(&protocol.name());
+        }
+        dl.finish()
     }
 }
 
