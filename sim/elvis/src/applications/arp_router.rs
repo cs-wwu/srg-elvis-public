@@ -6,7 +6,7 @@ use elvis_core::{
     protocol::{DemuxError, StartError},
     protocols::{
         arp::subnetting::{Ipv4Net, Ipv4Mask},
-        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber, Recipient},
+        ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
         AddressPair, Arp, Ipv4, Pci,
     },
     Control, IpTable, Protocol, Session, Shutdown,

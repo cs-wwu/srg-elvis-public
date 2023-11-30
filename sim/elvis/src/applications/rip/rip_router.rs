@@ -21,14 +21,12 @@ use super::rip_parsing::{Operation, RipPacket};
 // number of seconds between each update
 const UPDATE_INTERVAL: u64 = 1;
 pub struct RipRouter {
-    local_ips: Vec<Ipv4Address>,
     name: Option<String>,
 }
 
 impl RipRouter {
-    pub fn new(local_ips: Vec<Ipv4Address>) -> Self {
+    pub fn new() -> Self {
         RipRouter {
-            local_ips: local_ips.clone(),
             name: None,
         }
     }
@@ -136,15 +134,16 @@ impl Protocol for RipRouter {
         let slot = demux_info.slot;
         let router_address = ipv4_header_info.source;
         
-        // let local_ip = ipv4
-        //     .iter_subnets()
-        //     .find(|(_subnet, recipient)| recipient.slot == slot)
-        //     .expect("Slot should exist")
-        //     .0
-        //     .addr();
+        // Get the local ip of the pci slot where message was recieved
+        let local_ip = ipv4
+            .iter_subnets()
+            .find(|(_subnet, recipient)| recipient.slot == slot)
+            .expect("Slot should exist")
+            .0
+            .addr();
 
         // discard packets coming from this router
-        if self.local_ips[slot as usize] == router_address {
+        if local_ip == router_address {
             return Ok(());
         }
         let packet = match RipPacket::from_bytes(message.iter()) {
@@ -153,7 +152,7 @@ impl Protocol for RipRouter {
         };
 
         let remote_endpoint = Endpoint::new(router_address, 520);
-        let local_endpoint = Endpoint::new(self.local_ips[slot as usize], 520);
+        let local_endpoint = Endpoint::new(local_ip, 520);
         let endpoints = Endpoints::new(local_endpoint, remote_endpoint);
 
         // parse packet from message

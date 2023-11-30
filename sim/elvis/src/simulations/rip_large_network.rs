@@ -148,7 +148,7 @@ pub fn create_router(
         Ipv4::new(interfaces),
         Udp::new(),
         ArpRouter::new(),
-        RipRouter::new(local_ips),
+        RipRouter::new(),
     ]
 
     // let arp_rtr = ArpRouter::new()
@@ -158,6 +158,7 @@ pub fn create_router(
     //     .broadcast_network(subnet: Ipv4Address, mask: Ipv4Mask);
 }
 
+#[allow(non_snake_case)]
 pub async fn rip_large_network(capture_ips: Vec<Ipv4Net>) -> ExitStatus {
     // All these variables should be defined as const 
     // but because we need to extract the result (a non const operation)
@@ -308,6 +309,7 @@ mod tests {
 
     use super::*;
 
+    #[allow(non_snake_case)]
     #[tokio::test]
     async fn rip_large_network() {
         // SINGLE CAPTURE (SENDER -> CAPTURE3)
@@ -322,6 +324,7 @@ mod tests {
         );
     }
 
+    #[allow(non_snake_case)]
     #[tokio::test]
     async fn rip_large_network_all() {
         let HOST_ADDRESSES = get_hosts();
