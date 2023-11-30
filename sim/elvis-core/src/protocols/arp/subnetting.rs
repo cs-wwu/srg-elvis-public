@@ -342,7 +342,7 @@ impl std::fmt::Debug for Ipv4Net {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "Ipv4Net {{{}/{}}}",
-            self.ip_address,
+            self.id(),
             self.mask().count_ones()
         ))
     }

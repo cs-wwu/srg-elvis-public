@@ -206,9 +206,13 @@ impl Protocol for ArpRouter {
         )
         .unwrap();
 
-        for (subnet, _) in ipv4.iter_subnets() {
+        for (subnet, recipient) in ipv4.iter_subnets() {
+            // Fill directly connected routes in routing table
+            self.ip_table.write().unwrap().add(subnet, Rte::new(None, subnet.mask(), recipient.slot, 0));
+            // Listen for arp requests
             arp.listen(subnet.addr());
         }
+        // self.ip_table.read().unwrap().iter().for_each(|(subnet, rte)| println!("{subnet:?} {rte:?}"));
 
         initialize.wait().await;
         Ok(())

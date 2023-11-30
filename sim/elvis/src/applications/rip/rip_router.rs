@@ -5,6 +5,7 @@ use elvis_core::{
     protocols::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
         pci::DemuxInfo,
+        Ipv4,
         Endpoint, Endpoints, Udp,
     },
     Control, Protocol, Session, Shutdown,
@@ -72,9 +73,12 @@ impl Protocol for RipRouter {
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
         let udp = protocols
-            .clone()
             .protocol::<Udp>()
             .expect("RipRouter requires Udp");
+
+        let ipv4 = protocols
+            .protocol::<Ipv4>()
+            .expect("RipRouter requires IPv4");
 
         initialized.wait().await;
 
@@ -85,8 +89,9 @@ impl Protocol for RipRouter {
         udp.listen(self.id(), broadcast_endpoint, protocols.clone())
             .ok();
 
-        for ip in self.local_ips.iter() {
-            let local_endpoint = Endpoint::new(*ip, 520);
+        for (subnet, _) in ipv4.iter_subnets() {
+            let ip = subnet.addr();
+            let local_endpoint = Endpoint::new(ip, 520);
             let session = match udp
                 .open_and_listen(
                     self.id(),
@@ -117,6 +122,10 @@ impl Protocol for RipRouter {
         control: Control,
         protocols: ProtocolMap,
     ) -> Result<(), DemuxError> {
+        let ipv4 = protocols
+            .protocol::<Ipv4>()
+            .expect("RipRouter requires IPv4");
+        
         // all messages at this point should be from udp port 520
         // messages are either request or response
 
@@ -126,6 +135,14 @@ impl Protocol for RipRouter {
 
         let slot = demux_info.slot;
         let router_address = ipv4_header_info.source;
+        
+        // let local_ip = ipv4
+        //     .iter_subnets()
+        //     .find(|(_subnet, recipient)| recipient.slot == slot)
+        //     .expect("Slot should exist")
+        //     .0
+        //     .addr();
+
         // discard packets coming from this router
         if self.local_ips[slot as usize] == router_address {
             return Ok(());
