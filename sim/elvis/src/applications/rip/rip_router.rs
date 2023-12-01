@@ -1,13 +1,13 @@
 use elvis_core::{
-    machine::{ProtocolMap, PciSlot},
+    machine::ProtocolMap,
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
         pci::DemuxInfo,
-        Endpoint, Endpoints, Udp
+        Endpoint, Endpoints, Udp,
     },
-    Control, Protocol, Session, Shutdown, IpTable
+    Control, Protocol, Session, Shutdown,
 };
 use rand::Rng;
 use std::{sync::Arc, time::Duration};
@@ -16,8 +16,6 @@ use tokio::sync::Barrier;
 use crate::applications::ArpRouter;
 
 use super::rip_parsing::{Operation, RipPacket};
-
-pub type RoutingTable = IpTable<(Option<Ipv4Address>, PciSlot)>;
 
 // number of seconds between each update
 const UPDATE_INTERVAL: u64 = 1;
@@ -79,6 +77,9 @@ impl Protocol for RipRouter {
             .clone()
             .protocol::<Udp>()
             .expect("RipRouter requires Udp");
+
+        // Get ARP
+        // Set localips = iter_subnet
 
         initialized.wait().await;
 

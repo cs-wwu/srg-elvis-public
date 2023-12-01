@@ -123,12 +123,25 @@ impl Rte {
 }
 
 /// Allows conversion of Recipients into IpTable
-///
+/// 
 impl From<Recipients> for IpTable<Recipient> {
     fn from(other: Recipients) -> Self {
         let mut table = Self::new();
         for pair in other.iter() {
             table.add_direct(*pair.0, *pair.1);
+        }
+        table
+    }
+}
+
+/// Allows conversion of IP Addresses to a table of Recipients
+/// 
+impl From<&[Ipv4Address]> for IpTable<Recipient> {
+    fn from(addresses: &[Ipv4Address]) -> Self {
+        let mut table = Self::new();
+        for (pci_slot, addr) in addresses.iter().enumerate() {
+            //println!("slot: {}", pci_slot);
+            table.add_direct(*addr, Recipient::new(pci_slot as u32, None));
         }
         table
     }

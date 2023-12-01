@@ -110,6 +110,9 @@ impl Protocol for SendMessage {
                     .await
                     .unwrap(),
             };
+            
+            println!("Sending message");
+
             for message in messages.iter() {
                 session
                     .send(message.clone(), protocols.clone())
