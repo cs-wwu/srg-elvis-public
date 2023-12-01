@@ -146,6 +146,15 @@ const ROUTER_5_INTERFACES: [Ipv4Address; 2] = [
 >>>>>>> cbb5e19e (Changed sim file name, implemented ips to vec<recicpient> conversion)
 ];
 
+pub fn build_ip_table(addresses: &[Ipv4Address]) -> IpTable<Recipient> {
+    let mut router_table = IpTable::<Recipient>::new();
+    let mut slot = 0;
+    for address in addresses.iter() {
+        router_table.add_direct(*address, Recipient::new(slot, None));
+        slot += 1;
+    }
+    router_table
+}
 
 pub fn create_capture(
     ip: Ipv4Address,
@@ -214,6 +223,7 @@ pub fn create_router(
     // IPs are mapped to interfaces/pcis (of networks) based on their order
     // E.g. the first address in interface_ips will be the ip of the first pci interface
 
+<<<<<<< HEAD:sim/elvis/src/simulations/rip_small_network.rs
 <<<<<<< HEAD
 =======
 <<<<<<<< HEAD:sim/elvis/src/simulations/rip_large_network.rs
@@ -230,6 +240,12 @@ pub fn create_router(
     //     interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
     // }
 <<<<<<< HEAD
+=======
+    let mut interfaces = IpTable::<Recipient>::new();
+    for (pci_slot, addr) in interface_ips.iter().enumerate() {
+        interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
+    }
+>>>>>>> parent of 9bf657f7 (Changed sim file name, implemented ips to vec<recicpient> conversion):sim/elvis/src/simulations/rip_large_network.rs
 
 =======
 >>>>>>>> cbb5e19e (Changed sim file name, implemented ips to vec<recicpient> conversion):sim/elvis/src/simulations/rip_small_network.rs
@@ -330,7 +346,7 @@ pub fn gen_capture_machines_status(
 >>>>>>> cbb5e19e (Changed sim file name, implemented ips to vec<recicpient> conversion)
 }
 
-pub async fn rip_small_network(
+pub async fn rip_large_network(
     capture_ips: Vec<Ipv4Address>,
 <<<<<<< HEAD
     status_capture: Option<Arc<RwLock<u32>>>,
@@ -579,6 +595,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+<<<<<<< HEAD:sim/elvis/src/simulations/rip_small_network.rs
 <<<<<<< HEAD
 =======
 <<<<<<< HEAD:sim/elvis/src/simulations/rip_large_network.rs
@@ -593,6 +610,12 @@ mod tests {
         let recipient_ips = Vec::from([HOST_ADDRESSES[2]]);
         let test1 = super::rip_small_network(recipient_ips, None);
 <<<<<<< HEAD
+=======
+    async fn rip_large_network() {
+        // SINGLE CAPTURE (SENDER -> CAPTURE2)
+        let recipient_ips = Vec::from([HOST_ADDRESSES[2]]);
+        let test1 = super::rip_large_network(recipient_ips, None);
+>>>>>>> parent of 9bf657f7 (Changed sim file name, implemented ips to vec<recicpient> conversion):sim/elvis/src/simulations/rip_large_network.rs
 
         // Message should reach capture 2 (and no other)
         assert_eq!(test1.await, super::ExitStatus::Status(2));
@@ -610,7 +633,7 @@ mod tests {
 <<<<<<< HEAD
         let recipient_ips = Vec::from(HOST_ADDRESSES);
         let status = Arc::new(RwLock::new(0));
-        let test2 = super::rip_small_network(recipient_ips, Some(status.clone()));
+        let test2 = super::rip_large_network(recipient_ips, Some(status.clone()));
 
         assert_eq!(test2.await, super::ExitStatus::Exited);
         assert_eq!(*status.read().unwrap(), 1 + 2 );
