@@ -19,7 +19,7 @@ pub type DoneSender = tokio::sync::oneshot::Sender<()>;
 /// When a `Sim` is dropped, all of the protocols'
 /// `start` methods (from [`initialize`](Sim::initialize)) are aborted.
 #[derive(Default)]
-struct Sim {
+pub struct Sim {
     // It may be possible to make this *not* a struct.
 
     // Used for debugging
@@ -55,24 +55,17 @@ impl Sim {
         // Enable a custom panic hook to display a backtrace of the panic and then
         // forcibly exit the entire process.
         // If tests are being ran, this will stop future tests from running, as the
-        // entire process exits, but that is appropriate for a panic
-        let panic_hook = panic::take_hook();
-        panic::set_hook(Box::new(move |panic_info| {
-            panic_hook(panic_info);
-            let backtrace = Backtrace::force_capture();
-            eprintln!("Backtrace: {:#?}", backtrace);
-            process::exit(1);
-        }));
+        // entire process exits, but that is appropriate for a panic    
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(make_exit_on_panic);
 
-
-        let shut = Shutdown::new();
         // used to wait for machines to initialize
         let mut init_dones: FuturesUnordered<oneshot::Receiver<()>> = FuturesUnordered::new();
 
         // Boot every machine
         for (index, machine) in machines.iter().enumerate() {
             for protocol in machine.iter() {
-                let result = protocol.boot(shut.clone(), machine.clone()).await;
+                let result = protocol.boot(self.shutdown.clone(), machine.clone()).await;
                 if let Err(err) = result {
                     panic!("Machine boot failed: {}", SimError {
                         index,
@@ -89,7 +82,7 @@ impl Sim {
                 let (init_done, init_recv) = oneshot::channel();
                 init_dones.push(init_recv);
 
-                let fut = start_protocol(protocol, shut.clone(), init_done, machine.clone(), index);
+                let fut = start_protocol(protocol, self.shutdown.clone(), init_done, machine.clone(), index);
                 self.tasks.spawn(fut);
             }
         }
@@ -181,6 +174,17 @@ async fn start_protocol(protocol: Arc<dyn Protocol>, shutdown: Shutdown, init_do
             err,
         })
     }
+}
+
+/// Sets a panic hook that exits the entire process.
+fn make_exit_on_panic() {
+    let panic_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        panic_hook(panic_info);
+        let backtrace = Backtrace::force_capture();
+        eprintln!("Backtrace: {:#?}", backtrace);
+        process::exit(1);
+    }));
 }
 
 impl std::fmt::Debug for Sim {

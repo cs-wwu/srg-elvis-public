@@ -82,7 +82,7 @@ pub trait Protocol: Send + Sync + 'static {
     /// Starts the protocol running. This gives protocols an opportunity to open
     /// sessions, spawn tasks, and perform other setup as needed.
     ///
-    /// When a protocol is done initializing, it should send a message on the
+    /// When a protocol is done initializing, it should send a message or drop the
     /// `init_done` sender. This way, users can detect when a protocol is done
     /// initializing. For example, a user might start a server, then wait until it
     /// is done initializing, then start client machines.

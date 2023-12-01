@@ -58,9 +58,9 @@ pub use network::Network;
 pub mod machine;
 pub use machine::Machine;
 
-mod internet;
-pub use internet::run_internet;
-pub use internet::run_internet_with_timeout;
+pub mod internet;
+pub use internet::Sim;
+pub use internet::SimError;
 
 pub mod shutdown;
 pub use shutdown::ExitStatus;
