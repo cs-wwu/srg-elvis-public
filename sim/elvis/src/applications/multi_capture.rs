@@ -140,7 +140,8 @@ impl Protocol for MultiCapture {
                 if let Some(status) = self.exit_status {
                     shutdown.shut_down_with_status(ExitStatus::Status(status));
                 } else {
-                    shutdown.shut_down();
+                    // Exit with status: all machines that received the message, which is all of them since self.counter.call() -> true
+                    shutdown.shut_down_with_status(ExitStatus::Status(self.counter.capacity));
                 }
             }
         }
