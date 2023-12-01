@@ -35,15 +35,6 @@ impl<T: Copy> IpTable<T> {
         table
     }
 
-    pub fn with_interfaces(&mut self, addresses: &[Ipv4Address]) {
-        if TypeId::of::<T>() == TypeId::of::<Recipient>() {
-            for (pci_slot, addr) in addresses.iter().enumerate() {
-                //println!("slot: {}", pci_slot);
-                self.add_direct(*addr, Recipient::new(pci_slot as u32, None));
-            }
-        }
-    }
-
     /// Gets value associated with provided ipv4 address by starting at the largest bit mask and
     /// returns the destination associated with that mask. If no subnet is found,
     /// the recipient linked to the default gateway is returned. If no default gateway is
@@ -132,12 +123,25 @@ impl Rte {
 }
 
 /// Allows conversion of Recipients into IpTable
-///
+/// 
 impl From<Recipients> for IpTable<Recipient> {
     fn from(other: Recipients) -> Self {
         let mut table = Self::new();
         for pair in other.iter() {
             table.add_direct(*pair.0, *pair.1);
+        }
+        table
+    }
+}
+
+/// Allows conversion of IP Addresses to a table of Recipients
+/// 
+impl From<&[Ipv4Address]> for IpTable<Recipient> {
+    fn from(addresses: &[Ipv4Address]) -> Self {
+        let mut table = Self::new();
+        for (pci_slot, addr) in addresses.iter().enumerate() {
+            //println!("slot: {}", pci_slot);
+            table.add_direct(*addr, Recipient::new(pci_slot as u32, None));
         }
         table
     }

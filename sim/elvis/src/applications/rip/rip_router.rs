@@ -78,6 +78,9 @@ impl Protocol for RipRouter {
             .protocol::<Udp>()
             .expect("RipRouter requires Udp");
 
+        // Get ARP
+        // Set localips = iter_subnet
+
         initialized.wait().await;
 
         let mut sessions = Vec::<Arc<dyn Session>>::new();

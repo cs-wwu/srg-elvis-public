@@ -68,15 +68,6 @@ const ROUTER_3_INTERFACES: [Ipv4Address; 2] = [
     Ipv4Address::new([10, 0, 4, 3]),
 ];
 
-pub fn build_ip_table(addresses: &[Ipv4Address]) -> IpTable<Recipient> {
-    let mut router_table = IpTable::<Recipient>::new();
-    let mut slot = 0;
-    for address in addresses.iter() {
-        router_table.add_direct(*address, Recipient::new(slot, None));
-        slot += 1;
-    }
-    router_table
-}
 
 pub fn create_capture(
     ip: Ipv4Address,
@@ -117,10 +108,11 @@ pub fn create_router(
     // IPs are mapped to interfaces/pcis (of networks) based on their order
     // E.g. the first address in interface_ips will be the ip of the first pci interface
 
-    let mut interfaces = IpTable::<Recipient>::new();
-    for (pci_slot, addr) in interface_ips.iter().enumerate() {
-        interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
-    }
+    let interfaces = interface_ips.into();
+    // let mut interfaces = IpTable::<Recipient>::new();
+    // for (pci_slot, addr) in interface_ips.iter().enumerate() {
+    //     interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
+    // }
 
     new_machine![
         Pci::new(networks),
@@ -197,7 +189,7 @@ pub fn gen_capture_machines_status(
     ]
 }
 
-pub async fn rip_large_network(
+pub async fn rip_small_network(
     capture_ips: Vec<Ipv4Address>,
     status_capture: Option<Arc<RwLock<u32>>>,
 ) -> ExitStatus {
@@ -309,10 +301,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn rip_large_network() {
+    async fn rip_small_network() {
         // SINGLE CAPTURE (SENDER -> CAPTURE2)
         let recipient_ips = Vec::from([HOST_ADDRESSES[2]]);
-        let test1 = super::rip_large_network(recipient_ips, None);
+        let test1 = super::rip_small_network(recipient_ips, None);
 
         // Message should reach capture 2 (and no other)
         assert_eq!(test1.await, super::ExitStatus::Status(2));
@@ -323,7 +315,7 @@ mod tests {
         // MULTIPLE CAPTURE (SENDER -> ALL CAPTURES)
         let recipient_ips = Vec::from(HOST_ADDRESSES);
         let status = Arc::new(RwLock::new(0));
-        let test2 = super::rip_large_network(recipient_ips, Some(status.clone()));
+        let test2 = super::rip_small_network(recipient_ips, Some(status.clone()));
 
         assert_eq!(test2.await, super::ExitStatus::Exited);
         assert_eq!(*status.read().unwrap(), 1 + 2 );
