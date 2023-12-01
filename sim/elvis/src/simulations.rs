@@ -68,31 +68,8 @@ pub use udp_broadcast::udp_broadcast_basic;
 mod rip_router_sim;
 pub use rip_router_sim::rip_router;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-mod rip_small_network;
-pub use rip_small_network::rip_large_network;
-=======
-=======
->>>>>>> cbb5e19e (Changed sim file name, implemented ips to vec<recicpient> conversion)
 mod rip_large_network;
 pub use rip_large_network::rip_large_network;
 
 mod localhost;
 pub use localhost::localhost;
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> 7a9c04e4 (Merge rip sim into rip-ndl (#138))
-=======
->>>>>>> f2f9f4a9 (Sim written, but timing out)
-=======
-=======
-mod rip_small_network;
-pub use rip_small_network::rip_large_network;
->>>>>>> 9bf657f7 (Changed sim file name, implemented ips to vec<recicpient> conversion)
->>>>>>> cbb5e19e (Changed sim file name, implemented ips to vec<recicpient> conversion)
-=======
-mod rip_large_network;
-pub use rip_large_network::rip_large_network;
->>>>>>> parent of 9bf657f7 (Changed sim file name, implemented ips to vec<recicpient> conversion)
