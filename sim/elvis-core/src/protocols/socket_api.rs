@@ -120,12 +120,14 @@ impl SocketAPI {
         let session_map = self.socket_sessions.write().unwrap();
         let session = match session_map.entry(listen_identifier) {
             Entry::Occupied(entry) => entry.remove(),
-            Entry::Vacant(_) => {
-                match *self.is_shutdown.read().unwrap() {
-                    true => { return Err(SocketError::Shutdown); },
-                    false => { return Err(SocketError::AcceptError); },
+            Entry::Vacant(_) => match *self.is_shutdown.read().unwrap() {
+                true => {
+                    return Err(SocketError::Shutdown);
                 }
-            }
+                false => {
+                    return Err(SocketError::AcceptError);
+                }
+            },
         };
         session_map.insert(identifier, session.clone());
 
