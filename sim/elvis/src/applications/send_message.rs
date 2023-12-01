@@ -110,8 +110,11 @@ impl Protocol for SendMessage {
                     .await
                     .unwrap(),
             };
+<<<<<<< HEAD
             
             println!("Sending message");
+=======
+>>>>>>> 7a9c04e4 (Merge rip sim into rip-ndl (#138))
 
             for message in messages.iter() {
                 session
