@@ -79,6 +79,7 @@ impl Endpoint {
         Self { address, port }
     }
 
+    /// Creates a vector of Endpoints given Ipv4Addresses and port
     pub fn new_vec(addresses: &[Ipv4Address], port: u16) -> Vec<Endpoint> {
         let mut endpoints : Vec<Endpoint> = Vec::new();
         addresses
