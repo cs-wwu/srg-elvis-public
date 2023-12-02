@@ -1,8 +1,6 @@
 use crate::machine::PciSlot;
 use crate::protocols::arp::subnetting::*;
 use crate::protocols::ipv4::{Ipv4Address, Recipient, Recipients};
-use std::any::type_name;
-use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::Debug;
