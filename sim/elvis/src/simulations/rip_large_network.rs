@@ -45,6 +45,7 @@ use std::{sync::Arc, time::Duration};
 
 const MESSAGE_PORT: u16 = 0xdeeb;
 
+// I would ideally use the static variable HOST_ADDRESSES here but we would need to unwrap Ipv4Net which is not a const operation
 fn get_hosts() -> [Ipv4Net; 5] {
     [
         // SENDER
@@ -137,11 +138,6 @@ pub fn create_router(
         interfaces.add(*addr, Recipient::new(pci_slot as u32, None));
     }
 
-    let mut local_ips = Vec::new();
-    for subnet in interface_ips.iter() {
-        local_ips.push(subnet.addr())
-    }
-
     new_machine![
         Pci::new(networks),
         Arp::new(),
@@ -150,12 +146,6 @@ pub fn create_router(
         ArpRouter::new(),
         RipRouter::new(),
     ]
-
-    // let arp_rtr = ArpRouter::new()
-    //     // Static route that forwards an address range out a pci slot or to a next hop ip
-    //     .static_route(network: Ipv4Address, mask: Ipv4Mask, (next_hop_ip, pci));
-    // let rip_rtr = RipRouter::new()
-    //     .broadcast_network(subnet: Ipv4Address, mask: Ipv4Mask);
 }
 
 #[allow(non_snake_case)]
