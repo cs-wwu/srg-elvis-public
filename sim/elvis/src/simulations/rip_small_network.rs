@@ -181,23 +181,6 @@ pub async fn rip_small_network(
 
     end_devices.extend(captures);
 
-    let r_table_1: RoutingTable = [
-        (HOST_ADDRESSES[0],(None, 0)),
-    ]
-    .into_iter()
-    .collect();
-
-    let r_table_2: RoutingTable = [
-        (HOST_ADDRESSES[1],(None, 1)),
-    ]
-    .into_iter()
-    .collect();
-
-    let r_table_3: RoutingTable = [
-        (HOST_ADDRESSES[2],(None, 1)),
-    ]
-    .into_iter()
-    .collect();
     let mut routers = vec![
         // RIP 1
         create_router(
@@ -205,7 +188,7 @@ pub async fn rip_small_network(
             [networks[0].clone(), networks[1].clone()],
             &ROUTER_1_INTERFACES,
             // Connected hosts (Sender: 0)
-            r_table_1,
+            [(HOST_ADDRESSES[0],(None, 0))].into_iter().collect(),
         ),
         // RIP 2
         create_router(
@@ -213,7 +196,7 @@ pub async fn rip_small_network(
             [networks[1].clone(), networks[2].clone()],
             &ROUTER_2_INTERFACES,
             // Connected hosts (CAP1)
-            r_table_2,
+            [(HOST_ADDRESSES[1],(None, 1))].into_iter().collect(),
         ),
         // RIP 3
         create_router(
@@ -224,7 +207,7 @@ pub async fn rip_small_network(
             ],
             &ROUTER_3_INTERFACES,
             // Connected hosts (CAP2)
-            r_table_3,
+            [(HOST_ADDRESSES[2],(None, 1))].into_iter().collect(),
         )
     ];
 
