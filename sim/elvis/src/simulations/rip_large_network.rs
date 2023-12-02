@@ -5,7 +5,7 @@ use crate::applications::{
 use elvis_core::{
     new_machine,
     protocols::{
-        arp::subnetting::{Ipv4Mask, SubnetInfo, Ipv4Net},
+        arp::subnetting::{Ipv4Mask, Ipv4Net, SubnetInfo},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Arp, Endpoint, Pci,
@@ -115,10 +115,16 @@ pub fn create_capture(
 ) -> Machine {
     new_machine![
         Pci::new([network]),
-        Arp::new().preconfig_subnet(subnet.addr(), SubnetInfo::new(subnet.mask(), default_gateway)),
+        Arp::new().preconfig_subnet(
+            subnet.addr(),
+            SubnetInfo::new(subnet.mask(), default_gateway)
+        ),
         Ipv4::new(Default::default()),
         Udp::new(),
-        MultiCapture::new(Endpoint::new(subnet.addr(), MESSAGE_PORT), multicapture_counter)
+        MultiCapture::new(
+            Endpoint::new(subnet.addr(), MESSAGE_PORT),
+            multicapture_counter
+        )
     ]
 }
 
@@ -148,7 +154,7 @@ pub fn create_router(
 
 #[allow(non_snake_case)]
 pub async fn rip_large_network(capture_ips: Vec<Ipv4Net>) -> ExitStatus {
-    // All these variables should be defined as const 
+    // All these variables should be defined as const
     // but because we need to extract the result (a non const operation)
     // we are forced to do use non-const functions
     let HOST_ADDRESSES = get_hosts();

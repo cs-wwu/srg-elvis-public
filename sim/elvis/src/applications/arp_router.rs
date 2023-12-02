@@ -5,7 +5,7 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        arp::subnetting::{Ipv4Net, Ipv4Mask},
+        arp::subnetting::{Ipv4Mask, Ipv4Net},
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
         AddressPair, Arp, Ipv4, Pci,
     },
@@ -35,9 +35,9 @@ impl ArpRouter {
     pub fn new() -> Self {
         Self {
             ip_table: RwLock::new(RoutingTable::new().into()),
-            name: None
+            name: None,
         }
-    }   
+    }
 
     pub fn from_table(
         // Maps subnet to a given router ip.
@@ -52,9 +52,17 @@ impl ArpRouter {
     }
 
     /// Adds a static route to the desired subnet directed out of a pci_slot
-    pub fn static_route(&mut self, subnet: Ipv4Address, mask: Ipv4Mask, egress_slot: PciSlot) -> &mut Self {
+    pub fn static_route(
+        &mut self,
+        subnet: Ipv4Address,
+        mask: Ipv4Mask,
+        egress_slot: PciSlot,
+    ) -> &mut Self {
         let rte = Rte::new(None, mask, egress_slot, 0);
-        self.ip_table.write().unwrap().add(Ipv4Net::new(subnet, mask), rte);
+        self.ip_table
+            .write()
+            .unwrap()
+            .add(Ipv4Net::new(subnet, mask), rte);
         self
     }
 
@@ -208,7 +216,10 @@ impl Protocol for ArpRouter {
 
         for (subnet, recipient) in ipv4.iter_subnets() {
             // Fill directly connected routes in routing table
-            self.ip_table.write().unwrap().add(subnet, Rte::new(None, subnet.mask(), recipient.slot, 0));
+            self.ip_table
+                .write()
+                .unwrap()
+                .add(subnet, Rte::new(None, subnet.mask(), recipient.slot, 0));
             // Listen for arp requests
             arp.listen(subnet.addr());
         }
@@ -247,7 +258,7 @@ impl Protocol for ArpRouter {
         };
 
         let slot = rte.slot;
-        
+
         // Extract the Ip address from the pci slot
         let ipv4 = protocols.protocol::<Ipv4>().unwrap();
         let local = ipv4

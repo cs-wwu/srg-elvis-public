@@ -5,8 +5,7 @@ use elvis_core::{
     protocols::{
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address},
         pci::DemuxInfo,
-        Ipv4,
-        Endpoint, Endpoints, Udp,
+        Endpoint, Endpoints, Ipv4, Udp,
     },
     Control, Protocol, Session, Shutdown,
 };
@@ -26,9 +25,7 @@ pub struct RipRouter {
 
 impl RipRouter {
     pub fn new() -> Self {
-        RipRouter {
-            name: None,
-        }
+        RipRouter { name: None }
     }
 
     pub fn debug(mut self, _name: String) -> Self {
@@ -70,9 +67,7 @@ impl Protocol for RipRouter {
         initialized: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        let udp = protocols
-            .protocol::<Udp>()
-            .expect("RipRouter requires Udp");
+        let udp = protocols.protocol::<Udp>().expect("RipRouter requires Udp");
 
         let ipv4 = protocols
             .protocol::<Ipv4>()
@@ -123,7 +118,7 @@ impl Protocol for RipRouter {
         let ipv4 = protocols
             .protocol::<Ipv4>()
             .expect("RipRouter requires IPv4");
-        
+
         // all messages at this point should be from udp port 520
         // messages are either request or response
 
@@ -133,7 +128,7 @@ impl Protocol for RipRouter {
 
         let slot = demux_info.slot;
         let router_address = ipv4_header_info.source;
-        
+
         // Get the local ip of the pci slot where message was recieved
         let local_ip = ipv4
             .iter_subnets()
