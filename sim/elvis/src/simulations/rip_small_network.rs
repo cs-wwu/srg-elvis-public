@@ -93,7 +93,7 @@ pub fn create_router(
     // IPs are mapped to interfaces/pcis (of networks) based on their order
     // E.g. the first address in interface_ips will be the ip of the first pci interface
 
-    let interfaces = interface_ips.into();
+    let interfaces: IpTable<Recipient> = interface_ips.into();
 
     new_machine![
         Pci::new(networks),
@@ -234,7 +234,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rip_large_network_all() {
+    async fn rip_small_network_all() {
         // MULTIPLE CAPTURE (SENDER -> ALL CAPTURES)
         let recipient_ips = Vec::from(HOST_ADDRESSES);
         let test2 = super::rip_small_network(recipient_ips.clone());
