@@ -127,8 +127,6 @@ pub fn create_router(
     networks: impl IntoIterator<Item = Arc<Network>>,
     // Router's interface IPs
     interface_ips: &[Ipv4Net],
-    // Routing table to end devices
-    routing_table: RoutingTable,
 ) -> Machine {
     // IPs are mapped to interfaces/pcis (of networks) based on their order
     // E.g. the first address in interface_ips will be the ip of the first pci interface
@@ -249,14 +247,11 @@ pub async fn rip_large_network(capture_ips: Vec<Ipv4Net>) -> ExitStatus {
             // Connected networks
             [networks[0].clone(), networks[1].clone()],
             &ROUTER_1_INTERFACES,
-            // Connected hosts
-            [(HOST_ADDRESSES[0], (None, 1))].into_iter().collect(),
         ),
         // RIP 2
         create_router(
             [networks[1].clone(), networks[2].clone()],
             &ROUTER_2_INTERFACES,
-            [(HOST_ADDRESSES[1], (None, 1))].into_iter().collect(),
         ),
         // RIP 3
         create_router(
@@ -266,25 +261,16 @@ pub async fn rip_large_network(capture_ips: Vec<Ipv4Net>) -> ExitStatus {
                 networks[4].clone(),
             ],
             &ROUTER_3_INTERFACES,
-            // RIP router is connected to no hosts
-            RoutingTable::new(),
         ),
         // RIP 4
         create_router(
             [networks[3].clone(), networks[5].clone()],
             &ROUTER_4_INTERFACES,
-            [
-                (HOST_ADDRESSES[2], (None, 1)),
-                (HOST_ADDRESSES[3], (None, 1)),
-            ]
-            .into_iter()
-            .collect(),
         ),
         // RIP 5
         create_router(
             [networks[4].clone(), networks[6].clone()],
             &ROUTER_5_INTERFACES,
-            [(HOST_ADDRESSES[4], (None, 1))].into_iter().collect(),
         ),
     ];
 
