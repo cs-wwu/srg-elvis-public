@@ -107,7 +107,6 @@ pub fn create_router(
 
 pub async fn rip_small_network(
     capture_ips: Vec<Ipv4Address>,
-    status_capture: Option<Arc<RwLock<u32>>>,
 ) -> ExitStatus {
     // Create 4 basic networks
     // Network::basic() :   mtu = maximum packet size;
@@ -116,7 +115,7 @@ pub async fn rip_small_network(
     let networks: Vec<Arc<Network>> = (0..4).map(|_| Network::basic()).collect();
 
     // Create a lists of endpoints for capture machines
-    let endpoints: Vec<Endpoint> = Endpoint::new_vec(capture_ips, MESSAGE_PORT);
+    let endpoints: Vec<Endpoint> = Endpoint::new_vec(&capture_ips, MESSAGE_PORT);
 
     // Number of recipients = numebr of capture_ips
     let multicapture_counter = Counter::new(capture_ips.len() as u32);
@@ -161,7 +160,7 @@ pub async fn rip_small_network(
                 default_gateway: ROUTER_2_INTERFACES[1]
             }, 
             // Attached network
-            networks[2].clone, 
+            networks[2].clone(), 
             // Multicapture counter and status
             multicapture_counter.clone()
         ),
@@ -174,7 +173,7 @@ pub async fn rip_small_network(
                 default_gateway: ROUTER_3_INTERFACES[1],
             },
             // Attached network
-            networks[3].clone,
+            networks[3].clone(),
             // Multicapture counter and status
             multicapture_counter.clone()
         ),
@@ -245,7 +244,7 @@ mod tests {
     async fn rip_small_network() {
         // SINGLE CAPTURE (SENDER -> CAPTURE2)
         let recipient_ips = Vec::from([HOST_ADDRESSES[2]]);
-        let test1 = super::rip_small_network(recipient_ips, None);
+        let test1 = super::rip_small_network(recipient_ips.clone());
 
         // Message should reach capture 2 (and no other)
         assert_eq!(test1.await, super::ExitStatus::Status(recipient_ips.len() as u32));

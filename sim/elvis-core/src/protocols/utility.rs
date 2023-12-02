@@ -79,7 +79,7 @@ impl Endpoint {
         Self { address, port }
     }
 
-    pub fn new_vec(addresses: Vec<Ipv4Address>, port: u16) -> Vec<Endpoint> {
+    pub fn new_vec(addresses: &[Ipv4Address], port: u16) -> Vec<Endpoint> {
         let mut endpoints : Vec<Endpoint> = Vec::new();
         addresses
             .iter()
