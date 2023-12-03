@@ -264,7 +264,7 @@ impl Protocol for SocketAPI {
                 arp.listen(local_address);
             }
         }
-        init_done.send(());
+        init_done.done();
         Ok(())
     }
 

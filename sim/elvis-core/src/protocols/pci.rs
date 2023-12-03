@@ -87,7 +87,7 @@ impl Protocol for Pci {
         init_done: DoneSender,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        init_done.send(());
+        init_done.done();
         Ok(())
     }
 }

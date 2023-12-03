@@ -157,7 +157,7 @@ impl Protocol for Ipv4 {
         init_done: DoneSender,
         _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        init_done.send(());
+        init_done.done();
         Ok(())
     }
 

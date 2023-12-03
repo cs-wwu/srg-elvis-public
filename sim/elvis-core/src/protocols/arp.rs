@@ -74,7 +74,7 @@ impl Protocol for Arp {
         initialized: DoneSender,
         _machine: Arc<Machine>,
     ) -> Result<(), StartError> {
-        initialized.send(());
+        initialized.done();
         Ok(())
     }
 

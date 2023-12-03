@@ -6,28 +6,47 @@ use std::backtrace::Backtrace;
 use std::panic;
 use std::time::Duration;
 use std::{process, sync::Arc};
-use futures::stream::{FuturesUnordered, StreamExt};
-use tokio::{sync::oneshot, task::JoinSet};
-
-/// [`Protocol::start`] can send on a sender in order to
-/// indicate that a machine is done initializing. 
-pub type DoneSender = tokio::sync::oneshot::Sender<()>;
+use futures::Future;
+use tokio::{sync::broadcast, task::JoinSet};
 
 /// A struct used to coordinate a simulation.
 /// Can be used to start waves of machines and wait for them to be initialized.
 /// 
 /// When a `Sim` is dropped, all of the protocols'
 /// `start` methods (from [`initialize`](Sim::initialize)) are aborted.
+/// 
+/// # Examples
+/// 
+/// ```
+/// 
+/// use elvis_core::protocols::Pci;
+/// use elvis_core::internet::Sim;
+/// use elvis_core::shutdown::ExitStatus;
+/// 
+/// #[tokio::main]
+/// # fn main() {
+/// // Create a machine.
+/// // (Usually a machine will have more protocols than just Pci!)
+/// let machine = elvis_core::new_machine_arc![
+///     Pci::new([]),
+/// ];
+/// 
+/// let sim = Sim::new();
+/// 
+/// // Initialize the machine.
+/// sim.init(machine).await;
+/// 
+/// // Wait for simulation to finish, with a timeout..
+/// let exit_status = sim.wait_with_timeout(Duration::from_millis(1)).await;
+/// assert_eq!(exit_status, ExitStatus::TimedOut);
+/// # }
+/// ```
 #[derive(Default)]
 pub struct Sim {
-    // It may be possible to make this *not* a struct.
-
-    // Used for debugging
+    /// Used for debugging
     machines: Vec<Arc<Machine>>,
-
     /// Stores all the tasks for the running machines.
     tasks: JoinSet<Result<(), SimError>>,
-
     /// active shutdown object cloned and given to machines
     shutdown: Shutdown,
 }
@@ -38,19 +57,18 @@ impl Sim {
         Self::default()
     }
 
-    /// Calls [`boot`](Protocol::boot) on each protocol of each machine. 
-    /// Then spawns a task and calls [`start`](Protocol::start) for each protocol.
+    /// Spawns a task to call [`boot`](Protocol::boot) on each protocol of each machine.
+    /// If all boots are successful, calls [`start`](Protocol::start) for each protocol.
     /// 
+    /// This function returns a future.
     /// Once all protocols have sent messages through their `init_done` senders,
-    /// this function completes.
+    /// the future completes.
     /// 
-    /// (The machines `start`) methods will continue running in the background.
+    /// (The machine's `start`) methods will continue running in the background.
     /// 
-    /// # Panics
-    /// 
-    /// If any of the machines return an error during boot, this method will panic.
-    pub async fn init(&mut self, machines: &[Arc<Machine>]) {
-        self.machines.extend_from_slice(machines);
+    /// See [Sim] for an example.
+    pub fn init(&mut self, machine: Arc<Machine>) -> impl Future<Output = ()> {
+        self.machines.push(machine);
 
         // Enable a custom panic hook to display a backtrace of the panic and then
         // forcibly exit the entire process.
@@ -59,45 +77,36 @@ impl Sim {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(make_exit_on_panic);
 
-        // used to wait for machines to initialize
-        let mut init_dones: FuturesUnordered<oneshot::Receiver<()>> = FuturesUnordered::new();
+        let (send, mut recv) = broadcast::channel(1);
 
-        // Boot every machine
-        for (index, machine) in machines.iter().enumerate() {
-            for protocol in machine.iter() {
-                let result = protocol.boot(self.shutdown.clone(), machine.clone()).await;
-                if let Err(err) = result {
-                    panic!("Machine boot failed: {}", SimError {
-                        index,
-                        name: protocol.name(),
-                        err,
-                    });
-                }
-            }
-        }
-
-        // Start every protocol
-        for (index, machine) in machines.iter().enumerate() {
-            for protocol in machine.iter() {
-                let (init_done, init_recv) = oneshot::channel();
-                init_dones.push(init_recv);
-
-                let fut = start_protocol(protocol, self.shutdown.clone(), init_done, machine.clone(), index);
-                self.tasks.spawn(fut);
-            }
+        for (index, machine) in self.machines.iter().enumerate() {
+            self.tasks.spawn(start_machine(machine.clone(), self.shutdown.clone(), send.clone(), index));
         }
 
 
-        // wait for all init_dones to complete
-        while init_dones.next().await.is_some() {}
+        use broadcast::error::RecvError;
+        async move {
+            // The receiver should receive if and only if all the senders are dropped.
+            assert_eq!(recv.recv().await, Err(RecvError::Closed));
+        }
     }
 
-    /// Calls `init` on all of the machines, one after another,
+    /// Calls [`Sim::init`] on all of the machines, one after another,
     /// so they are initialized in order.
-    pub async fn init_order(&mut self, machines: impl IntoIterator<Item = Arc<Machine>>) {
-        for machine in machines.into_iter() {
-            self.init(&[machine]).await;
+    pub async fn init_order(&mut self, machines: &[Arc<Machine>]) {
+        for machine in machines.into_iter().cloned() {
+            self.init(machine).await;
         }
+    }
+
+    /// Calls [`Sim::init`] on all the machines in parallel.
+    pub async fn init_parallel(&mut self, machines: &[Arc<Machine>]) {
+        let mut futs = Vec::new();
+        for machine in machines.into_iter().cloned() {
+            let fut = self.init(machine);
+            futs.push(fut);
+        }
+        futures::future::join_all(futs).await;
     }
 
     /// Wait until a protocol shuts down the sim, or until all machines have dropped their
@@ -106,13 +115,11 @@ impl Sim {
     /// Panics when a protocol panics or returns a `StartError`.
     pub async fn wait(&mut self) -> ExitStatus {
         tokio::select! {
-            // panics when a protocol returns StartError or panics
             _ = async {
                 while let Some(result) = self.tasks.join_next().await {
                     result.expect("A protocol panicked").expect("Protocols should be configured not to return StartError")
                 }
             } => (),
-            // gets status from the receiver
             status = self.shutdown.wait_for_shutdown() => return status,
         }
         
@@ -156,6 +163,29 @@ impl Sim {
     }
 }
 
+/// A struct that the client can use to notify a simulation that it is initialized.
+/// Currently, this implemented as a wrapper around a Tokio [`oneshot::Sender`].
+#[derive(Debug)]
+pub struct DoneSender {
+    /// The index of the machine in the simulation.
+    index: usize,
+    /// The name of the protocol using this DoneSender.
+    name: &'static str,
+    /// The sim knows that all protocols are done initializing when
+    /// all these senders are dropped
+    inner: broadcast::Sender<()>,
+}
+
+impl DoneSender {
+    /// Call this method to notify the other end that your protocol is finished
+    /// initializing.
+    /// (See [Sim::init].)
+    pub fn done(self) {
+        tracing::info!("Machine {}, protocol {} finished initializing", self.index, self.name);
+        drop(self)
+    }
+}
+
 impl Drop for Sim {
     fn drop(&mut self) {
         self.get_shutdown().shut_down();
@@ -176,15 +206,40 @@ async fn start_protocol(protocol: Arc<dyn Protocol>, shutdown: Shutdown, init_do
     }
 }
 
-/// Sets a panic hook that exits the entire process.
-fn make_exit_on_panic() {
-    let panic_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |panic_info| {
-        panic_hook(panic_info);
-        let backtrace = Backtrace::force_capture();
-        eprintln!("Backtrace: {:#?}", backtrace);
-        process::exit(1);
-    }));
+/// Calls [`start`] then [`boot`] on each protocol of the given machine.
+/// Returns StartError if either of those returned that.
+async fn start_machine(machine: Arc<Machine>, shut: Shutdown, send: broadcast::Sender<()>, index: usize) -> Result<(), SimError> {
+    // boot every protocol
+    for protocol in machine.iter() {
+        let result = protocol.boot(shut.clone(), machine.clone()).await;
+        if let Err(err) = result {
+            return Err(SimError {
+                index,
+                name: protocol.name(),
+                err,
+            });
+        }
+    }
+
+    // start every protocol
+    let mut tasks: JoinSet<Result<(), SimError>> = JoinSet::new();
+    for protocol in machine.iter() {
+        let ds = DoneSender {
+            index,
+            name: protocol.name(),
+            inner: send.clone(),
+        };
+        let fut = start_protocol(protocol, shut.clone(), ds, machine.clone(), index);
+        tasks.spawn(fut);
+    }
+
+    // wait for every protocol to be done
+    while let Some(result) = tasks.join_next().await {
+        // It's a Result<Result<(), SimError>, JoinError>
+        // So we handle the JoinError first.
+        result.expect("Protocol start tasks should not be cancelled or dropped this early")?;
+    }
+    Ok(())
 }
 
 impl std::fmt::Debug for Sim {
@@ -215,3 +270,14 @@ impl std::fmt::Display for SimError {
 }
 
 impl std::error::Error for SimError {}
+
+/// Sets a panic hook that exits the entire process.
+fn make_exit_on_panic() {
+    let panic_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        panic_hook(panic_info);
+        let backtrace = Backtrace::force_capture();
+        eprintln!("Backtrace: {:#?}", backtrace);
+        process::exit(1);
+    }));
+}
