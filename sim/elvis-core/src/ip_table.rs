@@ -105,12 +105,7 @@ pub struct Rte {
 }
 
 impl Rte {
-    pub fn new(
-        next_hop: Option<Ipv4Address>,
-        mask: Ipv4Mask,
-        slot: PciSlot,
-        metric: u32,
-    ) -> Self {
+    pub fn new(next_hop: Option<Ipv4Address>, mask: Ipv4Mask, slot: PciSlot, metric: u32) -> Self {
         Self {
             next_hop,
             mask,

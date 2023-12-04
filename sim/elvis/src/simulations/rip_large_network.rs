@@ -1,8 +1,11 @@
-use crate::applications::{rip::rip_router::{RipRouter, RoutingTable}, ArpRouter, MultiCapture, Counter, SendMessage};
+use crate::applications::{
+    arp_router::RoutingTable, rip::rip_router::RipRouter, ArpRouter, Counter, MultiCapture,
+    SendMessage,
+};
 use elvis_core::{
     new_machine,
     protocols::{
-        arp::subnetting::{Ipv4Mask, SubnetInfo},
+        arp::subnetting::{Ipv4Mask, Ipv4Net, SubnetInfo},
         ipv4::{Ipv4, Ipv4Address, Recipient},
         udp::Udp,
         Arp, Endpoint, Pci,
@@ -42,68 +45,86 @@ use std::{sync::Arc, time::Duration};
 
 const MESSAGE_PORT: u16 = 0xdeeb;
 
-const HOST_ADDRESSES: [Ipv4Address; 5] = [
-    // SENDER
-    Ipv4Address::new([10, 0, 0, 1]),
-    // CAPTURE 1
-    Ipv4Address::new([10, 0, 0, 6]),
-    // CAPTURE 2
-    Ipv4Address::new([10, 0, 0, 26]),
-    // CAPTURE 3
-    Ipv4Address::new([10, 0, 0, 27]),
-    // CAPTURE 4
-    Ipv4Address::new([10, 0, 0, 34]),
-];
+// I would ideally use the static variable HOST_ADDRESSES here but we would need to unwrap Ipv4Net which is not a const operation
+fn get_hosts() -> [Ipv4Net; 5] {
+    [
+        // SENDER
+        Ipv4Net::from_cidr("10.0.0.1/30").expect("Address is properly formatted"),
+        // CAPTURE 1
+        Ipv4Net::from_cidr("10.0.0.6/30").expect("Address is properly formatted"),
+        // CAPTURE 2
+        Ipv4Net::from_cidr("10.0.0.26/29").expect("Address is properly formatted"),
+        // CAPTURE 3
+        Ipv4Net::from_cidr("10.0.0.27/29").expect("Address is properly formatted"),
+        // CAPTURE 4
+        Ipv4Net::from_cidr("10.0.0.34/30").expect("Address is properly formatted"),
+    ]
+}
+fn router_1_interfaces() -> [Ipv4Net; 2] {
+    [
+        // Interface to N1
+        Ipv4Net::from_cidr("10.0.0.2/30").expect("Address is properly formatted"),
+        // Interface to N2
+        Ipv4Net::from_cidr("10.0.0.9/29").expect("Address is properly formatted"),
+    ]
+}
 
-const ROUTER_1_INTERFACES: [Ipv4Address; 2] = [
-    // Interface to N1
-    Ipv4Address::new([10, 0, 0, 2]),
-    // Interface to N2
-    Ipv4Address::new([10, 0, 0, 9]),
-];
+fn router_2_interfaces() -> [Ipv4Net; 2] {
+    [
+        // Interface to N2
+        Ipv4Net::from_cidr("10.0.0.10/29").expect("Address is properly formatted"),
+        // Interface to N3
+        Ipv4Net::from_cidr("10.0.0.5/30").expect("Address is properly formatted"),
+    ]
+}
 
-const ROUTER_2_INTERFACES: [Ipv4Address; 2] = [
-    // Interface to N2
-    Ipv4Address::new([10, 0, 0, 10]),
-    // Interface to N3
-    Ipv4Address::new([10, 0, 0, 5]),
-];
+fn router_3_interfaces() -> [Ipv4Net; 3] {
+    [
+        // Interface to N2
+        Ipv4Net::from_cidr("10.0.0.11/29").expect("Address is properly formatted"),
+        // Interface to N4
+        Ipv4Net::from_cidr("10.0.0.17/30").expect("Address is properly formatted"),
+        // Interface to N5
+        Ipv4Net::from_cidr("10.0.0.21/30").expect("Address is properly formatted"),
+    ]
+}
 
-const ROUTER_3_INTERFACES: [Ipv4Address; 3] = [
-    // Interface to N2
-    Ipv4Address::new([10, 0, 0, 11]),
-    // Interface to N4
-    Ipv4Address::new([10, 0, 0, 17]),
-    // Interface to N5
-    Ipv4Address::new([10, 0, 0, 21]),
-];
+fn router_4_interfaces() -> [Ipv4Net; 2] {
+    [
+        // Interface to N4
+        Ipv4Net::from_cidr("10.0.0.18/30").expect("Address is properly formatted"),
+        // Interface to N6
+        Ipv4Net::from_cidr("10.0.0.25/29").expect("Address is properly formatted"),
+    ]
+}
 
-const ROUTER_4_INTERFACES: [Ipv4Address; 2] = [
-    // Interface to N4
-    Ipv4Address::new([10, 0, 0, 18]),
-    // Interface to N6
-    Ipv4Address::new([10, 0, 0, 25]),
-];
-
-const ROUTER_5_INTERFACES: [Ipv4Address; 2] = [
-    // Interface to N5
-    Ipv4Address::new([10, 0, 0, 22]),
-    // Interface to N7
-    Ipv4Address::new([10, 0, 0, 33]),
-];
+fn router_5_interfaces() -> [Ipv4Net; 2] {
+    [
+        // Interface to N5
+        Ipv4Net::from_cidr("10.0.0.22/30").expect("Address is properly formatted"),
+        // Interface to N7
+        Ipv4Net::from_cidr("10.0.0.33/30").expect("Address is properly formatted"),
+    ]
+}
 
 pub fn create_capture(
-    ip: Ipv4Address,
-    subnet: SubnetInfo,
+    subnet: Ipv4Net,
+    default_gateway: Ipv4Address,
     network: Arc<Network>,
     multicapture_counter: Arc<Counter>,
 ) -> Machine {
     new_machine![
         Pci::new([network]),
-        Arp::new().preconfig_subnet(ip, subnet),
+        Arp::new().preconfig_subnet(
+            subnet.addr(),
+            SubnetInfo::new(subnet.mask(), default_gateway)
+        ),
         Ipv4::new(Default::default()),
         Udp::new(),
-        MultiCapture::new(Endpoint::new(ip, MESSAGE_PORT), multicapture_counter)
+        MultiCapture::new(
+            Endpoint::new(subnet.addr(), MESSAGE_PORT),
+            multicapture_counter
+        )
     ]
 }
 
@@ -111,16 +132,14 @@ pub fn create_router(
     // Attached networks
     networks: impl IntoIterator<Item = Arc<Network>>,
     // Router's interface IPs
-    interface_ips: &[Ipv4Address],
-    // Routing table to end devices
-    routing_table: RoutingTable,
+    interface_ips: &[Ipv4Net],
 ) -> Machine {
     // IPs are mapped to interfaces/pcis (of networks) based on their order
     // E.g. the first address in interface_ips will be the ip of the first pci interface
 
     let mut interfaces = IpTable::<Recipient>::new();
     for (pci_slot, addr) in interface_ips.iter().enumerate() {
-        interfaces.add_direct(*addr, Recipient::new(pci_slot as u32, None));
+        interfaces.add(*addr, Recipient::new(pci_slot as u32, None));
     }
 
     new_machine![
@@ -128,18 +147,23 @@ pub fn create_router(
         Arp::new(),
         Ipv4::new(interfaces),
         Udp::new(),
-        ArpRouter::new(routing_table, Vec::from(interface_ips)),
-        RipRouter::new(Vec::from(interface_ips)),
+        ArpRouter::new(),
+        RipRouter::new(),
     ]
-
-    // ArpRouter::new((interface_ips, pci), optional_routing_table);
-    // RipRouter::new()
-    //     .broadcast_network(subnet)
 }
 
-pub async fn rip_large_network(
-    capture_ips: Vec<Ipv4Address>,
-) -> ExitStatus {
+#[allow(non_snake_case)]
+pub async fn rip_large_network(capture_ips: Vec<Ipv4Net>) -> ExitStatus {
+    // All these variables should be defined as const
+    // but because we need to extract the result (a non const operation)
+    // we are forced to do use non-const functions
+    let HOST_ADDRESSES = get_hosts();
+    let ROUTER_1_INTERFACES = router_1_interfaces();
+    let ROUTER_2_INTERFACES = router_2_interfaces();
+    let ROUTER_3_INTERFACES = router_3_interfaces();
+    let ROUTER_4_INTERFACES = router_4_interfaces();
+    let ROUTER_5_INTERFACES = router_5_interfaces();
+
     // Create 7 basic networks
     // Network::basic() :   mtu = maximum packet size;
     //                      throughput = amount of data successfully transmitted from x to y in a fixed amount of time
@@ -150,7 +174,7 @@ pub async fn rip_large_network(
     let mut endpoints = Vec::new();
     capture_ips
         .iter()
-        .for_each(|recipient_ip| endpoints.push(Endpoint::new(*recipient_ip, MESSAGE_PORT)));
+        .for_each(|recipient_ip| endpoints.push(Endpoint::new(recipient_ip.addr(), MESSAGE_PORT)));
 
     // Number of recipients = numebr of capture_ips
     let multicapture_counter = Counter::new(capture_ips.len() as u32);
@@ -168,10 +192,10 @@ pub async fn rip_large_network(
             // Host IP configuration
             Arp::new().preconfig_subnet(
                 // Sender IP
-                HOST_ADDRESSES[0],
+                HOST_ADDRESSES[0].addr(),
                 SubnetInfo {
                     mask: Ipv4Mask::from_bitcount(30),
-                    default_gateway: ROUTER_1_INTERFACES[0]
+                    default_gateway: ROUTER_1_INTERFACES[0].addr()
                 }
             ),
             // IPv4 protocol intended to send message from ip HOST_ADDRESSES[0] out Pci slot 0
@@ -180,8 +204,11 @@ pub async fn rip_large_network(
             )),
             // Using transport protocol: udp
             Udp::new(),
-            message.local_ip(HOST_ADDRESSES[0]),
-            MultiCapture::new(Endpoint::new(HOST_ADDRESSES[0], MESSAGE_PORT), multicapture_counter.clone())
+            message.local_ip(HOST_ADDRESSES[0].addr()),
+            MultiCapture::new(
+                Endpoint::new(HOST_ADDRESSES[0].addr(), MESSAGE_PORT),
+                multicapture_counter.clone()
+            )
         ],
     ];
 
@@ -190,44 +217,32 @@ pub async fn rip_large_network(
         create_capture(
             // Address of machine
             HOST_ADDRESSES[1],
-            SubnetInfo {
-                mask: Ipv4Mask::from_bitcount(30),
-                default_gateway: ROUTER_2_INTERFACES[1],
-            },
+            ROUTER_2_INTERFACES[1].addr(),
             // Attached network
             networks[2].clone(),
             // Multicapture counter and status
-            multicapture_counter.clone()
+            multicapture_counter.clone(),
         ),
         // Capture 2
         create_capture(
             HOST_ADDRESSES[2],
-            SubnetInfo {
-                mask: Ipv4Mask::from_bitcount(29),
-                default_gateway: ROUTER_4_INTERFACES[1],
-            },
+            ROUTER_4_INTERFACES[1].addr(),
             networks[5].clone(),
-            multicapture_counter.clone()
+            multicapture_counter.clone(),
         ),
         // Capture 3
         create_capture(
             HOST_ADDRESSES[3],
-            SubnetInfo {
-                mask: Ipv4Mask::from_bitcount(29),
-                default_gateway: ROUTER_4_INTERFACES[1],
-            },
+            ROUTER_4_INTERFACES[1].addr(),
             networks[5].clone(),
-            multicapture_counter.clone()
+            multicapture_counter.clone(),
         ),
         // Capture 4
         create_capture(
             HOST_ADDRESSES[4],
-            SubnetInfo {
-                mask: Ipv4Mask::from_bitcount(30),
-                default_gateway: ROUTER_5_INTERFACES[1],
-            },
+            ROUTER_5_INTERFACES[1].addr(),
             networks[6].clone(),
-            multicapture_counter.clone()
+            multicapture_counter.clone(),
         ),
     ];
     end_devices.extend(captures);
@@ -238,14 +253,11 @@ pub async fn rip_large_network(
             // Connected networks
             [networks[0].clone(), networks[1].clone()],
             &ROUTER_1_INTERFACES,
-            // Connected hosts
-            [(HOST_ADDRESSES[0], (None, 1))].into_iter().collect(),
         ),
         // RIP 2
         create_router(
             [networks[1].clone(), networks[2].clone()],
             &ROUTER_2_INTERFACES,
-            [(HOST_ADDRESSES[1], (None, 1))].into_iter().collect(),
         ),
         // RIP 3
         create_router(
@@ -255,20 +267,16 @@ pub async fn rip_large_network(
                 networks[4].clone(),
             ],
             &ROUTER_3_INTERFACES,
-            // RIP router is connected to no hosts
-            RoutingTable::new(),
         ),
         // RIP 4
         create_router(
             [networks[3].clone(), networks[5].clone()],
             &ROUTER_4_INTERFACES,
-            [(HOST_ADDRESSES[2], (None, 1)), (HOST_ADDRESSES[3], (None, 1))].into_iter().collect(),
         ),
         // RIP 5
         create_router(
             [networks[4].clone(), networks[6].clone()],
             &ROUTER_5_INTERFACES,
-            [(HOST_ADDRESSES[4], (None, 1))].into_iter().collect(),
         ),
     ];
 
@@ -283,22 +291,32 @@ mod tests {
 
     use super::*;
 
+    #[allow(non_snake_case)]
     #[tokio::test]
     async fn rip_large_network() {
         // SINGLE CAPTURE (SENDER -> CAPTURE3)
+        let HOST_ADDRESSES = get_hosts();
         let recipient_ips = Vec::from([HOST_ADDRESSES[3]]);
         let test1 = super::rip_large_network(recipient_ips.clone());
 
         // Message should reach capture 3 (and no other)
-        assert_eq!(test1.await, super::ExitStatus::Status(recipient_ips.len() as u32));
+        assert_eq!(
+            test1.await,
+            super::ExitStatus::Status(recipient_ips.len() as u32)
+        );
     }
 
+    #[allow(non_snake_case)]
     #[tokio::test]
     async fn rip_large_network_all() {
+        let HOST_ADDRESSES = get_hosts();
         // MULTIPLE CAPTURE (SENDER -> ALL CAPTURES)
         let recipient_ips = Vec::from(&HOST_ADDRESSES[1..]);
         let test2 = super::rip_large_network(recipient_ips.clone());
 
-        assert_eq!(test2.await, super::ExitStatus::Status(recipient_ips.len() as u32));
+        assert_eq!(
+            test2.await,
+            super::ExitStatus::Status(recipient_ips.len() as u32)
+        );
     }
 }

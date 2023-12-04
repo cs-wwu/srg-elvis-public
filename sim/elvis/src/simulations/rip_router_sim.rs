@@ -130,8 +130,8 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new(ip_table_1),
             Arp::new(),
             Udp::new(),
-            ArpRouter::new(router_table_1, ROUTER1_IPS.to_vec()),
-            RipRouter::new(ROUTER1_IPS.to_vec())
+            ArpRouter::from_table(router_table_1),
+            RipRouter::new()
         ],
         new_machine![
             Pci::new([
@@ -142,8 +142,8 @@ pub async fn rip_router(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new(ip_table_2),
             Arp::new(),
             Udp::new(),
-            ArpRouter::new(router_table_2, ROUTER2_IPS.to_vec()),
-            RipRouter::new(ROUTER2_IPS.to_vec())
+            ArpRouter::from_table(router_table_2),
+            RipRouter::new()
         ],
         // Destinations
         build_capture(networks[1].clone(), IPS[1], 1),
@@ -246,32 +246,32 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new(ip_table_1),
             Arp::new(),
             Udp::new(),
-            ArpRouter::new(router_table_1, router1_ips.to_vec()),
-            RipRouter::new(router1_ips.to_vec())
+            ArpRouter::from_table(router_table_1),
+            RipRouter::new()
         ],
         new_machine![
             Pci::new([networks[1].clone(), networks[2].clone(),]),
             Ipv4::new(ip_table_2),
             Arp::new(),
             Udp::new(),
-            ArpRouter::new(Default::default(), router2_ips.to_vec()),
-            RipRouter::new(router2_ips.to_vec())
+            ArpRouter::from_table(Default::default()),
+            RipRouter::new()
         ],
         new_machine![
             Pci::new([networks[2].clone(), networks[3].clone(),]),
             Ipv4::new(ip_table_3),
             Arp::new(),
             Udp::new(),
-            ArpRouter::new(Default::default(), router3_ips.to_vec()),
-            RipRouter::new(router3_ips.to_vec())
+            ArpRouter::from_table(Default::default()),
+            RipRouter::new()
         ],
         new_machine![
             Pci::new([networks[3].clone(), networks[4].clone(),]),
             Ipv4::new(ip_table_4),
             Arp::new(),
             Udp::new(),
-            ArpRouter::new(Default::default(), router4_ips.to_vec()),
-            RipRouter::new(router4_ips.to_vec())
+            ArpRouter::from_table(Default::default()),
+            RipRouter::new()
         ],
         new_machine![
             Pci::new([
@@ -283,8 +283,8 @@ pub async fn pitchfork(destination: Ipv4Address) -> ExitStatus {
             Ipv4::new(ip_table_5),
             Arp::new(),
             Udp::new(),
-            ArpRouter::new(router_table_5, router5_ips.to_vec()),
-            RipRouter::new(router5_ips.to_vec())
+            ArpRouter::from_table(router_table_5),
+            RipRouter::new()
         ],
         // Destinations
         build_capture(networks[5].clone(), IPS[1], 1),
@@ -324,5 +324,4 @@ mod tests {
         assert_eq!(test2.await, super::ExitStatus::Status(2));
         assert_eq!(test3.await, super::ExitStatus::Status(3));
     }
-
 }

@@ -5,7 +5,7 @@ use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
     protocols::{
-        arp::subnetting::Ipv4Net,
+        arp::subnetting::{Ipv4Mask, Ipv4Net},
         ipv4::{ipv4_parsing::Ipv4Header, Ipv4Address, ProtocolNumber},
         AddressPair, Arp, Ipv4, Pci,
     },
@@ -20,29 +20,50 @@ use super::rip_parsing::{RipEntry, RipPacket};
 // entry representing next hop, outgoing interface, metric and route change flag
 const INFINITY: u32 = 16;
 
+pub type RoutingTable = IpTable<(Option<Ipv4Address>, PciSlot)>;
+
 #[derive(Debug)]
 /// Static router that uses arp to route messages to the correct location
 /// created by providing a table mapping subnet to router ip and pci slot
 /// requires a local ip to be specified for each pci session
 pub struct ArpRouter {
     ip_table: RwLock<IpTable<Rte>>,
-    local_ips: Vec<Ipv4Address>,
     name: Option<String>,
 }
 
 impl ArpRouter {
-    pub fn new(
+    pub fn new() -> Self {
+        Self {
+            ip_table: RwLock::new(RoutingTable::new().into()),
+            name: None,
+        }
+    }
+
+    pub fn from_table(
         // Maps subnet to a given router ip.
         // Setting route to none sets the destination ip to the destination
         // ip in the received packet so the router can send to a local network.
-        ip_table: IpTable<(Option<Ipv4Address>, PciSlot)>,
-        local_ips: Vec<Ipv4Address>,
+        routing_table: RoutingTable,
     ) -> Self {
         Self {
-            ip_table: RwLock::new(ip_table.into()),
-            local_ips,
+            ip_table: RwLock::new(routing_table.into()),
             name: None,
         }
+    }
+
+    /// Adds a static route to the desired subnet directed out of a pci_slot
+    pub fn static_route(
+        &mut self,
+        subnet: Ipv4Address,
+        mask: Ipv4Mask,
+        egress_slot: PciSlot,
+    ) -> &mut Self {
+        let rte = Rte::new(None, mask, egress_slot, 0);
+        self.ip_table
+            .write()
+            .unwrap()
+            .add(Ipv4Net::new(subnet, mask), rte);
+        self
     }
 
     pub fn debug(mut self, name: String) -> Self {
@@ -169,13 +190,13 @@ impl Protocol for ArpRouter {
         initialize: Arc<Barrier>,
         protocols: ProtocolMap,
     ) -> Result<(), StartError> {
-        let ipv4 = protocols
-            .protocol::<Ipv4>()
-            .expect("Arp Router requires IPv4");
-
         let arp = protocols
             .protocol::<Arp>()
             .expect("Arp Router requires Arp");
+
+        let ipv4 = protocols
+            .protocol::<Ipv4>()
+            .expect("Arp Router requires IPv4");
 
         ipv4.listen(
             self.id(),
@@ -193,9 +214,16 @@ impl Protocol for ArpRouter {
         )
         .unwrap();
 
-        for ip in self.local_ips.iter() {
-            arp.listen(*ip);
+        for (subnet, recipient) in ipv4.iter_subnets() {
+            // Fill directly connected routes in routing table
+            self.ip_table
+                .write()
+                .unwrap()
+                .add(subnet, Rte::new(None, subnet.mask(), recipient.slot, 0));
+            // Listen for arp requests
+            arp.listen(subnet.addr());
         }
+        // self.ip_table.read().unwrap().iter().for_each(|(subnet, rte)| println!("{subnet:?} {rte:?}"));
 
         initialize.wait().await;
         Ok(())
@@ -231,9 +259,18 @@ impl Protocol for ArpRouter {
 
         let slot = rte.slot;
 
+        // Extract the Ip address from the pci slot
+        let ipv4 = protocols.protocol::<Ipv4>().unwrap();
+        let local = ipv4
+            .iter_subnets()
+            .find(|(_subnet, recipient)| recipient.slot == slot)
+            .expect("Slot should exist")
+            .0
+            .addr();
+
         let arp = protocols.protocol::<Arp>().unwrap();
         let address_pair = AddressPair {
-            local: self.local_ips[slot as usize],
+            local,
             remote: gateway,
         };
 

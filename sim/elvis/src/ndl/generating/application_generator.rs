@@ -310,9 +310,9 @@ pub fn rip_router_builder(
         })
         .collect();
 
-    let rip = RipRouter::new(local_ips.clone());
+    let rip = RipRouter::new();
 
-    let arp = ArpRouter::new(router_table.clone(), local_ips.clone());
+    let arp = ArpRouter::from_table(router_table.clone());
 
     (arp, rip)
 }
@@ -353,7 +353,7 @@ pub fn arp_router_builder(
             })
         })
         .collect();
-    ArpRouter::new(router_table, local_ips)
+    ArpRouter::from_table(router_table)
 }
 
 /// Builds an [Arp] protocol for the machine
