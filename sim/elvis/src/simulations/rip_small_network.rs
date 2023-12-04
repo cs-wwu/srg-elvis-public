@@ -1,4 +1,4 @@
-use crate::applications::{rip::rip_router::{RipRouter, RoutingTable}, ArpRouter, MultiCapture, Counter, SendMessage};
+use crate::applications::{rip::rip_router::RipRouter, arp_router::RoutingTable, ArpRouter, MultiCapture, Counter, SendMessage};
 use elvis_core::{
     new_machine,
     protocols::{
@@ -100,8 +100,8 @@ pub fn create_router(
         Arp::new(),
         Ipv4::new(interfaces),
         Udp::new(),
-        ArpRouter::new(routing_table, Vec::from(interface_ips)),
-        RipRouter::new(Vec::from(interface_ips)),
+        ArpRouter::from_table(routing_table),
+        RipRouter::new(),
     ]
 }
 
