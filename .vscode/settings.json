@@ -3,6 +3,7 @@
         "./sim/elvis-core/Cargo.toml",
         "./sim/elvis-core/Cargo.toml",
         "./sim/elvis-core/Cargo.toml",
+        "./sim/elvis-core/Cargo.toml",
         "./sim/elvis-core/Cargo.toml"
     ]
 }
