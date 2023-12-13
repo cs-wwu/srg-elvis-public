@@ -61,7 +61,7 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
         tokio::spawn(async move {
             sleep(duration).await;
             println!("Waking up and shutting down");
-            shutdown.shut_down();
+            shutdown.shut_down_with_status(ExitStatus::TimedOut);
         });
     }
 
@@ -76,10 +76,10 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
                 result.expect("machines should be configured so internet can be run successfully");
             }
         } => (),
-        result = shutdown_receiver.recv() => {
+        result = get_status(&mut shutdown_receiver) => {
             match result {
-                Err(_) => return ExitStatus::Exited,
-                Ok(status) => return status
+                None => return ExitStatus::Exited,
+                Some(status) => return status
             }
         },
     }
@@ -90,5 +90,18 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
     match result {
         Ok(status) => status,
         Err(_) => ExitStatus::Exited,
+    }
+}
+
+/// Gets the shutdown status from a broadcast receiver.
+/// Returns None if the channel is closed.
+async fn get_status(shutdown_receiver: &mut tokio::sync::broadcast::Receiver<ExitStatus>) -> Option<ExitStatus> {
+    use tokio::sync::broadcast::error::RecvError;
+    loop {
+        match shutdown_receiver.recv().await {
+            Ok(status) => return Some(status),
+            Err(RecvError::Closed) => return None,
+            Err(RecvError::Lagged(_)) => continue,
+        }
     }
 }
