@@ -81,7 +81,7 @@ impl WebServer {
 impl Protocol for WebServer {
     async fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
@@ -102,7 +102,6 @@ impl Protocol for WebServer {
                 Ok(stream) => stream,
                 Err(SocketError::Shutdown) => {
                     // This prevents the program from panicking on shut down
-                    shutdown.shut_down();
                     return Ok(());
                 }
                 Err(e) => panic!("{:?}", e),

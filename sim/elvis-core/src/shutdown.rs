@@ -14,7 +14,7 @@ pub struct Shutdown {
 
 impl Shutdown {
     pub fn new() -> Self {
-        let (notify, _) = broadcast::channel(1);
+        let (notify, _) = broadcast::channel(16);
         let (confirm, _) = mpsc::channel(1);
         Self { notify, confirm }
     }
