@@ -95,7 +95,9 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
 
 /// Gets the shutdown status from a broadcast receiver.
 /// Returns None if the channel is closed.
-async fn get_status(shutdown_receiver: &mut tokio::sync::broadcast::Receiver<ExitStatus>) -> Option<ExitStatus> {
+async fn get_status(
+    shutdown_receiver: &mut tokio::sync::broadcast::Receiver<ExitStatus>,
+) -> Option<ExitStatus> {
     use tokio::sync::broadcast::error::RecvError;
     loop {
         match shutdown_receiver.recv().await {
