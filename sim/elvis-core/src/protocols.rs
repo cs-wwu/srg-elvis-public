@@ -4,6 +4,9 @@ pub mod ipv4;
 pub use ipv4::ipv4_session::AddressPair;
 pub use ipv4::Ipv4;
 
+pub mod multicast;
+pub use multicast::igmp::MulticastAddress;
+
 pub mod arp;
 pub use arp::Arp;
 
