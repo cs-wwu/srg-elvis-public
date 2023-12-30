@@ -93,7 +93,6 @@ impl Udp {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Udp {
     fn demux(
         &self,

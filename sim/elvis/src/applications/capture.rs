@@ -150,7 +150,6 @@ impl Capture {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Capture {
     async fn start(
         &self,

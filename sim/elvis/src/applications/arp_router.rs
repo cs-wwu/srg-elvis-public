@@ -35,7 +35,6 @@ impl ArpRouter {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for ArpRouter {
     async fn start(
         &self,

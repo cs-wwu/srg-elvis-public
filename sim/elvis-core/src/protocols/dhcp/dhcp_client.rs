@@ -33,7 +33,6 @@ impl DhcpClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for DhcpClient {
     async fn start(
         &self,

@@ -25,7 +25,6 @@ impl BareBonesClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for BareBonesClient {
     async fn start(
         &self,

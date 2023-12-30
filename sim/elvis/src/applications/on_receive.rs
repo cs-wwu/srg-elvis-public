@@ -53,7 +53,6 @@ impl OnReceive {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for OnReceive {
     async fn start(
         &self,

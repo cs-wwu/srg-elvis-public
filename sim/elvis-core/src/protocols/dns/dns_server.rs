@@ -93,7 +93,6 @@ impl DnsServer {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for DnsServer {
     async fn start(
         &self,

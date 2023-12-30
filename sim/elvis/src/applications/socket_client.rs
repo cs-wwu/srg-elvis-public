@@ -46,7 +46,6 @@ impl SocketClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for SocketClient {
     async fn start(
         &self,

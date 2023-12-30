@@ -43,7 +43,6 @@ impl SendMessage {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for SendMessage {
     async fn start(
         &self,

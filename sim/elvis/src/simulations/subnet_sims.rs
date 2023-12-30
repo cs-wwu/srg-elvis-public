@@ -51,7 +51,6 @@ struct MockGateway {
     send: broadcast::Sender<Message>,
 }
 
-#[async_trait::async_trait]
 impl Protocol for MockGateway {
     async fn start(
         &self,

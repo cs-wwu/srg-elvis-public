@@ -150,7 +150,6 @@ impl Ipv4 {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Ipv4 {
     async fn start(
         &self,

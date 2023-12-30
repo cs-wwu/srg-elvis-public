@@ -42,7 +42,6 @@ impl BasicClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for BasicClient {
     async fn start(
         &self,

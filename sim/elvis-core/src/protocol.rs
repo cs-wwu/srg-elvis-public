@@ -1,48 +1,4 @@
 //! The [`Protocol`] trait and supporting types.
-//!
-//!
-//! # Async trait
-//!
-//! Due to the nature of the [`async_trait::async_trait`] macro,
-//! this looks like a mess when viewed with `cargo doc`.
-//! When you create your own application, you can do it like so:
-//!
-//! ```
-//! use elvis_core::*;
-//! use elvis_core::machine::*;
-//! use elvis_core::session::Session;
-//! use elvis_core::protocol::*;
-//! use tokio::sync::Barrier;
-//! use std::sync::Arc;
-//! use std::any::*;
-//!
-//! struct MyApp {}
-//!
-//! #[async_trait::async_trait]
-//! impl Protocol for MyApp {
-//!     fn id(&self) -> TypeId {
-//!         self.type_id()
-//!     }
-//!     async fn start(
-//!         &self,
-//!         shutdown: Shutdown,
-//!         initialize: Arc<Barrier>,
-//!         machine: Arc<Machine>,
-//!     ) -> Result<(), StartError> {
-//!         Ok(())
-//!     }
-//!
-//!     fn demux(
-//!         &self,
-//!         message: Message,
-//!         caller: Arc<dyn Session>,
-//!         control: Control,
-//!         machine: Arc<Machine>,
-//!     ) -> Result<(), DemuxError> {
-//!         Ok(())
-//!     }
-//! }
-//! ```
 
 use super::message::Message;
 use crate::{session::SendError, Control, Machine, Session, Shutdown};
@@ -50,6 +6,7 @@ use std::{
     any::{Any, TypeId},
     sync::Arc,
 };
+use futures::Future;
 use tokio::sync::Barrier;
 
 // TODO(hardint): Should add a str argument to the Other variant of errors so
@@ -57,9 +14,8 @@ use tokio::sync::Barrier;
 
 /// A member of a networking protocol stack.
 ///
-/// A protocol is responsible for creating new [`Session`](super::Session)s and
+/// A protocol is responsible for creating new [`Session`]s and
 /// demultiplexing requests to the correct session.
-#[async_trait::async_trait]
 pub trait Protocol: Send + Sync + 'static {
     fn id(&self) -> TypeId {
         self.type_id()
@@ -75,12 +31,49 @@ pub trait Protocol: Send + Sync + 'static {
     /// are ready to receive the message. Implementors may also store the
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
-    async fn start(
+    /// 
+    /// # Using async
+    /// 
+    /// The return type of this method is quite ugly. We suggest writing
+    /// your start method as an async fn.
+    /// ([This is totally legal!](https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html#can-i-mix-async-fn-and-impl-trait))
+    /// 
+    /// ```
+    /// # use elvis_core::protocol::*;
+    /// # use elvis_core::shutdown::*;
+    /// # use elvis_core::*;
+    /// # use elvis_core::session::*;
+    /// # use tokio::sync::Barrier;
+    /// # use std::sync::Arc;
+    /// pub struct MyProtocol {}
+    /// impl Protocol for MyProtocol {
+    ///     async fn start(
+    ///         &self,
+    ///         _shutdown: Shutdown,
+    ///         initialized: Arc<Barrier>,
+    ///         _machine: Arc<Machine>,
+    ///     ) -> Result<(), StartError> {
+    ///         initialized.wait().await;
+    ///         Ok(())
+    ///     }
+    /// #
+    /// #   fn demux(
+    /// #       &self,
+    /// #       _: Message,
+    /// #       _: Arc<dyn Session>,
+    /// #       _: Control,
+    /// #       _: Arc<Machine>,
+    /// #   ) -> Result<(), DemuxError> { Ok(()) }
+    /// }
+    /// ```
+    fn start(
         &self,
         shutdown: Shutdown,
         initialized: Arc<Barrier>,
         machine: Arc<Machine>,
-    ) -> Result<(), StartError>;
+    ) -> impl Future<Output = Result<(), StartError>> + Send
+    where
+        Self: Sized;
 
     /// Identifies the session that a message belongs to and forwards the
     /// message to it.

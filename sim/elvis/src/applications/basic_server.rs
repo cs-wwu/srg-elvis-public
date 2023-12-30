@@ -39,7 +39,6 @@ impl BasicServer {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for BasicServer {
     async fn start(
         &self,

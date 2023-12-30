@@ -49,7 +49,6 @@ impl PingPong {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for PingPong {
     async fn start(
         &self,

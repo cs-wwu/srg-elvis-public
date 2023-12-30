@@ -38,7 +38,6 @@ impl ThroughputTester {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for ThroughputTester {
     async fn start(
         &self,

@@ -22,7 +22,6 @@ impl TcpListenerServer {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for TcpListenerServer {
     async fn start(
         &self,

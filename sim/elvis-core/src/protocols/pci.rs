@@ -59,7 +59,6 @@ impl Pci {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Pci {
     fn demux(
         &self,

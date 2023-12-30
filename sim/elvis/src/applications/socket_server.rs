@@ -112,7 +112,6 @@ async fn communicate_with_client(mut socket: Socket, server_num: u16, output: bo
     socket.close();
 }
 
-#[async_trait::async_trait]
 impl Protocol for SocketServer {
     async fn start(
         &self,

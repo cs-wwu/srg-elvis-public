@@ -28,7 +28,6 @@ impl DhcpServer {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for DhcpServer {
     /// Initialize the server and listen/respond to client requests
     async fn start(

@@ -17,7 +17,6 @@ console-subscriber = "*"
 itertools = "0.8"
 rustc-hash = "1.1.0"
 nom = "7"
-async-trait = "0.1.68"
 csv = "1.2.2"
 rand_distr = "0.4.3"
 serde = {version = "1.0.144", features = ["derive", "rc"]}

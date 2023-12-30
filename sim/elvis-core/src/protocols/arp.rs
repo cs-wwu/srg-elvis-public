@@ -66,7 +66,6 @@ fn send_arp_request(pci_session: Arc<PciSession>, addrs: AddressPair) -> Result<
     pci_session.send_pci(packet.build().into(), None, TypeId::of::<Arp>())
 }
 
-#[async_trait::async_trait]
 impl Protocol for Arp {
     async fn start(
         &self,

@@ -118,7 +118,6 @@ impl DnsClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for DnsClient {
     fn id(&self) -> TypeId {
         self.type_id()

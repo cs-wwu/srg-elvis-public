@@ -234,7 +234,6 @@ impl SocketAPI {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for SocketAPI {
     fn id(&self) -> TypeId {
         TypeId::of::<Self>()

@@ -30,7 +30,6 @@ impl StreamingClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for StreamingClient {
     async fn start(
         &self,

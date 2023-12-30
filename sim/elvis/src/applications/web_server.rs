@@ -77,7 +77,6 @@ impl WebServer {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for WebServer {
     async fn start(
         &self,

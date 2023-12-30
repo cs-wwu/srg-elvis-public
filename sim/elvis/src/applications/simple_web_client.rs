@@ -26,7 +26,6 @@ impl SimpleWebClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for SimpleWebClient {
     async fn start(
         &self,

@@ -22,7 +22,6 @@ impl TcpStreamClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for TcpStreamClient {
     async fn start(
         &self,

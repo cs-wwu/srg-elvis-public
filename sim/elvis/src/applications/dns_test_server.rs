@@ -47,7 +47,6 @@ async fn communicate_with_client(mut socket: Socket) {
     println!("SERVER: Ackowledgement Received");
 }
 
-#[async_trait::async_trait]
 impl Protocol for DnsTestServer {
     async fn start(
         &self,

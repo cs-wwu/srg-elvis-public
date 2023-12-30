@@ -26,7 +26,6 @@ impl DnsTestClient {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for DnsTestClient {
     async fn start(
         &self,

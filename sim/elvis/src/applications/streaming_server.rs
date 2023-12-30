@@ -27,7 +27,6 @@ impl VideoServer {
  * streaming_server works in tandem with streaming_client. This server is designed to
  * wait for http requests from a client, then process and respond when one comes through.
  */
-#[async_trait::async_trait]
 impl Protocol for VideoServer {
     async fn start(
         &self,

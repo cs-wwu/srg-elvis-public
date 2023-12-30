@@ -40,7 +40,6 @@ impl BareBonesServer {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for BareBonesServer {
     async fn start(
         &self,

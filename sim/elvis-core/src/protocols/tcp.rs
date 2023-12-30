@@ -93,7 +93,6 @@ impl Tcp {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Tcp {
     fn demux(
         &self,

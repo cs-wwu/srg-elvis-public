@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use elvis_core::{
     message::Message,
     protocol::{DemuxError, StartError},
@@ -294,7 +293,6 @@ impl UserBehavior {
     }
 }
 
-#[async_trait]
 impl Protocol for UserBehavior {
     async fn start(
         &self,

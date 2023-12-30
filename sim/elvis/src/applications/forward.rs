@@ -24,7 +24,6 @@ impl Forward {
     }
 }
 
-#[async_trait::async_trait]
 impl Protocol for Forward {
     async fn start(
         &self,
