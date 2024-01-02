@@ -2,11 +2,11 @@
 
 use super::message::Message;
 use crate::{session::SendError, Control, Machine, Session, Shutdown};
+use futures::Future;
 use std::{
     any::{Any, TypeId},
     sync::Arc,
 };
-use futures::Future;
 use tokio::sync::Barrier;
 
 // TODO(hardint): Should add a str argument to the Other variant of errors so
@@ -31,13 +31,13 @@ pub trait Protocol: Send + Sync + 'static {
     /// are ready to receive the message. Implementors may also store the
     /// `shutdown` channel and send on it at a later time to cleanly shut down
     /// the simulation.
-    /// 
+    ///
     /// # Using async
-    /// 
+    ///
     /// The return type of this method is quite ugly. We suggest writing
     /// your start method as an async fn.
     /// ([This is totally legal!](https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html#can-i-mix-async-fn-and-impl-trait))
-    /// 
+    ///
     /// ```
     /// # use elvis_core::protocol::*;
     /// # use elvis_core::shutdown::*;

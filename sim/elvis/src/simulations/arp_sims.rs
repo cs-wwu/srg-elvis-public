@@ -119,7 +119,7 @@ mod wait_to_send {
     /// An application which doesn't set its local IP until 300 ms have passed.
     pub struct WaitToListen();
 
-        impl Protocol for WaitToListen {
+    impl Protocol for WaitToListen {
         async fn start(
             &self,
             _shutdown: elvis_core::Shutdown,
