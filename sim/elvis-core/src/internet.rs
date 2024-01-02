@@ -39,6 +39,10 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
     }));
 
     let shutdown = Shutdown::new();
+    // IMPORTANT: we must create the shutdown receiver before starting the machines
+    // so it can receive shutdown messages!
+    let mut shutdown_receiver = shutdown.clone().receiver();
+
     let total_protocols: usize = machines
         .iter()
         .map(|machine| machine.protocol_count())
@@ -66,7 +70,6 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
     }
 
     // We drop our shutdown first because otherwise, the recv() sleeps forever
-    let mut shutdown_receiver = shutdown.receiver();
     drop(shutdown);
 
     // wait for all starts to finish, or shutdown to occur, whichever happens first
@@ -76,33 +79,23 @@ pub async fn run_internet(machines: &[Arc<Machine>], timeout: Option<Duration>) 
                 result.expect("machines should be configured so internet can be run successfully");
             }
         } => (),
-        result = get_status(&mut shutdown_receiver) => {
-            match result {
-                None => return ExitStatus::Exited,
-                Some(status) => return status
-            }
-        },
+        result = get_status(&mut shutdown_receiver) => return result,
     }
     // When every sender has gone out of scope, the recv call
     // will return with an error. We ignore the error.
-    let result = shutdown_receiver.recv().await;
-
-    match result {
-        Ok(status) => status,
-        Err(_) => ExitStatus::Exited,
-    }
+    get_status(&mut shutdown_receiver).await
 }
 
 /// Gets the shutdown status from a broadcast receiver.
-/// Returns None if the channel is closed.
+/// Returns ExitStatus::Exited if the channel is closed.
 async fn get_status(
     shutdown_receiver: &mut tokio::sync::broadcast::Receiver<ExitStatus>,
-) -> Option<ExitStatus> {
+) -> ExitStatus {
     use tokio::sync::broadcast::error::RecvError;
     loop {
         match shutdown_receiver.recv().await {
-            Ok(status) => return Some(status),
-            Err(RecvError::Closed) => return None,
+            Ok(status) => return status,
+            Err(RecvError::Closed) => return ExitStatus::Exited,
             Err(RecvError::Lagged(_)) => continue,
         }
     }
