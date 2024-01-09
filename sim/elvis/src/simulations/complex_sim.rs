@@ -31,5 +31,59 @@ pub async fn complex_sim() {
     let dns_again_server_ip_address: Ipv4Address = [123, 45, 67, 15].into();
     let dhcp_server_ip_address: Ipv4Address = [123, 123, 123, 123].into(); //diff from their sim
     let localhost_ip_address: Ipv4Address = [123, 45, 67, 89].into();
+    let userclient_ip_address: Ipv4Address = [123, 45, 67, 90].into();
     // look at how server_experiment generates ip_addresses 
+    // This is from all the other sims initial IpTable I believe
+    let ip_table: IpTable<Recipient> = [("0.0.0.0/0", Recipient::new(0, None))]
+        .into_iter()
+        .collect();
+    // From sockets don't know what this does
+    let info = SubnetInfo {
+        mask: Ipv4Mask::from_bitcount(0),
+        default_gateway: Ipv4Address::from([1, 1, 1, 1]),
+    };
+    // not quite sure whether machines should be separate for each protocol/application
+    // trying to be run or to whether combine them somehow
+    // v1 for User_behavior
+    let machines = vec![
+        new_machine_arc![
+            Tcp::new(),
+            Ipv4::new(ip_table.clone()),
+            Pci::new([network.clone()]),
+            Arp::new(),
+            SocketAPI::new(Some(user_server_ip_address)),
+            WebServer::new(WebServerType::Yahoo, None),
+        ],
+    ];
+
+    // v2 for combo
+    // let machines = vec![
+    //     new_machine_arc![
+    //         Udp::new(),
+    //         Tcp::new(),
+    //         Ipv4::new(ip_table.clone()),
+    //         Pci::new([network.clone()]),
+    //         Arp::new(),
+    //         SocketAPI::new(Some(user_server_ip_address)),
+    //         WebServer::new(WebServerType::Yahoo, None),
+    //         DnsTestServer::new(0xbeef, SocketType::Datagram)
+    //         ...
+    //     ],
+    // ];
+    let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
+    assert_eq!(status, ExitStatus::Exited);
+    // for testing afterwards
+    let mut machines_iter = machines.into_iter();
+    let _server = machines_iter.next().unwrap();
+
+    #[cfg(test)]
+mod tests {
+    #[tokio::test(flavor = "multi_thread")]
+    async fn complex_sim() {
+        for _ in 0..5 {
+            super::complex_sim().await;
+        }
+    }
+}
+
 }
