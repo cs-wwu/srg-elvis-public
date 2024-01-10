@@ -49,6 +49,13 @@ pub async fn names() {
     let status = run_internet_with_timeout(&machines, Duration::from_secs(2)).await;
     assert_eq!(status, ExitStatus::Exited);
 
+    let mut counter: i32 = 0;
+    for machine in &machines {
+        println!("name: {}", machine.name.get().unwrap());
+        assert_eq!(&counter.to_string(), machine.name.get().unwrap());
+        counter += 1;
+    }
+
     let received = machines
         .into_iter()
         .nth(1)
