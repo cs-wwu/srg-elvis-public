@@ -18,7 +18,7 @@ fn benchmark_sim(c: &mut Criterion) {
         &file_path_ten,
         |b, &s| {
             b.to_async(runtime())
-                .iter(|| generate_and_run_sim(s.to_string()));
+                .iter(|| generate_and_run_sim(s.to_string(), None));
         },
     );
     group.bench_with_input(
@@ -26,7 +26,7 @@ fn benchmark_sim(c: &mut Criterion) {
         &file_path_hundred,
         |b, &s| {
             b.to_async(runtime())
-                .iter(|| generate_and_run_sim(s.to_string()));
+                .iter(|| generate_and_run_sim(s.to_string(), None));
         },
     );
     group.bench_with_input(
@@ -34,7 +34,7 @@ fn benchmark_sim(c: &mut Criterion) {
         &file_path_thousand,
         |b, &s| {
             b.to_async(runtime())
-                .iter(|| generate_and_run_sim(s.to_string()));
+                .iter(|| generate_and_run_sim(s.to_string(), None));
         },
     );
     group.bench_with_input(
@@ -42,7 +42,7 @@ fn benchmark_sim(c: &mut Criterion) {
         &file_path_ten_thousand,
         |b, &s| {
             b.to_async(runtime())
-                .iter(|| generate_and_run_sim(s.to_string()));
+                .iter(|| generate_and_run_sim(s.to_string(), None));
         },
     );
     group.bench_with_input(
@@ -50,7 +50,7 @@ fn benchmark_sim(c: &mut Criterion) {
         &file_path_fifty_thousand,
         |b, &s| {
             b.to_async(runtime())
-                .iter(|| generate_and_run_sim(s.to_string()));
+                .iter(|| generate_and_run_sim(s.to_string(), None));
         },
     );
     group.bench_with_input(
@@ -58,7 +58,7 @@ fn benchmark_sim(c: &mut Criterion) {
         &file_path_hundred_thousand,
         |b, &s| {
             b.to_async(runtime())
-                .iter(|| generate_and_run_sim(s.to_string()));
+                .iter(|| generate_and_run_sim(s.to_string(), None));
         },
     );
     group.finish();

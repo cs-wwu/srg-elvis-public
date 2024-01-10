@@ -198,7 +198,6 @@ impl Protocol for Capture {
         _control: Control,
         _machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
-        println!("received message of len: {}", message.len());
         // lock received messages for duration of demux
         let mut guard = self.received.lock().unwrap();
         guard.amount += 1;

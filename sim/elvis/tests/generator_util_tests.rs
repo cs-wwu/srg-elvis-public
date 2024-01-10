@@ -14,7 +14,7 @@ fn catch_panic() {
 async fn generator_util_invalid_ip_octets() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/utils/invalid_ip_octets.txt".to_string();
-    generate_and_run_sim(file_path).await;
+    generate_and_run_sim(file_path, None).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -22,7 +22,7 @@ async fn generator_util_invalid_ip_octets() {
 async fn generator_util_invalid_ip_u8_octets() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/utils/invalid_ip_u8_octets.txt".to_string();
-    generate_and_run_sim(file_path).await;
+    generate_and_run_sim(file_path, None).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -30,5 +30,5 @@ async fn generator_util_invalid_ip_u8_octets() {
 async fn generator_util_invalid_port_number() {
     catch_panic();
     let file_path: String = "./tests/generator_tests/utils/invalid_port_number.txt".to_string();
-    generate_and_run_sim(file_path).await;
+    generate_and_run_sim(file_path, None).await;
 }
