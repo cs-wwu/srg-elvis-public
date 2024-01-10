@@ -2,6 +2,7 @@
 
 mod basic;
 pub use basic::basic;
+pub use basic::basic_forward;
 
 mod basic_server_client;
 pub use basic_server_client::basic_server_client;

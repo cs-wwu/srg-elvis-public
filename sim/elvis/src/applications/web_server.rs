@@ -81,7 +81,7 @@ impl WebServer {
 impl Protocol for WebServer {
     async fn start(
         &self,
-        shutdown: Shutdown,
+        _shutdown: Shutdown,
         initialized: Arc<Barrier>,
         machine: Arc<Machine>,
     ) -> Result<(), StartError> {
@@ -102,10 +102,9 @@ impl Protocol for WebServer {
                 Ok(stream) => stream,
                 Err(SocketError::Shutdown) => {
                     // This prevents the program from panicking on shut down
-                    shutdown.shut_down();
                     return Ok(());
                 }
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
             let connection = ServerConnection::new(
                 image_size.clone(),
@@ -168,7 +167,7 @@ impl ServerConnection {
             let request_bytes: Vec<u8> = match stream.read().await {
                 Ok(request_bytes) => request_bytes,
                 Err(SocketError::Shutdown) => return, // This prevents the program from panicking on shut down
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
             let request_str = str::from_utf8(&request_bytes).unwrap();
 

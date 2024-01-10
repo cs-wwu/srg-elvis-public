@@ -103,7 +103,7 @@ impl TcpSession {
                     segment.text.header(segment.header.serialize());
                     match downstream.send(segment.text, machine.clone()) {
                         Ok(_) => {}
-                        Err(e) => eprintln!("Send error: {}", e),
+                        Err(e) => tracing::error!("Send error: {}", e),
                     }
                 }
 
@@ -113,7 +113,7 @@ impl TcpSession {
                     control.insert(endpoints);
                     match upstream.demux(received, me.clone(), control, machine.clone()) {
                         Ok(_) => {}
-                        Err(e) => eprintln!("Demux error: {}", e),
+                        Err(e) => tracing::error!("Demux error: {}", e),
                     }
                 }
             }
@@ -127,7 +127,7 @@ impl TcpSession {
         tokio::spawn(async move {
             match send.send(Instruction::Incoming(segment)).await {
                 Ok(_) => {}
-                Err(e) => eprintln!("TCP receive error: {}", e),
+                Err(e) => tracing::error!("TCP receive error: {}", e),
             }
         });
     }
@@ -157,7 +157,7 @@ impl Session for TcpSession {
         tokio::spawn(async move {
             match send.send(Instruction::Outgoing(message)).await {
                 Ok(_) => {}
-                Err(e) => eprintln!("TCP send error: {}", e),
+                Err(e) => tracing::error!("TCP send error: {}", e),
             }
         });
         Ok(())

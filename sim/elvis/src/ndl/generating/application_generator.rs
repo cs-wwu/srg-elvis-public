@@ -1,15 +1,14 @@
 //! Generates applications from parsing data for machines
 //! Future applications can go here for easy import to the machine generator
+use core::panic;
 use std::collections::HashMap;
 
-use crate::applications::{Forward, PingPong};
+use crate::applications::capture::CapFactory;
+use crate::applications::{Capture, Forward, PingPong, SendMessage};
 use crate::ip_generator::IpGenerator;
-use crate::ndl::generating::generator_utils::{ip_available, ip_or_name};
+use crate::ndl::generating::generator_utils::*;
+use crate::ndl::generating::generator_utils::{ip_string_to_ip, string_to_port};
 use crate::ndl::parsing::parsing_data::*;
-use crate::{
-    applications::{Capture, SendMessage},
-    ndl::generating::generator_utils::{ip_string_to_ip, string_to_port},
-};
 use elvis_core::protocols::arp::subnetting::{Ipv4Mask, SubnetInfo};
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
 use elvis_core::protocols::Arp;
@@ -82,9 +81,11 @@ pub fn send_message_builder(
 /// Builds the [Capture] application for a machine
 pub fn capture_builder(
     app: &Application,
+    _name_to_ip: &HashMap<String, Ipv4Address>,
     ip_table: &mut IpTable<Recipient>,
     ip_gen: &mut HashMap<String, IpGenerator>,
     cur_net_ids: &[String],
+    factories: &HashMap<String, CapFactory>,
 ) -> Capture {
     assert!(
         app.options.contains_key("port"),
@@ -94,28 +95,60 @@ pub fn capture_builder(
         app.options.contains_key("ip"),
         "Capture application doesn't contain ip."
     );
-    assert!(
-        app.options.contains_key("message_count"),
-        "Capture application doesn't contain message_count."
-    );
+    //If a capture type is specified, get the requiremnt
+    //If no type is specified the default is count=1
+    let mut message: Option<String> = None;
+    let mut count: u32 = 1;
+    match app.options.get("type").map(|s| &**s) {
+        Some("count") => {
+            assert!(
+                app.options.contains_key("message_count"),
+                "Capture application doesn't contain message_count."
+            );
+            count = app
+                .options
+                .get("message_count")
+                .unwrap()
+                .parse()
+                .expect("Invalid u32 found in Capture for message_count");
+            assert!(count >= 1, "message_count must be greater than 0")
+        }
+        Some("message") => {
+            assert!(
+                app.options.contains_key("message"),
+                "Capture application doesn't contain message to match"
+            );
+            message = Some(app.options.get("message").unwrap().to_string());
+        }
+        Some(err) => panic!("Invalid parameter for argument type, got {err}"),
+        None => (),
+    };
+
     let ip = ip_string_to_ip(
         app.options.get("ip").unwrap().to_string(),
         "capture declaration",
     );
     let port = string_to_port(app.options.get("port").unwrap().to_string());
-    let message_count = app
-        .options
-        .get("message_count")
-        .unwrap()
-        .parse::<u32>()
-        .expect("Invalid u32 found in Capture for message count");
-
     // Check if IP is available
-    let ip = ip_available(ip.into(), ip_gen, cur_net_ids).expect("capture IP unavailable");
-
+    let ip =
+        ip_available(ip.into(), ip_gen, cur_net_ids).expect("Requested IP for capture unavailable");
     ip_table.add_direct(ip, Recipient::new(0, None));
 
-    Capture::new(Endpoint { address: ip, port }, message_count)
+    if let Some(factory_key) = app.options.get("factory") {
+        if let Some(my_factory) = factories.get(factory_key) {
+            if let Some(message) = message {
+                my_factory.build_msg(Endpoint { address: ip, port }, Message::new(message))
+            } else {
+                my_factory.build(Endpoint { address: ip, port }, count)
+            }
+        } else {
+            panic!("Specified factory doesn't exist: {}", factory_key);
+        }
+    } else if let Some(msg) = message {
+        Capture::new_msg(Endpoint { address: ip, port }, Message::new(msg))
+    } else {
+        Capture::new(Endpoint { address: ip, port }, count)
+    }
 }
 
 /// Builds the [Forward] application for a machine

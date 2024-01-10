@@ -37,7 +37,7 @@ pub async fn initialize_from_arguments() {
         if !file_path.ends_with(".ndl") {
             file_path += ".ndl";
         }
-        generate_and_run_sim(file_path).await;
+        generate_and_run_sim(file_path, None).await;
     }
 }
 

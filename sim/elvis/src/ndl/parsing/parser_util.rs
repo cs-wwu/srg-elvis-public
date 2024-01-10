@@ -133,7 +133,6 @@ fn get_type(input: &str) -> Res<&str, DecType> {
 // TODO: add behavior to ignore spaces in here?
 fn section(input: &str) -> Res<&str, &str> {
     context("section", delimited(char('['), take_until("]"), char(']')))(input)
-        .map(|(next_input, res)| (next_input, res))
 }
 
 /// Breaks down the arguments of our input for the [general_parser].
@@ -151,7 +150,6 @@ fn arguments(input: &str) -> Res<&str, Vec<(&str, &str)>> {
             ),
         )),
     )(input)
-    .map(|(next_input, res)| (next_input, res))
 }
 
 fn check_space_or_newline(chr: char) -> bool {
