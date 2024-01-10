@@ -2,14 +2,14 @@
 //! The application communicates with an actual port on the real-world machine running ELVIS
 //! and sends and receives messages over this port via TCP communication with a command terminal.
 
-use elvis_core::protocols::{Endpoint, Endpoints, Udp};
-use elvis_core::protocols::dhcp_client::DhcpClient;
-use elvis_core::{*, protocols::ipv4::Ipv4Address};
 use elvis_core::machine::*;
-use elvis_core::session::Session;
 use elvis_core::protocol::*;
-use tokio::sync::Barrier;
+use elvis_core::protocols::dhcp_client::DhcpClient;
+use elvis_core::protocols::{Endpoint, Endpoints, Udp};
+use elvis_core::session::Session;
+use elvis_core::{protocols::ipv4::Ipv4Address, *};
 use std::sync::{Arc, RwLock};
+use tokio::sync::Barrier;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::TcpListener,
@@ -29,10 +29,7 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(
-        local: Endpoint,
-        assign_port: String
-    ) -> Terminal {
+    pub fn new(local: Endpoint, assign_port: String) -> Terminal {
         Self {
             endpoint: local,
             msg_queue: RwLock::new(Vec::new()),
@@ -42,13 +39,9 @@ impl Terminal {
         }
     }
 
-    pub fn parse(
-        string: String,
-    ) -> Result<TerminalCommand, TerminalError> {
+    pub fn parse(string: String) -> Result<TerminalCommand, TerminalError> {
         // Split command by spaces
-        let args: Vec<&str> = string
-            .split(" ")
-            .collect();
+        let args: Vec<&str> = string.split(" ").collect();
 
         // Determine if command starts with "send" or "fetch"
         match args[0].trim().as_ref() {
@@ -60,16 +53,12 @@ impl Terminal {
                     Err(TerminalError::TERROR)
                 } else {
                     // Parse args[1] into Ipv4Address and port
-                    let adr_and_port: Vec<&str> = args[1]
-                        .split(":")
-                        .collect();
+                    let adr_and_port: Vec<&str> = args[1].split(":").collect();
 
                     println!("adr: {}, port: {}", adr_and_port[0], adr_and_port[1]);
 
                     // Split Ipv4 parts
-                    let ip: Vec<&str> = adr_and_port[0]
-                        .split(".")
-                        .collect();
+                    let ip: Vec<&str> = adr_and_port[0].split(".").collect();
                     // Convert Ipv4 parts to u8
                     let ip_u8: [u8; 4] = [
                         ip[0].parse().unwrap(),
@@ -85,9 +74,13 @@ impl Terminal {
                     // Parse args[2] into a Message
                     let message: Message = Message::new(args[2].trim());
 
-                    Ok(TerminalCommand::new(TerminalCommandType::SEND, Some(endpoint), Some(message)))
+                    Ok(TerminalCommand::new(
+                        TerminalCommandType::SEND,
+                        Some(endpoint),
+                        Some(message),
+                    ))
                 }
-            },
+            }
 
             "fetch" => {
                 if args.len() > 1 {
@@ -96,7 +89,7 @@ impl Terminal {
                 } else {
                     Ok(TerminalCommand::new(TerminalCommandType::FETCH, None, None))
                 }
-            },
+            }
 
             _ => {
                 Terminal::usage();
@@ -105,12 +98,7 @@ impl Terminal {
         }
     }
 
-    async fn send(
-        &self,
-        endpoint: Endpoint,
-        message: Message,
-        machine: Arc<Machine>,
-    ) {
+    async fn send(&self, endpoint: Endpoint, message: Message, machine: Arc<Machine>) {
         println!("SENDING");
 
         let local_address = match machine.protocol::<DhcpClient>() {
@@ -138,9 +126,7 @@ impl Terminal {
             .expect("Message failed to send");
     }
 
-    async fn fetch(
-        &self,
-    ) {
+    async fn fetch(&self) {
         println!("FETCHING");
         // Print all messages in queue to user terminal
     }
@@ -154,9 +140,7 @@ impl Terminal {
     }
 
     /// Returns and removes the first element in the msg_queue
-    fn qpop(
-        &self,
-    ) -> Option<String> {
+    fn qpop(&self) -> Option<String> {
         // let mut q: Vec<String> = self.msg_queue
         //     .write()
         //     .unwrap();
@@ -172,10 +156,7 @@ impl Terminal {
     }
 
     /// Adds an element to the end of the msg_queue
-    fn qpush(
-        &self,
-        _msg: String,
-    ) {
+    fn qpush(&self, _msg: String) {
         // let mut q: Vec<String> = self.msg_queue
         //     .write()
         //     .unwrap();
@@ -204,16 +185,11 @@ impl Protocol for Terminal {
 
         // tokio::spawn(async move {
         // println!("Spawn");
-        let listener = TcpListener::bind(p)
-            .await
-            .unwrap();
+        let listener = TcpListener::bind(p).await.unwrap();
 
         println!("Begin run() on port {}", listener.local_addr().unwrap());
 
-        let (mut socket, _addr) = listener
-            .accept()
-            .await
-            .unwrap();
+        let (mut socket, _addr) = listener.accept().await.unwrap();
 
         let (read, mut write) = socket.split();
 
@@ -221,9 +197,7 @@ impl Protocol for Terminal {
         let mut line = String::new();
 
         loop {
-            let bytes_read = reader.read_line(&mut line)
-                .await
-                .unwrap();
+            let bytes_read = reader.read_line(&mut line).await.unwrap();
 
             if bytes_read == 0 {
                 break;
@@ -232,25 +206,45 @@ impl Protocol for Terminal {
             let command: TerminalCommand = Terminal::parse(String::from(&line)).unwrap();
             match command.cmd_type {
                 TerminalCommandType::SEND => {
-                    self.send(
-                        command.address.unwrap(),
-                        command.message.unwrap(),
-                        // machine.clone(),
-                    ).await;
-                },
+                    let endpoint = command.address.unwrap();
+                    let message = command.message.unwrap(); 
+                    println!("SENDING");
+
+                    let local_address = match machine.protocol::<DhcpClient>() {
+                        Some(dhcp) => dhcp.ip_address().await,
+                        None => self.endpoint.address,
+                    };
+
+                    let endpoints = Endpoints {
+                        local: Endpoint {
+                            address: local_address,
+                            port: 0,
+                        },
+                        remote: endpoint,
+                    };
+
+                    let session = machine
+                        .protocol::<Udp>()
+                        .unwrap()
+                        .open_for_sending(self.id(), endpoints, machine.clone())
+                        .await
+                        .unwrap();
+
+                    session
+                        .send(message, machine.clone())
+                        .expect("Message failed to send");
+                }
 
                 TerminalCommandType::FETCH => {
                     self.fetch().await;
-                },
+                }
             }
 
-            write.write_all(line.as_bytes())
-                .await
-                .unwrap();
+            write.write_all(line.as_bytes()).await.unwrap();
 
             line.clear();
         }
-        
+
         shutdown.shut_down();
 
         Ok(())
@@ -266,7 +260,6 @@ impl Protocol for Terminal {
         let msg_as_string = String::from_utf8(message.to_vec()).unwrap();
 
         println!("{}", msg_as_string);
-
 
         Ok(())
     }
