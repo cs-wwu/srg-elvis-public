@@ -113,8 +113,6 @@ impl Terminal {
     ) {
         println!("SENDING");
 
-        let transport = self.transport;
-
         let local_address = match machine.protocol::<DhcpClient>() {
             Some(dhcp) => dhcp.ip_address().await,
             None => self.endpoint.address,
@@ -128,13 +126,15 @@ impl Terminal {
             remote: endpoint,
         };
 
-        let session = transport
-            .open_for_sending(self.id(), endpoints, protocols.clone())
+        let session = machine
+            .protocol::<Udp>()
+            .unwrap()
+            .open_for_sending(self.id(), endpoints, machine.clone())
             .await
             .unwrap();
 
         session
-            .send(message, protocols.clone())
+            .send(message, machine.clone())
             .expect("Message failed to send");
     }
 
@@ -235,7 +235,7 @@ impl Protocol for Terminal {
                     self.send(
                         command.address.unwrap(),
                         command.message.unwrap(),
-                        machine.clone(),
+                        // machine.clone(),
                     ).await;
                 },
 
