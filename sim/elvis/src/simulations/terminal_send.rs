@@ -1,9 +1,9 @@
 use crate::applications::{Capture, Terminal};
 use elvis_core::{
     message::Message,
-    new_machine,
+    new_machine_arc,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient},
+        ipv4::{Ipv4, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
@@ -28,14 +28,14 @@ pub async fn terminal_send() {
         .collect();
     
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             // SendMessage::new(vec![message.clone()], endpoint),
             Terminal::new(local, String::from("localhost:0")),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
@@ -43,14 +43,13 @@ pub async fn terminal_send() {
         ],
     ];
 
-    let status = run_internet(&machines).await;
+    let status = run_internet(&machines, None).await;
     assert_eq!(status, ExitStatus::Exited);
 
     let received = machines
         .into_iter()
         .nth(1)
         .unwrap()
-        .into_inner()
         .protocol::<Capture>()
         .unwrap()
         .message();

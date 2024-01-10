@@ -25,6 +25,7 @@ pub struct Terminal {
     msg_queue: RwLock<Vec<String>>,
     /// The real-world port to communicate with the physical machine's terminal over.
     port: String,
+    transport: Transport,
 }
 
 impl Terminal {
@@ -37,6 +38,7 @@ impl Terminal {
             msg_queue: RwLock::new(Vec::new()),
             port: assign_port,
             // local_ip: Ipv4Address::LOCALHOST,
+            transport: Transport::Udp,
         }
     }
 
@@ -107,11 +109,13 @@ impl Terminal {
         &self,
         endpoint: Endpoint,
         message: Message,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) {
         println!("SENDING");
 
-        let local_address = match protocols.protocol::<DhcpClient>() {
+        let transport = self.transport;
+
+        let local_address = match machine.protocol::<DhcpClient>() {
             Some(dhcp) => dhcp.ip_address().await,
             None => self.endpoint.address,
         };
@@ -124,9 +128,7 @@ impl Terminal {
             remote: endpoint,
         };
 
-        let session = protocols
-            .protocol::<Udp>()
-            .unwrap()
+        let session = transport
             .open_for_sending(self.id(), endpoints, protocols.clone())
             .await
             .unwrap();
@@ -188,14 +190,14 @@ impl Protocol for Terminal {
         &self,
         shutdown: Shutdown,
         _initialize: Arc<Barrier>,
-        protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), StartError> {
         println!("Start");
 
-        protocols
+        machine
             .protocol::<Udp>()
             .unwrap()
-            .listen(self.id(), self.endpoint, protocols.clone())
+            .listen(self.id(), self.endpoint, machine.clone())
             .unwrap();
 
         let p = self.port.clone();
@@ -233,7 +235,7 @@ impl Protocol for Terminal {
                     self.send(
                         command.address.unwrap(),
                         command.message.unwrap(),
-                        protocols.clone()
+                        machine.clone(),
                     ).await;
                 },
 

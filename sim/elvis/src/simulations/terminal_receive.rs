@@ -1,9 +1,8 @@
 use crate::applications::Terminal;
 use elvis_core::{
-    message::Message,
-    new_machine,
+    new_machine_arc,
     protocols::{
-        ipv4::{Ipv4, Ipv4Address, Recipient},
+        ipv4::{Ipv4, Recipient},
         udp::Udp,
         Endpoint, Pci,
     },
@@ -27,13 +26,13 @@ pub async fn terminal_receive() {
         .collect();
 
     let machines = vec![
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(ip_table.clone()),
             Pci::new([network.clone()]),
             Terminal::new(local, String::from("localhost:0")),
         ],
-        new_machine![
+        new_machine_arc![
             Udp::new(),
             Ipv4::new(Default::default()),
             Pci::new([network.clone()]),
@@ -41,7 +40,7 @@ pub async fn terminal_receive() {
         ],
     ];
 
-    let status = run_internet(&machines).await;
+    let status = run_internet(&machines, None).await;
     assert_eq!(status, ExitStatus::Exited);
 }
 
