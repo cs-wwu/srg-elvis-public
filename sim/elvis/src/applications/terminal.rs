@@ -151,6 +151,7 @@ impl Terminal {
         // match popped {
         //     Some(x) => popped,
         //     None    => println!("No messages in queue!"),
+        let transport = self.transport;
         // }
         None
     }
@@ -255,7 +256,7 @@ impl Protocol for Terminal {
         message: Message,
         _caller: Arc<dyn Session>,
         _control: Control,
-        _protocols: ProtocolMap,
+        machine: Arc<Machine>,
     ) -> Result<(), DemuxError> {
         let msg_as_string = String::from_utf8(message.to_vec()).unwrap();
 
