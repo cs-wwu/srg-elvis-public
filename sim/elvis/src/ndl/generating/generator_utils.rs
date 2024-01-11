@@ -79,7 +79,7 @@ pub fn ip_available(
                 .is_available(Ipv4Net::new_short(target_ip, 32))
         })
     {
-        return Err("IP not available".to_string());
+        return Err("IP already in use".to_string());
     }
     //If local ip was found then block it in all other ip generators
     for gen in ip_gen.values_mut() {

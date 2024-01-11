@@ -43,7 +43,7 @@ pub async fn server_user() {
     ];
 
     let status = run_internet_with_timeout(&machines, Duration::from_secs(3)).await;
-    assert_eq!(status, ExitStatus::Exited);
+    assert_eq!(status, ExitStatus::TimedOut);
 
     let mut machines_iter = machines.into_iter();
     let _server = machines_iter.next().unwrap();
@@ -54,8 +54,12 @@ pub async fn server_user() {
     let num_pages_recvd = *lock.num_pages_recvd.read().unwrap();
     let num_imgs_recvd = *lock.num_imgs_recvd.read().unwrap();
 
-    assert!(num_pages_recvd > 20);
-    assert!(num_imgs_recvd > 20);
+    assert!(
+        num_pages_recvd > 20,
+        "Pages received: {:?}",
+        num_pages_recvd
+    );
+    assert!(num_imgs_recvd > 20, "Images received: {:?}", num_imgs_recvd);
 }
 
 #[cfg(test)]

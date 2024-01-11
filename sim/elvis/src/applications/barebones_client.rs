@@ -55,7 +55,7 @@ impl Protocol for BareBonesClient {
                 Err(SocketError::Shutdown) => {
                     break Ok(());
                 }
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
 
             // Add 1 to each number in the vec

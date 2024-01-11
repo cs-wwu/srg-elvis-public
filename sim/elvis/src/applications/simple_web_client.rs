@@ -59,7 +59,7 @@ impl Protocol for SimpleWebClient {
             let received_msg: Vec<u8> = match stream.read().await {
                 Ok(received_msg) => received_msg,
                 Err(SocketError::Shutdown) => return Ok(()),
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
 
             // Compare the recieved message string and the expected message string
@@ -73,7 +73,7 @@ impl Protocol for SimpleWebClient {
             let received_img_bytes: Vec<u8> = match stream.read().await {
                 Ok(received_img_bytes) => received_img_bytes,
                 Err(SocketError::Shutdown) => return Ok(()),
-                Err(_) => panic!(),
+                Err(e) => panic!("{:?}", e),
             };
 
             // Compare the recieved message string and the expected message string

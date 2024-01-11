@@ -2,6 +2,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::applications::capture::CapFactory;
 use crate::ndl::generating::{application_generator::*, generator_utils::ip_string_to_ip};
 use crate::ndl::parsing::parsing_data::*;
 use elvis_core::protocols::ipv4::{Ipv4Address, Recipient};
@@ -21,6 +22,7 @@ pub fn machine_generator(
     // Focusing on Interfaces, protocols, and applications
     let mut name_to_ip: HashMap<String, Ipv4Address> = HashMap::new();
     let mut ip_gen = networks.ip_hash.clone();
+    let mut factories: HashMap<String, CapFactory> = HashMap::new();
 
     for machine in machines.iter() {
         let mut cur_name: String = String::new();
@@ -59,49 +61,57 @@ pub fn machine_generator(
                     cur_name = cur_name + "-" + &temp_machine_count.to_string();
                 }
             }
-            // Create a name to ip mapping if a name has been provided
-            if !cur_name.is_empty() {
-                for app in &machine.interfaces.applications {
+
+            for app in &machine.interfaces.applications {
+                assert!(
+                    app.options.contains_key("name"),
+                    "Machine application does not contain a name"
+                );
+                let app_name = app.options.get("name").unwrap().as_str();
+
+                //create a name to ip mapping for every application with a local ip
+                if app_name == "capture"
+                    || app_name == "forward"
+                    || app_name == "ping_pong"
+                    || app_name == "send_message"
+                {
                     assert!(
-                        app.options.contains_key("name"),
-                        "Machine application does not contain a name"
+                        app.options.contains_key("ip") || app_name == "send_message",
+                        "{app_name} application doesn't contain ip."
                     );
-                    let app_name = app.options.get("name").unwrap().as_str();
-                    if app_name == "capture"
-                        || app_name == "forward"
-                        || app_name == "ping_pong"
-                        || app_name == "send_message"
-                    {
-                        assert!(
-                            app.options.contains_key("ip") || app_name == "send_message",
-                            "{app_name} application doesn't contain ip."
-                        );
 
-                        // This check makes sure counts do not appear on recieving machines.
-                        // Can be removed when ELVIS allows for this.
-                        assert!(
-                            machine_count == 1 || app_name == "send_message",
-                            "Machine {cur_name} contains count and {app_name} application"
-                        );
+                    // This check makes sure counts do not appear on recieving machines.
+                    // Can be removed when ELVIS allows for this.
+                    assert!(
+                        machine_count == 1 || app_name == "send_message",
+                        "Machine {cur_name} contains count and {app_name} application"
+                    );
 
-                        // Get the local ip of the application
-                        let ip = ip_string_to_ip(
-                            if app_name == "send_message" {
-                                app.options
-                                    .get("ip")
-                                    .map_or("127.0.0.1".to_string(), |ip_str| ip_str.to_string())
-                            } else {
-                                app.options
-                                    .get("ip")
-                                    .unwrap_or_else(|| {
-                                        panic!("{app_name} application doesn't contain ip.")
-                                    })
-                                    .to_string()
-                            },
-                            "Application IP",
-                        );
-
-                        name_to_ip.insert(cur_name.clone(), ip.into());
+                    // Get the local ip of the application
+                    let ip = ip_string_to_ip(
+                        if app_name == "send_message" {
+                            app.options
+                                .get("ip")
+                                .map_or("127.0.0.1".to_string(), |ip_str| ip_str.to_string())
+                        } else {
+                            app.options
+                                .get("ip")
+                                .unwrap_or_else(|| {
+                                    panic!("{app_name} application doesn't contain ip.")
+                                })
+                                .to_string()
+                        },
+                        "Application IP",
+                    );
+                    name_to_ip.insert(cur_name.clone(), ip.into());
+                }
+                //check whether a capture is declaring a factory that hasnt been found yet
+                if app_name == "capture" {
+                    if let Some(factory_name) = app.options.get("factory") {
+                        if !factories.contains_key(factory_name) {
+                            let factory = CapFactory::new();
+                            factories.insert(factory_name.to_string(), factory);
+                        }
                     }
                 }
             }
@@ -111,6 +121,7 @@ pub fn machine_generator(
     for machine in &machines {
         let mut machine_count = 1;
         let mut _cur_machine_name: String;
+        let mut protocol_addition = false;
         if machine.options.is_some() {
             // Parse machine parameters if there are any
             for option in machine.options.as_ref().unwrap() {
@@ -128,7 +139,14 @@ pub fn machine_generator(
                     "name" => {
                         _cur_machine_name = option.1.clone();
                     }
-
+                    "auto-protocol" => {
+                        protocol_addition = match option.1.clone().as_str() {
+                            "true" => true,
+                            "false" => false,
+                            _ => panic!("Invalid auto-protocol argument in machine. Expected bool and found: {}",
+                                option.1)
+                        };
+                    }
                     _ => {}
                 }
             }
@@ -182,9 +200,11 @@ pub fn machine_generator(
                     "capture" => {
                         new_machine = new_machine.with(capture_builder(
                             app,
+                            &name_to_ip,
                             &mut ip_table,
                             &mut ip_gen,
                             &net_ids,
+                            &factories,
                         ));
                     }
 
@@ -214,9 +234,9 @@ pub fn machine_generator(
                 }
             }
 
-            // List of required protocols for each machine. Since they are required
-            // a default version of the protocal can be automatically added to the machines
-            // without needing user input in NDL files. If the user prefers to specify
+            // List of default protocols for many machines.
+            // A default version of the protocal can be automatically added to the machines
+            // upon enabling auto-protocol machines in NDL files. If the user prefers to specify
             // them that is also supported.
             let required_protocols: HashSet<&str> = ["IPv4", "ARP"].iter().copied().collect();
             let mut encountered_protocols: HashSet<&str> = HashSet::new();
@@ -244,14 +264,16 @@ pub fn machine_generator(
                 }
             }
 
-            // Check for missing required protocols and add them if necessary
-            for required_protocol in &required_protocols {
-                if !encountered_protocols.contains(required_protocol) {
-                    match *required_protocol {
-                        "IPv4" => new_machine = new_machine.with(Ipv4::new(ip_table.clone())),
-                        "ARP" => new_machine = new_machine.with(Arp::new()),
-                        _ => {
-                            panic!("Missing required protocol: {}", required_protocol);
+            // Check for missing required protocols and add them if specified by user
+            if protocol_addition {
+                for required_protocol in &required_protocols {
+                    if !encountered_protocols.contains(required_protocol) {
+                        match *required_protocol {
+                            "IPv4" => new_machine = new_machine.with(Ipv4::new(ip_table.clone())),
+                            "ARP" => new_machine = new_machine.with(Arp::new()),
+                            _ => {
+                                panic!("Missing required protocol: {}", required_protocol);
+                            }
                         }
                     }
                 }
