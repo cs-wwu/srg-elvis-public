@@ -14,7 +14,7 @@ Users have can write Elvis simulations either by using the Rust API or with the 
 ## Contributing
 [Install Rust](https://www.rust-lang.org/tools/install), then
 ```
-git clone github.com/cs-wwu/srg-elvis
+git clone github.com/cs-wwu/srg-elvis-public
 cd srg-elvis/sim
 cargo run
 ```
